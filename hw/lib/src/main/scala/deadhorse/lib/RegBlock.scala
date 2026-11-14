@@ -69,15 +69,21 @@ class RegBlock(json: String) extends RawModule {
     val accept = bus.req_valid && ready
     val hit = description.offsets.map(o => o -> (bus.req_addr === o.U)).toMap
     val mapped = hit.values.foldLeft(false.B)(_ || _)
-    val partialCommand = description.fields.filter(_.access == "wo").map { f =>
-      val enabled = strobes & f.byteMask.U(4.W)
-      hit(f.offset) && enabled.orR && enabled =/= f.byteMask.U
-    }.foldLeft(false.B)(_ || _)
+    val partialAt = description.offsets.map { offset =>
+      offset -> description.fields.filter(f => f.offset == offset && f.access == "wo").map { f =>
+        val enabled = strobes & f.byteMask.U(4.W)
+        enabled.orR && enabled =/= f.byteMask.U
+      }.foldLeft(false.B)(_ || _)
+    }.toMap
+    val partialCommand = description.offsets.map(o => hit(o) && partialAt(o))
+      .foldLeft(false.B)(_ || _)
     val error = !mapped || bus.req_addr(1, 0).orR || (bus.req_write && partialCommand)
-    val write = accept && bus.req_write && !error
+    val write = accept && bus.req_write
     val writeMask = Cat((3 to 0 by -1).map(i => Fill(8, strobes(i))))
     val readFields = description.fields.map { f =>
-      val selected = write && hit(f.offset)
+      // Full decode implies mapped/aligned. Keep command-error qualification
+      // local so the global response-error reduction does not drive storage.
+      val selected = write && hit(f.offset) && !partialAt(f.offset)
       val data = bus.req_wdata(f.msb, f.lsb)
       val mask = writeMask(f.msb, f.lsb)
       val stored = if (f.stored) Some(RegInit(initialValue(f).U(f.width.W))) else None
@@ -112,7 +118,9 @@ class RegBlock(json: String) extends RawModule {
     when(accept) {
       valid := true.B
       ready := false.B
-      response := Mux(error || bus.req_write, 0.U, readResult(readData))
+      // The one-hot read mux already returns zero for unmapped/misaligned
+      // addresses. Command errors only occur on writes, which return zero.
+      response := Mux(bus.req_write, 0.U, readResult(readData))
       responseError := error
     }
   }

@@ -2,6 +2,22 @@
 
 Shared Chisel bundles, bus interfaces and register-block support.
 
+## RegBlock timing structure
+
+`RegBlock` keeps the register-map bus, asynchronous active-low reset and
+hardware priority contract in [the register-map specification](../../docs/spec/regmap-format.md).
+Each write is qualified by its own full address hit and the partial-command
+check for fields at that address. A full hit already implies a mapped,
+word-aligned address. A partial command suppresses all software updates at
+that address; hardware updates continue. Response error generation remains
+global. The one-hot read mux already returns zero on a missing full address
+hit, so read data does not traverse the response-error reduction either.
+This avoids routing a global mapped-address reduction into every
+storage enable without adding latency, changing ports or changing clocks.
+The existing independent-model simulations and formal properties check the
+same externally visible behavior. GF180 measurements are recorded in the
+[timing ledger](../../docs/ledger/timing.md).
+
 ## Hello build fixture
 
 `deadhorse.lib.Hello` is the T07 clocked build/verification fixture. Ports:
@@ -13,9 +29,10 @@ does not implement a reset synchronizer or a CDC. It uses the supplied single
 clock, with one edge of latency and no combinational input-to-output path.
 The caller must assert reset before relying on the output.
 
-Area is not measured: estimated storage is eight resettable flip-flops, plus
-an eight-bit incrementer. GF180 area/timing qualification belongs to T09; this
-build fixture makes no timing claim. There are no software-visible registers.
+T09 measured 897.8368 um2 mapped cell area and a 3.880023 ns worst path at the
+GF180 slow corner; the [timing ledger](../../docs/ledger/timing.md) records the
+command, base commit and assumptions. This is pre-layout screening, not
+physical signoff. There are no software-visible registers.
 
 Use `python3 tools/sbt.py "hw/test"` inside T08 for ChiselSim/Verilator tests.
 The independent model enumerates the cyclic byte alphabet. Tests check every

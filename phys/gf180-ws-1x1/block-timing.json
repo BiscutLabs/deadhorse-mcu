@@ -1,0 +1,12 @@
+{
+  "library": "gf180mcu_fd_sc_mcu7t5v0",
+  "corner": "ss_125C_3v00",
+  "sha256": "5d2f37ba6f43e33aeba26dc1da55c96394a862eeec4148043f1d48bdf65ccea6",
+  "period_ns": 41.6,
+  "budget_fraction": 0.6,
+  "input_delay_ns": 0.0,
+  "output_delay_ns": 0.0,
+  "input_transition_ns": 0.5,
+  "output_load_pf": 0.05,
+  "provenance": "Period and fraction: plan 14 assumptions pending G1. IO delays are zero to isolate block delay; slew/load are assumed characterization conditions. Ideal clock, no parasitics or wire delay. Library hash: T06 RISCay physical/gf180/pdk-lock.json, open_pdks 40cee970d8a9b7eaea35a34fe7d6068f05721f0a. Pre-layout screening only, not routed signoff."
+}

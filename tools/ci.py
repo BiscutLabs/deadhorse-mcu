@@ -18,6 +18,7 @@ def main():
                     ['iverilog', '-g2012', '-o', 'build/emit/hello/a.out', 'build/emit/hello/Hello.sv'],
                     [sys.executable, 'tools/formal_smoke.py', '--output', 'build/t07/formal'],
                     [sys.executable, 'hw/lib/formal/regblock_proof.py'],
+                    [sys.executable, 'tools/timing/check.py', '--self-test', '--output', 'build/t09/ci'],
                     ['bash', 'sw/flight/loop-measurement/check.sh']):
         result = subprocess.run(command, cwd=ROOT)
         if result.returncode: return result.returncode
