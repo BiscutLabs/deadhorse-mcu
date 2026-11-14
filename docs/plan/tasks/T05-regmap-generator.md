@@ -18,15 +18,15 @@ prevents the RTL, firmware and documents from disagreeing.
 - [../../../AGENTS.md](../../../AGENTS.md)
 - [../../spec/regmap-format.md](../../spec/regmap-format.md), all of it. It
   is the specification. Where this brief and the spec differ, stop and ask.
-- [../../spec/actuator-block.md](../../spec/actuator-block.md), the
-  "Registers" table. It is your first real input.
+- [../../spec/actuator-block.md](../../spec/actuator-block.md): architectural
+  behavior only; its ABI is not frozen. Use a format-coverage fixture here.
 - `hw/lib/src/main/scala/deadhorse/lib/Hello.scala` and its spec and
   emitter from T07, for the house style and the simulation harness.
 
 ## Inputs
 
 - T01 and T07 complete, with the Chisel toolchain environment loaded.
-- Python 3.10 or later, `pip install pyyaml`, Icarus Verilog.
+- T08 pinned Linux image with Python/PyYAML and Icarus; no ad hoc installs.
 
 ## Split of work
 
@@ -40,8 +40,8 @@ prevents the RTL, firmware and documents from disagreeing.
 
 New files under `hw/regmap/`, `hw/lib/src/main/scala/deadhorse/lib/`
 (`RegBlock.scala`, `RegBus.scala`), `hw/lib/src/test/scala/deadhorse/lib/`
-(`RegBlockSpec.scala`), `hw/ip/actuator/` (`actuator.regmap.yaml`,
-`README.md`, `src/main/scala/.gitkeep`), `tools/ci.py`, and your report.
+(`RegBlockSpec.scala`), `hw/lib/formal/`, format fixtures under `hw/regmap/fixtures/`,
+`tools/ci.py`, and your report. Do not create an actuator ABI in this task.
 
 ## Steps
 
@@ -71,14 +71,17 @@ New files under `hw/regmap/`, `hw/lib/src/main/scala/deadhorse/lib/`
    methods to drive the hardware-side inputs and read the outputs. It
    implements the spec's behaviour rules independently. Do not port the
    Chisel logic into it or the reverse.
-6. **Actuator description** `hw/ip/actuator/actuator.regmap.yaml`
-   transcribed from the actuator spec's register table. The `mode`, `value`
-   and `fs_value` registers are arrays of nine.
+6. **Format fixture** `hw/regmap/fixtures/coverage/coverage.regmap.yaml`: use every
+   supported access type and a nine-element `value` array starting at 0x80
+   (element 8 at 0xA0), block name `coverage`. This is test data, not an
+   actuator register contract. Add generated-register formal properties and
+   negative controls from the formal plan alongside the register hardware.
+
 7. **Tests.**
    - `hw/regmap/test_regmap.py` (`unittest`): one test per error name, each
      with a minimal description that triggers only that error; header
-     contents for the actuator description.
-   - `RegBlockSpec.scala`: for the actuator description and for a second
+     contents for the coverage fixture.
+   - `RegBlockSpec.scala`: for the coverage fixture and for a second
      description you write that uses every access type, emit SystemVerilog
      for `RegBlock`, then drive at least 2,000 random bus requests and random
      hardware-side inputs and compare every response and every hardware
@@ -90,15 +93,15 @@ New files under `hw/regmap/`, `hw/lib/src/main/scala/deadhorse/lib/`
      swapped in the model) and assert the spec fails. A test that cannot
      fail proves nothing.
 8. **CI.** `tools/ci.py` always runs `test_regmap.py`; the Chisel spec runs
-   with the rest of `hw/test` when the toolchain is configured.
+   with the rest of `hw/test` in the required pinned environment; missing tools fail.
 
 ## Acceptance checks
 
 ```sh
 python3 -m unittest hw/regmap/test_regmap.py -v
-python3 hw/regmap/regmap.py hw/ip/actuator/actuator.regmap.yaml --out build/regmap/actuator
-ls build/regmap/actuator      # actuator_regs.json .h .md
-grep "DH_ACTUATOR_VALUE8_OFFSET" build/regmap/actuator/actuator_regs.h       # value 0xA0
+python3 hw/regmap/regmap.py hw/regmap/fixtures/coverage/coverage.regmap.yaml --out build/regmap/coverage
+ls build/regmap/coverage      # coverage_regs.json .h .md
+grep "DH_COVERAGE_VALUE8_OFFSET" build/regmap/coverage/coverage_regs.h  # value 0xA0
 python3 tools/sbt.py "hw/testOnly deadhorse.lib.RegBlockSpec"                # passes, includes the negative control
 git status --short | grep -c "build/"                                        # 0
 python3 tools/ci.py                                                          # PASS
@@ -107,7 +110,7 @@ python3 tools/ci.py                                                          # P
 ## Stop and ask
 
 - The spec is ambiguous or contradicts itself. Quote the two passages.
-- The actuator table cannot be expressed in the format. Say which row. Do
+- The format-coverage fixture cannot be expressed in the format. Say why. Do
   not extend the format on your own.
 - You want a new access type or a new YAML key.
 - Reading JSON at elaboration needs a library that is not already on the

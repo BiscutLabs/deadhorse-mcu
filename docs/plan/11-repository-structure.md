@@ -86,23 +86,27 @@ deadhorse-mcu/
 │   └── host/                   PC-side tools: gateway client, loader, calibration
 │
 ├── dv/                         chip-level tests, oracles, airframe model,
-│                               interoperability tests
+│                               internal inter-core integration
 ├── tools/                      one entry point, CI driver, structure checks
 └── build/                      ignored; every generated file
 ```
 
 ### Blocks expected under `hw/ip/`
 
-`lite_core`, `bus`, `intc`, `power_reset`, `timebase_wdt`, `gpio`, `uart`,
+`perf_core`, `fpu`, `lite_core`, `dma`, `pinmux`, `bus`, `intc`, `power_reset`, `timebase_wdt`, `gpio`, `uart`,
 `spi_host`, `i2c_host`, `i2c_target`, `adc_player`, `qspi_flash`, `timers`,
-`actuator`, `gateway`, .
+`actuator`, `gateway`, . No die-link block initially.
 
 ### Expected under `hw/vendor/`
 
-`ibex` (performance core),
-`usb` (from its implementer, when delivered), and the debug module if D5 is
-taken. RISCay's clocked design is imported once into `hw/` (decision D1),
-not vendored.
+Selectively reused pinned `hardfloat` Chisel sources with provenance,
+`usb` if delivered as permitted vendor RTL, and the selected debug module.
+No SystemVerilog Ibex performance core is integrated: `hw/ip/perf_core/`
+contains the Chisel reimplementation. RISCay's clocked design is imported once,
+restructured under `hw/` with provenance, not retained as a live dependency.
+
+Pinned Linux container definition/locks belong under `tools/env/`; every
+developer and CI use that image through Docker/WSL (D23).
 
 ## Rules
 
@@ -165,8 +169,9 @@ area estimate; and its status (planned, reference, generated, routed).
 Deadhorse RTL is Chisel, entirely clocked (decisions D16 and D17).
 
 - **One sbt project** at the root (`build.sbt`, `project/`) compiles every
-  `hw/lib`, `hw/ip/*` and `hw/top/*` source directory. Chisel, the compiler
-  plugin and firtool are pinned to RISCay-MCU's versions.
+  `hw/lib`, `hw/ip/*` and `hw/top/*` source directory. Chisel and its compiler
+  plugin are direct pinned dependencies, not obtained through chisel-async.
+  T08/T07 establish and test the version locks.
 - **Emitted SystemVerilog is build output.** It goes to `build/` and is
   never committed. The physical flow consumes it from
   there.

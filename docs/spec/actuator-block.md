@@ -1,109 +1,97 @@
 # Actuator block
 
-Draft v0.1, 2026-11-13. Proposed; not yet implemented. Requirements R-CTL-2
-to R-CTL-5 in [../plan/02-requirements.md](../plan/02-requirements.md).
+Draft v0.2, 2026-11-13. Approved architectural behavior reconciled with
+D21/D31/D32/D33/D37; not implemented. The previous global-period register
+table is superseded. Final register offsets and recovery controls remain open.
 
-Nine output channels. Each is a servo PWM output, an ESC PWM output, a DShot
-output or a plain GPIO. The CPU writes values; the block does all bit timing.
-The whole block is synchronous logic on `clk_main`. The tick counter, pulse
-and frame generators and the failsafe logic sit on an ungated branch of that
-clock with their own reset, so they keep running while the rest of the main
-domain is in reset.
+## Channels and timing
 
-## Timing base
+Nine configurable channels: three motors, two tilt servos, two ailerons and
+two V-tail servos. Configurable assignment, direction and endpoints. Modes:
+servo PWM, ESC PWM, DShot or GPIO. Each channel has its own frame period.
 
-`tick` is the HF reference divided by `ctrl.tick_div`. All times below are in
-ticks. The reference configuration is 12 MHz divided by 5: 2.4 MHz, 416.7 ns
-per tick.
+The actuator runs on a required ungated branch of the main timing clock with
+reset independent of the performance domain. An assumed tick example is
+12 MHz / 5 = 2.4 MHz (estimated 416.7 ns per tick). DShot300 can use eight
+ticks per bit, with six high for 1 and three for 0. These are design examples,
+not measured tolerance of the selected ESCs. DShot600 remains a stretch;
+bidirectional DShot remains out of scope.
 
-| Mode | Derived timing at 2.4 MHz |
-| --- | --- |
-| PWM | Pulse width = `value` ticks. 1.000 ms is 2400; 2.000 ms is 4800. Period = `period` ticks |
-| DShot300 | Bit period 8 ticks (3.333 us). A 1 is high for 6 ticks, a 0 for 3 ticks. Frame is 16 bits, then idle low until the next frame |
+Control computations use a timer-driven loop with timestamped sensor data.
+Servo periods need not equal the loop period or motor frame period. Do not
+require a single IMU event to start every channel frame.
 
-DShot600 uses the same encoding at a 4.8 MHz tick.
+## DShot frame encoding
 
-## Registers
+Build a 16-bit frame from the active command: bits 15:5 throttle (11 bits),
+bit 4 telemetry request, bits 3:0 checksum. Checksum is the XOR of the three
+nibbles in the upper 12 bits; transmit MSB first. Preserve independent reference
+checks: throttle 1046 with telemetry clear encodes as `0x82C6`; throttle zero
+with telemetry clear encodes as `0x0000`. These are calculated protocol examples,
+not measurements. At the example tick, PWM widths 2400/3600/4800 ticks must
+decode exactly; direction and endpoints must be applied without truncating frames.
 
-Offsets are bytes from the block base. All registers are 32 bits. The
-machine-readable source will be `hw/ip/actuator/actuator.regmap.yaml`
-([regmap-format.md](regmap-format.md)); this table is the intent.
+## Atomic publication and frame application
 
-| Offset | Name | Field | Bits | Access | Reset | Meaning |
-| ---: | --- | --- | --- | --- | ---: | --- |
-| 0x00 | `ctrl` | `enable` | 0 | rw | 0 | Run the generators. When 0 every channel is an input |
-| | | `trigger_sel` | 1 | rw | 0 | 0 = free-running frames, 1 = frame starts `trigger_delay` ticks after the trigger input edge |
-| | | `tick_div` | 15:8 | rw | 5 | HF reference divider, 1 to 255 |
-| 0x04 | `commit` | `go` | 0 | w1p | | Copy every shadow `value` into the active set at the next frame boundary, all nine together |
-| 0x08 | `period` | `ticks` | 23:0 | rw | 48000 | Frame period in ticks (48000 is 50 Hz at 2.4 MHz) |
-| 0x0C | `trigger_delay` | `ticks` | 23:0 | rw | 0 | Delay from trigger edge to frame start |
-| 0x10 | `status` | `armed` | 0 | ro | | Outputs are driven from active values |
-| | | `failsafe` | 1 | ro | | Outputs are driven from failsafe values |
-| | | `commit_pending` | 2 | ro | | A commit is waiting for a frame boundary |
-| | | `overrun` | 3 | w1c | 0 | A second commit was requested while one was still pending |
-| | | `bad_key` | 4 | w1c | 0 | A write to `arm` carried neither key |
-| 0x14 | `arm` | `key` | 31:0 | wo | | Writing `0xA5C3_3C5A` arms; writing `0x0000_0000` disarms. Any other value is ignored and sets `status.bad_key` |
-| 0x18 | `fault` | `force` | 0 | rw | 0 | Firmware-declared fault: enter failsafe |
-| 0x40 + 4n | `mode[n]`, n = 0..8 | `kind` | 1:0 | rw | 0 | 0 = input (high impedance), 1 = PWM, 2 = DShot, 3 = GPIO output |
-| | | `invert` | 2 | rw | 0 | Invert the pin |
-| | | `fs_kind` | 5:4 | rw | 0 | Failsafe action: 0 = release pin, 1 = drive low, 2 = drive `fs_value`, 3 = hold last active value |
-| 0x80 + 4n | `value[n]` | `v` | 15:0 | rw | 0 | Shadow value. PWM: pulse width in ticks. DShot: bits 10:0 throttle, bit 11 telemetry request. GPIO: bit 0 level |
-| 0xC0 + 4n | `fs_value[n]` | `v` | 15:0 | rw | 0 | Failsafe value, same encoding as `value` |
+Firmware writes a shadow command set, then atomically publishes a coherent
+snapshot. Later shadow writes must not mutate that published snapshot.
+Each channel applies a published value only at its own frame boundary, without
+changing an in-progress pulse or DShot frame. Channels at different rates may
+apply the publication at different times; simultaneous application is not required.
 
-## Behaviour
+The final design brief must specify publication generations, buffering and what
+happens if a newer publication arrives before a slow channel consumes the prior
+one. Latest-value replacement versus back-pressure has not been approved; do not
+silently retain the old single-pending/global-frame rule. Expose enough status
+to test coherent publication and per-channel application.
 
-### Commit
+## Hardware fault handling
 
-`value[n]` writes only change shadow registers. `commit.go` requests a
-transfer. At the next frame boundary all nine shadows are copied to the
-active set in the same tick. If no commit is pending at a frame boundary the
-previous active values are sent again.
+Include a configurable command-age timeout independent of firmware execution.
+Define what constitutes a valid refreshing publication so partial writes or a
+stalled CPU cannot accidentally keep stale commands alive. Fault causes include
+timeout, either watchdog and firmware fault; performance reset forces configured
+failsafe without resetting actuator configuration or generators.
 
-### DShot frame
+Per-channel actions support stop command/defined value, drive low, hold last or
+release as configured. The timeout deadline, reaction boundary details, recovery
+and re-arm policy must be fixed through testing before the final behavior/register
+brief. Neither automatic recovery nor mandatory keyed re-arm is approved.
 
-For a DShot channel the block builds the 16-bit frame from the active value:
-bits 15:5 = throttle (11 bits), bit 4 = telemetry request, bits 3:0 =
-checksum. The checksum is the exclusive-or of the three nibbles of the upper
-12 bits. The most significant bit is sent first.
+Lite watchdog also causes whole-chip reset. The fault path acts while clock and
+supply are valid; whole-chip reset disables outputs. POR/brownout disable outputs;
+no early-warning detector is included. No valid pulse guarantee applies during
+clock loss or undervoltage. Board inactive levels and ESC loss-of-signal handling
+must be tested. Deep sleep is refused while armed.
 
-### States
+## Register groups to specify
 
-| State | Outputs | Entered by | Left by |
-| --- | --- | --- | --- |
-| Disabled | All nine pins are inputs | Reset; `ctrl.enable` = 0 | `ctrl.enable` = 1 |
-| Disarmed | Each channel performs its `fs_kind` action | Enable; a disarm write | A correct arm key with no fault present |
-| Armed | Active values | Arm | Disarm, or any failsafe cause |
-| Failsafe | Each channel performs its `fs_kind` action | Performance-core watchdog expiry, brownout warning, `fault.force` = 1, or main-domain reset | Cause cleared **and** a correct arm key |
+Global enable/timing controls; shadow command arrays; atomic publication and
+generation/status; per-channel mode, period, endpoint/direction controls;
+failsafe actions/values; timeout configuration/status; fault causes; arm/disarm
+and recovery controls after policy tests. Offsets, widths, reset encodings and
+pending-publication behavior are not frozen by this draft.
 
-Rules:
+T05 must use a dedicated format-coverage fixture rather than turn these unresolved
+controls into an accidental hardware ABI. Final actuator YAML comes with the
+actuator implementation brief after the open behavior questions are resolved.
 
-1. Entering failsafe needs no CPU and no bus activity. The failsafe logic
-   generates the failsafe pulses on its own.
-2. Failsafe is entered at the next frame boundary, or immediately for
-   `fs_kind` 0 and 1.
-3. A power-on reset leaves the block Disabled. A main-domain reset alone
-   leaves `mode`, `fs_value` and `period` intact and forces Failsafe.
-4. Arming with any channel in mode 0 is allowed; that channel stays an input.
-5. For a DShot ESC, the usual failsafe is `fs_kind` 2 with `fs_value` 0, the
-   motor-stop command. For a servo it is 2 with a neutral width, or 3.
+## Verification requirements
 
-## Checks an implementation must pass
+- Independent PWM/DShot decoder/reference model; no RTL text matching.
+- Mixed channel rates, publication immediately before/after boundaries and
+  concurrent shadow writes; no torn commands or truncated frames.
+- Final publication-overrun policy tested once specified, including slow servos
+  receiving commands computed at the faster control-loop cadence.
+- Timeout during stalled CPU/bus, watchdog faults and performance reset;
+  autonomous configured outputs with valid clock/supply.
+- Whole-chip reset/brownout output disable; no early-warning assumption.
+- Formal properties, listed assumptions, covers and negative controls beside RTL.
+- Bench tests with Holybro Tekko32 F4 45A AM32, positional GDW DS041MG and EMAX
+  ES08MA II; verify timing, levels, mechanical endpoints and fault behavior.
 
-1. Pulse width on a PWM channel equals `value` ticks exactly, for 2400, 3600
-   and 4800, at `tick_div` 5.
-2. A DShot frame for throttle 1046 with the telemetry bit clear is
-   `0x82C6`. A frame for throttle 0 is `0x0000`.
-3. Nine `value` writes followed by one commit change all nine outputs in the
-   same frame; without the commit, none change.
-4. From Armed, asserting the watchdog input produces failsafe outputs within
-   one frame period while the bus is held in reset.
-5. A wrong arm key leaves the state unchanged and sets `status.bad_key`.
-6. With `trigger_sel` = 1, the frame start follows the trigger edge by
-   `trigger_delay` ticks, within one tick.
+## Open before implementation freeze
 
-## Open points
-
-- Bidirectional DShot is out of scope.
-- Whether the brownout warning is a separate comparator threshold or the
-  supply monitor's falling edge (open question Q6).
-- Confirm the 6-of-8 and 3-of-8 high times against the chosen ESCs (Q2).
+Timeout deadline and recovery policy (Q13); publication supersession/buffering;
+exact register map; accepted ESC timing and servo rates (Q2). These do not block
+the repository scaffold, tool environment or core work.

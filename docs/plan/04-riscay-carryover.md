@@ -38,7 +38,7 @@ supporting pieces, and none of its asynchronous work.
 | RV32E `ClockedCore` | Becomes the lite core. Add a minimal CSR set, one interrupt input, `wfi` mapped onto the existing WAIT |
 | `ClockedPowerReset`, `ClockedHousekeeping` | Become the always-on domain's power, clock, watchdog and timebase block. Timebase re-specified for a 32 kHz source; a second clock domain and a glitch-free clock mux added |
 | Memory fabric protocol | Kept as the local bus protocol. Decode becomes generated from a register description |
-| SRAM wrapper | Byte-serial access suited a 1 KiB memory. The performance core needs word access; re-evaluate the macro arrangement |
+| SRAM wrapper | Replace performance access with word-wide byte-enabled configurable banks; qualify the macro arrangement (D36) |
 | SPI ADC player, I2C target | Kept; owned by the lite core |
 | LF oscillator | Redesigned for a nominal 32 kHz |
 | Fast RC oscillator | Gains a trim register and becomes the HF reference |
@@ -47,10 +47,10 @@ supporting pieces, and none of its asynchronous work.
 
 | RISCay item | Replacement |
 | --- | --- |
-| RV32E core as the only CPU | Ibex RV32IMC as the performance core (decision D2) |
+| RV32E core as the only CPU | Ibex reimplementation in Chisel with full RV32IMFC and multicycle FPU (D2/D19/D20) |
 | Bit-banged flash boot | QSPI flash controller with execute-in-place |
 | No interrupts, traps halt | Machine-mode interrupts on both cores |
-| No debug port | Debug access gateway; JTAG debug module as decision D5 |
+| No debug port | Unlocked gateway and JTAG debug for both cores (D5/D41) |
 | I2C target only | I2C controller added |
 | No UART, SPI controller, USB, timers, actuator outputs | New peripherals ([07-peripherals-memory-boot.md](07-peripherals-memory-boot.md)) |
 
@@ -68,14 +68,18 @@ supporting pieces, and none of its asynchronous work.
 
 ## Import method
 
-Decision D1. With no generator to track, a live dependency on RISCay has
-little value: RISCay's active work is the asynchronous rebuild, which
-Deadhorse no longer follows.
+D1 approved: one-time pinned import of the clocked design and required support
+at RISCay commit `4671317186003740ceb61360ba08c59bbdf10136`. Restructure into
+Deadhorse packages/directories/conventions, preserving licences and a provenance
+manifest mapping original files to adapted files. No live RISCay/chisel-async
+dependency in the new build. T06 reproduces the old baseline in an isolated
+checkout; it is not the import task and does not authorize async integration.
 
-| Option | How | For | Against |
-| --- | --- | --- | --- |
-| **A. One-time import** (recommended) | Copy `designs/clocked`, `shared`, the needed parts of `soc`, `firmware` and `verification` at a recorded commit, with a lock file | Deadhorse owns a small, stable base; no coupling to RISCay's async direction | Fixes made in RISCay's clocked design must be ported by hand |
-| B. Dependency | Pin RISCay-MCU as an sbt source dependency | Fixes flow automatically | Pulls in the async designs and chisel-async; couples the build to a project heading elsewhere |
+Reset behavior is adapted to D37, not copied unchanged: performance reset
+preserves AON and independent actuator state; lite watchdog resets the MCU.
+Supply monitor gains selectable thresholds/safe startup (D38); old threshold
+and hold-cycle values are not frozen. Shared peripheral ownership, DMA and
+sleep access are new work with their own tests.
 
 ## Problems inherited, which Deadhorse must close
 

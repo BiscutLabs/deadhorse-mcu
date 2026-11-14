@@ -17,7 +17,9 @@ Read this file fully before doing anything.
 ## Standing rules
 
 1. **Adopt before building.** Do not write new RTL where a brief names an
-   existing block to adopt.
+   existing block to adopt. D2/D19/D20 explicitly require the performance core
+   to be reimplemented in Chisel with a multicycle FPU and selective HardFloat
+   reuse; do not substitute a vendored SystemVerilog core or reopen a core bakeoff.
 
    **New RTL is Chisel, and it is clocked.** The only exception is a later,
    explicitly briefed Click version of the lite core (decision D18).
@@ -82,7 +84,8 @@ happens. Do not work around them.
 
 ## Done means
 
-A task is done only when all of these hold:
+A task is done only when all of these hold (documentation-only PLAN01 has
+its own acceptance checks and does not start implementation):
 
 1. Every deliverable in the brief exists at the stated path.
 2. Every acceptance check in the brief was run by you and passed. Paste the
@@ -100,8 +103,10 @@ A task is done only when all of these hold:
   only if every acceptance check passed, link the report, and add a Log line.
 - If you stop without finishing, set `[!]`, say why in the Report column,
   and add a Log line.
-- Change only your own task's line and the Log. Do not tick gate conditions
-  or decisions: a person does that.
+- Change only your own task's line and the Log during implementation. A
+  person-assigned planning reconciliation may update the decision/task register.
+  Do not tick gate conditions. Record decisions only from explicit approval;
+  approval does not mark implementation or a gate complete.
 - Never tick boxes inside a brief, and never edit a brief to record progress.
 - Update the "Last updated" date.
 

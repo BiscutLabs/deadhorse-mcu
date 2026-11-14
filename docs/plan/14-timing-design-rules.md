@@ -58,13 +58,12 @@ a real core. S1 uses this same flow.
 
 ## Paths to watch
 
-Known candidates in this design: the performance core's multiplier and, if
-adopted, its FPU; address decode plus bus multiplexing into SRAM setup; the elapsed-time and timestamp
+Known candidates in this design: the performance core's multiplier and its required multicycle FPU; address decode plus bus multiplexing into SRAM setup; the elapsed-time and timestamp
 arithmetic inherited from RISCay; CRC over a 32-bit word.
 
 ## Order of work
 
-1. The per-block timing flow (task to be briefed): yosys synthesis to the
+1. The per-block timing flow (T09): yosys synthesis to the
    chosen library, static timing with an open timer, a script that applies
    the budget and writes the ledger row. Proven first on RISCay's clocked
    design, whose 120 ns path it should find.

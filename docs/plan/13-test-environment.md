@@ -8,14 +8,13 @@ What is proved formally is in
 
 ## 1. One pinned environment
 
-One definition of the tool set (a Nix flake or a container image, decided in
-the build task) provides everything: JDK, sbt, firtool, the simulators, the
+One pinned Linux container image (D23, established in T08) provides everything: JDK, sbt, firtool, the simulators, the
 formal tools, the RISC-V compiler, Python and its packages, yosys and the
 PDK fetch. Developers, agents and CI all use it.
 
 - No script may contain a path outside the repository or the environment.
 - No per-platform wrapper scripts. Windows and macOS users run the same
-  environment through a Linux container or VM.
+  container; Windows uses Docker/WSL. CI uses the same image digest.
 - Tool versions are pinned in one place, with hashes where the source allows.
 - A task that needs a tool not in the environment adds it to the definition;
   it does not install it ad hoc.
@@ -25,7 +24,7 @@ PDK fetch. Developers, agents and CI all use it.
 Block-level tests are ScalaTest suites using Chisel's simulation library, as
 in RISCay-MCU.
 
-- Tests live in the block's `dv/` directory and are part of the block's sbt
+- Tests live in the block's `src/test/scala/` directory and are part of the block's sbt
   project. There is no separate source list to maintain.
 - One file per feature or behaviour. A test file that grows past a few
   hundred lines is split.
@@ -77,12 +76,13 @@ test frameworks: ScalaTest for blocks, Python for the system.
 The system simulation runs the real firmware against models of everything
 outside the chip:
 
-- **Sensor and storage models:** IMU on SPI with a data-ready pin,
-  barometer, compass and airspeed on I2C, GPS and receiver on UART, the boot
+- **Sensor and storage models:** BMI270 IMU on SPI with timestamped data-ready acquisition,
+  MS5611 barometer and IST8310 compass on I2C (no airspeed sensor),
+  Holybro M10 GPS and RP3 V2 CRSF receiver on UART, the boot
   and logging flash on QSPI.
 - **Actuator checkers** on the nine outputs. They decode servo and ESC PWM
   and DShot frames, check pulse width, bit timing, frame checksum and that
-  all nine update in the same frame, and feed the decoded commands to the
+  publication is atomic and each channel updates at its own frame boundary, and feed the decoded commands to the
   airframe model.
 - **Airframe model:** rigid-body dynamics of the Stallion tilt-rotor with
   motor, tilt-servo and surface responses, closing the loop from actuator
@@ -108,7 +108,7 @@ the same checkers decode captured signals from the board.
 
 | Path | Contents |
 | --- | --- |
-| `hw/ip/<block>/dv/` | Block tests and the block's reference model |
+| `hw/ip/<block>/src/test/scala/` | Block tests and local reference models; Python models may live under block `dv/` |
 | `dv/system/` | System tests, written against the target interface |
 | `dv/targets/` | The four target adapters |
 | `dv/models/` | Sensor, storage and actuator models, the airframe model |
@@ -116,7 +116,7 @@ the same checkers decode captured signals from the board.
 
 ## Order of work
 
-1. The pinned environment, with the Chisel build task.
+1. T08 pinned Linux environment, then T07 Chisel build/formal smoke test.
 2. The target interface and the RTL-simulation adapter, with the first
    system test (boot and read an identity register).
 3. Actuator checkers, with the actuator block.
@@ -125,3 +125,12 @@ the same checkers decode captured signals from the board.
 5. The fast model, once the register map is stable.
 6. The FPGA adapter at prototype bring-up; the silicon adapter at board
    bring-up.
+
+## Approved-contract regressions
+
+The revised system tests must cover mixed actuator rates and timeout/reset
+independence; timer-driven sampling with stale/missing sensor data; UART receive,
+wake-only and disabled modes; sleep-time SPI/I2C and HF requests; DMA ownership
+violations and bounded arbitration; both-core JTAG wake/debug; external clock
+selection; and selectable monitor thresholds/qualified reset release in mixed
+signal tests. No early-warning detector or external die-link test is required.

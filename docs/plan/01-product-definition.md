@@ -1,79 +1,77 @@
 # 01 Product definition
 
-## What Deadhorse is
+Deadhorse is a clocked, two-core RISC-V MCU on GF180MCU at nominal 3.3 V.
+It rebuilds RISCay's clocked foundation using Deadhorse conventions. The initial chip
+contains **no neuromorphic IP and no chip-to-chip link**.
 
-A clocked, synchronous RISC-V microcontroller with two
-cores, retained deep sleep, standard serial peripherals, a nine-channel
-actuator output block.
+## Approved MCU scope
 
-The architecture is modelled on two commercial parts, for structure and not
-for speed:
+- Chisel Ibex-derived RV32IMFC performance core with an area-focused multicycle
+  FPU, selective HardFloat reuse, and measured improvement work; no core bakeoff.
+- Clocked lite core, retained clock-gated sleep, programmable sleep SPI/I2C/UART,
+  timer/event/JTAG wake and bounded DMA with exclusive ownership checks.
+- Baseline 16 KiB word-wide performance SRAM and 3 KiB retained lite SRAM,
+  byte-write enables and configurable banking; external QSPI boot/XIP.
+- Internal nominal 32 kHz LF source, restartable HF, external-clock divider
+  and glitch-free fallback path.
+- Nine independently timed actuator channels with atomic command publication,
+  per-channel frame-boundary application and hardware command timeout.
+- JTAG for both cores, unlocked debug, explicit test mode, scan, SRAM self-test,
+  analog calibration/test access; no signed firmware.
+- On-chip supply monitor with selectable thresholds, hysteresis and qualified
+  reset release; defer separate early-warning detector.
+- Optional USB CDC-ACM integrated last; cutoff before Phase 3 floorplan freeze,
+  UART/JTAG fallback. Limited pin alternate functions frozen at G1.
+- Coldfoot LibreLane flow restructured for this repository; library
+  `gf180mcu_fd_sc_mcu7t5v0`; wafer.space GF180MCU 1x1 target, date open.
 
-- **STM32 H7 class:** a fast application core, a full peripheral set, several
-  low-power modes, a debug port.
-- **STM32 N6 class (later):** the same MCU with an on-chip accelerator. The accelerator is outside the prototype scope.
-
-GF180MCU at 3.3 V cannot reach the clock rates of either part. Deadhorse
-targets single-digit to low-double-digit MIPS, which the flight-loop
-measurement shows is enough for the target application
-([02-requirements.md](02-requirements.md), R-CPU-1).
+These are approved requirements, not a claim of timing, power, area or shuttle
+qualification. See [10-decisions-and-risks.md](10-decisions-and-risks.md).
 
 ## First application: Flightory Stallion VTOL
 
-| Property | Value | Provenance |
-| --- | --- | --- |
-| Airframe | Tilt-rotor tricopter VTOL, two tilting front motors, one fixed rear motor | Product page |
-| Size | 1340 mm span, 2 to 3 kg all-up | Product page |
-| Motors and ESCs | Three, BLHeli_S 45 A or similar, 7 inch props | Product page |
-| Servos | Two tilt servos, plus control surfaces on the base airframe | Product page; surface count assumed |
-| Actuator outputs | Nine: 3 ESC, 2 tilt, 4 surfaces | **Assumed** split; confirm against the wiring PDF |
-| Battery | 4S | Product page |
+| Function | Approved baseline |
+| --- | --- |
+| Motors | Three: two tilting front motors, one fixed rear motor |
+| ESCs | Three Holybro Tekko32 F4 45A, factory AM32 |
+| Tilt | Two GDW DS041MG positional servos |
+| Surfaces | Two ailerons and two V-tail servos; four EMAX ES08MA II |
+| IMU | BMI270 over SPI, timestamped acquisition |
+| Barometer | MS5611 over I2C, configurable rate with initial 50 Hz target |
+| GPS/compass | Holybro M10 with IST8310, SKU 12042; UART/I2C |
+| RC | RadioMaster Boxer ELRS and RP3 V2; CRSF UART |
+| Airspeed | No sensor |
+| Control | Timer-driven 1 kHz target, documented 500 Hz fallback |
 
-The flight controller needs, beyond the nine outputs: an IMU on SPI, a
-barometer, compass and airspeed sensor on I2C, GPS, RC receiver and telemetry
-radio on three UARTs, battery voltage and current sensing, and USB for ground
-configuration.
+Channel assignment, direction and endpoints remain configurable. Actuator
+timeout deadline and recovery policy are determined by testing. Rates and
+counts above are approved targets/configurations, not measurements of this MCU.
 
-## Role of each core
+Flightory's [base airframe](https://flightory.com/product/stallion/) and
+[VTOL specification](https://flightory.com/product/stallion-vtol/) are the
+airframe references; manufacturer data and bench testing must qualify the
+selected components. Stock and price are not architectural requirements.
 
-| Core | Role | When it runs |
-| --- | --- | --- |
-| Performance core | Flight control loop, navigation, estimator, USB and telemetry stacks | Armed and in flight; woken on demand otherwise |
-| Lite core | Battery and arming supervision, RC-link presence, periodic sensor polling, deciding when to wake the performance core, later feeding the neuromorphic IP | Always, including deep sleep |
+The application informs interface capacity, not fixed board pin assignments
+or immutable flight policy in the MCU. Lite supervises and can service selected
+peripherals while performance sleeps; the performance core runs the flight stack.
 
-In flight the motors draw far more power than the MCU, so deep sleep and the
-lite core matter for ground standby and armed-idle time. They are in scope
-because they are the architectural groundwork for the heterogeneous product,
-not because this airframe needs them.
+## Out of scope
 
-## In scope for the GF180 prototype
+Neuromorphic integration, chip-to-chip link, embedded flash, on-chip ADC or
+regulator, double-precision FPU, signed boot, production debug locks, USB host
+or high-speed mode, and power-gated standby. No port of an existing autopilot
+has been approved. The existing fixed-point workload is reference evidence;
+new firmware may use the approved single-precision hardware.
 
-1. Performance core, lite core, local memories and bus.
-2. Retained deep sleep with an always-on low-frequency oscillator and watchdog.
-3. UART (three), SPI controller, I2C controller and target, USB full-speed
-   device, GPIO, timers, nine-channel actuator block. USB is being
-   implemented separately and is integrated last; the plan reserves its
-   space, pads, clock and bus window from the start.
-4. Provision for later integration.
-5. Boot from external QSPI NOR flash, with the RISCay A/B and golden-image
-   scheme.
-6. Pad ring, ESD, power-on reset and brownout, production test access.
+The historical D18 Click option requires a later separate brief; it is not
+part of initial implementation. Deferred features do not reserve mandatory
+pads or force new implementation dependencies.
 
-## Out of scope for this plan
+## Definition of done
 
-- Neuromorphic IP is outside the scope of this prototype.
-- Embedded flash, on-chip ADC, on-chip regulator, hardware floating point.
-- USB high speed or host mode.
-- Power-gated standby with isolation and retention cells. Measured first,
-  decided later ([06-power-clock-reset.md](06-power-clock-reset.md)).
-- Porting PX4, ArduPilot or Betaflight. They assume an FPU and hundreds of KiB
-  of flash. Deadhorse runs its own fixed-point flight firmware.
-- A node shrink. The prototype tapes out on GF180; the architecture should not
-  depend on anything GF180-specific above the cell and macro level.
-
-## Definition of done for the prototype
-
-Packaged silicon on a bring-up board, running our fixed-point firmware, holds
-a Stallion VTOL in a stable hover, transitions to forward flight and back, and
-enters and leaves retained deep sleep on the ground with the lite core
-running. Intermediate milestones are in [09-roadmap.md](09-roadmap.md).
+Qualified, packaged silicon runs the validated flight firmware through hover,
+transition and forward flight, and enters/leaves retained sleep on the ground.
+Before flight: independent block verification, formal checks, FPGA/system
+simulation, bench sensor/actuator tests and full physical signoff. Approval of
+this plan does not satisfy those gates. No implementation starts in PLAN01.

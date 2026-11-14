@@ -1,128 +1,78 @@
-# T07 Chisel build skeleton
-
-> **Revision needed before hand-off (decision D17, 2026-11-13).** Deadhorse
-> is now entirely clocked and does not use chisel-async. This brief was
-> written when it did: it takes Chisel through chisel-async's build and
-> copies RISCay's `LibrarySource.scala` and `chisel-async-source.json`.
-> The revised task is to depend on Chisel 7.16.0 and its compiler plugin
-> directly from Maven Central, with the same Scala, sbt, ScalaTest and
-> firtool pins, and to drop every chisel-async step and stop condition.
-> The rewrite must also add the formal tool chain smoke test from
-> `docs/plan/12-formal-verification.md` ("Order of work", step 1).
-> It should be paired with the pinned tool environment from
-> `docs/plan/13-test-environment.md`, section 1.
-> Do not start this brief until it has been rewritten.
+# T07 Clocked Chisel build and formal smoke test
 
 ## Goal
 
-Give the repository a working Chisel and chisel-async build: one sbt project
-that compiles every block under `hw/`, a first trivial Chisel module with a
-test, and SystemVerilog emission into `build/`.
-
-## Why
-
-Deadhorse's own RTL is written in Chisel with chisel-async (decision D16).
-Nothing else can be written until the build exists and is pinned the way
-RISCay-MCU's is.
+Create a direct pinned Chisel build with a registered example, independent
+behavioral test, emitted RTL and formal smoke tests. No chisel-async dependency,
+core implementation or vendor import in this task.
 
 ## Read first
 
 - [../../../AGENTS.md](../../../AGENTS.md)
-- [../11-repository-structure.md](../11-repository-structure.md), "Design
-  language and build"
-- In RISCay-MCU at `4671317`: `build.sbt`, `project/LibrarySource.scala`,
-  `project/chisel-async-source.json`, `project/build.properties`,
-  `project/repositories`, `tools/sbt.py`. Copy their approach, not their
-  project list.
+- [../11-repository-structure.md](../11-repository-structure.md)
+- [../12-formal-verification.md](../12-formal-verification.md)
+- [../13-test-environment.md](../13-test-environment.md)
+- [T08-environment.md](T08-environment.md) and T06's baseline report when available
+- Pinned RISCay build/simulation conventions in its repository-local checkout;
+  do not copy LibrarySource.scala or chisel-async-source.json
 
 ## Inputs
 
-- T01 and T06 complete. T06 proves the toolchain works on your machine and
-  leaves a bootstrapped RISCay checkout at `build/riscay-mcu`.
-- Network access to GitHub and `repo.maven.apache.org`. Check with
-  `curl -sI https://repo.maven.apache.org/maven2/ | head -1` (must be `200`).
-
-**None of the sbt commands in this brief were run by its author:** Maven
-Central was unreachable when it was written. Versions below are RISCay's
-pinned ones, read from its files.
-
-## Pinned versions
-
-| Item | Value | Source |
-| --- | --- | --- |
-| Scala | 2.13.18 | RISCay `build.sbt` |
-| Chisel compiler plugin | `org.chipsalliance` `chisel-plugin` 7.16.0, full cross-version | RISCay `build.sbt` |
-| sbt | 1.12.4 | RISCay `project/build.properties` |
-| ScalaTest | 3.2.20 | RISCay `build.sbt` |
-| firtool | 1.160.0 | RISCay setup guide |
-| JDK | 21 | RISCay setup guide |
-| chisel-async | commit `856fc757517e0ff0c1c8fea9f6d7e61ec32d1172` | RISCay `project/chisel-async-source.json` |
-
-Chisel itself arrives through chisel-async's own build; do not add a second
-Chisel dependency.
+T01, T08 and T06 complete. Use T08's Linux image locally and in CI. Versions
+carried from the prior brief: Scala 2.13.18, Chisel and full-cross-version
+compiler plugin 7.16.0, sbt 1.12.4, ScalaTest 3.2.20, firtool 1.160.0, JDK 21.
+These are proposed pins pending T08/T07 execution, not verified build results.
+Resolve any incompatible pin explicitly; never silently float a dependency.
 
 ## May change
 
-New files: `build.sbt`, `project/` (four files), `tools/sbt.py`,
-`hw/lib/src/main/scala/deadhorse/lib/Hello.scala`,
-`hw/lib/src/test/scala/deadhorse/lib/HelloSpec.scala`,
-`hw/top/reference/src/main/scala/deadhorse/top/EmitHello.scala`. Edits to
-`tools/ci.py`, `.github/workflows/ci.yml` and `hw/lib/README.md`.
+`build.sbt`, `project/`, `tools/sbt.py`, `hw/lib/`, emitter under
+`hw/top/reference/src/main/scala/`, formal smoke configuration under
+`hw/lib/formal/`, `tools/formal_smoke.py`, `tools/ci.py`, CI workflow, report.
+Use T08 locks; changes to pins require an explicit recorded resolution.
 
 ## Steps
 
-1. Copy `project/LibrarySource.scala`, `project/chisel-async-source.json`,
-   `project/build.properties` and `project/repositories` from RISCay
-   unchanged. Copy `tools/sbt.py` unchanged too. If it needs an edit to run
-   here, stop and ask.
-2. Write `build.sbt` with RISCay's `ThisBuild` settings, the `asyncLibrary`
-   `RootProject`, and the same `settings` sequence. Define one project,
-   `hw`, at the repository root's `hw/` directory, depending on
-   `asyncLibrary`, whose sources are every `hw/lib/src/main/scala`,
-   `hw/ip/*/src/main/scala` and `hw/top/*/src/main/scala` directory, and
-   whose tests are the matching `src/test/scala` directories. Use
-   `unmanagedSourceDirectories`. Exclude `hw/ip/_template` and `hw/vendor`.
-   Set the organization to `io.github.biscutlabs` and the package root to
-   `deadhorse`.
-3. `Hello.scala`: a Chisel `Module` named `Hello` in package
-   `deadhorse.lib` with an 8-bit input, an 8-bit registered output that
-   holds the input plus one, and an asynchronous active-low reset to zero.
-4. `HelloSpec.scala`: a ScalaTest spec that simulates `Hello` the way
-   RISCay's `ClockedCoreSpec` simulates its design (read that file under
-   `build/riscay-mcu/verification/` first and follow its harness) and checks
-   three input values, plus the reset value.
-5. `EmitHello.scala`: an `App` that writes SystemVerilog for `Hello` to the
-   directory given as its argument, the way RISCay's `EmitClockedSoc` does.
-6. `tools/ci.py`: when `JAVA_HOME` and `CHISEL_FIRTOOL_PATH` are set, run
-   `python3 tools/sbt.py "hw/test"`; otherwise print
-   `SKIP chisel (toolchain not configured)`.
-7. Workflow: add a job that runs the RISCay bootstrap script to obtain the
-   JDK, firtool and simulator, exports the four environment variables from
-   `build/riscay-mcu/build/riscay_env.sh`, and runs `tools/ci.py`.
+1. Depend directly on pinned Chisel and compiler plugin. Adapt the launcher to
+   Deadhorse paths/package conventions. Exclude vendor/template directories from
+   automatic new-source discovery. Do not import the async build graph.
+2. Compile shared library, block and top source/test directories under one sbt
+   build, consistent with the repository structure. Outputs/caches under build/.
+3. Implement Hello with an 8-bit input and registered 8-bit output equal to
+   input plus one modulo 256, asynchronous active-low reset to zero, and a Chisel
+   emitter accepting an output path. Test reset and at least three input values,
+   including wraparound, against an independent behavioral expectation.
+4. Add formal assertions, assumptions and covers beside the example, with a
+   deliberately incorrect variant as negative control. Demonstrate the BTOR2
+   and SymbiYosys routes and distinguish bounded from unbounded outcomes.
+5. Wire compilation, simulation, emission and formal smoke into mandatory CI.
+   Missing configured tools are failures, not SKIP successes.
 
 ## Acceptance checks
 
-With the environment from `build/riscay-mcu/build/riscay_env.sh` loaded:
+Run inside T08's image. **Not executed/verified by this documentation revision**;
+the commands define interfaces to create in this task.
 
 ```sh
-python3 tools/sbt.py --bootstrap "hw/compile"                       # success
-python3 tools/sbt.py "hw/test"                                      # HelloSpec passes, 4 or more checks
+python3 tools/sbt.py "hw/compile"
+python3 tools/sbt.py "hw/test"
 python3 tools/sbt.py "hw/runMain deadhorse.top.EmitHello build/emit/hello"
-ls build/emit/hello/*.sv                                            # Hello.sv exists
-iverilog -g2012 -o build/emit/hello/a.out build/emit/hello/Hello.sv # compiles
-git status --short | grep -c "build/"                               # 0
-python3 tools/ci.py                                                 # PASS, and does not print SKIP chisel
+iverilog -g2012 -o build/emit/hello/a.out build/emit/hello/Hello.sv
+python3 tools/formal_smoke.py --output build/t07/formal
+python3 tools/ci.py
 ```
+
+Require behavioral test success, both formal routes reporting expected true,
+false and cover outcomes, and an unbounded smoke property where the plan
+requires proof. Record tool versions and logs; no generated files tracked.
 
 ## Stop and ask
 
-- Maven Central is unreachable.
-- The pinned chisel-async commit does not build with these versions.
-- RISCay's simulation harness cannot be reused without copying more than
-  one small helper. Report what it depends on.
-- You need to change any pinned version.
+Pinned dependencies cannot resolve/build; a required formal route cannot run;
+only bounded results are available where proof is required; tools would need
+unpinned installation. Report evidence rather than skip or weaken checks.
 
 ## Out of scope
 
-Any real block, any chisel-async channel or async primitive, the
-desynchronization generator, and FuseSoC.
+CPU/FPU, actual CDC block, async primitives, and any new handwritten Verilog or
+SystemVerilog. Formal wrappers/properties are Chisel or tool configuration.

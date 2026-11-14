@@ -1,20 +1,16 @@
 # Deadhorse MCU plan
 
-Draft v0.8, 2026-11-13. Decided so far: D11 (USB integrated last), D14 (NoC
-vendored, drift accepted), D16 (Chisel is the design language) and **D17
-(the chip is entirely clocked; the clockless plan is abandoned)** and D18
-(lite core clocked first, with a coarse Click pipeline as a later option). The other
-decisions in [10-decisions-and-risks.md](10-decisions-and-risks.md) are
-still open.
+Approved planning baseline v0.9, reconciled 2026-11-13. The
+[decision register](10-decisions-and-risks.md) records all user approvals and
+the questions deliberately deferred to testing. This documentation revision
+does not start implementation or mark physical/verification gates complete.
 
-Deadhorse is the production rebuild of
-[RISCay-MCU](https://github.com/BiscutLabs/RISCay-MCU): an entirely clocked,
-heterogeneous RISC-V microcontroller on GF180MCU whose first application is the
-flight controller for a small tilt-rotor VTOL. It starts from RISCay's
-clocked design and its sleep, reset and boot architecture, replaces its toy
-CPU, bus and peripherals. The neuromorphic
-IP itself is out of scope for this plan. RISCay's asynchronous work is not
-used.
+Deadhorse rebuilds RISCay's clocked design into project conventions, with a
+Chisel Ibex-derived RV32IMFC core, area-focused multicycle FPU, retained lite
+core, programmable sleep peripherals. No
+neuromorphic IP or chip-to-chip link enters the initial MCU. Use the approved
+Linux container and shared CDC/verification conventions when implementation
+is subsequently assigned.
 
 ## Reading order
 
@@ -39,19 +35,19 @@ used.
 
 ## Ground rules for this plan
 
-1. **Adopt before building.** We are not writing much RTL. Every block is
-   first matched against RISCay-MCU, Coldfoot, or an open, verified design.
-   New RTL needs a written reason.
+1. **Adopt before building.** Reuse the named clocked IP and conventions where appropriate. D2/D19/D20
+   explicitly require a Chisel core/FPU implementation; it needs new verification.
+   Coldfoot imports are transport-only and require a sanitized handoff.
 2. **Chisel is the design language.** Everything
    Deadhorse writes, and the SoC top, is Chisel. SystemVerilog appears only
    as vendored blocks behind a Chisel black box.
 3. **Every number has a provenance.** *Measured* means a tool produced it and
    the source is named. *Estimated* means derived by hand from measured
    inputs. *Assumed* means a placeholder that a named task will replace.
-4. **Measure before freezing.** Phase 1 in the roadmap is four short
-   measurement spikes. The architecture is not frozen until they report.
-5. **Standard synchronous discipline.** One clock per domain, two
-   crossings in the whole chip, every crossing through one reviewed block,
+4. **Measure before freezing.** Phase 1 measures the selected design through four
+   spikes after their implementation prerequisites; it is not a core selection exercise. The architecture is not frozen until they report.
+5. **Standard synchronous discipline.** One clock per domain, every crossing
+   through one reviewed implementation (including JTAG and optional USB),
    glitch-free gating, and area, timing and clock-domain structure tracked
    on every change.
 

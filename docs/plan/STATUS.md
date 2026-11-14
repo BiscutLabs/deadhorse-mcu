@@ -1,148 +1,139 @@
 # Status
 
-The single place that shows progress. The plan and the briefs say what to
-do; this file says what has been done. Rules for editing it are in
-[../../AGENTS.md](../../AGENTS.md), "Tracking progress".
-
-States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` done.
-A line is `[x]` only when its report exists and its acceptance checks passed.
-
-Last updated: 2026-11-13
+Single progress tracker. Last updated: 2026-11-13.
+States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete.
+Decision checks record the user's approvals, not implementation completion.
+No implementation task or gate is completed by the planning reconciliation.
 
 ## Decisions
 
-Tasks marked blocked name the decision they wait on. Details are in
-[10-decisions-and-risks.md](10-decisions-and-risks.md).
+Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 
 | | ID | Decision | State |
 | --- | --- | --- | --- |
-| [ ] | D1 | How RISCay code enters Deadhorse | Open; needed by G0 |
-| [ ] | D2 | Performance core | Open; needed by G0, confirmed by S1 |
-| [x] | D3 | Interconnect proposal | Decided |
-| [ ] | D4 | What is agreed with Coldfoot | Open; needed by G1 |
-| [ ] | D5 | JTAG debug module | Open; needed by G1 |
-| [ ] | D6 | 32.768 kHz crystal option | Open; needed by G1 |
-| [ ] | D7 | Sensor port in the always-on domain | Open; needed by G1 |
-| [ ] | D8 | Production test approach | Open; after S4 |
-| [ ] | D9 | Physical flow | Open; needed by G1 |
+| [x] | D1 | RISCay import | Approved direction; qualification remains open |
+| [x] | D2 | Performance core | Approved direction; qualification remains open |
+| [x] | D3 | Internal NoC | Approved direction; qualification remains open |
+| [x] | D4 | Initial-chip scope | Approved direction; qualification remains open |
+| [x] | D5 | Debug hardware | Approved direction; qualification remains open |
+| [x] | D6 | Low-frequency clock | Approved direction; qualification remains open |
+| [x] | D7 | Sleep peripherals | Approved direction; qualification remains open |
+| [x] | D8 | Production test | Approved direction; qualification remains open |
+| [x] | D9 | Physical flow | Approved direction; qualification remains open |
 | [x] | D10 | Clocked islands | Superseded by D17 |
-| [~] | D11 | USB integrated last | Set; cut-off rule still to agree |
-| [ ] | D12 | Performance SRAM size | Open; after S3 |
-| [ ] | D13 | Loop rate commitment | Open; after S1 |
-| [x] | D14 | interconnect source policy | Decided |
-| [ ] | D15 | Standard-cell library | Open; needed by G1 |
-| [x] | D16 | Chisel is the design language | Decided |
-| [x] | D17 | Entirely clocked | Decided |
-| [x] | D18 | Lite core clocked first, Click option later | Decided |
-| [~] | D19 | FPU subject to area availability | Decided conditionally; resolves after S1 and S2 |
+| [x] | D11 | USB cutoff | Approved direction; qualification remains open |
+| [x] | D12 | Memory capacity | Approved direction; qualification remains open |
+| [x] | D13 | Control-loop target | Approved direction; qualification remains open |
+| [x] | D14 | NoC source ownership | Approved direction; qualification remains open |
+| [x] | D15 | Standard-cell library | Approved direction; qualification remains open |
+| [x] | D16 | Design language | Approved direction; qualification remains open |
+| [x] | D17 | Timing discipline | Approved direction; qualification remains open |
+| [x] | D18 | Historical lite-core option | Deferred historical option; no initial implementation |
+| [x] | D19 | FPU inclusion | Approved direction; qualification remains open |
+| [x] | D20 | FPU implementation | Approved direction; qualification remains open |
+| [x] | D21 | Actuator publication | Approved direction; qualification remains open |
+| [x] | D22 | UART sleep modes | Approved direction; qualification remains open |
+| [x] | D23 | Tool environment | Approved direction; qualification remains open |
+| [x] | D24 | Buses and ownership | Approved direction; qualification remains open |
+| [x] | D25 | DMA | Approved direction; qualification remains open |
+| [x] | D26 | IMU | Approved direction; qualification remains open |
+| [x] | D27 | Barometer | Approved direction; qualification remains open |
+| [x] | D28 | GPS and compass | Approved direction; qualification remains open |
+| [x] | D29 | Airspeed | Approved direction; qualification remains open |
+| [x] | D30 | RC | Approved direction; qualification remains open |
+| [x] | D31 | Actuator fault detection | Approved direction; qualification remains open |
+| [x] | D32 | Actuator count | Approved direction; qualification remains open |
+| [x] | D33 | Actuator parts | Approved direction; qualification remains open |
+| [x] | D34 | Boot authentication | Approved direction; qualification remains open |
+| [x] | D35 | External clock | Approved direction; qualification remains open |
+| [x] | D36 | Performance SRAM access | Approved direction; qualification remains open |
+| [x] | D37 | Reset containment | Approved direction; qualification remains open |
+| [x] | D38 | Supply monitor | Approved direction; qualification remains open |
+| [x] | D39 | Pin multiplexing | Approved direction; qualification remains open |
+| [x] | D40 | USB boundary | Approved direction; qualification remains open |
+| [x] | D41 | Debug access policy | Approved direction; qualification remains open |
+| [x] | D42 | Fabrication target | Approved direction; qualification remains open |
 
-## Phase 0: Foundation
-
-| | ID | Item | Owner | Depends on | Report |
-| --- | --- | --- | --- | --- | --- |
-| [ ] | T01 | [Repository scaffold, structure check, CI](tasks/T01-scaffold.md) | unassigned | none | |
-| [ ] | T02 | [Flight-loop measurement under CI](tasks/T02-flight-loop-ci.md) | unassigned | T01 | |
-| [ ] | T03 | Interconnect study | unassigned | T01 | |
-| [ ] | T04 | Interconnect study | unassigned | T03 | |
-| [ ] | T06 | [RISCay toolchain and baseline](tasks/T06-riscay-baseline.md) | unassigned | T01 | |
-| [!] | T07 | [Chisel build skeleton](tasks/T07-chisel-build.md) | unassigned | T01, T06 | Brief needs rewriting without chisel-async before it can start |
-| [ ] | T05 | [Register-map generator](tasks/T05-regmap-generator.md) | unassigned | T07 | |
-| [ ] | P0-f | Pinned tool environment ([13-test-environment.md](13-test-environment.md), section 1); brief to be written with the T07 rewrite | unassigned | T01 | |
-| [ ] | P0-g | Per-block GF180 timing check ([14-timing-design-rules.md](14-timing-design-rules.md)); brief to be written | unassigned | T01, T06 | |
-| [ ] | P0-a | Confirm the nine-channel split against the Stallion wiring PDF (Q1) | person | none | |
-| [ ] | P0-b | Choose sensor parts: IMU, barometer, compass, airspeed, GPS, receiver (Q9) | person | none | |
-| [ ] | P0-c | Agree the USB integration contract with its implementer (Q12) | person | none | |
-| [ ] | P0-d | Agree die-link terms with the Coldfoot team (D4) | person | none | |
-| [ ] | P0-e | Start the analog track: oscillators, supply monitor | person | none | |
-
-**Gate G0**
-
-- [ ] D1 and D2 recorded
-- [ ] USB integration contract agreed
-- [ ] T01 done: skeleton and CI in place
-
-## Phase 1: Measurement spikes
+## Tasks
 
 | | ID | Item | Owner | Depends on | Report |
 | --- | --- | --- | --- | --- | --- |
-| [!] | S1 | [Core speed and area](tasks/S-spikes.md#s1-core), including an FPU-capable core (D19) | unassigned | D2, T07 | Blocked on D2 |
-| [ ] | S2 | Interconnect study | unassigned | T03, T04, T07 | |
-| [ ] | S3 | [Memory and execute-in-place](tasks/S-spikes.md#s3-memory) | unassigned | T02 | |
-| [!] | S4 | [Interrupt latency and scan](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1 | Blocked on S1 |
+| [x] | PLAN01 | [Reconcile decisions](tasks/PLAN01-reconcile.md) | Codex | User approvals | [Report](tasks/reports/PLAN01.md); documentation only |
+| [ ] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | unassigned | none | |
+| [ ] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | unassigned | T08 | |
+| [ ] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | unassigned | T01, T08 | |
+| [!] | T03 | Interconnect study | unassigned | T01, T08 | Blocked on sanitized transport handoff and Q8; no source imported |
+| [!] | T04 | Interconnect study | unassigned | T03 | Historical scripts require unapproved mixed dependencies; awaiting sanitized closure |
+| [ ] | T06 | [RISCay baseline](tasks/T06-riscay-baseline.md) | unassigned | T01, T08 | |
+| [ ] | T07 | [Chisel build](tasks/T07-chisel-build.md) | unassigned | T01, T06, T08 | Brief rewritten; no build run |
+| [ ] | T05 | [Register generator](tasks/T05-regmap-generator.md) | unassigned | T07 | |
+| [ ] | T09 | [Timing flow](tasks/T09-timing-flow.md) | unassigned | T01, T06, T07, T08 | |
+| [ ] | T10 | [Selected core/FPU](tasks/T10-core-fpu.md) | unassigned | T07, T09 | Source pins/contract resolved on assignment |
+| [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T10, T09, T02 | Architecture selected; measurements outstanding |
+| [!] | S2 | Interconnect study | unassigned | T07, T09, T03/T04 for reuse | Sanitized source/reference handoff unresolved |
+| [ ] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | unassigned | T02, T07, T08 | |
+| [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
 
-**Gate G1, architecture freeze**
+Former P0-f/P0-g now have briefs T08/T09. P0-a actuator split and P0-b parts
+are approved decisions D26-D33, not bench qualification. P0-c USB boundary is
+approved; implementer delivery/sizing remains open. P0-d die-link agreement is
+deferred. P0-e analog work has not started and still needs an assigned brief.
 
-- [ ] Formal tool chain smoke test passes on both routes; crossing FIFO proved
-- [ ] S1: at least 5 MIPS at the slow corner (or the 500 Hz fallback recorded)
-- [ ] S3: SRAM size chosen (D12)
-- [ ] S4: latency bound and test approach (D8)
-- [ ] Decisions D4 to D9, D13, D15 recorded
-- [ ] Main clock frequency, area budget, pad budget and clock-domain boundaries frozen
-- [ ] No assumed value left that affects area, pads or clock domains
+## Gates (not checked by PLAN01)
 
-## Phase 2: SoC and FPGA prototype
+**G0**
 
-Briefs are written after G1. Items from [09-roadmap.md](09-roadmap.md):
+- [ ] D1/D2 recorded and reviewed against the implementation briefs
+- [ ] Scaffold and CI working
+- [ ] USB boundary and outstanding sizing/delivery assumptions reviewed
 
-- [ ] Import RISCay's clocked design as the always-on domain; add clock mux, gates, crossing block
-- [ ] Integrate adopted blocks on the local bus with the generated register map
-- [ ] New blocks: actuator block, timers, serial peripherals, lite-core extensions, register-transaction layer
-- [ ] Boot chain with two images; gateway monitor over UART; USB stub
-- [ ] Flight logging: UART stream first, then the logging flash
-- [ ] Target interface with the RTL-simulation adapter and first system test
-- [ ] Sensor, storage and actuator models; airframe model; flight scenarios
-- [ ] Fast model and FPGA adapter running the same system tests
-- [ ] FPGA build flying the hardware-in-the-loop simulation; real actuators and sensors on the bench
-- [ ] Scan inserted; suite passing on the gate-level netlist
-- [ ] Optional: S5, the Click lite core (D18)
+**G1: architecture freeze**
 
-**Gate G2**
+- [ ] Formal tool smoke and shared CDC proof
+- [ ] S1 selected core/full F correctness, area, timing, loop target/fallback
+- [ ] S3 memory capacity, banking and XIP validated
+- [ ] S4 latency and production-test evidence
+- [ ] Clock, reset, ownership/CDC partition and simultaneous pin map frozen
+- [ ] Shuttle, library, SRAM and analog process options qualified
+- [ ] USB reservation based on implementer evidence or explicitly omitted
+- [ ] No unresolved assumptions affecting area, pads or clock domains
 
-- [ ] Simulated Stallion flies hover, transition and forward flight on the FPGA
-- [ ] Nine real actuators driven with correct timing
-- [ ] Deep sleep entered and left with the main clock stopped
-- [ ] Structural clock-domain-crossing check clean
-- [ ] Every block within its GF180 timing budget, or a recorded exception
-- [ ] Every block listed for a full proof has it in CI, or a recorded reason it is bounded
-- [ ] riscv-formal passes on both cores; no unreviewed assumption
+**G2: SoC/FPGA**
 
-## Phase 3: Physical
+- [ ] Simulated flight and real sensor/actuator timing checks
+- [ ] Independent channel rates, atomic publication, timeout/recovery validated
+- [ ] Retained sleep, UART modes, DMA/ownership, wake and reset containment
+- [ ] Both-core JTAG, boot/recovery, external-clock selection and USB stub/interface
+- [ ] HF-off retained sleep demonstrated when no selected peripheral requires HF
+- [ ] Clean CDC and every block within its GF180 timing budget or recorded exception
+- [ ] Every block requiring a full proof has it or a recorded bounded-result reason
+- [ ] riscv-formal passes on both cores; independent full-F verification; no unreviewed assumption
+- [ ] Scan gate-level checks, SRAM self-test and analog test connectivity
 
-- [ ] Floorplan with SRAM, analog macros, pad ring, USB reservation
-- [ ] Synthesis, scan, placement, clock tree, routing
-- [ ] Timing closed at all corners with extracted RC
-- [ ] Analog macro layouts integrated; DRC, LVS, antenna clean
-- [ ] Deep-sleep current from extraction
-- [ ] USB integrated, or the cut-off applied
-- [ ] Lite core variant chosen (D18)
+**G3: physical signoff**
 
-**Gate G3:** the ten signoff gates in [08-physical-verification.md](08-physical-verification.md)
+- [ ] Static timing
+- [ ] Clock tree/gating
+- [ ] Clock-domain crossings
+- [ ] Reset
+- [ ] Electrical rules
+- [ ] SRAM timing
+- [ ] DRC/LVS/antenna
+- [ ] Post-layout simulation
+- [ ] Scan
+- [ ] Sleep current
+- [ ] Equivalence before/after scan and final netlist
+- [ ] USB integrated or cutoff applied before Phase 3 floorplan freeze
 
-- [ ] 1 Static timing
-- [ ] 2 Clock tree and gating
-- [ ] 3 Clock-domain crossings
-- [ ] 4 Reset
-- [ ] 5 Electrical rules
-- [ ] 6 SRAM timing
-- [ ] 7 DRC, LVS, antenna
-- [ ] 8 Post-layout simulation
-- [ ] 9 Scan
-- [ ] 10 Deep-sleep current
-- [ ] Equivalence: RTL to netlist, before and after scan, final netlist
+**G4: silicon**
 
-## Phase 4: Silicon
-
-- [ ] Tape-out
-- [ ] Bring-up board
-- [ ] Production test program; trim and calibration
-- [ ] Characterisation
-- [ ] Flight: bench, tethered hover, free hover, transition
-
-**Gate G4:** the definition of done in [01-product-definition.md](01-product-definition.md)
+- [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
 
-One line per change of state, newest first: date, ID, old state to new state,
-who, and the report path if there is one.
+- 2026-11-13: PLAN01 in progress -> done, Codex; documentation checks passed, [report](tasks/reports/PLAN01.md). No implementation started.
 
-- 2026-11-13: tracker created. No task started.
+- 2026-11-13: PLAN01 not started -> in progress, Codex; user assigned plan/brief reconciliation and authorized commit/push, no implementation.
+- 2026-11-13: User decisions D1-D42 reconciled; superseded/deferred items explicitly identified. No gate checked.
+- 2026-11-13: T07 brief rewrite removes its stale async blocker; task remains unstarted. T03/T04/S2 record sanitized-source blockers. T08/T09/T10 briefs added, unstarted.
+- 2026-11-13: Original tracker created; no implementation task started.

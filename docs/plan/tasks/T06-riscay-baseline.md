@@ -12,7 +12,8 @@ Deadhorse imports RISCay's clocked design. The plan quotes RISCay's figures
 from its documents. Only part of its toolchain was run while planning: the
 Scala suites and the clocked export need Maven Central, which was not
 reachable. This task closes that gap and tells us whether RISCay is usable
-as a dependency (decision D1).
+as the approved one-time import baseline (decision D1). No live dependency
+is introduced. Requires T01 and T08; checks run in the pinned Linux container.
 
 ## Read first
 
@@ -25,11 +26,11 @@ as a dependency (decision D1).
 
 ## Inputs
 
-- Ubuntu 24.04 x86_64 with network access to GitHub **and**
+- T08 Linux container with network access to GitHub **and**
   `repo.maven.apache.org`. Check first:
   `curl -sI https://repo.maven.apache.org/maven2/ | head -1` must show `200`.
   If it does not, stop: this task cannot be done from that machine.
-- `sudo apt-get install -y python3.12 python3-tk gcc g++ make autoconf gperf bison flex libmpc3 yosys git curl`
+- T08 supplies all bootstrap dependencies and recorded pins; do not install on the host
 - RISCay-MCU is public: `git clone https://github.com/BiscutLabs/RISCay-MCU build/riscay-mcu`
   then `git -C build/riscay-mcu checkout 4671317186003740ceb61360ba08c59bbdf10136`.
 
@@ -94,8 +95,9 @@ python3 tools/ci.py                                                             
 git status --short | grep -v "^?? docs/ledger/\|^?? docs/plan/tasks/reports/"        # empty
 ```
 
-The task is **done** if steps 1 to 3 pass and step 4 either reproduces the
-reference area within 0.1 percent or is reported as blocked with the reason.
+The task is **done** only if all acceptance checks pass and the reference area
+is reproduced within 0.1 percent. If step 4 cannot run, report the task as blocked
+with the reason rather than claiming completion.
 It is **failed**, and still useful, if the full gate does not pass at this
 commit on a clean machine: report exactly which suites fail.
 
@@ -109,3 +111,9 @@ commit on a clean machine: report exactly which suites fail.
 
 The generated (desynchronized) gate, which needs retained timing artifacts
 that are not in the repository; any physical flow; any change to RISCay.
+
+
+The upstream full gate may exercise historical upstream dependencies in the
+isolated repository-local baseline checkout. This does not authorize importing
+them into Deadhorse or adding chisel-async to T07. Baseline receipts remain
+upstream evidence, not proof of the new core or revised reset/sleep semantics.

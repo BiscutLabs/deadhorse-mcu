@@ -12,6 +12,12 @@ workflow that runs it.
 - [../../../AGENTS.md](../../../AGENTS.md)
 - [../11-repository-structure.md](../11-repository-structure.md), all of it
 
+## Environment
+
+Requires T08's pinned Linux container. CI must use its immutable image reference,
+not install a separate host tool set. PLAN01 changes only documentation; actual
+scaffolding remains this task's work.
+
 ## Starting state
 
 The repository contains `README.md`, `AGENTS.md`, `docs/plan/`, `docs/spec/`,
@@ -72,8 +78,8 @@ report.
 6. **CI entry point** at `tools/ci.py`: runs the unit tests under `tools/`,
    then `check_structure.py` on the repository; exits non-zero if either
    fails; prints `PASS` on success.
-7. **Workflow** at `.github/workflows/ci.yml`: on push and pull request, on
-   `ubuntu-24.04`, check out, set up Python 3.12, run `python tools/ci.py`.
+7. **Workflow** at `.github/workflows/ci.yml`: on push and pull request, use T08's pinned Linux image, check out, and run
+   `python3 tools/ci.py` inside that environment.
 
 ## Deliverables
 

@@ -1,5 +1,13 @@
 # T02 Flight-loop measurement under CI
 
+## Environment and evidence scope
+
+Requires T01 and T08. Run all checks in the pinned Linux image; no host apt/pip
+setup or optional tool skips. Preserve the historical fixed-point workload;
+its elevator/rudder model is not the approved V-tail firmware and its results
+do not establish full-F core or selected-sensor performance. S1/S3 add separate
+revised-workload evidence without rewriting historical numbers.
+
 ## Goal
 
 Make the measurement in `sw/flight/loop-measurement/` a checked part of the
@@ -28,7 +36,7 @@ Files under `sw/flight/loop-measurement/`, `tools/ci.py`,
 
 - `./run_all.sh` takes under a minute and needs `riscv64-unknown-elf-gcc`
   (rv32 multilib; measured with Ubuntu's 13.2.0), `gcc`, `python3`.
-  On Ubuntu 24.04: `sudo apt-get install -y gcc-riscv64-unknown-elf qemu-system-misc`.
+  T08 must provide the compiler and QEMU at recorded versions.
 - A clean rerun reproduced `results/summary.json` byte for byte.
 - `results/qemu_xcheck.txt` is not stable. `tools/qemu_count.py` infers the
   end of the program from the last traced program counter, so the count
@@ -55,10 +63,8 @@ Files under `sw/flight/loop-measurement/`, `tools/ci.py`,
    `./run_all.sh`, then fails unless `results/summary.json` is byte-identical
    to the committed copy (`git diff --exit-code -- results/summary.json`) and
    every line of `results/qemu_xcheck.txt` after the header ends in `MATCH`.
-4. **Wire it into CI.** In `.github/workflows/ci.yml` add a job that
-   installs the two apt packages and runs `check.sh`. In `tools/ci.py`, run
-   `check.sh` only when `riscv64-unknown-elf-gcc` is on the path, and print
-   `SKIP flight-loop (no RISC-V compiler)` otherwise.
+4. **Wire it into CI.** Run check.sh in T08's image from the workflow and
+   tools/ci.py. Missing RISC-V compiler or QEMU is a failure, not a skipped pass.
 
 ## Acceptance checks
 
