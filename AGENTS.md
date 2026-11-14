@@ -7,7 +7,9 @@ Read this file fully before doing anything.
 ## Where to start
 
 1. [docs/plan/README.md](docs/plan/README.md): what is being built and why.
-2. [docs/plan/tasks/README.md](docs/plan/tasks/README.md): the task list.
+2. [docs/plan/STATUS.md](docs/plan/STATUS.md): what is done and what is
+   open. Then [docs/plan/tasks/README.md](docs/plan/tasks/README.md): the
+   task list.
    **Work only on a task brief assigned to you.** Do not start work that has
    no brief.
 3. The brief's "Read first" list. Read those files before writing anything.
@@ -76,6 +78,21 @@ A task is done only when all of these hold:
    command and the last lines of its output into your report.
 3. `python3 tools/ci.py` passes, once task T01 has created it.
 4. You wrote the task report.
+
+## Tracking progress
+
+[docs/plan/STATUS.md](docs/plan/STATUS.md) is the only progress tracker.
+
+- When you start a task, set its line to `[~]`, put your name in Owner, and
+  add a line to the Log.
+- When you finish, write the task report first. Then set the line to `[x]`
+  only if every acceptance check passed, link the report, and add a Log line.
+- If you stop without finishing, set `[!]`, say why in the Report column,
+  and add a Log line.
+- Change only your own task's line and the Log. Do not tick gate conditions
+  or decisions: a person does that.
+- Never tick boxes inside a brief, and never edit a brief to record progress.
+- Update the "Last updated" date.
 
 ## Task report
 

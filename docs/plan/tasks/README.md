@@ -5,9 +5,12 @@ who has not seen the planning conversation can carry it out. Read
 [../../../AGENTS.md](../../../AGENTS.md) first; its rules apply to every
 brief.
 
-## Status
+## Tasks
 
-| ID | Task | Who can take it | Depends on | Status |
+Progress is tracked in [../STATUS.md](../STATUS.md), not here. This table
+says what each task is and who can take it.
+
+| ID | Task | Who can take it | Depends on | Readiness |
 | --- | --- | --- | --- | --- |
 | [T01](T01-scaffold.md) | Repository scaffold, block template, structure check, CI | Any agent | none | Ready |
 | [T02](T02-flight-loop-ci.md) | Put the flight-loop measurement under CI and fix its fragile cross-check | Any agent | T01 | Ready |
@@ -16,7 +19,7 @@ brief.
 | [T05](T05-regmap-generator.md) | Register-map generator (Python front end, Chisel register block) | Any agent, with Maven Central access | T07 | Ready after T07 |
 | [T06](T06-riscay-baseline.md) | Bring up RISCay's toolchain and record its baseline | Any agent, with Maven Central access | T01 | Ready |
 | [T07](T07-chisel-build.md) | Chisel build skeleton | Any agent, with Maven Central access | T01, T06 | **Needs revision:** written for chisel-async; see the note at its top |
-| [S1](S-spikes.md#s1-core) | Core speed and area spike | Capable agent with review | D1, D2, T06 | Blocked on D1, D2 |
+| [S1](S-spikes.md#s1-core) | Core speed and area spike | Capable agent with review | D2, T07 | Blocked on D2 |
 | S2 | Historical interconnect study | Senior engineer or strongest model | T03, T04 | Ready after T04 |
 | [S3](S-spikes.md#s3-memory) | Memory and execute-in-place spike | Capable agent with review | T02 | Ready after T02 |
 | [S4](S-spikes.md#s4-latency-and-test-access) | Interrupt latency and scan | Capable agent with review | S1 | Blocked on S1 |

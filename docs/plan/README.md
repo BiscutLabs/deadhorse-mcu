@@ -30,6 +30,7 @@ used.
 | [09-roadmap.md](09-roadmap.md) | Phases, the measurement spikes that come first, and exit gates |
 | [10-decisions-and-risks.md](10-decisions-and-risks.md) | Decisions needing approval, ranked risks, open questions |
 | [11-repository-structure.md](11-repository-structure.md) | Folder layout and rules |
+| [STATUS.md](STATUS.md) | Progress tracker: decisions, tasks, gates, and a change log |
 | [tasks/README.md](tasks/README.md) | Task briefs for Phase 0 and the spikes, written for hand-off |
 | [../spec/](../spec/) | Register-map format and actuator block |
 
