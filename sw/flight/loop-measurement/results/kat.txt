@@ -1,0 +1,8 @@
+tests: 6592
+KAT rv32im: PASS   rvsim: exit=0 retired=37666 rvc=0 misaligned=0 
+  counting-window test (expect total 28: mul1 div1 load1 store1 branch11 other13): total=28 mul=1 div=1 load=1 store=1 branch=11 other=13 -> PASS
+  static encodings in test binary: 16-bit=0 32-bit=54177
+tests: 6805
+KAT rv32imc: PASS   rvsim: exit=0 retired=38712 rvc=13444 misaligned=0 
+  counting-window test (expect total 28: mul1 div1 load1 store1 branch11 other13): total=28 mul=1 div=1 load=1 store=1 branch=11 other=13 -> PASS
+  static encodings in test binary: 16-bit=18375 32-bit=37470

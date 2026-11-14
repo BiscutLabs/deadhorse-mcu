@@ -1,0 +1,14 @@
+Lines executed:100.00% of 173
+Branches executed:100.00% of 86
+Taken at least once:84.88% of 86
+never-taken edge at:    23600*:   47:        s->i = CLAMP(s->i, -p->imax, p->imax);
+never-taken edge at:      6000:   87:    if (a2 > N(0.25) && a2 < N(4.0)) {          /* accel plausible (0.5..2 g) */
+never-taken edge at:     5985*:  101:        s->mah_i[0] = CLAMP(s->mah_i[0] + MUL(s->p.mah_ki_dt, ex), -s->p.mah_imax, s
+never-taken edge at:     5985*:  102:        s->mah_i[1] = CLAMP(s->mah_i[1] + MUL(s->p.mah_ki_dt, ey), -s->p.mah_imax, s
+never-taken edge at:     5985*:  103:        s->mah_i[2] = CLAMP(s->mah_i[2] + MUL(s->p.mah_ki_dt, ez), -s->p.mah_imax, s
+never-taken edge at:    18000*:  142:        sp[i] = CLAMP(r, -s->p.rate_max[i], s->p.rate_max[i]);
+never-taken edge at:      4000:  176:    if (m1 > hi) hi = m1; else if (m1 < lo) lo = m1;
+never-taken edge at:     6000*:  221:    return lut16(s->p.tilt_lut, CLAMP(trans, N(0.0), N(1.0)));
+never-taken edge at:    18000*:  246:        num x = CLAMP(mot[i], N(0.0), N(1.0));
+never-taken edge at:    18000*:  248:        out->motor[i] = (uint16_t)CLAMP(v, p->dshot_min, p->dshot_max);
+never-taken edge at:    36000*:  253:        out->servo[i] = (uint16_t)CLAMP(us, (int32_t)p->servo_lo[i], (int32_t)p->ser
