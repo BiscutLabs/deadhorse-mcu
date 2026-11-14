@@ -60,8 +60,11 @@ Read this file fully before doing anything.
    brief does not mention.
 9. **Follow [docs/plan/11-repository-structure.md](docs/plan/11-repository-structure.md)**
    for where files go.
-10. **Commit and push only when a person asks.** Leave your work uncommitted
-    otherwise.
+10. **Commit and push after independent verification.** The user has given
+    standing authorization to commit and push completed work once an independent
+    agent has verified it and all required checks pass. Resolve review findings
+    before committing. Keep unrelated user changes in separate commits; do not
+    include them without authorization. Leave work uncommitted until verified.
 
 There is no asynchronous circuit work in this project. If a brief seems to
 ask for some, stop and ask.

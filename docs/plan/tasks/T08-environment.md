@@ -3,7 +3,7 @@
 ## Goal
 
 Define a reproducible Linux container usable through Docker/WSL and the same
-image in CI (D23). This task can precede T01; it does not create MCU RTL.
+image for the local check command (D23, local-only decision 2026-11-14). This task can precede T01; it does not create MCU RTL.
 
 ## Read first
 
@@ -15,7 +15,7 @@ image in CI (D23). This task can precede T01; it does not create MCU RTL.
 ## May change
 
 `tools/env/`, environment usage in root README, task report. T01 subsequently
-wires CI to this environment. No global installs or external workspace paths.
+wires the local check command to this environment; no hosted workflow. No global installs or external workspace paths.
 
 ## Deliverables and steps
 

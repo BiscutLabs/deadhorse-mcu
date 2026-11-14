@@ -1,6 +1,6 @@
 # Status
 
-Single progress tracker. Last updated: 2026-11-13.
+Single progress tracker. Last updated: 2026-11-14.
 States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete.
 Decision checks record the user's approvals, not implementation completion.
 No implementation task or gate is completed by the planning reconciliation.
@@ -59,8 +59,8 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | | ID | Item | Owner | Depends on | Report |
 | --- | --- | --- | --- | --- | --- |
 | [x] | PLAN01 | [Reconcile decisions](tasks/PLAN01-reconcile.md) | Codex | User approvals | [Report](tasks/reports/PLAN01.md); documentation only |
-| [ ] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | unassigned | none | |
-| [ ] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | unassigned | T08 | |
+| [x] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | Codex | none | [Report](tasks/reports/T08.md); clean rebuild and runtime smoke pass |
+| [x] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | Codex | T08 | [Report](tasks/reports/T01.md); local gate and fresh-context review pass |
 | [ ] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | unassigned | T01, T08 | |
 | [!] | T03 | Interconnect study | unassigned | T01, T08 | Blocked on sanitized transport handoff and Q8; no source imported |
 | [!] | T04 | Interconnect study | unassigned | T03 | Historical scripts require unapproved mixed dependencies; awaiting sanitized closure |
@@ -130,6 +130,17 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-14: T08 in progress -> done, Codex; immutable image built, clean rebuild reproduced inventory/versions/smoke, local gate passed; [report](tasks/reports/T08.md).
+- 2026-11-14: T01 in progress -> done, Codex; scaffold acceptance passed, fresh-context reviewer verified fixes and found no remaining issues; [report](tasks/reports/T01.md). No gate checked.
+
+- 2026-11-14: T01 not started -> in progress, Codex; preparing the assigned scaffold while the T08 image builds; acceptance remains dependent on T08.
+
+- 2026-11-14: T08 blocked -> in progress, Codex; user authorized resolving bootstrap/build failures until built, retaining verification.
+
+- 2026-11-14: T08 in progress -> blocked, Codex; initial Docker build failed on CA trust before package installation; awaiting approval to correct bootstrap. T01 not started.
+
+- 2026-11-14: T08 not started -> in progress, Codex; user assigned T08/T01 with local-only checks and a fresh-context review afterward.
 
 - 2026-11-13: PLAN01 in progress -> done, Codex; documentation checks passed, [report](tasks/reports/PLAN01.md). No implementation started.
 

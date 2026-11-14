@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "platform": "linux/amd64",
+  "base": "ubuntu:24.04@sha256:77eb101c607d6e3d4f5ad0c8a02c2136c689b98aba1f359e6502ba517e5c57ec",
+  "apt_snapshot": "20261113T000000Z",
+  "apt_packages": [
+    "ca-certificates",
+    "curl",
+    "git",
+    "python3.12",
+    "python3-tk",
+    "python3-venv",
+    "python3-yaml",
+    "build-essential",
+    "autoconf",
+    "bison",
+    "flex",
+    "gperf",
+    "libmpc3",
+    "openjdk-21-jdk-headless",
+    "gcc-riscv64-unknown-elf",
+    "qemu-system-misc",
+    "zstd",
+    "unzip",
+    "yosys",
+    "cmake",
+    "swig",
+    "tcl-dev",
+    "libeigen3-dev",
+    "libfmt-dev",
+    "zlib1g-dev",
+    "libgtest-dev",
+    "libfl-dev"
+  ],
+  "versions": {
+    "scala": "2.13.18",
+    "chisel": "7.16.0",
+    "chisel_plugin": "7.16.0",
+    "scalatest": "3.2.20",
+    "sbt": "1.12.4",
+    "firtool": "1.160.0",
+    "jdk_major": "21",
+    "sv2v": "0.0.13"
+  },
+  "archives": [
+    {
+      "name": "oss-cad-suite-linux-x64-20261114.tgz",
+      "url": "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-11-14/oss-cad-suite-linux-x64-20261114.tgz",
+      "sha256": "25d1960bc0f002c43b3579423c4e622bcffed49b7bb8b1f02df6426b1bdd2f26",
+      "source": "YosysHQ/oss-cad-suite-build@2026-11-14"
+    },
+    {
+      "name": "firrtl-bin-linux-x64.tar.gz",
+      "url": "https://github.com/llvm/circt/releases/download/firtool-1.160.0/firrtl-bin-linux-x64.tar.gz",
+      "sha256": "bc0a09658f7aee5359997468a1aa100d8851ee0c2f0caac3708e0c95451acbed",
+      "source": "llvm/circt@firtool-1.160.0"
+    },
+    {
+      "name": "sbt-1.12.4.tgz",
+      "url": "https://github.com/sbt/sbt/releases/download/v1.12.4/sbt-1.12.4.tgz",
+      "sha256": "3a02d4cd9867fce25982f9b168c245ff4e478dd769415db542e5beeb9f9fb87a",
+      "source": "sbt/sbt@v1.12.4"
+    },
+    {
+      "name": "sv2v-Linux.zip",
+      "url": "https://github.com/zachjs/sv2v/releases/download/v0.0.13/sv2v-Linux.zip",
+      "sha256": "552799a1d76cd177b9b4cc63a3e77823a3d2a6eb4ec006569288abeff28e1ff8",
+      "source": "zachjs/sv2v@v0.0.13"
+    }
+  ],
+  "wheels": [
+    {
+      "package": "yowasp-yosys",
+      "version": "0.71.0.0.post1285",
+      "name": "yowasp_yosys-0.71.0.0.post1285-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/71/f5/a2e03271457aa2a824bf3d2af681f82e46896b6fc001702afc4710b3fa5f/yowasp_yosys-0.71.0.0.post1285-py3-none-any.whl",
+      "sha256": "29cbdacef195850d80b06293a390584060d07a396b08b92061aedb3221c089ba"
+    },
+    {
+      "package": "yowasp-runtime",
+      "version": "1.96",
+      "name": "yowasp_runtime-1.96-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/92/e2/4dd5c8392a3f085f5ba81b5a4ac5f59923a0c3b36a35351975d8d7de19c9/yowasp_runtime-1.96-py3-none-any.whl",
+      "sha256": "4ff456a4a6dff9d689c7feac9f68fb1492bed4cf873450d7b41259fa31645783"
+    },
+    {
+      "package": "click",
+      "version": "8.5.1",
+      "name": "click-8.5.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/31/7d/164b7ffc8624fe9efb4221bf9af485d5c1e41b9ae118045d2b6dc5457d8b/click-8.5.1-py3-none-any.whl",
+      "sha256": "8bb5376d2006950386f8c6427613334a2acadc5f559cb80e638d00b4df957e37"
+    },
+    {
+      "package": "platformdirs",
+      "version": "4.5.0",
+      "name": "platformdirs-4.5.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/73/cb/ac7874b3e5d58441674fb70742e6c374b28b0c7cb988d37d991cde47166c/platformdirs-4.5.0-py3-none-any.whl",
+      "sha256": "e578a81bb873cbb89a41fcc904c7ef523cc18284b7e3b3ccf06aca1403b7ebd3"
+    },
+    {
+      "package": "wasmtime",
+      "version": "47.0.1",
+      "name": "wasmtime-47.0.1-py3-none-manylinux1_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/5e/ba/f321faaad1d616b94fe70a62ebb7e4054cfe41a6a46aa796ad2bb07fa08c/wasmtime-47.0.1-py3-none-manylinux1_x86_64.whl",
+      "sha256": "9724600b036c6e95c4fe952e29fad83b4f02bdc11d23f25c4ee3ffff2c1d7257"
+    }
+  ],
+  "maven": [
+    {
+      "name": "scala-compiler-2.13.18.pom",
+      "url": "https://repo.maven.apache.org/maven2/org/scala-lang/scala-compiler/2.13.18/scala-compiler-2.13.18.pom",
+      "sha256": "eb02cef7faa0c4dee7be6a983e8ee93f7fe16ffc3e7c0163c597f1f5c441486a"
+    },
+    {
+      "name": "scala-compiler-2.13.18.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/scala-lang/scala-compiler/2.13.18/scala-compiler-2.13.18.jar",
+      "sha256": "2f15891fcae7aad30a3892194fb2abb6224cf7ce5d2bd90fba7f1c48682fca21"
+    },
+    {
+      "name": "chisel_2.13-7.16.0.pom",
+      "url": "https://repo.maven.apache.org/maven2/org/chipsalliance/chisel_2.13/7.16.0/chisel_2.13-7.16.0.pom",
+      "sha256": "a7fb4ddc100120aa219fc735632dd897d00379919d6bb8b16908e7c07659c403"
+    },
+    {
+      "name": "chisel_2.13-7.16.0.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/chipsalliance/chisel_2.13/7.16.0/chisel_2.13-7.16.0.jar",
+      "sha256": "cb0d63b746c165148dfef0247b2c426f02021ed9dc20ba76506c4cd4224f1401"
+    },
+    {
+      "name": "chisel-plugin_2.13.18-7.16.0.pom",
+      "url": "https://repo.maven.apache.org/maven2/org/chipsalliance/chisel-plugin_2.13.18/7.16.0/chisel-plugin_2.13.18-7.16.0.pom",
+      "sha256": "daf416f2230f827fd739e059afc3f5dec12431d4f7b249988ea9e2fabb96586b"
+    },
+    {
+      "name": "chisel-plugin_2.13.18-7.16.0.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/chipsalliance/chisel-plugin_2.13.18/7.16.0/chisel-plugin_2.13.18-7.16.0.jar",
+      "sha256": "4ae0a514496759547ad7dc1995f79c4a108a1278dd40d334a716b1be3db7f378"
+    },
+    {
+      "name": "scalatest_2.13-3.2.20.pom",
+      "url": "https://repo.maven.apache.org/maven2/org/scalatest/scalatest_2.13/3.2.20/scalatest_2.13-3.2.20.pom",
+      "sha256": "4d8d839105d9719f949a04a30ec99f5c2e766a59fae6aea65769f8ccc8e2e3f3"
+    },
+    {
+      "name": "scalatest_2.13-3.2.20.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/scalatest/scalatest_2.13/3.2.20/scalatest_2.13-3.2.20.jar",
+      "sha256": "c89f72c8689b71c18c465d3f7ebb9c2e95fc2abfda7457ea1efc06b82de5ed4b"
+    }
+  ],
+  "certificate_base": "curlimages/curl:8.17.0@sha256:43ebaa53d3806db6b1ce4353b6b26ae638ec1c167ee351524b05690f988bb20d",
+  "sources": [
+    {
+      "name": "opensta.tar.gz",
+      "url": "https://codeload.github.com/The-OpenROAD-Project/OpenSTA/tar.gz/172dcdd68db8ac5150c00ac0edf15fd5bdbaa9b7",
+      "commit": "172dcdd68db8ac5150c00ac0edf15fd5bdbaa9b7",
+      "sha256": "a0f464fa14df46c06f36fb1a7ff3877fe52303d531584c58b2574cb48c6ed951"
+    },
+    {
+      "name": "cudd.tar.gz",
+      "url": "https://codeload.github.com/cuddorg/cudd/tar.gz/f54f533303640afd5dbe47a05ebeabb3066f2a25",
+      "commit": "f54f533303640afd5dbe47a05ebeabb3066f2a25",
+      "sha256": "dbe6b90f8745bf1f755953b76f1c639e07f7ee079f4abf18c871ae878f47431d"
+    }
+  ]
+}

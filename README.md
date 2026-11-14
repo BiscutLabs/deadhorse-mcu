@@ -9,6 +9,19 @@ Start with [AGENTS.md](AGENTS.md), the [plan](docs/plan/README.md),
 [approved decisions](docs/plan/10-decisions-and-risks.md),
 [status](docs/plan/STATUS.md) and [task briefs](docs/plan/tasks/README.md).
 
-This repository contains planning documents and historical measurement tools.
+This repository contains the plan, initial scaffold and historical measurement tools.
 The decision reconciliation does not implement hardware or establish physical
 fit, performance, power, test coverage or shuttle qualification.
+
+## Layout
+
+See the [repository structure](docs/plan/11-repository-structure.md) for block,
+firmware, verification and physical-design ownership. Generated output belongs
+under ignored `build/`; temporary work belongs under ignored `scratch/`.
+
+## Local checks
+
+Build the pinned Linux tools with `python tools/env/run.py build`, then run
+`python tools/env/run.py run`. This executes `python3 tools/ci.py` in the recorded
+immutable Docker image. There is no GitHub Actions workflow.
+See [environment setup](tools/env/README.md) for prerequisites and smoke checks.

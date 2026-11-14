@@ -5,7 +5,8 @@
 Create the directory layout in
 [../11-repository-structure.md](../11-repository-structure.md), a template
 for hardware blocks, a script that enforces the layout rules, and a CI
-workflow that runs it.
+local check entry point that runs it. The user selected local-only verification
+on 2026-11-14; do not add a GitHub Actions workflow.
 
 ## Read first
 
@@ -78,8 +79,8 @@ report.
 6. **CI entry point** at `tools/ci.py`: runs the unit tests under `tools/`,
    then `check_structure.py` on the repository; exits non-zero if either
    fails; prints `PASS` on success.
-7. **Workflow** at `.github/workflows/ci.yml`: on push and pull request, use T08's pinned Linux image, check out, and run
-   `python3 tools/ci.py` inside that environment.
+7. **Local execution:** document running `python3 tools/ci.py` inside T08's
+   pinned Linux image through the cross-platform launcher. No hosted workflow.
 
 ## Deliverables
 

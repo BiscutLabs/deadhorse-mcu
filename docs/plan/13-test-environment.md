@@ -6,6 +6,12 @@ What is proved formally is in
 [12-formal-verification.md](12-formal-verification.md). Signoff gates are in
 [08-physical-verification.md](08-physical-verification.md).
 
+## Local execution policy
+
+User decision 2026-11-14: checks run locally. References to CI mean the local
+`tools/ci.py` check entry point; no GitHub Actions or hosted runner is required.
+Outputs remain under build/ rather than being uploaded by a service.
+
 ## 1. One pinned environment
 
 One pinned Linux container image (D23, established in T08) provides everything: JDK, sbt, firtool, the simulators, the

@@ -31,7 +31,7 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | **D20** | FPU implementation | Area-focused multicycle Chisel FPU with selective pinned HardFloat reuse. Integrate into the Chisel core; no new handwritten SystemVerilog. |
 | **D21** | Actuator publication | Independent channel rates, atomic command publication, and application at each channel frame boundary. Channel assignment, direction and endpoints configurable. |
 | **D22** | UART sleep modes | Per UART: receive (clock available), wake-only (first byte may be lost; sender needs wake preamble/retry), or disabled. |
-| **D23** | Tool environment | Pinned Linux container through Docker/WSL; same environment in CI. Pin versions and image digest; no host-specific implementation tools. |
+| **D23** | Tool environment | Pinned Linux container through Docker/WSL; local checks use the same environment. User clarified local-only verification on 2026-11-14; no GitHub Actions. Pin versions and image digest; no host-specific implementation tools. |
 | **D24** | Buses and ownership | Performance-local SRAM/XIP/actuators, AON lite SRAM/control, shared sleep-capable serial peripherals with exclusive ownership and clock-domain bridges. Wake/HF requests cannot depend on a stopped clock. |
 | **D25** | DMA | Basic SPI/UART DMA with ownership and memory-access checks, bounded bursts and completion/error interrupts. No linked descriptors required initially. |
 | **D26** | IMU | BMI270 with timestamped acquisition and timer-driven loop (D13). Stream initialization data from flash rather than reserving the whole blob in SRAM. |
