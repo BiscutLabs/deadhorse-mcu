@@ -67,7 +67,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [-] | T03 | Interconnect study | n/a | n/a | Withdrawn by D43; no source imported |
 | [-] | T04 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | T06 | [RISCay baseline](tasks/T06-riscay-baseline.md) | Codex | T01, T08 | [Report](tasks/reports/T06.md); upstream gates/export pass, area within tolerance, local gate and independent review pass |
-| [ ] | T07 | [Chisel build](tasks/T07-chisel-build.md) | unassigned | T01, T06, T08 | Brief rewritten; no build run |
+| [x] | T07 | [Chisel build](tasks/T07-chisel-build.md) | Codex | T01, T06, T08 | [Report](tasks/reports/T07.md); direct build, simulation, both formal routes, local gate and independent review pass |
 | [ ] | T05 | [Register generator](tasks/T05-regmap-generator.md) | unassigned | T07 | |
 | [ ] | T09 | [Timing flow](tasks/T09-timing-flow.md) | unassigned | T01, T06, T07, T08 | |
 | [ ] | T10 | [Ibex reference and harness](tasks/T10-ibex-reference.md) | unassigned | T07, T08 | Ibex revision/parameters pinned on assignment |
@@ -138,7 +138,11 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 
 ## Log
 
+- 2026-11-14: T07 in progress -> done, Codex; pinned direct Chisel build, behavioral negative control, native BTOR2 and SymbiYosys induction/fault/cover checks passed; merged-tree local gate and independent verification passed. [Report](tasks/reports/T07.md). Remote D43 plan retained; no gate checked.
+
 - 2026-11-14: Plan change, Claude at user's direction; D43 removes the NoC and restores a whole-chip bus with domain bridge and mailbox. D3/D14 superseded. T03/T04/S2 blocked -> withdrawn. T14 added, unstarted. R-NOC replaced by R-BUS; K8 closed, K14 rewritten, K21 added. No gate checked.
+
+- 2026-11-14: T07 not started -> in progress, Codex; user assigned pinned Chisel build and formal smoke, routine tooling repairs, independent review, commit and push.
 
 - 2026-11-14: T06 in progress -> done, Codex; clean upstream gates/export, mapped area within the original tolerance, exact architectural storage, local gate and independent verification passed. [Report](tasks/reports/T06.md). Remote plan update merged; no gate checked.
 

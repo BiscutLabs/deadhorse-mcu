@@ -1,0 +1,19 @@
+[options]
+mode {mode}
+depth {depth}
+timeout {timeout}
+
+[engines]
+smtbmc z3
+
+[script]
+read_slang --top HelloFormal {sources}
+prep -top HelloFormal -flatten
+fminit -seq reset_n 0,'z -seq checking 0,1
+async2sync
+chformal -lower
+select -assert-count {property_count} t:${property_type}
+dffunmap
+
+[files]
+{files}
