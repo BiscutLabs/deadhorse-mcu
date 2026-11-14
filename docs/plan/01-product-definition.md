@@ -2,7 +2,7 @@
 
 ## What Deadhorse is
 
-A clockless (bundled-data, desynchronized) RISC-V microcontroller with two
+A clocked, synchronous RISC-V microcontroller with two
 cores, retained deep sleep, standard serial peripherals, a nine-channel
 actuator output block.
 

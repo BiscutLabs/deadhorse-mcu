@@ -5,8 +5,10 @@ to R-CTL-5 in [../plan/02-requirements.md](../plan/02-requirements.md).
 
 Nine output channels. Each is a servo PWM output, an ESC PWM output, a DShot
 output or a plain GPIO. The CPU writes values; the block does all bit timing.
-Registers and shadow values live in region M. The tick counter, pulse and
-frame generators and the failsafe logic live in the timed-I/O island.
+The whole block is synchronous logic on `clk_main`. The tick counter, pulse
+and frame generators and the failsafe logic sit on an ungated branch of that
+clock with their own reset, so they keep running while the rest of the main
+domain is in reset.
 
 ## Timing base
 
@@ -71,16 +73,16 @@ checksum. The checksum is the exclusive-or of the three nibbles of the upper
 | Disabled | All nine pins are inputs | Reset; `ctrl.enable` = 0 | `ctrl.enable` = 1 |
 | Disarmed | Each channel performs its `fs_kind` action | Enable; a disarm write | A correct arm key with no fault present |
 | Armed | Active values | Arm | Disarm, or any failsafe cause |
-| Failsafe | Each channel performs its `fs_kind` action | Performance-core watchdog expiry, brownout warning, `fault.force` = 1, or region M reset | Cause cleared **and** a correct arm key |
+| Failsafe | Each channel performs its `fs_kind` action | Performance-core watchdog expiry, brownout warning, `fault.force` = 1, or main-domain reset | Cause cleared **and** a correct arm key |
 
 Rules:
 
-1. Entering failsafe needs no CPU and no region M activity. The island
+1. Entering failsafe needs no CPU and no bus activity. The failsafe logic
    generates the failsafe pulses on its own.
 2. Failsafe is entered at the next frame boundary, or immediately for
    `fs_kind` 0 and 1.
-3. A power-on reset leaves the block Disabled. A region M reset alone leaves
-   `mode`, `fs_value` and `period` intact in the island and forces Failsafe.
+3. A power-on reset leaves the block Disabled. A main-domain reset alone
+   leaves `mode`, `fs_value` and `period` intact and forces Failsafe.
 4. Arming with any channel in mode 0 is allowed; that channel stays an input.
 5. For a DShot ESC, the usual failsafe is `fs_kind` 2 with `fs_value` 0, the
    motor-stop command. For a servo it is 2 with a neutral width, or 3.

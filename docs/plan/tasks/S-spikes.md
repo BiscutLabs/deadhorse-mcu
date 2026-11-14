@@ -11,49 +11,48 @@ Common rules: no production RTL; everything a spike builds stays under
 
 ## S1 Core
 
-**Owner:** senior engineer or the strongest available model, not a
-delegated lesser agent. Diagnosing why a desynchronized design is slow, and
-what to change, is the judgement this spike exists for.
+**Owner:** a capable agent, with review of the conclusions. With the design
+entirely clocked (decision D17) this is ordinary synthesis and timing work.
 
-**Blocked on:** decisions D1 (dependency or fork) and D2 (Ibex or extended
-RISCay core), and T06 (RISCay's full gate runs on a clean machine).
+**Blocked on:** decision D2 (which candidates to measure) and T07 (the
+Chisel build, for the RISCay-core control case).
 
-**Question:** can the performance core sustain 5 MIPS desynchronized on
-GF180 at the slow corner (R-CPU-1)?
+**Question:** how fast and how large is the performance core on GF180, and
+does it sustain 5 MIPS at the slow corner (R-CPU-1)?
 
 **What is known:**
 
-- RISCay's generated design models a worst recurrence of 358.9 ns at
-  SS/125 C/3.0 V without wire delay. RISCay's contract attributes the limit
-  to the elapsed-time logic, so that number does not transfer to a
-  different core.
 - The control loop costs at most 2,171 instructions per iteration, of which
   about 390 are multiplies (measured, `sw/flight/loop-measurement/`).
-- 5 MIPS at two to three cycles per instruction needs a 67 to 100 ns
-  recurrence.
-- Whether RISCay's generator accepts a netlist that did not come from its
-  own Chisel export is **unknown**. That is the first thing to find out.
+- 5 MIPS at two cycles per instruction needs a 10 MHz clock.
+- RISCay's clocked design states a 20 MHz maximum for its own work clock;
+  that is a different core and is not a measurement of this one.
+- No core has been mapped or timed for this project.
 
 **Method:**
 
-1. Map the candidate core, clocked, to `gf180mcu_fd_sc_mcu7t5v0`; record
-   area and critical path at the slow corner.
-2. Run the measured loop binary on a cycle-accurate simulation of that core
-   for cycles per instruction, with the multiplier option under test.
-3. Put the core through RISCay's bank partitioning and delay modelling.
-   Record bank count, storage ratio, control share and modelled recurrence
-   at all five corners.
+1. Map the candidate core to `gf180mcu_fd_sc_mcu7t5v0` with yosys; record
+   area and cell count.
+2. Run static timing at SS/125 C/3.0 V and at the typical corner with a
+   wire-load allowance; record the maximum clock frequency and the critical
+   path. State the allowance used.
+3. Run the measured loop binary on a cycle-accurate simulation of the core
+   (Verilator or Icarus) for cycles per instruction, with each multiplier
+   option.
 4. Repeat steps 1 to 3 for the control case named in D2.
 5. Try the SRAM word-access options in
-   [../07-peripherals-memory-boot.md](../07-peripherals-memory-boot.md).
+   [../07-peripherals-memory-boot.md](../07-peripherals-memory-boot.md) and
+   report their effect on cycles per instruction.
 
-**Deliverable:** instructions per second at the slow corner for each
-candidate, with the area and ratios against R-PHY-3, and a recommendation
-for D2, D12 and D13.
+**Deliverable:** for each candidate: area, maximum frequency, cycles per
+instruction, and instructions per second at the slow corner. A
+recommendation for D2, D12, D13 and the `clk_main` frequency (12 or 24 MHz).
 
 **Gate rule:** at least 5 MIPS, proceed. 2.5 to 5, proceed at 500 Hz and
-record the shortfall. Below 2.5, stop and revisit before anything else is
-built.
+record the shortfall. Below 2.5, stop and revisit the core choice.
+
+**Stop and ask:** if timing analysis cannot be run with the open tools on
+this library, report what failed; do not substitute an estimate.
 
 ## S2 Interconnect study
 
@@ -86,21 +85,22 @@ D12 and whether a prefetch buffer is worth its area.
 
 ## S4 Latency and test access
 
-**Owner:** senior engineer or the strongest available model. Blocked on S1.
+**Owner:** a capable agent, with review. Needs S1.
 
 **Questions:** what is pin-to-handler interrupt latency on the chosen core
-at the slow corner (R-CPU-4), and what does the latch-enable test override
-cost (decision D8)?
+(R-CPU-4), and what does scan cost and cover in the open flow (decision D8)?
 
 **Method:**
 
-1. Simulate the S1 core with slow-corner delays; measure from an input edge
-   to the first handler instruction, in the worst case of an interrupted
-   multi-cycle instruction.
-2. On one bank from S1, add the test-mode override that drives master and
-   slave latch enables from two external non-overlapping clocks; confirm
-   scan shift and capture in simulation; measure added area as a share of
-   control area.
+1. Simulate the S1 core; measure, in clock cycles, from an input edge to the
+   first handler instruction, in the worst case of an interrupted
+   multi-cycle instruction. Convert to time at the S1 frequency.
+2. On one block (the lite core is a good size), replace flip-flops with the
+   library's scan flip-flops, stitch one chain, and confirm shift and
+   capture in gate-level simulation. Record added area.
+3. Find out which open pattern generator works on that netlist and what
+   stuck-at coverage it reports. If none does, say so.
 
-**Deliverable:** a latency bound; added control area; a recommendation for
-D8.
+**Deliverable:** a latency bound; scan area overhead; achieved coverage or a
+clear statement that the open flow cannot generate patterns; a
+recommendation for D8.

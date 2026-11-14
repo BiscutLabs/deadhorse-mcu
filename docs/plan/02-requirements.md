@@ -34,7 +34,7 @@ instructions, not cycles.
 | R-CPU-2 | Performance core is RV32IMC with machine-mode CSRs, vectored interrupts and `wfi`. No FPU. | M (multiplier), A (C extension, for code size) |
 | R-CPU-3 | Hardware multiply completes in at most 3 core cycles. Divide may be iterative. | E |
 | R-CPU-4 | Interrupt latency from pin to first handler instruction is bounded and at most 50 microseconds at the slow corner. | A, replaced by spike S4 |
-| R-CPU-5 | Lite core is RV32E (optionally C) with a minimal interrupt and CSR set, at least 0.2 MIPS. | A |
+| R-CPU-5 | Lite core is RV32E (optionally C) with a minimal interrupt and CSR set. At least 0.2 MIPS on the divided HF clock; a few thousand instructions per second on the 32 kHz clock. | A |
 | R-CPU-6 | Both cores are debuggable: halt, resume, single-step, register and memory access. | A |
 
 ## Control and I/O timing
@@ -72,7 +72,7 @@ instructions, not cycles.
 
 | ID | Requirement | Tag |
 | --- | --- | --- |
-| R-PWR-1 | Retained deep sleep: all fast timing sources stopped, SRAM and registers retained, lite core able to run. | M (RISCay retained sleep), A (lite core running) |
+| R-PWR-1 | Retained deep sleep: the fast clock sources are stopped so the main domain has no clock, SRAM and registers retained, lite core running on the 32 kHz clock. | M (RISCay retained sleep), A (lite core running) |
 | R-PWR-2 | Wake sources: low-frequency tick, GPIO level, I2C START, UART activity, USB resume. | M for the first three, A for the rest |
 | R-PWR-3 | Deep-sleep current target for the whole chip below 50 microamps at 25 C. | A, replaced by leakage measurement in Phase 4 |
 | R-PWR-4 | Always-on low-frequency timebase of nominally 32 kHz, within 5 percent after trim. RISCay's 7.7 Hz source is too slow for sensor cadence. | A |
@@ -87,5 +87,5 @@ The historical interconnect requirements have been removed.
 | --- | --- | --- |
 | R-PHY-1 | GF180MCU, 3.3 V, 7-track cells, wafer.space 1x1 slot: 3.932 by 5.122 mm die, 12.92 mm2 core. | M (Coldfoot slot data) |
 | R-PHY-2 | Fits the slot's pad ring: 40 bidirectional, 12 input-only, 2 analog pads. | M (Coldfoot slot data) |
-| R-PHY-3 | Desynchronized logic stays within RISCay's approved ratios against the clocked reference: 1.17 times mapped area, 1.20 times repaired area, 1.25 times storage area, identical architectural bits. | M (RISCay ceilings) |
+| R-PHY-3 | The performance core and main domain close timing at the chosen `clk_main` frequency (12 or 24 MHz) at the slow corner with extracted delays. | A, replaced by spike S1 |
 | R-PHY-4 | Every production die can be tested for stuck faults in logic and for SRAM defects through a documented access path. | A |

@@ -1,6 +1,6 @@
 # Instructions for agents working in deadhorse-mcu
 
-Deadhorse is the production rebuild of RISCay-MCU: a clockless, two-core
+Deadhorse is the production rebuild of RISCay-MCU: an entirely clocked, two-core
 RISC-V microcontroller on GF180MCU, first used as a VTOL flight controller.
 Read this file fully before doing anything.
 
@@ -16,6 +16,16 @@ Read this file fully before doing anything.
 
 1. **Adopt before building.** Do not write new RTL where a brief names an
    existing block to adopt.
+
+   **New RTL is Chisel, and it is clocked.** The only exception is a later,
+   explicitly briefed Click version of the lite core (decision D18).
+   Otherwise do not use chisel-async, and
+   do not add handshake controllers, matched delays, latches used as
+   storage, or any other clockless structure (decision D17). Every signal
+   that crosses a clock domain goes through the one crossing block. Do not write SystemVerilog or
+   Verilog source. SystemVerilog exists only under `hw/vendor/`, unmodified,
+   and is used through a Chisel `BlackBox`. Emitted SystemVerilog is build
+   output under `build/`.
 2. **Every number has a provenance.** Mark each figure you report as
    *measured* (name the command and commit), *estimated* (show the
    arithmetic) or *assumed*. Never present an estimate as a measurement.
@@ -38,9 +48,8 @@ Read this file fully before doing anything.
 10. **Commit and push only when a person asks.** Leave your work uncommitted
     otherwise.
 
-For async circuit work, RISCay-MCU's `.agents/skills/async-circuit-design`
-skill applies here too. No brief currently assigned to a delegated agent
-involves async timing; if yours seems to, stop and ask.
+There is no asynchronous circuit work in this project. If a brief seems to
+ask for some, stop and ask.
 
 ## Stop and ask
 

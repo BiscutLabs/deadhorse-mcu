@@ -8,6 +8,8 @@ This layout defines where Deadhorse source, verification, and documentation belo
   and docs beside each other for most blocks.
 - Keep shared interfaces and types in the shared library.
 - **FuseSoC `.core` files** as the declared file list for each block.
+  Deadhorse keeps these for vendored SystemVerilog only; its own blocks are
+  Chisel and are listed by the sbt build.
 - **Separate `asic/`, `fpga/`, `sw/` trees,** so a deployment target never
   leaks into `hw/`.
 
@@ -40,7 +42,7 @@ Each item was checked in the repository; the count or path is given.
 ```
 deadhorse-mcu/
 ├── README.md  LICENSE  AGENTS.md
-├── build.sbt  fusesoc.conf  .gitignore
+├── build.sbt  project/  fusesoc.conf  .gitignore
 ├── .github/workflows/          CI, at the root
 ├── .agents/                    agent skills and instructions, one place
 │
@@ -48,7 +50,7 @@ deadhorse-mcu/
 │   ├── plan/                   this plan
 │   ├── spec/                   normative: register map, 
 │   │                           memory map, pinout, boot format
-│   ├── design/                 cross-cutting design notes: regions, crossings,
+│   ├── design/                 cross-cutting design notes: clocks, crossings,
 │   │                           sleep, reset
 │   ├── decisions/              one short file per decision, numbered
 │   └── ledger/                 area, clocked state and timing, one row per commit
@@ -56,23 +58,22 @@ deadhorse-mcu/
 ├── hw/
 │   ├── ip/<block>/             one directory per block, identical shape
 │   │   ├── README.md           the block's contract
-│   │   ├── <block>.core        file list and targets
-│   │   ├── rtl/                synthesizable source only
-│   │   ├── dv/                 simulation tests and benches
-│   │   ├── formal/             harnesses for this block's RTL
+│   │   ├── src/main/scala/     Chisel source, package deadhorse.<block>
+│   │   ├── src/test/scala/     simulation tests
+│   │   ├── <block>.regmap.yaml register description, if the block has one
+│   │   ├── formal/             harnesses for this block
 │   │   └── doc/                deeper documentation, optional
-│   ├── lib/                    shared packages, interfaces, primitives
-│   ├── regmap/                 the single register description and its generator
-│   ├── vendor/<name>/          adopted IP, unmodified
+│   ├── lib/                    shared Chisel: bundles, bus, register block
+│   ├── regmap/                 register-map front end and reference model
+│   ├── vendor/<name>/          adopted SystemVerilog, unmodified
 │   │   ├── <name>.lock.json    upstream URL, commit, licence, import date
+│   │   ├── <name>.core         file list
 │   │   └── patches/            our changes, as patches
 │   └── top/
-│       ├── reference/          the clocked reference SoC
+│       ├── reference/          the clocked reference SoC and emitters
 │       ├── chip/               pad-level wrapper
-│       └── stubs/              stand-ins with final ports (USB, reserved node)
+│       └── stubs/              stand-ins with final ports (USB, reserved leaf)
 │
-├── desync/                     region and bank definitions, generator
-│                               configuration; generated netlists go to build/
 ├── analog/<macro>/             generator, characterisation, layout, views,
 │                               and a status file
 ├── phys/gf180-ws-1x1/          PDK lock, slot, pad ring, floorplan,
@@ -100,18 +101,20 @@ deadhorse-mcu/
 
 `ibex` (performance core),
 `usb` (from its implementer, when delivered), and the debug module if D5 is
-taken. RISCay's generator is not vendored: it is a pinned build dependency,
-as chisel-async is for RISCay.
+taken. RISCay's clocked design is imported once into `hw/` (decision D1),
+not vendored.
 
 ## Rules
 
 1. **Clean root.** Only the files shown above. A script belongs in `tools/`,
    a test in `dv/` or a block's `dv/`, a note in `docs/`.
-2. **Uniform blocks.** Every `hw/ip/<block>/` has a README, a manifest and
-   `rtl/`. `dv/` and `formal/` are present or the README says why not.
+2. **Uniform blocks.** Every `hw/ip/<block>/` has a README and
+   `src/main/scala/`. Tests and `formal/` are present or the README says why
+   not.
    Names are lower snake case. A structure check in CI enforces this.
 3. **Ownership by location.** A harness, test or document sits in the block
-   whose RTL it concerns. Nothing but synthesizable source goes in `rtl/`.
+   whose RTL it concerns. Nothing but Chisel source goes in
+   `src/main/scala/`.
 4. **One copy, no symlinks.** Shared material goes in `hw/lib/`. To surface a
    block's document elsewhere, link to it from `docs/README.md`.
 5. **Nothing generated is committed.** Netlists, layouts, GDS, waveforms,
@@ -139,7 +142,7 @@ as chisel-async is for RISCay.
 ### The block README is a contract
 
 Following RISCay's working method, each block's README states, on one page:
-interfaces and protocol; which timing region or island it is in; every delay
+interfaces and protocol; which clock domain it is in; every delay
 with its kind (relative, absolute, simulation-only); reset behaviour; an
 area estimate; and its status (planned, reference, generated, routed).
 
@@ -157,11 +160,18 @@ area estimate; and its status (planned, reference, generated, routed).
 | `demo/`, `snn_visualize/` | Not carried | Separate repository |
 | `docs/` reports and investigation logs | `docs/ledger/` rows; the rest not carried | |
 
-## Mixed languages
+## Design language and build
 
-Deadhorse combines Chisel (RISCay's generator and core), SystemVerilog
-(Ibex), Python tools and C firmware. The layout is by
-function, not by language. Each block's manifest declares its sources;
-`build.sbt` covers the Chisel projects and FuseSoC the SystemVerilog file
-lists. Whether to consolidate on one manifest system is left open until the
-first spike shows how the generator consumes a SystemVerilog block.
+Deadhorse RTL is Chisel, entirely clocked (decisions D16 and D17).
+
+- **One sbt project** at the root (`build.sbt`, `project/`) compiles every
+  `hw/lib`, `hw/ip/*` and `hw/top/*` source directory. Chisel, the compiler
+  plugin and firtool are pinned to RISCay-MCU's versions.
+- **Emitted SystemVerilog is build output.** It goes to `build/` and is
+  never committed. The physical flow consumes it from
+  there.
+- **SystemVerilog source exists only under `hw/vendor/`,** with a lock file
+  and a FuseSoC `.core` file list, and enters the design through a Chisel
+  `BlackBox` in the block that uses it.
+- **Python** is for tools, the register-map front end and reference models.
+- **C** is for firmware under `sw/`.

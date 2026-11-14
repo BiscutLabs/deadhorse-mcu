@@ -8,7 +8,7 @@ quotes, with the exact commands that produced them.
 
 ## Why
 
-Deadhorse builds on RISCay's generator. The plan quotes RISCay's figures
+Deadhorse imports RISCay's clocked design. The plan quotes RISCay's figures
 from its documents. Only part of its toolchain was run while planning: the
 Scala suites and the clocked export need Maven Central, which was not
 reachable. This task closes that gap and tells us whether RISCay is usable
@@ -19,7 +19,7 @@ as a dependency (decision D1).
 - [../../../AGENTS.md](../../../AGENTS.md)
 - [../04-riscay-carryover.md](../04-riscay-carryover.md)
 - In RISCay-MCU: `README.md`, `docs/build-and-test.md`,
-  `docs/desync-contract.md`, `docs/desync-ledger.md`,
+  `docs/clocked-design.md`, `designs/clocked/README.md`,
   `.github/workflows/ci.yml`
 - `tools/bootstrap/riscay_bootstrap.sh` in this repository
 

@@ -2,9 +2,9 @@
 
 ## Peripheral set
 
-Every peripheral is split the same way: **registers and FIFOs in region M**
-(clockless, on the local bus), **bit-level timing in island T** (clocked on
-the HF reference), one crossing between them.
+Every peripheral is ordinary synchronous logic in the main domain: its
+registers and FIFOs sit on the local bus and its bit-level timing counts
+`clk_main` directly. There is no crossing inside a peripheral.
 
 | Peripheral | Count | Source | Notes |
 | --- | --- | --- | --- |
@@ -14,15 +14,16 @@ the HF reference), one crossing between them.
 | I2C target | 1 | RISCay | Host loader, unchanged |
 | SPI ADC player | 1 | RISCay | Battery voltage and current, owned by the lite core |
 | QSPI flash controller | 1 | Adopt | Execute-in-place read path plus a register path for erase and program |
-| USB FS device | 1 | Separate implementer; integrated last | CDC-ACM. Island U. See the reservation below |
-| Timers | 4 capture/compare + 1 microsecond timebase | New, small | Island T |
+| USB FS device | 1 | Separate implementer; integrated last | CDC-ACM. Its own 48 MHz clock domain. See the reservation below |
+| Timers | 4 capture/compare + 1 microsecond timebase | New, small | Counted on `clk_main` |
 | Actuator block | 9 channels | New | See below |
 | GPIO | Remaining pads | RISCay | Wake on level |
 | Interrupt controller | 1 per core | Adopt with the core | Sources: data-ready pin, UART, SPI done, timer, USB |
 
 "Adopt" means: take an existing, verified, permissively licensed clocked
-design, keep its bit engine clocked in island T, and put our generated
-register front end in region M.
+design and put our generated register block in front of it. A Chisel implementation is preferred. A
+SystemVerilog one is vendored unmodified behind a Chisel black box. "New"
+blocks are written in Chisel.
 
 ### Actuator block
 
@@ -55,13 +56,13 @@ dropped in without moving anything else.
 | Floorplan region | About 0.5 mm2 placed, at a die edge next to its pads, held as a placement blockage | Assumed (0.2 to 0.3 mm2 mapped at 55 percent); replaced by the implementer's figure |
 | Pads | D+, D-, pull-up enable | In the pad budget below |
 | Clock | 48 MHz from the clock pad, with its own clock tree | Assumed; confirm what the implementation needs |
-| Reset | Its own reset domain, released after region M | |
+| Reset | Its own reset domain, released after the main domain | |
 | Bus window | One block in the generated register map; one interrupt line to each core's controller | |
 | Wake | One wake input for bus resume | |
 
 Integration contract, to be agreed with the implementer in Phase 0:
 
-- **The boundary is island U's edge, with one crossing:** transmit and receive
+- **The boundary is the USB clock domain's edge, with one crossing:** transmit and receive
   byte FIFOs with handshakes, a status register, an interrupt and a wake
   line. Nothing else crosses.
 - **A stub with the same ports exists from Phase 2.** It reports "not
@@ -69,7 +70,7 @@ Integration contract, to be agreed with the implementer in Phase 0:
   until the real block arrives; USB tests are added on delivery.
 - **Deliverables:** clocked RTL or a hardened macro, a verification suite we
   can run in CI, timing constraints, clock and reset requirements, and area.
-- **Late placement is possible** because the island is self-contained clocked
+- **Late placement is possible** because the block is self-contained in its own clock domain
   logic behind one crossing. It can be hardened separately and placed in the
   reserved region.
 - **Until USB is integrated,** the gateway monitor and the firmware console
@@ -115,8 +116,8 @@ fetch time. Options, decided in spike S1 alongside the core:
 
 1. Four byte-wide macros in parallel per bank (word access, same macro).
 2. A wider macro if one is available and qualified for the shuttle.
-3. Keep byte-serial access but run the memory controller on its own shorter
-   matched delay.
+3. Keep byte-serial access and accept four clock cycles per word, if S1
+   shows the clock is fast enough to afford it.
 
 ## Boot
 
@@ -142,11 +143,11 @@ prototype and noted as open question Q7.
 | Path | Capability | Cost | Status |
 | --- | --- | --- | --- |
 | **Gateway monitor** | Register and memory access for bring-up | | Planned for the prototype |
-| **JTAG debug module** | Standard RISC-V external debug: GDB, breakpoints, single-step | Four pads, a TCK-clocked island, the debug module, core debug support | Decision D5 |
+| **JTAG debug module** | Standard RISC-V external debug: GDB, breakpoints, single-step | Four pads, a small TCK clock domain, the debug module, core debug support | Decision D5 |
 
 The gateway monitor is enough to bring up silicon. A product that third parties program needs
 the JTAG path. Ibex already supports the standard debug module, so the cost
-is mostly pads and a small clocked island.
+is mostly pads and a small extra clock domain.
 
 ## Pad budget
 

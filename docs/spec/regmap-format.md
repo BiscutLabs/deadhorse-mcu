@@ -1,7 +1,7 @@
 # Register-map description format
 
 Draft v0.1, 2026-11-13. Proposed; not yet implemented. This is the input
-format for the generator built in task T05. One description per block is the
+format for the tooling built in task T05. One description per block is the
 single source for the RTL decode, the C header and the documentation.
 
 ## File
@@ -71,9 +71,12 @@ Each violation is a named error and a non-zero exit.
 | `REGMAP_DUP` | A duplicate register name, or a duplicate field name within a register |
 | `REGMAP_UNKNOWN_KEY` | Any YAML key not defined here |
 
-## Generated bus port
+## Bus port
 
-The clocked reference uses this port. One transaction may be outstanding.
+The register block is a Chisel module, `deadhorse.lib.RegBlock`, built from
+the validated description at elaboration. Its bus is the Chisel bundle
+`deadhorse.lib.RegBus` with these signals. One transaction may be
+outstanding.
 
 | Signal | Direction | Width | Meaning |
 | --- | --- | ---: | --- |
@@ -102,11 +105,12 @@ Behaviour:
 
 ## Generated files
 
-Written under `build/regmap/<block>/`, never committed.
+Written under `build/regmap/<block>/` by the Python front end, never
+committed. The hardware is not a generated file: `RegBlock` elaborates it
+from the JSON below.
 
 | File | Contents |
 | --- | --- |
-| `<block>_regs.sv` | One module `<block>_regs` with the bus port and the hardware ports above. Plain SystemVerilog without interfaces, packages or structs, so that yosys, sv2v and Icarus all read it |
 | `<block>_regs.h` | `#define` offsets, masks and shifts, prefixed `DH_<BLOCK>_` |
 | `<block>_regs.md` | A register table for the documentation |
-| `<block>_regs.json` | The validated description, with array elements expanded, for the reference model |
+| `<block>_regs.json` | The validated description, with array elements expanded. The only input to `RegBlock` and to the reference model |

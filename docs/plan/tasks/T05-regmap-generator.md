@@ -2,9 +2,10 @@
 
 ## Goal
 
-Build the tool that turns one register description per block into the RTL
-decode, the C header, the documentation table and a JSON model, exactly as
-specified in [../../spec/regmap-format.md](../../spec/regmap-format.md).
+Build the tooling that turns one register description per block into the
+Chisel register block, the C header, the documentation table and a JSON
+model, as specified in
+[../../spec/regmap-format.md](../../spec/regmap-format.md).
 
 ## Why
 
@@ -19,21 +20,32 @@ prevents the RTL, firmware and documents from disagreeing.
   is the specification. Where this brief and the spec differ, stop and ask.
 - [../../spec/actuator-block.md](../../spec/actuator-block.md), the
   "Registers" table. It is your first real input.
+- `hw/lib/src/main/scala/deadhorse/lib/Hello.scala` and its spec and
+  emitter from T07, for the house style and the simulation harness.
 
 ## Inputs
 
-Python 3.10 or later, `pip install pyyaml`, Icarus Verilog (`iverilog`,
-version 12 or later), `yosys` (0.33 or later).
+- T01 and T07 complete, with the Chisel toolchain environment loaded.
+- Python 3.10 or later, `pip install pyyaml`, Icarus Verilog.
+
+## Split of work
+
+| Part | Language | Why |
+| --- | --- | --- |
+| Validation, JSON, C header, documentation | Python, `hw/regmap/regmap.py` | No hardware; runs without the Chisel toolchain |
+| Register block hardware | Chisel, `deadhorse.lib.RegBlock` | Deadhorse RTL is Chisel (decision D16) |
+| Reference model | Python, `hw/regmap/model.py` | Independent of the hardware generator |
 
 ## May change
 
-New files under `hw/regmap/`, `hw/ip/actuator/` (only
-`actuator.regmap.yaml`, `actuator.core`, `README.md` and `rtl/.gitkeep`),
-`tools/ci.py`, and your report.
+New files under `hw/regmap/`, `hw/lib/src/main/scala/deadhorse/lib/`
+(`RegBlock.scala`, `RegBus.scala`), `hw/lib/src/test/scala/deadhorse/lib/`
+(`RegBlockSpec.scala`), `hw/ip/actuator/` (`actuator.regmap.yaml`,
+`README.md`, `src/main/scala/.gitkeep`), `tools/ci.py`, and your report.
 
 ## Steps
 
-1. **Generator** `hw/regmap/regmap.py`, a command-line tool:
+1. **Python front end** `hw/regmap/regmap.py`:
 
    ```
    python3 hw/regmap/regmap.py <file.regmap.yaml> --out build/regmap/<block>
@@ -41,60 +53,55 @@ New files under `hw/regmap/`, `hw/ip/actuator/` (only
 
    It validates the description, reports the first violation as
    `ERROR_NAME: message` on standard error with exit status 1, and otherwise
-   writes the four files named in the spec.
-2. **Validation.** Implement every row of the spec's error table. Unknown
-   keys are errors.
-3. **RTL output.** One module, `<block>_regs`, with the bus port and the
-   hardware ports the spec defines. Plain SystemVerilog: no interfaces,
-   packages, structs or `always_comb` latch inference. Array registers
-   expand to `<name>0`, `<name>1`, and so on.
-4. **Header output.** For each register `DH_<BLOCK>_<REG>_OFFSET`; for each
-   field `_<FIELD>_SHIFT` and `_<FIELD>_MASK` (mask already shifted). Include
-   guards.
+   writes `<block>_regs.json`, `<block>_regs.h` and `<block>_regs.md`.
+   Implement every row of the spec's error table. Unknown keys are errors.
+2. **Header.** For each register `DH_<BLOCK>_<REG>_OFFSET`; for each field
+   `_<FIELD>_SHIFT` and `_<FIELD>_MASK` (mask already shifted). Include
+   guards. Array registers expand to `<NAME>0`, `<NAME>1`, and so on.
+3. **Chisel bus bundle** `RegBus`: the request and response signals in the
+   spec's "Bus port" table, as one `Bundle` with a target and an initiator
+   view.
+4. **Chisel register block** `RegBlock(json: os.Path or String)`: a `Module`
+   that reads the validated JSON at elaboration and builds the registers,
+   the decode and one hardware-side port per field as the spec's access
+   table defines. Port names follow the spec. It must not re-validate or
+   reinterpret the YAML; the JSON is its only input.
 5. **Reference model** `hw/regmap/model.py`: a Python class built from the
-   generated JSON with `request(write, addr, wdata, wstrb) -> (rdata, error)`
-   and methods to drive the hardware-side inputs and read the outputs. It
-   implements the spec's behaviour rules independently of the RTL
-   generator's code. Do not share logic between them beyond the parsed
-   description.
+   same JSON with `request(write, addr, wdata, wstrb) -> (rdata, error)` and
+   methods to drive the hardware-side inputs and read the outputs. It
+   implements the spec's behaviour rules independently. Do not port the
+   Chisel logic into it or the reverse.
 6. **Actuator description** `hw/ip/actuator/actuator.regmap.yaml`
    transcribed from the actuator spec's register table. The `mode`, `value`
    and `fs_value` registers are arrays of nine.
-7. **Tests** in `hw/regmap/test_regmap.py` (`unittest`):
-   - one test per error name, each with a minimal description that triggers
-     only that error;
-   - for the actuator description and for a second description you write
-     that uses every access type: generate, then run a testbench under
-     Icarus that applies at least 2,000 random bus requests and random
-     hardware-side inputs, and compare every response and every hardware
-     output with the reference model. The testbench may be generated by the
-     test. Use a fixed random seed and print it;
-   - one **negative control**: deliberately corrupt one generated RTL file
-     (for example, swap two byte strobes) and assert the comparison fails.
-     A test that cannot fail proves nothing;
-   - `yosys -p "read_verilog -sv <file>; synth; stat"` succeeds on both
-     generated modules and reports no latches.
-8. **CI.** Make `tools/ci.py` run these tests when `iverilog` and `yosys`
-   are on the path, and print `SKIP regmap-sim` otherwise. The validation
-   tests always run.
-
-## Deliverables
-
-`hw/regmap/regmap.py`, `hw/regmap/model.py`, `hw/regmap/test_regmap.py`,
-`hw/regmap/README.md` (usage, in under 40 lines),
-`hw/ip/actuator/actuator.regmap.yaml` and the three block files.
+7. **Tests.**
+   - `hw/regmap/test_regmap.py` (`unittest`): one test per error name, each
+     with a minimal description that triggers only that error; header
+     contents for the actuator description.
+   - `RegBlockSpec.scala`: for the actuator description and for a second
+     description you write that uses every access type, emit SystemVerilog
+     for `RegBlock`, then drive at least 2,000 random bus requests and random
+     hardware-side inputs and compare every response and every hardware
+     output with the Python model's answers. Generate the stimulus and the
+     expected results with the Python model ahead of the simulation and read
+     them as a file. Fixed seed, printed.
+   - One **negative control**: run the same comparison against a
+     deliberately wrong expectation file (for example, two byte strobes
+     swapped in the model) and assert the spec fails. A test that cannot
+     fail proves nothing.
+8. **CI.** `tools/ci.py` always runs `test_regmap.py`; the Chisel spec runs
+   with the rest of `hw/test` when the toolchain is configured.
 
 ## Acceptance checks
 
 ```sh
-python3 -m unittest hw/regmap/test_regmap.py -v                       # all ok, includes the negative control
+python3 -m unittest hw/regmap/test_regmap.py -v
 python3 hw/regmap/regmap.py hw/ip/actuator/actuator.regmap.yaml --out build/regmap/actuator
-ls build/regmap/actuator      # actuator_regs.sv .h .md .json
-grep -c "DH_ACTUATOR_VALUE8_OFFSET" build/regmap/actuator/actuator_regs.h    # 1
+ls build/regmap/actuator      # actuator_regs.json .h .md
 grep "DH_ACTUATOR_VALUE8_OFFSET" build/regmap/actuator/actuator_regs.h       # value 0xA0
-yosys -q -p "read_verilog -sv build/regmap/actuator/actuator_regs.sv; synth; stat" | grep -ci latch   # 0
-git status --short | grep -c "build/"                                 # 0 (build is ignored)
-python3 tools/ci.py                                                   # PASS
+python3 tools/sbt.py "hw/testOnly deadhorse.lib.RegBlockSpec"                # passes, includes the negative control
+git status --short | grep -c "build/"                                        # 0
+python3 tools/ci.py                                                          # PASS
 ```
 
 ## Stop and ask
@@ -103,8 +110,10 @@ python3 tools/ci.py                                                   # PASS
 - The actuator table cannot be expressed in the format. Say which row. Do
   not extend the format on your own.
 - You want a new access type or a new YAML key.
+- Reading JSON at elaboration needs a library that is not already on the
+  classpath (T07). Name it and wait.
 
 ## Out of scope
 
-The actuator block's logic (pulse generators, failsafe), bus bridges, any
-Chisel output, and connecting anything to a core.
+The actuator block's logic (pulse generators, failsafe), bus bridges, and
+connecting anything to a core.
