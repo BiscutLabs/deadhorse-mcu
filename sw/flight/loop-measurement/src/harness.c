@@ -13,11 +13,24 @@ static void sim_exit(int c) { exit(c); }
 #define MMIO(off) (*(volatile uint32_t *)(0x10000000u + (off)))
 static void sim_mode(uint32_t m) { MMIO(0) = m; }
 static void sim_check(uint32_t m, uint32_t v) { MMIO(4) = m; MMIO(4) = v; }
-#ifdef PLAT_QEMU   /* QEMU virt: sifive_test finisher at 0x100000 */
-static void sim_exit(int c) { *(volatile uint32_t *)0x100000u = c ? ((uint32_t)c << 16 | 0x3333u) : 0x5555u; for (;;) ; }
+/* Named boundaries: the exit store retires; the terminal spin does not count.
+ * Keep them adjacent with no call/jump counted by QEMU only. QEMU's finisher
+ * may exit before tracing the spin, so the store has its own symbol as well. */
+__attribute__((noinline, noclone, noreturn)) void sim_exit(int c)
+{
+#ifdef PLAT_QEMU
+    uint32_t address = 0x100000u;
+    uint32_t value = c ? ((uint32_t)c << 16 | 0x3333u) : 0x5555u;
 #else
-static void sim_exit(int c) { MMIO(8) = (uint32_t)c; for (;;) ; }
+    uint32_t address = 0x10000008u;
+    uint32_t value = (uint32_t)c;
 #endif
+    __asm__ volatile (".global sim_finish\nsim_finish:\n"
+                      "sw %0, 0(%1)\n"
+                      ".global sim_spin\nsim_spin:\nj sim_spin"
+                      : : "r"(value), "r"(address) : "memory");
+    __builtin_unreachable();
+}
 #endif
 
 #ifdef NITER_RUN

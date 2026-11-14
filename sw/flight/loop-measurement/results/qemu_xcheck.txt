@@ -1,5 +1,5 @@
 config | rvsim retired | QEMU executed insns | match
-A (rv32im -O2 ) | 283486 | 283486 | MATCH
-C (rv32i -O2 ) | 6346828 | 6346827 | DIFF(-1)
-D (rv32im -O2 -DNUM_FLOAT) | 4048414 | 4048413 | DIFF(-1)
-E (rv32imc -Os ) | 302697 | 302696 | DIFF(-1)
+A (rv32im -O2 ) | 283489 | 283489 | MATCH
+C (rv32i -O2 ) | 6346831 | 6346831 | MATCH
+D (rv32im -O2 -DNUM_FLOAT) | 4048417 | 4048417 | MATCH
+E (rv32imc -Os ) | 302700 | 302700 | MATCH

@@ -76,7 +76,14 @@ ask for some, stop and ask.
 Stop, write down what you found, and wait for a person when any of these
 happens. Do not work around them.
 
-- A command in the brief fails and the brief's own notes do not explain it.
+User authorization: fix routine tooling issues and resume without asking,
+including checkout line endings and tool invocation problems. Keep every
+required check and tolerance intact, obtain independent agent review, then
+commit and push. This does not authorize changed measurement baselines,
+architecture decisions, or expanded proprietary-IP imports.
+
+- A command in the brief fails and the brief's own notes do not explain it,
+  unless the cause is a routine tooling issue covered by the authorization above.
 - A measured result differs from the brief's expected value by more than the
   stated tolerance.
 - The brief conflicts with this file, with another brief, or with the plan.

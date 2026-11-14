@@ -51,7 +51,7 @@ w = md.append
 
 # ---------------------------------------------------------- validation: target checksums vs native x86 builds
 def chk(path): return [l.split()[2] for l in open(path) if l.startswith("CHK")]
-host = {"fixed": chk(f"{R}/host_fixed.chk"), "float": chk(f"{R}/host_float.chk")}
+host = {"fixed": chk(f"{B}/host_fixed.chk"), "float": chk(f"{B}/host_float.chk")}
 w("### Validation: target run vs native x86 build of the same sources\n")
 w("FNV-1a hash over all 9 outputs and the 4 quaternion words of every iteration (6000 iterations). Target ELF run in `rvsim` vs the same C compiled natively with hardware float / int arithmetic.\n")
 w("| config | numeric | mode0 | mode1 | mode2 | identical to native |"); w("|---|---|---|---|---|---|")

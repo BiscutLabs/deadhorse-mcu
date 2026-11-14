@@ -1,26 +1,29 @@
 #!/bin/bash
 # One-command reproduction:  ./run_all.sh      (needs riscv64-unknown-elf-gcc with rv32 multilib, gcc, python3)
 # Outputs: build/<cfg>/..., results/summary.md, results/summary.json
-set -e
+set -euo pipefail
 D=$(cd "$(dirname "$0")" && pwd); cd $D
 P=${RISCV_PREFIX:-riscv64-unknown-elf}
 NITER=${NITER:-2000}
 mkdir -p build results
+for tool in "$P-gcc" "$P-nm" "$P-size" "$P-objdump" gcc gcov python3 qemu-system-riscv32; do
+  command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 1; }
+done
 
 # 1. scenario + generated tables
-python3 -I scenario/gen_params.py src/params_gen.inc
+python3 -I scenario/gen_params.py build/params_gen.inc
 python3 -I scenario/gen_scenario.py build/scenario.c $NITER
 
 # 2. simulator + known-answer tests
 gcc -O2 -Wall -o build/rvsim tools/rvsim.c
-tests/run_kat.sh 2>&1 | grep -v RWX | tee results/kat.txt
-grep -q FAIL results/kat.txt && { echo "KAT FAILED"; exit 1; } || true
+tests/run_kat.sh 2>&1 | grep -v RWX | tee build/kat.txt
+grep -q FAIL build/kat.txt && { echo "KAT FAILED"; exit 1; } || true
 
 # 3. host (x86) reference runs of the same sources -> checksums
 HF="-std=gnu11 -O2 -ffp-contract=off -DHOST -Isrc -Ibuild"
 gcc $HF src/control_step.c src/control_init.c src/harness.c build/scenario.c -o build/host_fixed
 gcc $HF -DNUM_FLOAT src/control_step.c src/control_init.c src/harness.c build/scenario.c -o build/host_float
-build/host_fixed > results/host_fixed.chk; build/host_float > results/host_float.chk
+build/host_fixed > build/host_fixed.chk; build/host_float > build/host_float.chk
 
 # 4. target configs:  name | march | opt | numeric | extra defs
 CONFIGS=(
@@ -36,7 +39,7 @@ CONFIGS=(
 COMMON="-std=gnu11 -mabi=ilp32 -ffreestanding -nostdlib -ffunction-sections -fdata-sections -fstack-usage -Wall -Wextra -Wdouble-promotion -Isrc -Ibuild -DNITER_RUN=$NITER"
 for c in "${CONFIGS[@]}"; do
   IFS='|' read NAME ARCH OPT NUMV EXTRA <<< "$c"
-  O=build/$NAME; rm -rf $O; mkdir -p $O
+  O=build/$NAME; mkdir -p $O
   DEF=""; [ $NUMV = float ] && DEF="-DNUM_FLOAT"
   FL="$COMMON -march=$ARCH $OPT $DEF $EXTRA"
   for f in control_step control_init harness sizes; do $P-gcc $FL -c src/$f.c -o $O/$f.o; done
@@ -49,14 +52,13 @@ for c in "${CONFIGS[@]}"; do
   $P-nm -S -n $O/loop_only.elf > $O/loop_only.nm
   $P-size -A $O/loop_only.elf > $O/loop_only.size
   $P-nm -S $O/sizes.o > $O/sizes.nm
-  mv src/*.su $O/ 2>/dev/null || mv *.su $O/ 2>/dev/null || true
   ENTRY=$(awk '$NF=="control_step"{print $1}' $O/prog.nm)
   build/rvsim -e $ENTRY -s $O/prog.nm -o $O/iters.csv $O/prog.elf > $O/sim.out 2> $O/sim.err
   echo "[$NAME] $ARCH $OPT $NUMV $EXTRA : $(tail -1 $O/sim.err)"
 done
 
 # 5. branch coverage of the scenario (host, fixed-point) and independent QEMU cross-check of instruction counting
-tools/coverage.sh 2>&1 | tee results/coverage.txt
+tools/coverage.sh 2>&1 | tee build/coverage.txt
 tools/qemu_xcheck.sh 2>&1 | tee results/qemu_xcheck.txt
 
 # 6. aggregate
