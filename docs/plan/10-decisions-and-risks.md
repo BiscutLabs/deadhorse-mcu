@@ -7,7 +7,7 @@ Each has a recommendation. None is final.
 | ID | Decision | Recommendation | Alternative | Decide by |
 | --- | --- | --- | --- | --- |
 | **D1** | How RISCay code enters Deadhorse | One-time import of RISCay's clocked design, shared code, firmware and tests at a recorded commit. With no generator to track, a live dependency has little value | Pinned sbt dependency on RISCay-MCU, which also pulls in its async designs | G0 |
-| **D2** | Performance core | Adopt Ibex RV32IMC (SystemVerilog, behind a Chisel black box), used clocked as designed | Extend RISCay's Chisel core to RV32IMC with interrupts, which keeps the whole design in Chisel | G0, confirmed by S1 |
+| **D2** | Performance core | Adopt Ibex RV32IMC (SystemVerilog, behind a Chisel black box), used clocked as designed. If D19's condition is met, the choice becomes an FPU-capable core instead | Extend RISCay's Chisel core to RV32IMC with interrupts, which keeps the whole design in Chisel | G0, confirmed by S1 |
 | **D3** | Historical interconnect proposal | Details removed. | | |
 | **D4** | External integration | Required a separate agreement. | | G1 |
 | **D5** | JTAG debug module in the prototype | Include, as removable | Gateway monitor only | G1 |
@@ -23,6 +23,7 @@ Each has a recommendation. None is final.
 | **D16** | Design language | **Decided 2026-11-13:** Chisel for everything Deadhorse writes and for the SoC top. SystemVerilog only as vendored blocks behind a black box. chisel-async is no longer used (D17) | SystemVerilog throughout | Done |
 | **D17** | Timing style | **Decided 2026-11-13:** entirely clocked and synchronous. The clockless plan (desynchronized bundled-data regions generated from a clocked reference) is abandoned | Clockless regions with clocked islands, as in the earlier drafts | Done |
 | **D18** | Lite core timing style | **Decided 2026-11-13:** implement the lite core clocked first. Once the design is stable (after gate G2), a coarse Click pipeline version (two-phase bundled data, two or three stages) may be built as a drop-in alternative. The clocked version is the default for tape-out | Clocked only; or clockless from the start | Done; the option is exercised or dropped before the Phase 3 floorplan freeze |
+| **D19** | More compute | Conditional use of chip area for a hardware FPU. | | |
 | **D13** | Loop rate commitment | 1 kHz target, 500 Hz accepted fallback | Commit to 500 Hz and relax R-CPU-1 to 2.5 MIPS | G1, after S1 |
 
 D17 replaces the earlier direction. The reasoning recorded for the clockless
@@ -39,7 +40,7 @@ Ranked by how much of the plan they can stop.
 | **K4** | Analog layout capacity | Three macros need layout, extraction and corner campaigns; none exists | Start in P0. Reduce scope first by taking 48 MHz from a pad and making the crystal driver optional | P0 to P4 |
 | **K5** | Area overrun | Whole-chip fit requires measurement. | Measure block areas and qualify the floorplan. |
 | **K6** | Clock-domain crossings and clock switching | Two crossings, a clock mux and many clock gates are where clocked low-power designs fail in silicon | One reviewed crossing block; structural CDC check in CI; glitch tests on every gate and the mux; stop and restart tested at every phase | P2 to P3 |
-| **K7** | Pad budget has three spare pads | Any board-driven addition breaks it | Freeze pinout at G1 with the board designer; identify shared pins | P1 |
+| **K7** | Pad budget has two spare bidirectional pads | Any board-driven addition breaks it | Freeze pinout at G1 with the board designer; identify shared pins | P1 |
 | **K9** | Flight firmware scope | We are writing our own fixed-point stack instead of porting an existing autopilot. Estimator and transition tuning are real work | Start the airframe model and firmware in P0; fly it on the FPGA at G2, long before silicon | P0 to P2 |
 | **K10** | USB on GF180 pads | Full-speed signalling on generic 3.3 V pads is unproven here | Validate electrically with the USB implementer in P2 on paper and in P5 on silicon; UART gateway fallback (D11) | P2, P5 |
 | **K11** | Production test coverage in the open flow | Scan insertion is standard, but open pattern generation and its coverage are unproven for this project | S4, then D8 | P1 |

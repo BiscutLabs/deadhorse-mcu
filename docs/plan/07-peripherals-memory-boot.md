@@ -13,7 +13,7 @@ registers and FIFOs sit on the local bus and its bit-level timing counts
 | I2C controller | 1 | Adopt | 100 and 400 kHz, clock stretching, bus-stuck recovery |
 | I2C target | 1 | RISCay | Host loader, unchanged |
 | SPI ADC player | 1 | RISCay | Battery voltage and current, owned by the lite core |
-| QSPI flash controller | 1 | Adopt | Execute-in-place read path plus a register path for erase and program |
+| QSPI flash controller | 1 | Adopt | Execute-in-place read path plus a register path for erase and program. Two chip selects: boot flash and logging flash |
 | USB FS device | 1 | Separate implementer; integrated last | CDC-ACM. Its own 48 MHz clock domain. See the reservation below |
 | Timers | 4 capture/compare + 1 microsecond timebase | New, small | Counted on `clk_main` |
 | Actuator block | 9 channels | New | See below |
@@ -78,6 +78,41 @@ Integration contract, to be agreed with the implementer in Phase 0:
 - **Proposed cut-off:** if the block is not integrated by the Phase 4
   floorplan freeze, the region is filled, the pads are tied off as inputs and
   the chip tapes out with the UART gateway.
+
+### Flight logging (R-PER-8)
+
+Tuning a VTOL needs high-rate logs of sensor inputs, setpoints and actuator
+outputs. At 1 kHz that is about 64 kB/s.
+
+**Plan: a second flash on the QSPI bus, with its own chip select.**
+
+- One extra pad. The boot flash and the logging flash share clock and data
+  lines; each has a chip select.
+- A page write occupies the bus only while its 256 bytes are shifted in,
+  roughly 50 to 100 microseconds at 12 to 24 MHz in quad mode. The chip then
+  programs internally for up to a few milliseconds with the bus free, so
+  in-place execution from the boot flash continues.
+- The controller arbitrates per transaction: execute-in-place reads and log
+  writes interleave, and a read never waits longer than one page transfer.
+- The part is a 64 MiB or larger SPI NAND or NOR, for 10 minutes at full
+  rate with margin. NAND is cheaper per byte and writes faster; it needs
+  bad-block handling in firmware.
+- Firmware keeps a ring buffer of about 2 KiB in SRAM and writes whole pages
+  from a low-priority task. The control loop only copies a record into the
+  buffer. If the buffer fills, records are dropped and counted, never
+  blocked on.
+- Logs are read back on the ground through the gateway.
+
+**Next best, and the fallback: stream over a UART.** At 921,600 baud a UART
+carries about 92 kB/s, enough for the full record. It needs no chip change,
+but it takes one of the three UARTs or shares the telemetry link at a
+reduced rate, and it needs an external logger or a ground station in range.
+The FPGA prototype uses this first, since it needs nothing new.
+
+Not chosen: an SD card in SPI mode (write stalls of tens to hundreds of
+milliseconds and a large buffer), a logging flash on the IMU's SPI bus (it
+would contend with the 1 kHz sensor read), and logging to the boot flash
+itself (an erase there would stall in-place execution).
 
 ## Memory
 
@@ -162,7 +197,7 @@ plus clock and reset pads).
 | I2C controller | 2 | |
 | I2C target (SDA / SCL) | 1 | 1 |
 | ADC player (CS, SCLK / MISO) | 2 | 1 |
-| QSPI flash | 6 | |
+| QSPI flash (boot), plus one chip select for the logging flash | 7 | |
 | USB (D+, D-, pull-up enable) | 3 | |
 | IMU data-ready | | 1 |
 | JTAG (TDO / TCK, TMS, TDI) | 1 | 3 |

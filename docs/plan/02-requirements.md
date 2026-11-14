@@ -58,6 +58,7 @@ instructions, not cycles.
 | R-PER-5 | At least four general-purpose timers or capture channels, one free-running microsecond timebase. | A |
 | R-PER-6 | Battery voltage and current through an external SPI or I2C ADC. The RISCay SPI ADC player is retained for this. | E |
 | R-PER-7 | GPIO with wake-on-level, as in RISCay. | M (exists) |
+| R-PER-8 | Flight logging: at least 64 bytes per control-loop iteration at 1 kHz (64 kB/s) to non-volatile storage for a 10-minute flight (about 40 MiB), without the control loop or in-place code execution ever waiting on a write. | E |
 
 ## Memory and boot
 

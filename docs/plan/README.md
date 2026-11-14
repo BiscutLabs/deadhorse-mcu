@@ -1,6 +1,6 @@
 # Deadhorse MCU plan
 
-Draft v0.7, 2026-11-13. Decided so far: D11 (USB integrated last), D14 (NoC
+Draft v0.8, 2026-11-13. Decided so far: D11 (USB integrated last), D14 (NoC
 vendored, drift accepted), D16 (Chisel is the design language) and **D17
 (the chip is entirely clocked; the clockless plan is abandoned)** and D18
 (lite core clocked first, with a coarse Click pipeline as a later option). The other

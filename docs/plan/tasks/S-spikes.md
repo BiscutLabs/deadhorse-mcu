@@ -39,7 +39,9 @@ does it sustain 5 MIPS at the slow corner (R-CPU-1)?
 3. Run the measured loop binary on a cycle-accurate simulation of the core
    (Verilator or Icarus) for cycles per instruction, with each multiplier
    option.
-4. Repeat steps 1 to 3 for the control case named in D2.
+4. Repeat steps 1 to 3 for the control case named in D2, and for one
+   FPU-capable core with and without its FPU (decision D19). For that core
+   also run the float build of the loop (`-DNUM_FLOAT`, hard-float ABI).
 5. Try the SRAM word-access options in
    [../07-peripherals-memory-boot.md](../07-peripherals-memory-boot.md) and
    report their effect on cycles per instruction.
