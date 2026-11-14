@@ -36,7 +36,8 @@ a real core. S1 uses this same flow.
    can be timed alone. An unregistered output needs an exception as above.
 2. **Break ready/valid chains.** No back-pressure signal passes
    combinationally through more than one block. Put a register stage (a
-   two-entry skid buffer) at each handshake boundary, including bus-to-peripheral interfaces.
+   two-entry skid buffer) at each handshake boundary: bus to peripheral,
+   bus to domain bridge, gateway to bus.
 3. **Heavy operations are multi-cycle.** Multiply, divide, CRC,
    floating-point and the elapsed-time arithmetic take several cycles, by an
    iterative or pipelined implementation, never one long path. Use the
@@ -58,7 +59,8 @@ a real core. S1 uses this same flow.
 
 ## Paths to watch
 
-Known candidates in this design: the performance core's multiplier and its required multicycle FPU; address decode plus bus multiplexing into SRAM setup; the elapsed-time and timestamp
+Known candidates in this design: the performance core's multiplier and its required multicycle FPU; address decode plus bus multiplexing into SRAM setup; bus
+arbitration plus the response multiplexer; the elapsed-time and timestamp
 arithmetic inherited from RISCay; CRC over a 32-bit word.
 
 ## Order of work

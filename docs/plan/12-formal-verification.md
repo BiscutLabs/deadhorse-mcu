@@ -51,6 +51,9 @@ tools are run on real blocks. The proof ledger records what was achieved.
 | --- | --- |
 | Clock-domain crossing FIFO | No overflow or underflow; every word written is read exactly once, in order, unchanged (symbolic data tracking); pointers change one bit at a time across the boundary; correct behaviour when either side resets |
 | Reset synchronizers | Asynchronous assert, synchronous release, no release before the hold time |
+| Domain bridge | Exactly one response per accepted request; address, data and byte enables unchanged; a request toward a stopped clock always wakes it and completes (no lost wake); reset of either side cancels with an error on the surviving side; no duplicate |
+| Mailbox | Words delivered once, in order, unchanged; overflow is flagged, never silent; non-empty always raises interrupt and wake |
+| Gateway protocol | Exactly one response per host request; malformed or reserved requests rejected without state change; same ownership and memory checks as other masters |
 | Generated register blocks | Properties generated from the register description itself: read returns last write for `rw`; software cannot change `ro`; `w1c` clears only written bits and hardware set wins; unmapped and misaligned access returns an error and changes nothing; reset values |
 | DMA and ownership | Exclusive peripheral owner; unauthorized transfers have no effects; bounded bursts; ownership handover drains/cancels pending work; memory boundaries enforced |
 | Local bus | At most one outstanding transaction; every request answered; decode is exclusive and complete; no starvation between the instruction and data ports |
@@ -95,6 +98,8 @@ static checks and signoff cover these.
    fail in silicon, and it sets the pattern for the proof ledger.
 3. **Generated register-block properties,** inside the register-map
    generator task, so every later block gets them for free.
+4. **The domain bridge and mailbox,** in T14, building on the crossing FIFO
+   proof.
 5. **Each remaining block with its RTL,** never after.
 
 ## Gate conditions added

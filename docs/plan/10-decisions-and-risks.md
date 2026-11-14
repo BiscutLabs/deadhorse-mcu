@@ -11,7 +11,7 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | --- | --- | --- |
 | **D1** | RISCay import | Pinned one-time import of the clocked design and needed support code, restructured into Deadhorse conventions. Preserve provenance and licences; no live async dependency. |
 | **D2** | Performance core | Convert a pinned, unmodified Ibex reference to clocked Chisel and prove the conversion equivalent module by module before any change (T10/T11); revised 2026-11-14. Then add full F and justified improvements as separate, measured changes (T12/T13), giving RV32IMFC with machine-mode interrupt/debug support. No alternative-core selection or bakeoff. Upstream verification transfers only to modules proved equivalent; everything changed afterwards needs new verification. The reference is never built into the chip; integrating it behind a BlackBox is a fallback that needs user approval. |
-| **D3** | Historical interconnect proposal | Details removed. |
+| **D3** | Internal NoC | Superseded by D43; no NoC in the initial MCU. |
 | **D4** | Initial-chip scope | No chip-to-chip link and no neuromorphic IP in the initial MCU. Link framing, external discovery, interoperability and related pads are deferred. |
 | **D5** | Debug hardware | Include JTAG debug for both cores. UART gateway and JTAG are the fallback if USB misses its cutoff; JTAG is not an area-cut option. |
 | **D6** | Low-frequency clock | Internal nominal 32 kHz oscillator. No external low-frequency crystal driver is required for the baseline; numerical accuracy, startup and current remain characterization targets. |
@@ -22,7 +22,7 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | **D11** | USB cutoff | Optional USB is integrated last. Apply cutoff before Phase 3 floorplan freeze; proceed with UART and JTAG if USB is not ready. Reservation requires implementer evidence. |
 | **D12** | Memory capacity | 16 KiB performance SRAM plus 3 KiB retained lite SRAM baseline. Configurable banking and room to increase if measurements justify it; larger memory is not a claim of physical fit. |
 | **D13** | Control-loop target | Timer-driven 1 kHz target with documented, validated 500 Hz fallback. Timestamp sensor acquisition; do not require one IMU data-ready edge per iteration. |
-| **D14** | Historical source policy | Details removed. |
+| **D14** | NoC source ownership | Superseded by D43; no Coldfoot transport is imported. |
 | **D15** | Standard-cell library | Use gf180mcu_fd_sc_mcu7t5v0 at nominal 3.3 V. Shuttle acceptance and corner qualification must still be verified. |
 | **D16** | Design language | New digital RTL is Chisel. Existing permitted vendor RTL is unmodified behind BlackBoxes; emitted SystemVerilog is build output. |
 | **D17** | Timing discipline | Entirely clocked initial MCU; shared reviewed CDC implementation, glitch-free clocks, registered boundaries and multicycle heavy operations. |
@@ -51,6 +51,7 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | **D40** | USB boundary | Full-speed CDC-ACM, separate clock/reset domain, reviewed CDC, TX/RX byte FIFOs, status/control, interrupts and wake. USB protocol contained in subsystem; identical stub until delivery. Implementer supplies area/pads, constraints and verification. |
 | **D41** | Debug access policy | Unlocked debug for initial chip; explicit test-mode scan access. No permanent debug-disable fuses or authenticated debug. Physical debug/gateway access permits firmware and memory access; boot programming lock is not a security boundary. |
 | **D42** | Fabrication target | wafer.space GF180MCU 1x1 slot; shuttle date open. Target approval does not qualify PDK options, libraries, SRAM, analog devices or pad ring. |
+| **D43** | Whole-chip bus | Approved 2026-11-14: remove the NoC and use a simple request/response bus per clock domain with a reviewed domain bridge, a two-way mailbox between the cores and the gateway as a bus master (T14). Ownership and memory checks of D24/D25 apply at the endpoints. Reserve one address window and one interrupt for a future NoC bridge; nothing is built behind it. Supersedes D3 and D14; T03, T04 and S2 are withdrawn. |
 
 ## Risks and evidence still required
 
@@ -64,12 +65,14 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | K5 | Full revised chip may exceed slot area | Rebuild area budget with FPU, DMA, ownership, debug and analog; retain approved requirements and report overruns |
 | K6 | Sleep, CDC and reset races | Shared crossing implementation, transaction cancellation, independent actuator reset, gated-clock wake tests |
 | K7 | Pin map not frozen | Recalculate without die link/crystal-driver requirement; include JTAG, USB reservation and limited muxing |
-| K8 | Mixed proprietary packages in source transport | T03 blocked until sanitized transport-only source and licensing/visibility scope are approved; never copy mixed packages first |
+| K8 | Closed by D43: no Coldfoot source is imported | Never copy Coldfoot packages into this repository without a new decision |
 | K9 | Historical flight workload differs from selected sensors and V-tail | Keep historical evidence; validate final float firmware, drivers and aircraft separately |
 | K10 | USB electrical implementation and reservation unknown | Obtain implementer constraints and evidence; D11 cutoff and UART/JTAG fallback |
 | K11 | Production test coverage unproven | S4 scan/ATPG demonstration, SRAM self-test and analog test access |
 | K12 | Supply noise and brownout behavior | Thresholds based on qualified logic/SRAM limits and board tolerances; pulses not guaranteed during undervoltage |
 | K13 | USB delivery late | Same-port stub; no tapeout dependency after approved cutoff |
+| K14 | Domain bridge and mailbox are new and cross a stopped clock | T14 proves one response per request, no lost wake, cancel on reset; independent models |
+| K21 | A later neuromorphic or chip-to-chip project must add a NoC | Reserved address window and interrupt (D43); that project carries its own router, source rights and area |
 | K15 | RISCay clean baseline not fully reproduced | T06, with independent receipt and no changes to upstream |
 | K16 | New pinned environment/build unverified | T08 then T07; missing tools fail required checks |
 | K17 | Performance/power improvements unmeasured | Document intended improvements and measure; do not inherit Ibex results |
@@ -86,7 +89,7 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | Q5 | Shuttle acceptance of selected cells, SRAM and analog process options | Architecture/physical freeze as applicable |
 | Q6 | Supply tolerances, selectable reset thresholds and release interval | Analog specification and signoff |
 | Q7 | Signed boot excluded by D34 | No further architectural approval |
-| Q8 | Repository licence/visibility and permitted transport source release | Any source import/release requiring those rights |
+| Q8 | Repository licence/visibility. No Coldfoot transport release is needed after D43 | Publication, and any vendor import requiring those rights; no longer blocks a task |
 | Q9 | Sensor/receiver/actuator baseline resolved by D26-D33 | Parts do not establish bench qualification |
 | Q10 | Programmable sleep peripherals resolved by D7/D22/D24 | CDC, wake and ownership implementation tests |
 | Q11 | Whether another tapeout is planned remains open | Product schedule; not a foundation blocker |

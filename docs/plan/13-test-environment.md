@@ -63,7 +63,7 @@ How:
 
 - System tests are Python. They talk to the chip only through a small
   **target interface**: reset, register read and write through the gateway
-  protocol,
+  protocol (`docs/spec/gateway-protocol.md`, to be written by T14),
   load an image, drive and observe named pins, advance or wait time.
 - Each target implements that interface: a simulator adapter, the fast
   model, a UART link to the FPGA, a UART or USB link to the board.

@@ -81,9 +81,20 @@ instructions, not cycles.
 | R-PWR-3 | Quiescent retained-sleep target below 50 microamps at 25 C with HF consumers off; report receive-mode UART/sensor activity separately. | A; extracted estimate in Phase 3, silicon measurement in Phase 4 |
 | R-PWR-4 | Always-on low-frequency timebase of nominally 32 kHz (approved), within 5 percent after trim (assumed target). RISCay's 7.7 Hz source is too slow for sensor cadence. | A |
 
-## Interconnect
+## Bus (replaces the NoC requirements, D43)
 
-The historical interconnect requirements have been removed.
+R-NOC-1 to R-NOC-6 are withdrawn. No NoC, chip-to-chip link, link pads or
+interoperability gate exists in the initial MCU (D4, D43).
+
+| ID | Requirement | Tag |
+| --- | --- | --- |
+| R-BUS-1 | One simple request/response bus per clock domain using the Ibex memory interface signals, with byte enables and explicit error responses. | D24, D43 |
+| R-BUS-2 | Either core can reach permitted registers in the other domain through the domain bridge, subject to exclusive ownership and memory-access checks at the endpoint. | D24, D43 |
+| R-BUS-3 | A bridged request toward a stopped clock raises the clock request and completes after wake. No request, response or mailbox word is lost or duplicated across a sleep transition or a single-domain reset. | A |
+| R-BUS-4 | The flight loop never waits on the bridge. Loop-critical memory and peripherals are local to the performance core. | A |
+| R-BUS-5 | A two-way mailbox between the cores with interrupt and wake on non-empty. | D43 |
+| R-BUS-6 | One address window and one interrupt line reserved for a future NoC bridge; nothing built behind them. | D43 |
+| R-BUS-7 | Bus fabric, bridge and mailbox together about 0.05 mm2 mapped. T14 measures it. | A target |
 
 ## Physical
 
@@ -93,6 +104,7 @@ The historical interconnect requirements have been removed.
 | R-PHY-2 | Fits the slot's pad ring: 40 bidirectional, 12 input-only, 2 analog pads. | M (Coldfoot slot data) |
 | R-PHY-3 | The performance core and main domain close timing at the chosen `clk_main` frequency (12 or 24 MHz) at the slow corner with extracted delays. | A, replaced by spike S1 |
 | R-PHY-4 | Every production die can be tested for stuck faults in logic and for SRAM defects through a documented access path. | A |
+
 
 ## Additional approved requirements
 

@@ -7,6 +7,42 @@ chip-to-chip link is included.
 
 ## Block view
 
+```mermaid
+flowchart LR
+  subgraph AON[Always-on clock and reset domain]
+    LITE[Lite RV32E core]
+    LMEM[Retained lite SRAM]
+    PWR[Watchdogs, LF timer, wake and clock control]
+    LITE --- LMEM
+    LITE --- PWR
+  end
+  subgraph MAIN[Performance domain]
+    PERF[Chisel Ibex-derived RV32IMFC core]
+    FPU[Multicycle Chisel FPU]
+    BUS[Local bus]
+    MEM[Word-wide banked SRAM]
+    XIP[QSPI XIP]
+    PERF --- FPU
+    PERF --- BUS
+    BUS --- MEM
+    BUS --- XIP
+  end
+  SHARED[Shared SPI, I2C, UART and bounded DMA]
+  ACT[Actuator block: independent reset]
+  BRIDGE[Domain bridge and core mailbox]
+  GW[Host gateway: bus master]
+  USB[Optional USB domain and FIFO boundary]
+  JTAG[JTAG debug for both cores]
+  BUS --- ACT
+  BUS --- SHARED
+  BUS --- GW
+  BUS -. reviewed CDC .- BRIDGE
+  BRIDGE --- LITE
+  GW -. reviewed CDC .- USB
+  JTAG -. reviewed CDC .- LITE
+  JTAG -. reviewed CDC .- PERF
+```
+
 ## Cores and memories
 
 The performance core is a Chisel conversion of a pinned Ibex revision, with
@@ -26,7 +62,7 @@ excluded. Ibex has no F extension, so the FPU and its integration are new
 design outside the equivalence proof and need their own verification.
 
 RISCay's clocked RV32E core becomes the lite core with minimal interrupts/CSRs,
-`wfi`, debug and local peripheral access. The historical D18 Click option is deferred
+`wfi`, debug and local or bridged bus access. The historical D18 Click option is deferred
 to a separate explicitly authorized brief; no async dependency enters this build.
 
 Performance SRAM baseline is 16 KiB with word-wide access, byte-write enables
@@ -37,7 +73,14 @@ single-cycle access. Cold code uses QSPI XIP; loop-critical code stays in SRAM.
 ## Buses and ownership
 
 Local request/response buses retain byte masks and explicit errors. Decode is
-generated from register descriptions.
+generated from register descriptions. Fetches and local SRAM/actuator accesses
+never cross a clock domain. There is no NoC (D43). Each clock domain has one
+bus using the Ibex memory interface signals. A reviewed domain bridge carries
+single transactions between the always-on and main domains, and must wake a
+stopped clock rather than lose a request. A two-way mailbox carries messages
+between the cores. The host gateway is a bus master with the same checks as
+any other master. One address window and one interrupt are reserved for a
+future NoC bridge. T14 specifies and builds the fabric, bridge and mailbox.
 
 | Resource | Access policy |
 | --- | --- |

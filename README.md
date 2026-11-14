@@ -2,7 +2,7 @@
 
 Deadhorse is a clocked two-core RISC-V MCU targeting GF180MCU. Its approved
 baseline combines a Chisel Ibex-derived RV32IMFC performance core, a retained
-lite core, programmable sleep peripherals and actuator timing.
+lite core, whole-chip bus, programmable sleep peripherals and actuator timing.
 No neuromorphic IP or chip-to-chip link is included in the initial MCU.
 
 Start with [AGENTS.md](AGENTS.md), the [plan](docs/plan/README.md),

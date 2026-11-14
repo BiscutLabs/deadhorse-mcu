@@ -7,7 +7,8 @@ does not start implementation or mark physical/verification gates complete.
 
 Deadhorse rebuilds RISCay's clocked design into project conventions, with a
 Chisel Ibex-derived RV32IMFC core, area-focused multicycle FPU, retained lite
-core, programmable sleep peripherals. No
+core, a whole-chip bus with a domain bridge and mailbox, and programmable
+sleep peripherals. No
 neuromorphic IP or chip-to-chip link enters the initial MCU. Use the approved
 Linux container and shared CDC/verification conventions when implementation
 is subsequently assigned.

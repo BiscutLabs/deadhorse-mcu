@@ -56,7 +56,6 @@ called done.
 | --- | --- |
 | PLAN01, T08 Pinned environment, T01 Scaffold and CI | none beyond task execution |
 | T02 Historical flight-loop CI | `reference-model-testing` (seeds, negative controls, no weakened checks) |
-| T03 Transport import | `gf180-synth-timing-check`, where its checks run synthesis |
 | T05 Register generator | `regmap-authoring`, `reference-model-testing`, `chisel-formal-properties` (generated properties) |
 | T06 RISCay baseline | `gf180-synth-timing-check` (reference area) |
 | T07 Clocked Chisel build | `clocked-chisel-block-design`, `chisel-formal-properties` (smoke test) |
@@ -66,6 +65,7 @@ called done.
 | T12 FPU | `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check` |
 | T13 F integration | `sv-to-chisel-translation` (unchanged modules must stay equivalent), `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check` |
 | S1 Core measurement | `gf180-synth-timing-check`, `reference-model-testing` |
+| T14 Bus, bridge and mailbox | `clocked-chisel-block-design`, `chisel-formal-properties`, `gf180-synth-timing-check`, `reference-model-testing` |
 | S3 Memory | `reference-model-testing` |
 | S4 Latency and test | `gf180-synth-timing-check`, `reference-model-testing` |
 

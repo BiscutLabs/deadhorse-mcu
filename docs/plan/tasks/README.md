@@ -10,8 +10,8 @@ PLAN01 is documentation only; no other task is started by this revision.
 | T08 | [Pinned Linux environment](T08-environment.md) | None | Brief ready; commands not yet run |
 | T01 | [Scaffold and CI](T01-scaffold.md) | T08 | After pinned environment |
 | T02 | [Historical flight-loop CI](T02-flight-loop-ci.md) | T01, T08 | Historical workload only |
-| T03 | Interconnect study | T01, T08, sanitized source and rights | Blocked on transport handoff/Q8 |
-| T04 | Interconnect study | T03 | Blocked; old dependency closure not approved |
+| T03 | Interconnect study | n/a | Withdrawn by D43 |
+| T04 | Interconnect study | n/a | Withdrawn by D43 |
 | T06 | [RISCay baseline](T06-riscay-baseline.md) | T01, T08 | Full clean gate still unverified |
 | T07 | [Clocked Chisel build](T07-chisel-build.md) | T01, T06, T08 | Rewritten; direct Chisel, no async dependency |
 | T05 | [Register generator](T05-regmap-generator.md) | T07 | Format fixture; actuator ABI deferred |
@@ -21,7 +21,8 @@ PLAN01 is documentation only; no other task is started by this revision.
 | T12 | [FPU](T12-fpu.md) | T07, T09 | New design; parallel with T10/T11 |
 | T13 | [F integration](T13-core-f-integration.md) | T11, T12 | Improvements only after F passes |
 | S1 | [Selected core measurement](S-spikes.md#s1-core) | T13, T09, T02 | Not a core selection exercise |
-| S2 | Interconnect study | T07, T09; T03/T04 for reuse | Sanitized source prerequisite unresolved |
+| T14 | [Bus, bridge and mailbox](T14-bus-mailbox.md) | T07, T09 | Write `docs/spec/bus.md` first |
+| S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |
 
@@ -33,7 +34,7 @@ Those results were not rerun by PLAN01. Maven Central blocked the original
 Scala/build verification. The historical QEMU off-by-one issue remains T02's
 work; no test failure was fixed by editing this plan.
 
-All newly specified commands in T07-T13/S1-S4 are explicitly unverified until
+All newly specified commands in T07-T14/S1-S4 are explicitly unverified until
 those tasks run. A written acceptance command is not an implemented tool.
 Missing tools cannot be skipped to claim success.
 

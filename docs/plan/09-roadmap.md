@@ -15,8 +15,9 @@ Shuttle target is wafer.space GF180MCU 1x1; date and staffing remain open.
    builds the comparison harness; T11 converts it to Chisel with equivalence
    proved; T12 builds the FPU in parallel; T13 integrates F and improvements
    so S1 can measure the result. No alternative-core evaluation.
-6. T03 requires sanitized transport handoff/licensing before import; T04 remains
-   blocked until a lawful, dependency-complete baseline can be reproduced.
+6. T14 specifies and builds the whole-chip bus fabric, domain bridge and
+   mailbox, and specifies the gateway protocol (D43). T03, T04 and S2 are
+   withdrawn with the NoC.
 7. Prepare separate briefs for RISCay adoption, analog layout/characterization,
    shared CDC, peripherals and physical import. These are not implemented by
    the documentation update. Obtain USB implementer sizing and delivery evidence.
@@ -26,7 +27,7 @@ scaffold and CI working. An approved boundary is not a delivered USB block.
 
 ## P1 Design qualification
 
-S1 measures the selected Chisel core/FPU;
+S1 measures the selected Chisel core/FPU; T14 reports bus, bridge and mailbox area and proofs;
 S3 validates capacity/XIP/banking; S4 measures latency and test coverage.
 Prototype harnesses are Chisel, output under build/. Measurements do not replace
 independent correctness checks. T10-T13 are implementation, distinct from S1 measurement.
@@ -46,7 +47,7 @@ automatic core substitution, FPU removal or relaxed acceptance limits.
 
 Under separately assigned integration briefs: adopt/restructure RISCay clocked
 logic, integrate selected core/FPU and word-wide SRAM, bus/ownership/CDC, shared
-sleep peripherals/DMA, timers, actuator and pin mux. Establish
+sleep peripherals/DMA, domain bridge and mailbox, timers, actuator and pin mux. Establish
 two-image boot/recovery, unlocked both-core JTAG and UART gateway, USB stub.
 
 Implement independent models for selected sensors/actuators, timer-driven flight

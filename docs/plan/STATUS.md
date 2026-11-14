@@ -1,7 +1,8 @@
 # Status
 
 Single progress tracker. Last updated: 2026-11-14.
-States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete.
+States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete,
+`[-]` withdrawn.
 Decision checks record the user's approvals, not implementation completion.
 No implementation task or gate is completed by the planning reconciliation.
 
@@ -13,7 +14,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | --- | --- | --- | --- |
 | [x] | D1 | RISCay import | Approved direction; qualification remains open |
 | [x] | D2 | Performance core | Approved direction; qualification remains open |
-| [x] | D3 | Internal NoC | Approved direction; qualification remains open |
+| [x] | D3 | Internal NoC | Superseded by D43 |
 | [x] | D4 | Initial-chip scope | Approved direction; qualification remains open |
 | [x] | D5 | Debug hardware | Approved direction; qualification remains open |
 | [x] | D6 | Low-frequency clock | Approved direction; qualification remains open |
@@ -24,7 +25,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D11 | USB cutoff | Approved direction; qualification remains open |
 | [x] | D12 | Memory capacity | Approved direction; qualification remains open |
 | [x] | D13 | Control-loop target | Approved direction; qualification remains open |
-| [x] | D14 | NoC source ownership | Approved direction; qualification remains open |
+| [x] | D14 | NoC source ownership | Superseded by D43 |
 | [x] | D15 | Standard-cell library | Approved direction; qualification remains open |
 | [x] | D16 | Design language | Approved direction; qualification remains open |
 | [x] | D17 | Timing discipline | Approved direction; qualification remains open |
@@ -53,6 +54,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D40 | USB boundary | Approved direction; qualification remains open |
 | [x] | D41 | Debug access policy | Approved direction; qualification remains open |
 | [x] | D42 | Fabrication target | Approved direction; qualification remains open |
+| [x] | D43 | Whole-chip bus, no NoC | Approved direction; qualification remains open |
 
 ## Tasks
 
@@ -62,8 +64,8 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | Codex | none | [Report](tasks/reports/T08.md); clean rebuild and runtime smoke pass |
 | [x] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | Codex | T08 | [Report](tasks/reports/T01.md); local gate and fresh-context review pass |
 | [x] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | Codex | T01, T08 | [Report](tasks/reports/T02.md); exact QEMU matches, historical summary preserved, local gate passes |
-| [!] | T03 | Interconnect study | unassigned | T01, T08 | Blocked on sanitized transport handoff and Q8; no source imported |
-| [!] | T04 | Interconnect study | unassigned | T03 | Historical scripts require unapproved mixed dependencies; awaiting sanitized closure |
+| [-] | T03 | Interconnect study | n/a | n/a | Withdrawn by D43; no source imported |
+| [-] | T04 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [ ] | T06 | [RISCay baseline](tasks/T06-riscay-baseline.md) | unassigned | T01, T08 | |
 | [ ] | T07 | [Chisel build](tasks/T07-chisel-build.md) | unassigned | T01, T06, T08 | Brief rewritten; no build run |
 | [ ] | T05 | [Register generator](tasks/T05-regmap-generator.md) | unassigned | T07 | |
@@ -73,7 +75,8 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [ ] | T12 | [FPU](tasks/T12-fpu.md) | unassigned | T07, T09 | Parallel with T10/T11 |
 | [ ] | T13 | [F integration](tasks/T13-core-f-integration.md) | unassigned | T11, T12 | |
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
-| [!] | S2 | Interconnect study | unassigned | T07, T09, T03/T04 for reuse | Sanitized source/reference handoff unresolved |
+| [ ] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | unassigned | T07, T09 | Replaces the NoC work |
+| [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [ ] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | unassigned | T02, T07, T08 | |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
 
@@ -94,6 +97,7 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 
 - [ ] Formal tool smoke and shared CDC proof
 - [ ] S1 selected core/full F correctness, area, timing, loop target/fallback
+- [ ] T14 bus, domain bridge and mailbox: contract reviewed, proofs, area/timing
 - [ ] S3 memory capacity, banking and XIP validated
 - [ ] S4 latency and production-test evidence
 - [ ] Clock, reset, ownership/CDC partition and simultaneous pin map frozen
@@ -133,6 +137,8 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-14: Plan change, Claude at user's direction; D43 removes the NoC and restores a whole-chip bus with domain bridge and mailbox. D3/D14 superseded. T03/T04/S2 blocked -> withdrawn. T14 added, unstarted. R-NOC replaced by R-BUS; K8 closed, K14 rewritten, K21 added. No gate checked.
 
 - 2026-11-14: Plan change, Claude at user's direction; D2 revised to an equivalence-checked Ibex conversion. T10 split into T10 (reference/harness), T11 (conversion), T12 (FPU), T13 (F integration/improvements); S1 now depends on T13. Risks K19/K20 added. Briefs unstarted; no gate checked.
 

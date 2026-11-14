@@ -56,7 +56,8 @@ Read this file fully before doing anything.
 5. **Nothing generated is committed.** Output goes under `build/`. Scratch
    goes under `scratch/`. Both are ignored.
 6. **Vendored code is not edited in place.** `hw/vendor/*` changes only
-   through its lock file and `patches/`. Do not import proprietary IP.
+   through its lock file and `patches/`. No Coldfoot source is imported: the
+   NoC was removed by decision D43. Do not copy anything from `coldfoot_soc`.
 7. **The plan changes only by decision.** If your work shows the plan is
    wrong, do not edit `docs/plan/` to match. Report it (see below).
 8. **Stay inside the brief.** Do not refactor, rename or tidy anything the

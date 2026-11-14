@@ -40,6 +40,7 @@ The following component estimates do not establish whole-chip fit.
 | USB (reserved; implemented separately) | 0.2 to 0.3 | Assumed until the implementer supplies a figure |
 | SRAM: 16 KiB + 3 KiB | 2.96 | Macro footprints |
 | Analog macros: two oscillators, supply monitor | 0.3 to 0.5 | Assumed; RISCay's LF resistor alone is about 0.13 mm2 today |
+| --- | --- | --- |
 
 D36 changes access organization, not stored-bit count: sixteen 1024x8 macros
 give an estimated 2.487 mm2 performance SRAM footprint; wrapper/routing and
@@ -97,11 +98,11 @@ the flight simulation) is specified in
 | FPU and F integration | TestFloat vectors, lockstep with F against the simulator, formal properties; outside the equivalence proof | T12/T13/S1 |
 | ISA | RISC-V architectural tests; lockstep comparison with an instruction-set simulator for both cores | Standard suites |
 | Block | ScalaTest suites per block, each with a negative control | New |
-| SoC, directed | Boot, both images, sleep and wake from every source, reset during every committed operation, shared-peripheral ownership/DMA and reset containment | RISCay's clocked chip-test bodies extended |
+| SoC, directed | Boot, both images, sleep and wake from every source, reset during every committed operation, bridged bus transactions and mailbox, shared-peripheral ownership/DMA and reset containment | RISCay's clocked chip-test bodies extended |
 | SoC, firmware | The real flight firmware against a simulated airframe and sensor models | New |
 | Clock-domain crossing | Structural CDC check that every signal crossing a domain goes through the crossing block; simulation with randomised clock phase and frequency ratio; reset during crossing traffic | New |
 | Clocking | Glitch checks on every gate and on the always-on clock mux; HF stop and restart at every phase | RISCay's oscillator stop-phase tests extended |
-| Formal | The first choice for control logic: full proofs for the crossing FIFO, register blocks, bus, watchdogs, power and clock controller, boot lock and actuator block; riscv-formal on both cores; equivalence checks on the netlists. See [12-formal-verification.md](12-formal-verification.md) | Chisel properties, SymbiYosys, riscv-formal |
+| Formal | The first choice for control logic: full proofs for the crossing FIFO, domain bridge, mailbox, register blocks, bus, watchdogs, power and clock controller, boot lock and actuator block; riscv-formal on both cores; equivalence checks on the netlists. See [12-formal-verification.md](12-formal-verification.md) | Chisel properties, SymbiYosys, riscv-formal |
 | FPGA | The SoC on an FPGA board, flying a hardware-in-the-loop simulation, then driving real ESCs, servos and sensors on the bench; no external-link requirement | Coldfoot's FPGA flow |
 
 ### Deadlines

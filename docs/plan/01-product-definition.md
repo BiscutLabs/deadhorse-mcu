@@ -1,7 +1,8 @@
 # 01 Product definition
 
 Deadhorse is a clocked, two-core RISC-V MCU on GF180MCU at nominal 3.3 V.
-It rebuilds RISCay's clocked foundation using Deadhorse conventions. The initial chip
+It rebuilds RISCay's clocked foundation using Deadhorse conventions, with a
+simple whole-chip bus and no NoC (D43). The initial chip
 contains **no neuromorphic IP and no chip-to-chip link**.
 
 ## Approved MCU scope

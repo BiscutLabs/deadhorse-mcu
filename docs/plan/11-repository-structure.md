@@ -6,7 +6,8 @@ This layout defines where Deadhorse source, verification, and documentation belo
 
 - **`hw/ip/<block>/` as the unit of ownership,** with source, tests, formal
   and docs beside each other for most blocks.
-- Keep shared interfaces and types in the shared library.
+- **`hw/common/`** for shared packages and interfaces, so shared
+  types have one definition.
 - **FuseSoC `.core` files** as the declared file list for each block.
   Deadhorse keeps these for vendored SystemVerilog only; its own blocks are
   Chisel and are listed by the sbt build.
@@ -48,7 +49,7 @@ deadhorse-mcu/
 │
 ├── docs/
 │   ├── plan/                   this plan
-│   ├── spec/                   normative: register map, 
+│   ├── spec/                   normative: register map, bus and gateway protocol,
 │   │                           memory map, pinout, boot format
 │   ├── design/                 cross-cutting design notes: clocks, crossings,
 │   │                           sleep, reset
@@ -95,7 +96,7 @@ deadhorse-mcu/
 
 `perf_core`, `fpu`, `lite_core`, `dma`, `pinmux`, `bus`, `intc`, `power_reset`, `timebase_wdt`, `gpio`, `uart`,
 `spi_host`, `i2c_host`, `i2c_target`, `adc_player`, `qspi_flash`, `timers`,
-`actuator`, `gateway`, . No die-link block initially.
+`actuator`, `gateway`, `bus_bridge`, `mailbox`. No NoC or die-link block (D43).
 
 ### Expected under `hw/vendor/`
 
@@ -156,6 +157,7 @@ area estimate; and its status (planned, reference, generated, routed).
 
 | Coldfoot | Deadhorse | Change |
 | --- | --- | --- |
+| Gateway | Deadhorse bus master | Defined by the gateway protocol |
 | `hw/common/` | `hw/lib/` | Same role; misleading names corrected |
 | `hw/soc/` | `hw/top/reference/` | |
 | `asic/` | `phys/gf180-ws-1x1/` | Slot, pad ring and flow kept; template licence, nested CI, `tmp/` and `final/` not carried |
@@ -165,6 +167,16 @@ area estimate; and its status (planned, reference, generated, routed).
 | `ai/`, `.claude/`, `.githooks/` | `AGENTS.md`, `.agents/` | |
 | `demo/`, `snn_visualize/` | Not carried | Separate repository |
 | `docs/` reports and investigation logs | `docs/ledger/` rows; the rest not carried | |
+
+### No NoC is carried
+
+Decision D43 removes the NoC from the initial MCU and supersedes D14. No
+Coldfoot transport is vendored. A later chip that needs one starts from its
+own brief, source rights and area budget, attaching at the reserved bus
+window. Never import Coldfoot packages to obtain constants.
+
+Deadhorse may change its approved transport copy under a brief, with provenance;
+this is the D14 exception to vendor immutability, not permission to copy more IP.
 
 ## Design language and build
 

@@ -22,7 +22,7 @@ buffer depths remain targets/assumptions until the relevant task reports.
 | Interrupt/debug | Both cores | Bounded interrupt service; JTAG halt/step/register/memory access |
 
 Serial peripheral ownership is exclusive and programmable. Ownership checks
-apply equally to local bus, remote bus and DMA requests. Clock bridges and
+apply equally to local bus, bridged and DMA requests. Clock bridges and
 bounded arbitration must preserve latency bounds and prevent partial ownership
 transfer. Shared peripherals may run while the performance core sleeps; HF
 requests originate through always-available control paths.
