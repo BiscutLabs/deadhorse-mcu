@@ -13,6 +13,8 @@ Read this file fully before doing anything.
    **Work only on a task brief assigned to you.** Do not start work that has
    no brief.
 3. The brief's "Read first" list. Read those files before writing anything.
+4. [docs/plan/15-skills.md](docs/plan/15-skills.md): load the skills it
+   lists for your task from `.agents/skills/` before you start.
 
 ## Standing rules
 
