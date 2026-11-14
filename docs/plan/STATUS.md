@@ -64,7 +64,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | Codex | T01, T08 | [Report](tasks/reports/T02.md); exact QEMU matches, historical summary preserved, local gate passes |
 | [!] | T03 | Interconnect study | unassigned | T01, T08 | Blocked on sanitized transport handoff and Q8; no source imported |
 | [!] | T04 | Interconnect study | unassigned | T03 | Historical scripts require unapproved mixed dependencies; awaiting sanitized closure |
-| [ ] | T06 | [RISCay baseline](tasks/T06-riscay-baseline.md) | unassigned | T01, T08 | |
+| [x] | T06 | [RISCay baseline](tasks/T06-riscay-baseline.md) | Codex | T01, T08 | [Report](tasks/reports/T06.md); upstream gates/export pass, area within tolerance, local gate and independent review pass |
 | [ ] | T07 | [Chisel build](tasks/T07-chisel-build.md) | unassigned | T01, T06, T08 | Brief rewritten; no build run |
 | [ ] | T05 | [Register generator](tasks/T05-regmap-generator.md) | unassigned | T07 | |
 | [ ] | T09 | [Timing flow](tasks/T09-timing-flow.md) | unassigned | T01, T06, T07, T08 | |
@@ -134,7 +134,11 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 
 ## Log
 
+- 2026-11-14: T06 in progress -> done, Codex; clean upstream gates/export, mapped area within the original tolerance, exact architectural storage, local gate and independent verification passed. [Report](tasks/reports/T06.md). Remote plan update merged; no gate checked.
+
 - 2026-11-14: Plan change, Claude at user's direction; D2 revised to an equivalence-checked Ibex conversion. T10 split into T10 (reference/harness), T11 (conversion), T12 (FPU), T13 (F integration/improvements); S1 now depends on T13. Risks K19/K20 added. Briefs unstarted; no gate checked.
+
+- 2026-11-14: T06 not started -> in progress, Codex; assigned next unblocked task, Maven preflight passed, pinned baseline checkout prepared.
 
 - 2026-11-14: T02 in progress -> done, Codex; repeated exact QEMU matches, unchanged historical summary, negative controls and local gate passed; independent review verified the fixes. [Report](tasks/reports/T02.md). No gate checked.
 
