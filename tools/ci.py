@@ -11,11 +11,13 @@ def main():
                     [sys.executable, '-m', 'unittest', 'discover', '-s', 'tools', '-p', 'test_*.py', '-v'],
                     [sys.executable, 'tools/check_structure.py', '--include-untracked'],
                     [sys.executable, '-m', 'unittest', 'discover', '-s', 'hw/lib/formal', '-p', 'test_*.py', '-v'],
+                    [sys.executable, '-m', 'unittest', 'hw/regmap/test_regmap.py', '-v'],
                     [sys.executable, 'tools/sbt.py', 'hw/compile'],
                     [sys.executable, 'tools/sbt.py', 'hw/test'],
                     [sys.executable, 'tools/sbt.py', 'hw/runMain deadhorse.top.EmitHello build/emit/hello'],
                     ['iverilog', '-g2012', '-o', 'build/emit/hello/a.out', 'build/emit/hello/Hello.sv'],
                     [sys.executable, 'tools/formal_smoke.py', '--output', 'build/t07/formal'],
+                    [sys.executable, 'hw/lib/formal/regblock_proof.py'],
                     ['bash', 'sw/flight/loop-measurement/check.sh']):
         result = subprocess.run(command, cwd=ROOT)
         if result.returncode: return result.returncode

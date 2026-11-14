@@ -1,6 +1,7 @@
 # Register-map description format
 
-Draft v0.1, 2026-11-13. Proposed; not yet implemented. This is the input
+Draft v0.2, 2026-11-14. Partial-write contract approved by the user during T05.
+This is the input
 format for the tooling built in task T05. One description per block is the
 single source for the RTL decode, the C header and the documentation.
 
@@ -51,7 +52,7 @@ registers:
 | `ro` | Hardware value | Ignored | `<reg>_<field>_d` input |
 | `w1c` | Stored value | Writing 1 clears the bit | `<reg>_<field>_set` input (set wins over clear), `_q` output |
 | `w1p` | 0 | Writing 1 gives a one-cycle pulse | `<reg>_<field>_pulse` output |
-| `rwh` | Stored value | Stores | `_q` output, plus `_d` and `_we` inputs for hardware update (hardware wins) |
+| `rwh` | Stored value | Stores, honouring byte strobes | `_q` output, plus `_d` and `_we` inputs for hardware update (hardware wins) |
 | `wo` | 0 | Not stored | `<reg>_<field>_wdata` output and a one-cycle `<reg>_<field>_we` pulse |
 
 ## Rules the generator must enforce
@@ -97,10 +98,26 @@ Behaviour:
 - A request is accepted when `req_valid && req_ready`. Exactly one response
   follows each accepted request. `req_ready` is low while a response is
   pending.
-- Unmapped offset, or misaligned address: `rsp_error` = 1, no state change.
+- Unmapped offset, or misaligned address: `rsp_error` = 1, no bus-induced
+  state change. Independent hardware updates continue.
 - A read of a register returns 0 in unmapped bits.
-- A write with a strobe bit clear leaves that byte of every `rw` field
+- A write with a strobe bit clear leaves that byte of every `rw` or `rwh` field
   unchanged. `w1c` and `w1p` act only on bytes whose strobe is set.
+- A hardware write to `rwh` replaces the whole field and wins over a
+  simultaneous software write, including a partial software write.
+- For `wo`, a field is touched when an enabled byte overlaps any of its bits,
+  irrespective of write data. An untouched field produces no pulse. A touched
+  field requires every byte containing any of its bits to be enabled; complete
+  coverage delivers the extracted field value and one `_we` pulse. `_wdata`
+  is meaningful only during that pulse. Fields sharing a byte are both touched
+  by that byte's strobe; a field crossing a byte boundary requires both bytes.
+- Partial coverage of any touched `wo` field returns `rsp_error` = 1 and
+  suppresses all bus-induced updates and pulses in that transaction, including
+  those for other fields. Independent hardware updates continue.
+- An aligned, mapped write with all byte strobes clear succeeds without
+  bus-induced effects. Address and alignment checks still apply. Reads ignore
+  write strobes. Pulses occur once per accepted write, without repeating while
+  a response is backpressured.
 - All stored fields reset to their `reset` value (0 if absent) on `rst_n`.
 
 ## Generated files

@@ -1,0 +1,34 @@
+block: coverage
+description: Format coverage only, not an actuator ABI
+data_width: 32
+address_width: 8
+registers:
+  - name: control
+    offset: 0x00
+    fields:
+      - {name: setting, bits: [31, 0], access: rw, reset: 0xAABBCCDD}
+  - name: status
+    offset: 0x04
+    fields:
+      - {name: live, bits: [23, 5], access: ro}
+  - name: events
+    offset: 0x08
+    fields:
+      - {name: flags, bits: [18, 2], access: w1c, reset: 0x1234}
+  - name: command
+    offset: 0x0C
+    fields:
+      - {name: go, bits: [12, 4], access: w1p}
+  - name: counter
+    offset: 0x10
+    fields:
+      - {name: value, bits: [31, 0], access: rwh, reset: 0x87654321}
+  - name: key
+    offset: 0x14
+    fields:
+      - {name: payload, bits: [31, 0], access: wo}
+  - name: value
+    offset: 0x80
+    count: 9
+    fields:
+      - {name: v, bits: [15, 0], access: rw, reset: 0}

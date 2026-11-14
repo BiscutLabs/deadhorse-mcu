@@ -1,0 +1,13 @@
+block: wide
+description: Exact JSON address conversion regression, not an MCU address map
+data_width: 32
+address_width: 66
+registers:
+  - name: low
+    offset: 36893488147419103232
+    fields:
+      - {name: value, bits: [31, 0], access: rw, reset: 17}
+  - name: high
+    offset: 36893488147419103236
+    fields:
+      - {name: value, bits: [31, 0], access: rw, reset: 29}

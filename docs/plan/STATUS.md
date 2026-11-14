@@ -68,7 +68,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [-] | T04 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | T06 | [RISCay baseline](tasks/T06-riscay-baseline.md) | Codex | T01, T08 | [Report](tasks/reports/T06.md); upstream gates/export pass, area within tolerance, local gate and independent review pass |
 | [x] | T07 | [Chisel build](tasks/T07-chisel-build.md) | Codex | T01, T06, T08 | [Report](tasks/reports/T07.md); direct build, simulation, both formal routes, local gate and independent review pass |
-| [ ] | T05 | [Register generator](tasks/T05-regmap-generator.md) | unassigned | T07 | |
+| [x] | T05 | [Register generator](tasks/T05-regmap-generator.md) | Codex | T07 | [Report](tasks/reports/T05.md); generator/model, simulation, both formal routes, local gate and independent verification pass |
 | [ ] | T09 | [Timing flow](tasks/T09-timing-flow.md) | unassigned | T01, T06, T07, T08 | |
 | [ ] | T10 | [Ibex reference and harness](tasks/T10-ibex-reference.md) | unassigned | T07, T08 | Ibex revision/parameters pinned on assignment |
 | [ ] | T11 | [Ibex conversion](tasks/T11-ibex-conversion.md) | unassigned | T10, T09 | Equivalence-checked, no changes |
@@ -137,6 +137,14 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-14: T05 in progress -> done, Codex; approved partial-write contract implemented; Python/Chisel model comparisons, formal proofs/faults/covers, full local gate and independent verification passed. [Report](tasks/reports/T05.md). No physical gate checked.
+
+- 2026-11-14: T05 blocked -> in progress, Codex; user approved byte-masked rwh writes and complete-field wo writes with transaction-wide error suppression; specification clarified and implementation resumed.
+
+- 2026-11-14: T05 in progress -> blocked, Codex; independent review confirmed unspecified byte-strobe behavior for rwh/wo; concrete clarification submitted to user under the brief's ambiguity stop rule. [Report](tasks/reports/T05.md). No implementation started.
+
+- 2026-11-14: T05 not started -> in progress, Codex; user assigned next task with independent review, commit and push; checking register-map contract before implementation.
 
 - 2026-11-14: T07 in progress -> done, Codex; pinned direct Chisel build, behavioral negative control, native BTOR2 and SymbiYosys induction/fault/cover checks passed; merged-tree local gate and independent verification passed. [Report](tasks/reports/T07.md). Remote D43 plan retained; no gate checked.
 
