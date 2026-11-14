@@ -29,7 +29,7 @@ is subsequently assigned.
 | [12-formal-verification.md](12-formal-verification.md) | Formal verification policy, tools, what is proved per block, gate conditions |
 | [13-test-environment.md](13-test-environment.md) | Pinned tool environment, block tests, reference models, one test body on four targets, firmware and airframe in the loop |
 | [14-timing-design-rules.md](14-timing-design-rules.md) | Rules against long combinational paths, and the per-block GF180 timing check |
-| [15-skills.md](15-skills.md) | The six agent skills and when to use each |
+| [15-skills.md](15-skills.md) | The agent skills and when to use each |
 | [STATUS.md](STATUS.md) | Progress tracker: decisions, tasks, gates, and a change log |
 | [tasks/README.md](tasks/README.md) | Task briefs for Phase 0 and the spikes, written for hand-off |
 | [../spec/](../spec/) | Register-map format and actuator block |

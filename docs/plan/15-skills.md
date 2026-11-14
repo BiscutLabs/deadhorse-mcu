@@ -1,6 +1,6 @@
 # 15 Skills
 
-Six skills teach an agent how to do the recurring kinds of work in this
+Seven skills teach an agent how to do the recurring kinds of work in this
 project. The plan and the briefs say what to build; the skills say how to do
 it well. Load the skills listed for your task before you start it.
 
@@ -17,6 +17,7 @@ repository document wins.
 | `gf180-synth-timing-check` | PDK fetch, yosys with the slang front end, known tool failures and fixes, reading area reports, the timing budget | Area flow run and reproduced; timing step not yet run |
 | `reference-model-testing` | Block tests in ScalaTest, system tests on the four-target interface, reference models, actuator checkers, negative controls | Rules from the plan; frameworks not yet run here |
 | `regmap-authoring` | The register-map YAML format, choosing access types, register-map design rules, pre-generation checks | Format is a draft; generator not yet built |
+| `sv-to-chisel-translation` | Translating the Ibex reference to Chisel so it passes equivalence: names, reset, widths and signs, case and enum idioms, don't-care values, reading a counterexample | First version from language semantics; no translation or equivalence run yet |
 
 The skills are kept under `.agents/skills/<name>/SKILL.md`.
 
@@ -35,6 +36,7 @@ The skills are kept under `.agents/skills/<name>/SKILL.md`.
 | Write or review Chisel RTL for a block | `clocked-chisel-block-design` |
 | Touch a clock-domain crossing, a clock gate, the clock mux or reset | `clocked-chisel-block-design` |
 | Wrap vendored SystemVerilog in a black box | `clocked-chisel-block-design` |
+| Translate reference SystemVerilog to Chisel, or debug a failed equivalence check | `sv-to-chisel-translation` |
 | Define or change a block's registers | `regmap-authoring` |
 | Write, run or review formal properties or a proof | `chisel-formal-properties` |
 | Write or review a block test, a system test, a model or a checker | `reference-model-testing` |
@@ -60,9 +62,9 @@ called done.
 | T07 Clocked Chisel build | `clocked-chisel-block-design`, `chisel-formal-properties` (smoke test) |
 | T09 GF180 timing flow | `gf180-synth-timing-check` |
 | T10 Ibex reference and harness | `reference-model-testing`, `chisel-formal-properties` (negative controls, proved versus bounded) |
-| T11 Ibex conversion | `clocked-chisel-block-design`, `chisel-formal-properties`, `gf180-synth-timing-check` |
+| T11 Ibex conversion | `sv-to-chisel-translation`, `clocked-chisel-block-design`, `chisel-formal-properties`, `gf180-synth-timing-check` |
 | T12 FPU | `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check` |
-| T13 F integration | `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check` |
+| T13 F integration | `sv-to-chisel-translation` (unchanged modules must stay equivalent), `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check` |
 | S1 Core measurement | `gf180-synth-timing-check`, `reference-model-testing` |
 | S3 Memory | `reference-model-testing` |
 | S4 Latency and test | `gf180-synth-timing-check`, `reference-model-testing` |
@@ -77,7 +79,7 @@ table.
 | --- | --- | --- |
 | P0 Foundation | Scaffold, vendoring, build, baselines | `deadhorse-task-execution`, `gf180-synth-timing-check` |
 | P1 Spikes | Measuring cores and memory | `gf180-synth-timing-check`, `chisel-formal-properties` |
-| P2 SoC and FPGA | Every new block; integration; system tests | All six. Each block brief names its own |
+| P2 SoC and FPGA | Every new block; integration; system tests | All except `sv-to-chisel-translation`. Each block brief names its own |
 | P3 Physical | Timing closure, equivalence | `gf180-synth-timing-check`, `chisel-formal-properties` (equivalence) |
 | P4 Silicon | Bring-up with the shared tests | `reference-model-testing` |
 

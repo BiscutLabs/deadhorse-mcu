@@ -14,6 +14,8 @@ checks, not on who wrote the code. No F extension here (T12/T13).
 - [../10-decisions-and-risks.md](../10-decisions-and-risks.md), D2/D16/D17
 - [../12-formal-verification.md](../12-formal-verification.md)
 - [../14-timing-design-rules.md](../14-timing-design-rules.md)
+- Skill `sv-to-chisel-translation` under `.agents/skills/`: translation
+  rules and how to debug a failed equivalence check
 
 ## Inputs and readiness
 
