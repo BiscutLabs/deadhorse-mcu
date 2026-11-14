@@ -20,8 +20,9 @@ Read this file fully before doing anything.
 
 1. **Adopt before building.** Do not write new RTL where a brief names an
    existing block to adopt. D2/D19/D20 explicitly require the performance core
-   to be reimplemented in Chisel with a multicycle FPU and selective HardFloat
-   reuse; do not substitute a vendored SystemVerilog core or reopen a core bakeoff.
+   to be an equivalence-checked Chisel conversion of the pinned Ibex
+   reference, with a multicycle FPU and selective HardFloat reuse (T10-T13);
+   do not substitute a vendored SystemVerilog core or reopen a core bakeoff.
 
    **New RTL is Chisel, and it is clocked.** The only exception is a later,
    explicitly briefed Click version of the lite core (decision D18).

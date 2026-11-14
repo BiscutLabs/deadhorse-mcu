@@ -47,7 +47,7 @@ supporting pieces, and none of its asynchronous work.
 
 | RISCay item | Replacement |
 | --- | --- |
-| RV32E core as the only CPU | Ibex reimplementation in Chisel with full RV32IMFC and multicycle FPU (D2/D19/D20) |
+| RV32E core as the only CPU | Equivalence-checked Ibex conversion to Chisel, extended to full RV32IMFC and multicycle FPU (D2/D19/D20) |
 | Bit-banged flash boot | QSPI flash controller with execute-in-place |
 | No interrupts, traps halt | Machine-mode interrupts on both cores |
 | No debug port | Unlocked gateway and JTAG debug for both cores (D5/D41) |

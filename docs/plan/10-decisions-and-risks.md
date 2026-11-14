@@ -10,7 +10,7 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | ID | Subject | Approved direction |
 | --- | --- | --- |
 | **D1** | RISCay import | Pinned one-time import of the clocked design and needed support code, restructured into Deadhorse conventions. Preserve provenance and licences; no live async dependency. |
-| **D2** | Performance core | Reimplement Ibex in clocked Chisel with full RV32IMFC and machine-mode interrupt/debug support. Improve the design where justified; no alternative-core selection or bakeoff. New verification is required; upstream verification does not transfer. |
+| **D2** | Performance core | Convert a pinned, unmodified Ibex reference to clocked Chisel and prove the conversion equivalent module by module before any change (T10/T11); revised 2026-11-14. Then add full F and justified improvements as separate, measured changes (T12/T13), giving RV32IMFC with machine-mode interrupt/debug support. No alternative-core selection or bakeoff. Upstream verification transfers only to modules proved equivalent; everything changed afterwards needs new verification. The reference is never built into the chip; integrating it behind a BlackBox is a fallback that needs user approval. |
 | **D3** | Historical interconnect proposal | Details removed. |
 | **D4** | Initial-chip scope | No chip-to-chip link and no neuromorphic IP in the initial MCU. Link framing, external discovery, interoperability and related pads are deferred. |
 | **D5** | Debug hardware | Include JTAG debug for both cores. UART gateway and JTAG are the fallback if USB misses its cutoff; JTAG is not an area-cut option. |
@@ -56,7 +56,9 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 
 | ID | Risk | Required work |
 | --- | --- | --- |
-| K2 | Chisel core/FPU speed and area unknown | Implement the selected architecture under T10, then S1/S4 measure it; no core bakeoff or silent removal of F |
+| K2 | Chisel core/FPU speed and area unknown | Convert and prove under T10/T11, build the FPU under T12, integrate under T13, then S1/S4 measure it; no core bakeoff or silent removal of F |
+| K19 | Conversion may not reach equivalence on every module, or only to bounded depth | T11 localizes module by module and labels bounded results; BlackBox fallback needs user approval |
+| K20 | F is new design outside the equivalence proof | T12 vectors against TestFloat, T13 lockstep against the pinned simulator; riscv-formal F support recorded, not assumed |
 | K3 | HF/LF accuracy, startup, jitter, duty cycle and power unqualified | Analog layout, extraction, corners and silicon characterization; D35 provides a clock fallback path |
 | K4 | Analog layout and selectable monitor thresholds not implemented | Safe default must work without firmware; validate startup, slow ramps, mismatch, threshold changes and reset release |
 | K5 | Full revised chip may exceed slot area | Rebuild area budget with FPU, DMA, ownership, debug and analog; retain approved requirements and report overruns |

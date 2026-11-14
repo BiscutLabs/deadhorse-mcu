@@ -59,7 +59,10 @@ called done.
 | T06 RISCay baseline | `gf180-synth-timing-check` (reference area) |
 | T07 Clocked Chisel build | `clocked-chisel-block-design`, `chisel-formal-properties` (smoke test) |
 | T09 GF180 timing flow | `gf180-synth-timing-check` |
-| T10 Chisel core and FPU | `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check` |
+| T10 Ibex reference and harness | `reference-model-testing`, `chisel-formal-properties` (negative controls, proved versus bounded) |
+| T11 Ibex conversion | `clocked-chisel-block-design`, `chisel-formal-properties`, `gf180-synth-timing-check` |
+| T12 FPU | `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check` |
+| T13 F integration | `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check` |
 | S1 Core measurement | `gf180-synth-timing-check`, `reference-model-testing` |
 | S3 Memory | `reference-model-testing` |
 | S4 Latency and test | `gf180-synth-timing-check`, `reference-model-testing` |

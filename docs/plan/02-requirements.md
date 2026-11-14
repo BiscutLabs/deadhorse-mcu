@@ -34,7 +34,7 @@ instructions, not cycles.
 | ID | Requirement | Tag |
 | --- | --- | --- |
 | R-CPU-1 | Performance core sustains at least 5 MIPS at the slow corner (SS, 125 C, 3.0 V) with routed delays. Stretch 10 MIPS. Basis: 2,171 instructions at 1 kHz is 2.2 MIPS; doubled for the excluded work and rounded up. | E |
-| R-CPU-2 | Clocked Chisel reimplementation of Ibex, RV32IMFC, machine CSRs, vectored interrupts, wfi, debug/RVFI; full single-precision F, no D. Area-focused multicycle FPU with selective HardFloat reuse; no alternative-core selection. | D2, D19, D20 |
+| R-CPU-2 | Clocked Chisel conversion of a pinned Ibex reference, proved equivalent before F is added (T10-T13), RV32IMFC, machine CSRs, vectored interrupts, wfi, debug/RVFI; full single-precision F, no D. Area-focused multicycle FPU with selective HardFloat reuse; no alternative-core selection. | D2, D19, D20 |
 | R-CPU-3 | Hardware multiply completes in at most 3 core cycles. Divide may be iterative. | E |
 | R-CPU-4 | Interrupt latency from pin to first handler instruction is bounded and at most 50 microseconds at the slow corner. | A, replaced by spike S4 |
 | R-CPU-5 | Lite core is RV32E (optionally C) with a minimal interrupt and CSR set. At least 0.2 MIPS on the divided HF clock; a few thousand instructions per second on the 32 kHz clock. | A |

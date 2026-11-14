@@ -11,8 +11,10 @@ Shuttle target is wafer.space GF180MCU 1x1; date and staffing remain open.
 3. T02 reproduces historical workload; T06 reproduces RISCay clocked baseline.
 4. T07 establishes direct Chisel build and formal smoke; T05 builds register
    tooling using format fixtures, not an unresolved actuator ABI.
-5. T09 establishes per-block GF180 timing; T10 implements/verifies the selected
-   Chisel core/FPU so S1 can measure it. No alternative-core evaluation.
+5. T09 establishes per-block GF180 timing. T10 pins the Ibex reference and
+   builds the comparison harness; T11 converts it to Chisel with equivalence
+   proved; T12 builds the FPU in parallel; T13 integrates F and improvements
+   so S1 can measure the result. No alternative-core evaluation.
 6. T03 requires sanitized transport handoff/licensing before import; T04 remains
    blocked until a lawful, dependency-complete baseline can be reproduced.
 7. Prepare separate briefs for RISCay adoption, analog layout/characterization,
@@ -27,7 +29,7 @@ scaffold and CI working. An approved boundary is not a delivered USB block.
 S1 measures the selected Chisel core/FPU;
 S3 validates capacity/XIP/banking; S4 measures latency and test coverage.
 Prototype harnesses are Chisel, output under build/. Measurements do not replace
-independent correctness checks. T10 is implementation, distinct from S1 measurement.
+independent correctness checks. T10-T13 are implementation, distinct from S1 measurement.
 
 **G1, architecture freeze:** satisfy formal smoke and shared-CDC proof requirements;
 validate loop target/fallback and full F; measure area/timing; qualify memory and

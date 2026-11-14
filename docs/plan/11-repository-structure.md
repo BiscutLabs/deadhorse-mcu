@@ -101,8 +101,10 @@ deadhorse-mcu/
 
 Selectively reused pinned `hardfloat` Chisel sources with provenance,
 `usb` if delivered as permitted vendor RTL, and the selected debug module.
+`ibex_ref` holds the pinned, unmodified Ibex SystemVerilog as a reference for
+equivalence and lockstep checks only; chip source lists must reject it.
 No SystemVerilog Ibex performance core is integrated: `hw/ip/perf_core/`
-contains the Chisel reimplementation. RISCay's clocked design is imported once,
+contains the Chisel conversion. RISCay's clocked design is imported once,
 restructured under `hw/` with provenance, not retained as a live dependency.
 
 Pinned Linux container definition/locks belong under `tools/env/`; every

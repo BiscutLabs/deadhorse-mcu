@@ -68,8 +68,11 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [ ] | T07 | [Chisel build](tasks/T07-chisel-build.md) | unassigned | T01, T06, T08 | Brief rewritten; no build run |
 | [ ] | T05 | [Register generator](tasks/T05-regmap-generator.md) | unassigned | T07 | |
 | [ ] | T09 | [Timing flow](tasks/T09-timing-flow.md) | unassigned | T01, T06, T07, T08 | |
-| [ ] | T10 | [Selected core/FPU](tasks/T10-core-fpu.md) | unassigned | T07, T09 | Source pins/contract resolved on assignment |
-| [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T10, T09, T02 | Architecture selected; measurements outstanding |
+| [ ] | T10 | [Ibex reference and harness](tasks/T10-ibex-reference.md) | unassigned | T07, T08 | Ibex revision/parameters pinned on assignment |
+| [ ] | T11 | [Ibex conversion](tasks/T11-ibex-conversion.md) | unassigned | T10, T09 | Equivalence-checked, no changes |
+| [ ] | T12 | [FPU](tasks/T12-fpu.md) | unassigned | T07, T09 | Parallel with T10/T11 |
+| [ ] | T13 | [F integration](tasks/T13-core-f-integration.md) | unassigned | T11, T12 | |
+| [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
 | [!] | S2 | Interconnect study | unassigned | T07, T09, T03/T04 for reuse | Sanitized source/reference handoff unresolved |
 | [ ] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | unassigned | T02, T07, T08 | |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -130,6 +133,8 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-14: Plan change, Claude at user's direction; D2 revised to an equivalence-checked Ibex conversion. T10 split into T10 (reference/harness), T11 (conversion), T12 (FPU), T13 (F integration/improvements); S1 now depends on T13. Risks K19/K20 added. Briefs unstarted; no gate checked.
 
 - 2026-11-14: T02 in progress -> done, Codex; repeated exact QEMU matches, unchanged historical summary, negative controls and local gate passed; independent review verified the fixes. [Report](tasks/reports/T02.md). No gate checked.
 

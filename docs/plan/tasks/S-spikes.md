@@ -11,7 +11,7 @@ and the relevant prerequisite reports before work. Use T08's pinned environment.
 Changes: Chisel measurement harnesses and scripts under tools/spikes, independent
 models/test inputs under dv, measurement firmware under sw/flight outside the
 historical loop source, ledger and task report. Emitted RTL/results go to build/.
-No new handwritten SystemVerilog. Production core changes belong to T10;
+No new handwritten SystemVerilog. Production core changes belong to T11-T13;
 promoting other prototypes to production requires their own integration brief.
 
 The executable interfaces below are deliverables to create in the assigned
@@ -22,7 +22,7 @@ be called unbounded. Missing required tools or failed limits block completion.
 
 ## S1 Core
 
-**Requires:** T10 selected core/FPU, T09 timing, T02 historical workload, S3
+**Requires:** T13 selected core/FPU, T09 timing, T02 historical workload, S3
 memory model where available. No D2 selection blocker remains.
 
 **Question:** area, achievable frequency, latency and throughput of the selected
@@ -57,7 +57,7 @@ Study details have been removed.
 
 ## S3 Memory
 
-**Requires:** T02/T07/T08; collaborate through reports with T10/S1, not circular
+**Requires:** T02/T07/T08; collaborate through reports with T13/S1, not circular
 completion dependencies. Memory modeling can start before core cycle measurement.
 
 1. Build separate representative firmware including interrupts, BMI270 streaming

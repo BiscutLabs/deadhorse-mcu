@@ -93,7 +93,8 @@ the flight simulation) is specified in
 | Layer | What | Source |
 | --- | --- | --- |
 | Adopted IP | Each actually adopted block keeps its upstream suite, run in our CI | RISCay carryover, selected HardFloat components, serial cores, USB |
-| Reimplemented core/FPU | New independent ISA/full-F tests and formal properties; upstream evidence does not transfer | T10/S1 |
+| Converted core | Formal equivalence to the pinned Ibex reference per module and whole core, riscv-formal, lockstep against reference and simulator | T10/T11 |
+| FPU and F integration | TestFloat vectors, lockstep with F against the simulator, formal properties; outside the equivalence proof | T12/T13/S1 |
 | ISA | RISC-V architectural tests; lockstep comparison with an instruction-set simulator for both cores | Standard suites |
 | Block | ScalaTest suites per block, each with a negative control | New |
 | SoC, directed | Boot, both images, sleep and wake from every source, reset during every committed operation, shared-peripheral ownership/DMA and reset containment | RISCay's clocked chip-test bodies extended |

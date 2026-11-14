@@ -9,16 +9,21 @@ chip-to-chip link is included.
 
 ## Cores and memories
 
-The performance core reimplements Ibex in Chisel, with full RV32IMFC,
-machine-mode CSRs, vectored interrupts, `wfi`, debug and an RVFI verification path.
-It is not an Ibex SystemVerilog BlackBox and no alternative-core selection
-is requested. Improvements should target GF180 area, timing and clock gating
+The performance core is a Chisel conversion of a pinned Ibex revision, with
+full RV32IMFC, machine-mode CSRs, vectored interrupts, `wfi`, debug and an RVFI
+verification path. The unmodified Ibex SystemVerilog is kept under
+`hw/vendor/ibex_ref/` as a reference only: the conversion is first proved
+equivalent to it module by module as RV32IMC with no changes (T10/T11), and
+only then is F integrated and anything improved (T12/T13). The chip does not
+contain an Ibex SystemVerilog BlackBox and no alternative-core selection is
+requested. Improvements should target GF180 area, timing and clock gating
 without reducing ISA correctness. Their benefits must be measured.
 
 The FPU is area-focused and multicycle, selectively reusing pinned HardFloat
 Chisel components. Full F semantics include rounding modes, flags, fused
 operations, subnormals, special values, comparisons and conversions. D is
-excluded. Upstream verification is reference material, not proof of our rewrite.
+excluded. Ibex has no F extension, so the FPU and its integration are new
+design outside the equivalence proof and need their own verification.
 
 RISCay's clocked RV32E core becomes the lite core with minimal interrupts/CSRs,
 `wfi`, debug and local peripheral access. The historical D18 Click option is deferred

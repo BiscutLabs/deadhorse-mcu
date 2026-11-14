@@ -37,7 +37,7 @@ is established in the build task before any block relies on it.
 | Properties in the design language | Chisel `assert`, `assume`, `cover` and its LTL library (`AssertProperty`) | Properties live beside the RTL they describe |
 | Model checking Chisel blocks | Chisel's BTOR2 emission (`ChiselStage.emitBtor2`, firtool `--btor2`) with a BTOR2 model checker | The native route for Chisel; bounded checking is certain, unbounded depends on the checker |
 | Model checking emitted or vendored SystemVerilog | SymbiYosys with its bounded, induction and PDR engines | Needed for vendored blocks and as a second engine |
-| Processor correctness | riscv-formal, through the RVFI trace port | Both Chisel cores need verified RVFI; upstream results do not transfer |
+| Processor correctness | riscv-formal, through the RVFI trace port | Both Chisel cores need verified RVFI. The performance core is also proved equivalent to the pinned Ibex reference before F is added (T11) |
 | Equivalence | Yosys-based equivalence checking | RTL against synthesized netlist, before and after scan insertion, and against the final netlist |
 
 Which checker gives unbounded proofs on which block is not known until the
