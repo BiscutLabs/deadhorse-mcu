@@ -32,7 +32,8 @@ does it sustain 5 MIPS at the slow corner (R-CPU-1)?
 **Method:**
 
 1. Map the candidate core to `gf180mcu_fd_sc_mcu7t5v0` with yosys; record
-   area and cell count.
+   area and cell count. Use the per-block timing flow from
+   [../14-timing-design-rules.md](../14-timing-design-rules.md) if it exists.
 2. Run static timing at SS/125 C/3.0 V and at the typical corner with a
    wire-load allowance; record the maximum clock frequency and the critical
    path. State the allowance used.

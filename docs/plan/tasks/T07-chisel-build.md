@@ -7,6 +7,10 @@
 > The revised task is to depend on Chisel 7.16.0 and its compiler plugin
 > directly from Maven Central, with the same Scala, sbt, ScalaTest and
 > firtool pins, and to drop every chisel-async step and stop condition.
+> The rewrite must also add the formal tool chain smoke test from
+> `docs/plan/12-formal-verification.md` ("Order of work", step 1).
+> It should be paired with the pinned tool environment from
+> `docs/plan/13-test-environment.md`, section 1.
 > Do not start this brief until it has been rewritten.
 
 ## Goal

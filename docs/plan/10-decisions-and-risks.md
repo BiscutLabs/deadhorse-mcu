@@ -48,6 +48,7 @@ Ranked by how much of the plan they can stop.
 | **K13** | USB arrives late, or does not fit the reserved area, pads, clock or interface | It is integrated last, so a mismatch is found when there is least room to absorb it | Agree the contract in P0; stub with final ports from P2; reserve with margin; cut-off rule (D11) | P0 to P4 |
 | **K16** | The Chisel toolchain has not been run by this project | sbt and the Scala suites need Maven Central, which was unreachable while planning; every Chisel task depends on it | Tasks T06 and T07, on a machine with full network access | P0 |
 | **K15** | RISCay's full gate has not been run on a clean machine by this project | Only the tool bootstrap and the Python gate were verified; the Scala suites and export need Maven Central | Task T06 | P0 |
+| **K18** | Open formal tools may not give unbounded proofs on the larger blocks | The plan leans on formal for control logic; if the power controller only reach bounded depth, their assurance is weaker than planned | Two engines per block; keep blocks small; record proved versus bounded honestly in the ledger; simulation backs bounded results | P1 to P2 |
 | **K12** | Supply noise from ESCs trips the supply monitor in flight | Schematic thresholds sit 60 to 280 mV below a nominal 3.3 V rail | Revisit threshold with the board; board-level filtering; failsafe behaviour on brownout defined | P2 |
 
 ## Open questions

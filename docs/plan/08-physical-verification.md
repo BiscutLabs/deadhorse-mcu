@@ -79,6 +79,10 @@ There is one RTL source. The same Chisel is simulated, prototyped on FPGA
 and taped out. The clockless plan's second, generated design and the checks
 that compared the two are gone.
 
+The test environment (tooling, reference models, the four test targets and
+the flight simulation) is specified in
+[13-test-environment.md](13-test-environment.md).
+
 ### Layers
 
 | Layer | What | Source |
@@ -90,7 +94,7 @@ that compared the two are gone.
 | SoC, firmware | The real flight firmware against a simulated airframe and sensor models | New |
 | Clock-domain crossing | Structural CDC check that every signal crossing a domain goes through the crossing block; simulation with randomised clock phase and frequency ratio; reset during crossing traffic | New |
 | Clocking | Glitch checks on every gate and on the always-on clock mux; HF stop and restart at every phase | RISCay's oscillator stop-phase tests extended |
-| Formal | Check clock crossings and actuator failsafe entry | Project harnesses |
+| Formal | The first choice for control logic: full proofs for the crossing FIFO, register blocks, bus, watchdogs, power and clock controller, boot lock and actuator block; riscv-formal on both cores; equivalence checks on the netlists. See [12-formal-verification.md](12-formal-verification.md) | Chisel properties, SymbiYosys, riscv-formal |
 | FPGA | The SoC on an FPGA board, flying a hardware-in-the-loop simulation, then driving real ESCs, servos and sensors on the bench | Coldfoot's FPGA flow |
 
 ### Deadlines

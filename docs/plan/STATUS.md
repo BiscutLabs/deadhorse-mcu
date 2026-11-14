@@ -47,6 +47,8 @@ Tasks marked blocked name the decision they wait on. Details are in
 | [ ] | T06 | [RISCay toolchain and baseline](tasks/T06-riscay-baseline.md) | unassigned | T01 | |
 | [!] | T07 | [Chisel build skeleton](tasks/T07-chisel-build.md) | unassigned | T01, T06 | Brief needs rewriting without chisel-async before it can start |
 | [ ] | T05 | [Register-map generator](tasks/T05-regmap-generator.md) | unassigned | T07 | |
+| [ ] | P0-f | Pinned tool environment ([13-test-environment.md](13-test-environment.md), section 1); brief to be written with the T07 rewrite | unassigned | T01 | |
+| [ ] | P0-g | Per-block GF180 timing check ([14-timing-design-rules.md](14-timing-design-rules.md)); brief to be written | unassigned | T01, T06 | |
 | [ ] | P0-a | Confirm the nine-channel split against the Stallion wiring PDF (Q1) | person | none | |
 | [ ] | P0-b | Choose sensor parts: IMU, barometer, compass, airspeed, GPS, receiver (Q9) | person | none | |
 | [ ] | P0-c | Agree the USB integration contract with its implementer (Q12) | person | none | |
@@ -70,6 +72,7 @@ Tasks marked blocked name the decision they wait on. Details are in
 
 **Gate G1, architecture freeze**
 
+- [ ] Formal tool chain smoke test passes on both routes; crossing FIFO proved
 - [ ] S1: at least 5 MIPS at the slow corner (or the 500 Hz fallback recorded)
 - [ ] S3: SRAM size chosen (D12)
 - [ ] S4: latency bound and test approach (D8)
@@ -86,6 +89,9 @@ Briefs are written after G1. Items from [09-roadmap.md](09-roadmap.md):
 - [ ] New blocks: actuator block, timers, serial peripherals, lite-core extensions, register-transaction layer
 - [ ] Boot chain with two images; gateway monitor over UART; USB stub
 - [ ] Flight logging: UART stream first, then the logging flash
+- [ ] Target interface with the RTL-simulation adapter and first system test
+- [ ] Sensor, storage and actuator models; airframe model; flight scenarios
+- [ ] Fast model and FPGA adapter running the same system tests
 - [ ] FPGA build flying the hardware-in-the-loop simulation; real actuators and sensors on the bench
 - [ ] Scan inserted; suite passing on the gate-level netlist
 - [ ] Optional: S5, the Click lite core (D18)
@@ -96,6 +102,9 @@ Briefs are written after G1. Items from [09-roadmap.md](09-roadmap.md):
 - [ ] Nine real actuators driven with correct timing
 - [ ] Deep sleep entered and left with the main clock stopped
 - [ ] Structural clock-domain-crossing check clean
+- [ ] Every block within its GF180 timing budget, or a recorded exception
+- [ ] Every block listed for a full proof has it in CI, or a recorded reason it is bounded
+- [ ] riscv-formal passes on both cores; no unreviewed assumption
 
 ## Phase 3: Physical
 
@@ -119,6 +128,7 @@ Briefs are written after G1. Items from [09-roadmap.md](09-roadmap.md):
 - [ ] 8 Post-layout simulation
 - [ ] 9 Scan
 - [ ] 10 Deep-sleep current
+- [ ] Equivalence: RTL to netlist, before and after scan, final netlist
 
 ## Phase 4: Silicon
 

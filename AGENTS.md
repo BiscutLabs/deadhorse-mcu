@@ -28,6 +28,17 @@ Read this file fully before doing anything.
    Verilog source. SystemVerilog exists only under `hw/vendor/`, unmodified,
    and is used through a Chisel `BlackBox`. Emitted SystemVerilog is build
    output under `build/`.
+1b. **New blocks ship with formal properties.** Follow
+   [docs/plan/12-formal-verification.md](docs/plan/12-formal-verification.md):
+   properties beside the RTL, a negative control per proof, every
+   assumption listed, and a bounded result never reported as a proof.
+1c. **Tests follow [docs/plan/13-test-environment.md](docs/plan/13-test-environment.md).**
+   Check behaviour against an independent reference model. Never write a
+   test that reads or matches RTL source text. Use only tools from the
+   pinned environment, and no paths outside the repository.
+1d. **Follow [docs/plan/14-timing-design-rules.md](docs/plan/14-timing-design-rules.md).**
+   Register block outputs, break ready/valid chains, keep heavy operations
+   multi-cycle. FPGA timing passing says nothing about GF180.
 2. **Every number has a provenance.** Mark each figure you report as
    *measured* (name the command and commit), *estimated* (show the
    arithmetic) or *assumed*. Never present an estimate as a measurement.
