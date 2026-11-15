@@ -147,6 +147,27 @@ Independent reviewer `t10_final_review` checked the arithmetic/RTL comparison,
 stress receipts, nonzero-destination fault witnesses, all remaining partition
 statuses and the evidence limits. The extra time did not establish the
 missing result; it does not establish that an even longer run could never
-finish. T10 remains blocked, with no full local gate pass. The user subsequently
+finish. At this checkpoint T10 remained blocked, with no full local gate pass. The user subsequently
 authorized committing and pushing this incomplete checkpoint for further
 agent review. Generated logs and scratch diagnostics remain local and ignored.
+
+## D44 follow-up
+
+Commit `1b04c8af3aee8143d471394105c139ceaa7f18aa` approved the revised
+acceptance: ALTOPS integration for the four multiply instructions, integer
+lemmas, required stress simulation, and an unresolved non-gating raw check.
+See [the current task report](../../docs/plan/tasks/reports/T10.md) for final
+acceptance status and [the lemma](MUL-LEMMA.md) for its actual obligations.
+
+The independent review's optional stronger-route feasibility attempt used a
+Chisel-emitted shared symbolic memory with five read ports, 34-bit addresses
+and 34-bit values. Measured by the pinned commands recorded in
+`build/t10/d44/review/uf/result.json`: the unwritten memory was optimized to
+zero. A dummy write port retained a declaration, but the generated unsized
+array bound was truncated by both frontends into a two-entry memory; making
+the generated bound explicit produced a slang range error. The source and
+commands are under `scratch/d44_review/`, with logs under that build directory.
+No valid full-address function reached the core/spec integration stage or a
+bounded solver run. No smaller memory or fixed function was substituted.
+The attempt is unresolved, not a passing stronger proof. D44's arithmetic
+lemma-to-RTL review/simulation caveat therefore remains mandatory.

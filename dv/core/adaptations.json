@@ -1,5 +1,14 @@
 {
   "schema": 1,
+  "multiply_altops": {
+    "id": "D44-multiply-altops",
+    "source": "rtl/ibex_multdiv_fast.sv",
+    "source_sha256": "1a4e662e3fa2f6320c5dd32bbca0a181de5da11a7c41d24b10ab2bf1131ac110",
+    "replace": "  assign multdiv_result_o = div_sel_i ? imd_val_q_i[0][31:0] : mac_res_d[31:0];\n",
+    "authorization": "D44 and revised T10 brief, approved 2026-11-14",
+    "replacement": "RISCV_FORMAL_ALTOPS selects the emitted MultiplyAltop result; else the exact original assignment. Only generated instance wiring is added. Per-build adaptation.json records exact inserted bytes and emitted RTL hash.",
+    "reversal": "Omit ALTOPS and use original multiply source; --unabstracted-multiply uses the original end-to-end check. Vendor files remain byte-exact."
+  },
   "id": "T10-unused-scramble-initializer",
   "source": "rtl/ibex_top.sv",
   "source_sha256": "60c394b8c3fd47c553740e7c3df923b42c8d94b889654413dd04bc3ce55f4a6f",

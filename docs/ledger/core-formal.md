@@ -1,6 +1,6 @@
 # Core reference formal ledger
 
-T10 evidence, based on `7b4a65f620d52cd10f0a32bb9767e9c55eb2315c` plus the
+Historical pre-D44 T10 evidence, based on `7b4a65f620d52cd10f0a32bb9767e9c55eb2315c` plus the
 uncommitted T10 changes. Command prefix for all entries:
 `python tools/env/run.py run --`.
 
@@ -108,3 +108,64 @@ See [the investigation note](../../dv/core/MULTIPLICATION-INVESTIGATION.md)
 for diagnostic artifacts, upstream guidance and the proposed compositional
 proof strategy. A separate arithmetic proof cannot replace whole-core
 acceptance without discharging the integration obligations too.
+
+## D44 revised acceptance
+
+D44 explicitly approves a different acceptance contract; this is not a
+promotion of the historical raw timeouts into passes. Current evidence is
+based on `1b04c8af3aee8143d471394105c139ceaa7f18aa` plus D44 working changes.
+All commands below use the pinned container prefix above.
+
+`python3 dv/core/riscv_formal.py --target reference --output build/t10/d44/rvf`
+completed successfully. Measured classifications: all 66 non-multiply models
+are bounded with covers and rejected result faults; all four multiply models
+are **bounded, arithmetic abstracted (ALTOPS)**, with covers and rejected
+nonzero-destination result and captured-operand faults. Depth/check cycle
+remain the assumed 40 global steps/core cycle 12; the 600-second limit is
+unchanged. Only the multiply jobs define ALTOPS. The four added live operand
+and operation stability assertions are active, with no new assumptions.
+
+| Multiply model | Kind | BMC | Cover | Result fault | Capture fault |
+| --- | --- | --- | --- | --- | --- |
+| MUL | Bounded, arithmetic abstracted (ALTOPS) | PASS, 28 s | PASS, 6 s | FAIL, 19 s | FAIL, 14 s |
+| MULH | Bounded, arithmetic abstracted (ALTOPS) | PASS, 25 s | PASS, 4 s | FAIL, 18 s | FAIL, 16 s |
+| MULHSU | Bounded, arithmetic abstracted (ALTOPS) | PASS, 27 s | PASS, 4 s | FAIL, 15 s | FAIL, 17 s |
+| MULHU | Bounded, arithmetic abstracted (ALTOPS) | PASS, 23 s | PASS, 4 s | FAIL, 17 s | FAIL, 15 s |
+
+Times are measured per-job SBY elapsed wall time from the standalone run's
+logs (`runtime-summary.json`), not whole-command runtime. ABC `bmc3` checks
+assertions/faults; BTORMC checks covers. The independent reviewer reran MULH
+BMC and the MUL capture fault and inspected all eight fault witnesses: each
+fails upstream result equality on a valid selected instruction with nonzero
+destination. `scratch/t10/audit_d44.py` reclassified all 214 actual job
+outcomes with the final stricter exit-code/witness parser.
+
+`python3 dv/core/mul_lemma.py --output build/t10/d44/mul_lemma` proved the
+integer product expansions, intermediate ranges and universal low/high carry
+identities in pinned Z3. Measured: 26 queries returned expected SAT/UNSAT,
+including satisfiable domains and rejected wrong shifts/ranges. Independent
+review reproduced all results and checked [the equations](../../dv/core/MUL-LEMMA.md)
+against the immutable fast-multiplier source. This is an integer argument;
+its correspondence to RTL remains **review and simulation, not proof**.
+
+`python3 dv/core/mul_diagnose.py --output build/t10/d44/mul_stress` passed:
+measured 17,680 products across 4,420 operand pairs and 40,122 retirements;
+36 arithmetic faults rejected. It compares original/adapted references,
+QEMU and independent Python arithmetic. The fixed-seed run is now required
+by CI, together with the integer lemma and ALTOPS integration.
+
+Optional C attempted a shared arbitrary-function memory representation. The
+pinned frontend route did not preserve its full address space; no valid
+core/spec integration or solver result was reached. Evidence is in
+`build/t10/d44/review/uf/result.json`; see the investigation note for the
+specific optimization, truncation and explicit range error. Its status is
+**unresolved (frontend array representation)**. No stronger proof is claimed.
+
+The raw full-product diagnostic remains **unresolved (arithmetic)** and is
+not run by CI. Long-latency division/remainder and all other stated harness
+limits remain. The full `python3 tools/ci.py` run passed (observed exit 0),
+including its independent invocation of all revised instruction jobs,
+integer lemmas and stress simulation. The final outcome receipt is
+`build/t10/d44/ci-final.json`. The current parser also successfully
+reclassified all 214 CI job outcomes. This is completion under D44's revised
+contract, not a raw multiply proof.

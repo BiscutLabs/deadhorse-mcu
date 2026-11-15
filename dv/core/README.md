@@ -75,6 +75,21 @@ fields are compared; Ibex-specific extensions are outside this baseline.
 
 ## Formal contract and limits
 
+D44 adds a verification-only `MultiplyAltop` on the reference core clock,
+with asynchronous active-low reset. It captures operands/operation at
+`mult_en_internal && sva_mul_fsm_idle` (ALBL) and holds them through the
+unchanged fast-multiplier completion/hold logic. Only RV32MFast is supported.
+The adapter asserts that live operand/operation inputs remain stable while
+the operation is active; it adds no assumptions. The result is an add/sub/XOR
+of registered operands, selected using captured operation metadata. Its
+combinational output deliberately preserves the reference result timing;
+this is verification logic, with no production area/timing claim.
+The upstream RVFI properties, covers and negative controls check the adapter
+in context. The full-product diagnostic remains separate and unresolved.
+Integer lemmas ([equations and limits](MUL-LEMMA.md)) and real-arithmetic stress simulation complement ALTOPS;
+the correspondence between those lemmas and RTL is review/simulation,
+not a formal proof of the unabstracted arithmetic.
+
 `riscv_formal.py --target reference --output build/t10/rvf` emits only a
 Chisel verification adapter around the pinned Ibex BlackBox. Upstream
 `rvfi_testbench`, `rvfi_insn_check` and every model in `isa_rv32imc.txt` are
@@ -88,6 +103,23 @@ passing bounded job without the checked-retirement covers is classified
 unsupported at this bound. A tool error/timeout or reference assertion failure
 fails the command. The result file records each instruction separately;
 it never promotes a bounded result to an unbounded proof.
+
+The four multiply partitions alone define `RISCV_FORMAL_ALTOPS` in the
+generated reference and upstream checker. Their status is exactly
+`bounded, arithmetic abstracted (ALTOPS)`; non-multiply partitions retain
+their previous checker. Each multiply partition requires a nonzero-destination
+result fault and an independently corrupted captured-operand fault to fail.
+`mul_lemma.py --output build/t10/mul_lemma` proves integer product expansion,
+accumulator ranges and universal low/high carry identities, with satisfiable
+domains and negative controls. It invokes pinned Z3; it does not prove RTL
+equivalence. `mul_diagnose.py` is now also required by local CI.
+
+`riscv_formal.py --target reference --unabstracted-multiply --output
+build/t10/raw-diagnostic` retains the original full-product checks, at the
+unchanged limit. It is not called by CI. An explicit arithmetic timeout is
+`unresolved (arithmetic)`; an assertion failure or tool error remains failed.
+The optional shared-function attempt could not preserve its required symbolic
+memory through the pinned frontends. No stronger integration result is claimed.
 
 The baseline is **assumed** to use a 40-global-step horizon and select the
 retirement at core cycle 12, following upstream's single-check-cycle harness.
@@ -131,7 +163,9 @@ CI runs positive/negative isolation controls, including converted and renamed
 reference output after frontend emission. This is an accidental-inclusion
 guard, not a security boundary against deliberately rewritten reference code.
 
-The proposed physical timing ingress hook calls the same guard before mapping;
-its explicit scope approval is pending. Timing budgets and checks are unchanged.
+The physical timing ingress hook calls the same guard before mapping;
+its scope is approved by the revised T10 brief. Isolation self-tests exercise
+the real timing entrypoint and copied emitted ALTOPS helpers as well as the
+vendor inputs. Timing budgets and checks are unchanged.
 T11 reference-only area comparison will need a separately identified benchmark
 route; it must not admit reference RTL into a production build.

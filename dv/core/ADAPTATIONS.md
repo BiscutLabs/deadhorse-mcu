@@ -1,5 +1,39 @@
 # Reference analysis adaptations
 
+## D44-multiply-altops
+
+User-approved D44, 2026-11-14. Enabled only for the four multiplication
+integration partitions, never simulation/equivalence/production. The pinned
+`ibex_multdiv_fast.sv` hash and exact assignment are in `adaptations.json`.
+`altops.py` replaces that assignment in a generated copy, under
+`RISCV_FORMAL_ALTOPS`, with the output of Chisel-emitted `MultiplyAltop`.
+Without the define, the exact original assignment remains. No vendor file
+is edited. Per-build `adaptation.json` records exact original/replacement
+bytes and source/emitted hashes; a hash or match-count discrepancy is fatal.
+
+New arithmetic/state/assertion logic is Chisel. The Python adapter generates
+only instance wiring and the approved result-net substitution. Masks and
+add/sub choices are extracted from the hash-verified pinned upstream models,
+not duplicated constants. Only configured RV32MFast is supported. Capture is
+at the first accepted ALBL cycle; the real fast unit uses live operands at
+subsequent stages. Additional assertions check those live operands and
+operation metadata remain stable. Formal emission inlines verification
+layers and the Yosys script requires all four added assertion cells.
+
+Original state transitions, intermediate arithmetic, valid, stall, ready,
+and divide result selection are preserved. The captured ALTOPS value replaces
+only the multiply result. The core's upstream RVFI model sees the matching
+ALTOPS operation. Negative runs either flip a nonzero destination's result
+or corrupt captured operand A; a clean shadow operand keeps the stability
+monitor independent in the operand-fault run. The integer arithmetic lemma
+and real-arithmetic simulation remain separate acceptance obligations.
+
+Reversal: `riscv_formal.py --target reference --unabstracted-multiply --output
+build/t10/raw-diagnostic` uses the original multiply source and checker.
+Its timeout remains 600 seconds; it is a non-gating diagnostic. A timeout is
+unresolved, a counterexample is failed, and a tool error is never a proof.
+Re-audit on changes to the reference, configuration, checker or emitter.
+
 ## T10-unused-scramble-initializer
 
 User-approved exception to T10's unmodified-analysis requirement, 2026-11-14.

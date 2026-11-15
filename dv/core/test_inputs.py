@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import common
-from riscv_formal import run_partitions
+from riscv_formal import ArithmeticTimeout, run_partitions, sby_status
 from lockstep import BASE, completion_window
 
 
@@ -93,6 +93,34 @@ class ShutdownBoundary(unittest.TestCase):
                 code = binary[:4] + (0x13).to_bytes(4, 'little')
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 completion_window(changed, code)
+
+
+class SolverOutcomes(unittest.TestCase):
+    def test_status_requires_matching_exit_code(self):
+        base = common.output_dir('build/t10/input-tests')
+        with tempfile.TemporaryDirectory(dir=base) as directory:
+            work = Path(directory)
+            for status, code in (('PASS', 0), ('FAIL', 2)):
+                (work/'status').write_text(status)
+                self.assertEqual(sby_status(work, code), status)
+                with self.assertRaises(RuntimeError):
+                    sby_status(work, 2 if code == 0 else 0)
+            (work/'status').write_text('ERROR')
+            with self.assertRaises(RuntimeError):
+                sby_status(work, 16)
+
+    def test_only_witness_free_timeout_is_arithmetic_unresolved(self):
+        base = common.output_dir('build/t10/input-tests')
+        with tempfile.TemporaryDirectory(dir=base) as directory:
+            work = Path(directory)
+            (work/'status').write_text('TIMEOUT')
+            with self.assertRaises(ArithmeticTimeout):
+                sby_status(work, 8)
+            (work/'engine_0').mkdir()
+            (work/'engine_0/trace.aiw').write_text('partial witness')
+            with self.assertRaises(RuntimeError) as error:
+                sby_status(work, 8)
+            self.assertNotIsInstance(error.exception, ArithmeticTimeout)
 
 
 if __name__ == '__main__':

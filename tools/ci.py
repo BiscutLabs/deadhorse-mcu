@@ -27,6 +27,8 @@ def main():
                     [sys.executable, 'dv/core/equiv.py', '--self-check', '--output', 'build/t10/ci/equiv'],
                     [sys.executable, 'dv/core/lockstep.py', '--self-check', '--output', 'build/t10/ci/lockstep'],
                     [sys.executable, 'dv/core/riscv_formal.py', '--target', 'reference', '--output', 'build/t10/ci/rvf'],
+                    [sys.executable, 'dv/core/mul_lemma.py', '--output', 'build/t10/ci/mul_lemma'],
+                    [sys.executable, 'dv/core/mul_diagnose.py', '--output', 'build/t10/ci/mul_stress'],
                     ['bash', 'sw/flight/loop-measurement/check.sh']):
         result = subprocess.run(command, cwd=ROOT)
         if result.returncode: return result.returncode

@@ -12,6 +12,10 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / 'phys/gf180-ws-1x1/block-timing.json'
 
+# Reference adapters and primitives are verification-only.
+sys.path.insert(0, str(ROOT / 'dv/core'))
+from isolation import reject_sources
+
 
 def local(value):
     path = (ROOT / value).resolve()
@@ -53,6 +57,7 @@ def validate_boundary(module, clock, library_cells):
 
 
 def measure(top, sources, clock, output, liberty=None):
+    reject_sources(sources)
     cfg = json.loads(CONFIG.read_text())
     if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', top + ''):
         raise ValueError('Top must be a simple identifier')
