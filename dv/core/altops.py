@@ -4,7 +4,7 @@ import json
 import re
 import sys
 
-from common import CONFIG, ROOT, VENDOR, output_dir, run
+from common import CONFIG, ROOT, VENDOR, output_dir, run, adaptation_entry
 
 MULTIPLY = ('mul', 'mulh', 'mulhsu', 'mulhu')
 
@@ -22,15 +22,22 @@ def operations():
     return result
 
 
-def prepare(output, sources, capture_fault=False):
+def prepare(output, sources, capture_fault=False, candidate=None):
     if str(CONFIG['parameters']['RV32M']) != '2':
         raise ValueError('D44 capture contract only supports RV32MFast')
     output = output_dir(output)
-    adaptation = json.loads((ROOT/'dv/core/adaptations.json').read_text())['multiply_altops']
-    original = VENDOR / adaptation['source']
+    adaptation = adaptation_entry('multiply_altops')
+    matches = [p for p in sources if str(p).endswith('/ibex_multdiv_fast.sv')]
+    if len(matches) != 1:
+        raise ValueError('Need one candidate/reference multiply source for ALTOPS')
+    from pathlib import Path
+    original = Path(matches[0])
     data = original.read_bytes()
     if hashlib.sha256(data).hexdigest() != adaptation['source_sha256']:
-        raise ValueError('Multiply adaptation input hash mismatch')
+        if candidate is None:
+            raise ValueError('Multiply adaptation input hash mismatch')
+        from candidate_altops import prepare as prepare_candidate
+        return prepare_candidate(output,sources,original,candidate,capture_fault)
     old = adaptation['replace'].encode()
     if data.count(old) != 1:
         raise ValueError('Multiply result assignment must match exactly once')

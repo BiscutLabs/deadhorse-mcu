@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import shutil
 import sys
+import time
 
 from common import CONFIG, ROOT, VENDOR, adapted_sources, frontends, inputs, output_dir, run, typed_parameter
 from altops import MULTIPLY, prepare as prepare_altops
@@ -38,17 +39,26 @@ def run_partitions(names, worker, collect):
                 collect(result)
 
 
+def require_candidate_coverage(target,name,covered):
+    if target == 'candidate' and covered != 'PASS':
+        raise RuntimeError(f'{name}: candidate lost reference-supported retirement coverage')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--target', choices=['reference'], required=True)
+    parser.add_argument('--target', choices=['reference','candidate'], required=True)
+    parser.add_argument('--candidate')
     parser.add_argument('--output', required=True)
     parser.add_argument('--unabstracted-multiply', action='store_true',
                         help='On-demand unresolved arithmetic diagnostic; never used by CI')
     args = parser.parse_args()
+    started = time.monotonic()
+    if (args.target == 'candidate') != bool(args.candidate):
+        parser.error('--candidate source directory is required only for target candidate')
     output = output_dir(args.output)
     (output / 'result.json').write_text('{"status":"blocked"}\n')
     lock = inputs()
-    frontends(output / 'frontend', 'slang')
+    frontends(output / 'frontend', 'slang', args.candidate)
     ports = json.loads((output / 'frontend/slang.json').read_text())['modules']['ibex_top']['ports']
     # Extra Ibex RVFI extensions are not part of the standard checker interface.
     standard = {'valid', 'order', 'insn', 'trap', 'halt', 'intr', 'mode', 'ixl', 'rs1_addr',
@@ -59,12 +69,18 @@ def main():
     ports = {n: p for n, p in ports.items() if p['direction'] == 'input' or n.startswith('rvfi_')
              or n in ('instr_req_o', 'data_req_o')}
     (output / 'ports.tsv').write_text(''.join(f'{n}\t{len(p["bits"])}\t{p["direction"]}\n' for n, p in ports.items()))
-    (output / 'parameters.tsv').write_text(''.join(f'{n}\t{typed_parameter(n,v)}\n' for n,v in CONFIG['parameters'].items()))
+    from candidate import parameters as candidate_parameters
+    parameters = candidate_parameters(args.candidate)
+    (output / 'parameters.tsv').write_text(''.join(f'{n}\t{typed_parameter(n,v)}\n' for n,v in parameters.items()))
     run([sys.executable, 'tools/sbt.py', 'set hw / Compile / unmanagedSourceDirectories += file("/work/dv/core")',
          f'hw/runMain deadhorse.reference.EmitReferenceFormal {output}'], output, 'emit')
     rf = VENDOR / 'riscv-formal'
     insns = (rf / 'insns/isa_rv32imc.txt').read_text().split()
-    sources = [*adapted_sources(output, lock), str(output / 'rvfi_wrapper.sv'),
+    core_sources = adapted_sources(output,lock)
+    if args.candidate:
+        from candidate import sources as candidate_sources
+        core_sources = candidate_sources(args.candidate,lock,output)
+    sources = [*core_sources, str(output / 'rvfi_wrapper.sv'),
                str(rf / 'checks/rvfi_macros.vh'), str(rf / 'checks/rvfi_insn_check.sv'),
                str(rf / 'checks/rvfi_testbench.sv'), str(rf / 'insns/isa_rv32imc.v'),
                *[str(rf / f'insns/insn_{n}.v') for n in insns]]
@@ -104,8 +120,8 @@ def main():
     alt_script = capture_script = alt_fault_script = None
     if not args.unabstracted_multiply:
         original_sources = sources[:split]
-        alt_sources = prepare_altops(output/'altops', original_sources)
-        capture_sources = prepare_altops(output/'capture-fault', original_sources, capture_fault=True)
+        alt_sources = prepare_altops(output/'altops', original_sources, candidate=args.candidate)
+        capture_sources = prepare_altops(output/'capture-fault', original_sources, capture_fault=True, candidate=args.candidate)
         def alternate(new_sources):
             return script.replace(' '.join(original_sources), ' '.join(new_sources)).replace(
                 'read_slang --top', 'read_slang -DRISCV_FORMAL_ALTOPS --top').replace(
@@ -124,8 +140,9 @@ def main():
         source = alt_script if abstracted else script
         bounded = check(name + '/bmc', 'bmc', name, source)
         if bounded != 'PASS':
-            raise RuntimeError(f'riscv-formal reference assertion failed: {name}; inspect counterexample')
+            raise RuntimeError(f'riscv-formal {args.target} assertion failed: {name}; inspect counterexample')
         covered = check(name + '/cover', 'cover', name, source)
+        require_candidate_coverage(args.target,name,covered)
         negative = check(name + '/negative', 'bmc', name, alt_fault_script if abstracted else fault_script) if covered == 'PASS' else None
         if covered == 'PASS' and negative != 'FAIL':
             raise RuntimeError(f'{name}: formal result-bit fault escaped checker')
@@ -133,6 +150,7 @@ def main():
         if abstracted and (covered != 'PASS' or capture_negative != 'FAIL'):
             raise RuntimeError(f'{name}: missing ALTOPS cover or operand-capture fault escaped')
         kind = ('bounded, arithmetic abstracted (ALTOPS)' if abstracted else
+                'bounded, divisor-zero early-finish path only at check cycle 12' if name in ('div','divu','rem','remu') else
                 'bounded, unabstracted diagnostic' if args.unabstracted_multiply else 'bounded')
         result = dict(status=kind if covered == 'PASS' else 'unsupported',
                       depth=DEPTH, check_cycle=CHECK_CYCLE, cover=covered, negative_control=negative,
@@ -155,6 +173,7 @@ def main():
         (output/'result.json').write_text(json.dumps(dict(status=status, error=str(exc), checks=results), indent=2)+'\n')
         raise
     (output/'result.json').write_text(json.dumps(dict(status='diagnostic complete' if args.unabstracted_multiply else 'pass', depth=DEPTH, check_cycle=CHECK_CYCLE,
+        target=args.target, candidate=args.candidate, elapsed_seconds=time.monotonic()-started,
         checks=results, negative_control='rejected', limitations=['bounded startup window only',
         'CSR, interrupts, debug, liveness, memory causality, and unbounded ISA proof unsupported']), indent=2)+'\n')
     label = 'DIAGNOSTIC COMPLETE' if args.unabstracted_multiply else 'PASS'

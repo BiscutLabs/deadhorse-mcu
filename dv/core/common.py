@@ -62,7 +62,7 @@ def inputs():
 
 
 def adapted_sources(output, lock):
-    adaptation = json.loads((ROOT / 'dv/core/adaptations.json').read_text())
+    adaptation = adaptation_entry('unused_initializer')
     original = VENDOR / adaptation['source']
     data = original.read_bytes()
     if hashlib.sha256(data).hexdigest() != adaptation['source_sha256']:
@@ -80,13 +80,30 @@ def adapted_sources(output, lock):
     return [str(target if name == adaptation['source'] else VENDOR / name) for name in lock['sources']]
 
 
-def frontends(output, backend='both'):
+def adaptation_entry(name):
+    manifest = json.loads((ROOT / 'dv/core/adaptations.json').read_text())
+    if manifest.get('schema') != 2:
+        raise ValueError('Unsupported adaptation manifest schema')
+    entry = manifest['entries'][name]
+    for field in ('id', 'source', 'source_sha256'):
+        if not isinstance(entry.get(field), str) or not entry[field]:
+            raise ValueError(f'Missing adaptation field: {field}')
+    return entry
+
+
+def frontends(output, backend='both', candidate=None):
     output = output_dir(output)
     lock = inputs()
     run([sys.executable, 'tools/env/check.py'], output, 'environment')
     sources = adapted_sources(output, lock)
+    if candidate:
+        from candidate import sources as candidate_sources
+        sources = candidate_sources(candidate, lock, output)
     includes = [str(VENDOR / name) for name in lock['include_dirs']]
     params = CONFIG['parameters']
+    if candidate:
+        from candidate import parameters
+        params = parameters(candidate)
     slang = output / 'slang.ys'
     slang.write_text('read_slang --top ibex_top ' +
                      ' '.join('-D' + d for d in lock['defines']) + ' ' +

@@ -7,7 +7,8 @@ import java.nio.file.{Files, Path}
 /** Formal-only D44 abstraction. Never instantiated by production hardware.
   * Operations/masks are imported from the locked riscv-formal models.
   */
-class MultiplyAltop(operations: Seq[(Boolean, BigInt)], captureFault: Boolean) extends RawModule {
+class MultiplyAltop(operations: Seq[(Boolean, BigInt)], captureFault: Boolean,
+                    candidatePassThrough: Boolean = false) extends RawModule {
   val clk_i = IO(Input(Clock()))
   val rst_ni = IO(Input(Bool()))
   val mult_en_internal = IO(Input(Bool()))
@@ -20,6 +21,8 @@ class MultiplyAltop(operations: Seq[(Boolean, BigInt)], captureFault: Boolean) e
   val operator_i = IO(Input(UInt(2.W)))
   val signed_mode_i = IO(Input(UInt(2.W)))
   val result = IO(Output(UInt(32.W)))
+  val real_result_i = if (candidatePassThrough) IO(Input(UInt(32.W))) else WireDefault(0.U(32.W))
+  val div_sel_i = if (candidatePassThrough) IO(Input(Bool())) else WireDefault(false.B)
   override def desiredName = "DeadhorseMultiplyAltop"
   withClockAndReset(clk_i, (!rst_ni).asAsyncReset) {
     val capturedA = Reg(UInt(32.W))
@@ -51,7 +54,7 @@ class MultiplyAltop(operations: Seq[(Boolean, BigInt)], captureFault: Boolean) e
       val arithmetic = if (subtract) capturedA - capturedB else capturedA + capturedB
       arithmetic ^ mask.U(32.W)
     }
-    result := VecInit(alternatives)(selection)
+    result := Mux(div_sel_i, real_result_i, VecInit(alternatives)(selection))
   }
 }
 
@@ -64,7 +67,8 @@ object EmitMultiplyAltop {
       (parts(1) == "-", BigInt(parts(2), 16))
     }
     require(operations.size == 4)
-    ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new MultiplyAltop(operations, args.lift(1).contains("capture-fault"))),
+    ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new MultiplyAltop(operations,
+      args.drop(1).contains("capture-fault"), args.drop(1).contains("candidate"))),
       Array("--target-dir", directory.toString), Array("--disable-all-randomization",
         "--verification-flavor=immediate", "--lower-to-core", "-strip-debug-info"))
   }

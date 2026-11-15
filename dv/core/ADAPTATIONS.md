@@ -1,5 +1,16 @@
 # Reference analysis adaptations
 
+The manifest now uses schema 2: named entries under `entries`, each carrying
+its ID, source path, immutable source hash and operation-specific exact bytes.
+Both existing reference adaptations retain their hash and match-count checks.
+
+The T10 continuation also supports candidate ALTOPS through a hash-bound
+`formal_adapter.json`; see [the contract](README.md). Candidate net names are
+validated before optimization, the original result expression is preserved,
+and all added logic is emitted from Chisel. Per-run receipts record exact
+inserted/removed wiring and reversal. This does not authorize editing vendor
+sources or applying ALTOPS to production, equivalence, simulation or division.
+
 ## D44-multiply-altops
 
 User-approved D44, 2026-11-14. Enabled only for the four multiplication

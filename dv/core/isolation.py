@@ -16,7 +16,10 @@ def reject_sources(sources):
     lock = json.loads((REFERENCE / 'ibex_ref.lock.json').read_text())
     hashes = {entry['sha256'] for name, entry in lock['files'].items()
               if Path(name).suffix in ('.sv', '.v', '.svh', '.vh')}
-    adaptation = json.loads((ROOT / 'dv/core/adaptations.json').read_text())
+    manifest = json.loads((ROOT / 'dv/core/adaptations.json').read_text())
+    if manifest.get('schema') != 2:
+        raise ValueError('Unsupported adaptation manifest schema')
+    adaptation = manifest['entries']['unused_initializer']
     original = (REFERENCE / adaptation['source']).read_bytes()
     hashes.add(hashlib.sha256(original.replace(adaptation['remove'].encode(), b'', 1)).hexdigest())
     for source in sources:

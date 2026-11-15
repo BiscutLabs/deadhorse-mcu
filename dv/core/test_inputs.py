@@ -27,7 +27,7 @@ class AdaptationGuards(unittest.TestCase):
             manifest = dict(id='test', source='input.sv', source_sha256=hashlib.sha256(data).hexdigest(),
                             remove='unused declaration\n')
             path = root/'dv/core/adaptations.json'
-            path.write_text(json.dumps(manifest))
+            path.write_text(json.dumps(dict(schema=2, entries=dict(unused_initializer=manifest))))
             out = root/'out'
             out.mkdir()
             with patch.object(common, 'ROOT', root), patch.object(common, 'VENDOR', vendor):
@@ -41,7 +41,7 @@ class AdaptationGuards(unittest.TestCase):
                 for removal in ('missing', 'e'):
                     changed = copy.deepcopy(manifest)
                     changed['remove'] = removal
-                    path.write_text(json.dumps(changed))
+                    path.write_text(json.dumps(dict(schema=2, entries=dict(unused_initializer=changed))))
                     with self.assertRaisesRegex(ValueError, 'exactly once'):
                         common.adapted_sources(out, dict(sources=['input.sv']))
 

@@ -15,14 +15,19 @@ def compile_sim(output, candidate=None, original=False):
     lock = inputs()
     sources = ([str(VENDOR / p) for p in lock['sources']] if original else adapted_sources(output, lock))
     if candidate:
-        sources[-1]  # keep missing lists a hard error
-        original_top = next(p for p in sources if p.endswith('/ibex_top.sv'))
-        sources[sources.index(original_top)] = str(local(candidate))
+        if local(candidate).is_dir():
+            from candidate import sources as candidate_sources
+            sources = candidate_sources(candidate,lock,output)
+        else:
+            original_top = next(p for p in sources if p.endswith('/ibex_top.sv'))
+            sources[sources.index(original_top)] = str(local(candidate))
+    from candidate import parameters as candidate_parameters
+    parameters = candidate_parameters(candidate)
     run(['verilator', '--cc', '--exe', '--build', '-j', '4', '--top-module', 'ibex_top',
          '-Wno-fatal', '--Mdir', str(output / 'obj'),
          *['-D' + p for p in lock['defines']],
          *['-I' + str(VENDOR / p) for p in lock['include_dirs']],
-         *[f'-G{k}={v}' for k, v in CONFIG['parameters'].items()],
+         *[f'-G{k}={v}' for k, v in parameters.items()],
          *sources, str(ROOT / 'dv/core/sim_main.cpp')], output, 'compile')
     return output / 'obj/Vibex_top'
 
@@ -35,17 +40,26 @@ def build_program(output):
     return elf
 
 
-def qemu_trace(elf, output):
+def qemu_trace(elf, output, base=BASE, image=None, entry=None):
     pin = json.loads((ROOT / 'dv/core/iss.json').read_text())
     actual = run(['dpkg-query', '-W', '-f=${Version}', pin['package']], output, 'iss-pin').stdout.strip()
     if actual != pin['package_version']:
         raise ValueError('ISS package pin mismatch')
+    loader = ['-device',f'loader,file={elf},cpu-num=0']
+    entry = base if entry is None else entry
+    if image is not None:
+        loader = ['-device',f'loader,file={image},addr={base},force-raw=on',
+                  '-device',f'loader,addr={entry},cpu-num=0']
     run([pin['executable'], '-machine', pin['machine'], '-cpu', pin['cpu'], '-nographic',
-         '-bios', 'none', '-device', f'loader,file={elf},cpu-num=0', '-singlestep', '-d', 'cpu', '-D', str(output / 'qemu.trace')],
+         '-bios', 'none', *loader, '-singlestep', '-d', 'cpu', '-D', str(output / 'qemu.trace')],
         output, 'qemu', timeout=30)
+    return read_qemu_trace(output/'qemu.trace',entry)
+
+
+def read_qemu_trace(path,entry=BASE):
     records = []
     current = None
-    for line in (output / 'qemu.trace').read_text().splitlines():
+    for line in path.open():
         match = re.match(r'^\s*pc\s+([0-9a-f]+)', line)
         if match:
             if current is not None:
@@ -56,7 +70,7 @@ def qemu_trace(elf, output):
                 current['regs'][int(index)] = int(value, 16)
     if current is not None:
         records.append(current)
-    start = next((i for i, r in enumerate(records) if r['pc'] == BASE), None)
+    start = next((i for i, r in enumerate(records) if r['pc'] == entry), None)
     if start is None:
         raise ValueError('QEMU did not reach ELF entry')
     records = records[start:]
@@ -128,7 +142,7 @@ def architectural_effect(insn, regs):
     return rd, memory
 
 
-def completion_window(iss, binary):
+def completion_window(iss, binary, base=BASE):
     """Delimit by the ISS's own finisher store; validate every shutdown-tail row.
 
     QEMU shutdown is asynchronous. Its trace can contain multiple iterations
@@ -136,7 +150,7 @@ def completion_window(iss, binary):
     is allowed, and its first state checks the store's architectural poststate.
     """
     for index, state in enumerate(iss):
-        offset = state['pc'] - BASE
+        offset = state['pc'] - base
         if offset < 0 or offset + 4 > len(binary):
             continue
         insn = int.from_bytes(binary[offset:offset+4], 'little')
@@ -152,7 +166,7 @@ def completion_window(iss, binary):
         if not tail:
             raise ValueError('Missing ISS completion-store poststate')
         pc = state['pc'] + 4
-        offset = pc - BASE
+        offset = pc - base
         instruction = int.from_bytes(binary[offset:offset+4], 'little')
         if not (instruction == 0x0000006f or instruction & 0xffff == 0xa001):
             raise ValueError('Completion tail is not the required inert self-jump')
@@ -162,11 +176,11 @@ def completion_window(iss, binary):
     raise ValueError('ISS did not execute the completion store')
 
 
-def compare(reference, candidate, iss, binary):
-    iss = completion_window(iss, binary)
+def compare(reference, candidate, iss, binary, base=BASE):
+    iss = completion_window(iss, binary, base)
     if not reference or len(reference) != len(candidate) or len(reference) + 1 != len(iss):
         raise ValueError(f'Retirement count mismatch: reference={len(reference)} candidate={len(candidate)} ISS={len(iss)}')
-    memory = {BASE + i: byte for i, byte in enumerate(binary)}
+    memory = {base + i: byte for i, byte in enumerate(binary)}
     for n, (gold, got, cpu) in enumerate(zip(reference, candidate, iss)):
         gold, got = normalize(gold), normalize(got)
         if gold != got:
@@ -176,11 +190,11 @@ def compare(reference, candidate, iss, binary):
         if got['order'] != n + 1 or got['trap'] or got['halt'] or got['intr'] or got['mode'] != 3 or got['ixl'] != 1:
             raise ValueError(f'Unexpected retirement control at {n}')
         pc = cpu['pc']
-        offset = pc - BASE
+        offset = pc - base
         if offset < 0 or offset + 2 > len(binary):
             raise ValueError('ISS left loaded program')
-        size = 4 if binary[offset] & 3 == 3 else 2
-        insn = int.from_bytes(binary[offset:offset+size], 'little')
+        size = 4 if memory[pc] & 3 == 3 else 2
+        insn = sum(memory.get(pc+i,0) << (8*i) for i in range(size))
         if got['pc_rdata'] != pc or got['insn'] != insn:
             raise ValueError(f'ISS instruction/PC mismatch at {n}')
         destination, access = architectural_effect(insn, cpu['regs'])
@@ -227,11 +241,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--self-check', action='store_true')
     parser.add_argument('--candidate')
+    parser.add_argument('--suite',default='smoke')
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
+    if args.self_check and args.suite != 'smoke':
+        parser.error('--self-check applies to smoke; suites use the faulted-candidate gate')
     output = output_dir(args.output)
     (output / 'result.json').write_text('{"status":"blocked"}\n')
     run([sys.executable, 'tools/env/check.py'], output, 'environment')
+    if args.suite != 'smoke':
+        from suites import run_suites
+        return run_suites(args.candidate,args.suite,output)
     elf = build_program(output)
     sims = [compile_sim(output / 'reference', original=True),
             compile_sim(output / 'candidate', args.candidate)]
