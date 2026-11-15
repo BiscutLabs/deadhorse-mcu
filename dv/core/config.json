@@ -1,0 +1,32 @@
+{
+  "top": "ibex_top",
+  "isa": "rv32imc",
+  "parameters": {
+    "PMPEnable": "0",
+    "PMPGranularity": "0",
+    "PMPNumRegions": "4",
+    "MHPMCounterNum": "0",
+    "MHPMCounterWidth": "40",
+    "RV32E": "0",
+    "RV32M": "2",
+    "RV32B": "0",
+    "RegFile": "0",
+    "BranchTargetALU": "0",
+    "WritebackStage": "0",
+    "ICache": "0",
+    "ICacheECC": "0",
+    "BranchPredictor": "0",
+    "DbgTriggerEn": "1",
+    "DbgHwBreakNum": "1",
+    "SecureIbex": "0",
+    "ICacheScramble": "0",
+    "ICacheScrNumPrinceRoundsHalf": "2",
+    "RndCnstLfsrSeed": "32'hac533bf4",
+    "RndCnstLfsrPerm": "160'h1e35ecba467fd1b12e958152c04fa43878a8daed",
+    "DmHaltAddr": "32'h1a110800",
+    "DmExceptionAddr": "32'h1a110808",
+    "RndCnstIbexKey": "128'h14e8cecae3040d5e12286bb3cc113298",
+    "RndCnstIbexNonce": "64'hf79780bc735f3843"
+  },
+  "notes": "RV32IMC, fast multicycle M, flop RF, two-stage pipeline, no cache/PMP/security. Machine-mode tests; upstream user-mode support is retained. Vectored mtvec and debug support are inherent; hardware debug trigger enabled. RVFI and SYNTHESIS defines: observation enabled, upstream non-synthesizable assertion macros excluded. Every ibex_top parameter is explicit."
+}

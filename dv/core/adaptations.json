@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "id": "T10-unused-scramble-initializer",
+  "source": "rtl/ibex_top.sv",
+  "source_sha256": "60c394b8c3fd47c553740e7c3df923b42c8d94b889654413dd04bc3ce55f4a6f",
+  "remove": "    logic unused_scramble_inputs = scramble_key_valid_i & (|scramble_key_i) & (|RndCnstIbexKey) &\n                                   (|scramble_nonce_i) & (|RndCnstIbexNonce) & scramble_req_q &\n                                   ic_scr_key_req & scramble_key_valid_d & scramble_req_d;\n",
+  "reason": "Pinned slang rejects input-dependent declaration initialization. The expression is side-effect-free and its unused result has no consumers. Remove this exact declaration only in the generated analysis copy; retain upstream source byte-exact.",
+  "authorization": "User requested removal rather than logic-to-wire conversion, then explicitly instructed: Make a note of this change in case it comes back as a bug. Finish and review.",
+  "reversal": "Run with the original hw/vendor/ibex_ref/rtl/ibex_top.sv instead of the adapted build copy. Preserve failing original elaboration logs under build/t10/frontends. Re-audit this exception on any upstream revision change."
+}

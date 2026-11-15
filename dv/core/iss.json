@@ -1,0 +1,11 @@
+{
+  "name": "QEMU system RISC-V",
+  "executable": "qemu-system-riscv32",
+  "version": "8.2.2",
+  "package": "qemu-system-misc",
+  "package_version": "1:8.2.2+ds-0ubuntu1.18",
+  "pin": "tools/env/lock.json apt snapshot and immutable image package inventory",
+  "machine": "virt",
+  "cpu": "rv32",
+  "observation": "one instruction per translation block, CPU register snapshots before every instruction; startup ROM excluded by fixed ELF entry, no retirement in the test program skipped"
+}
