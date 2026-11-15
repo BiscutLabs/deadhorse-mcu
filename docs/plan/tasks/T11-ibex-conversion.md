@@ -46,6 +46,14 @@ SoC integration, no ISA change.
    `prim` cell. Record that single intended difference and prove equivalence
    with gating enables matched.
 
+6. **Multiplier and divider (D44).** Equivalence of the multiply/divide
+   module must match the multiply operators on both sides structurally, with
+   equivalent operands, and not expand them into gates. Negative control: a
+   flipped sign extension on one multiplier operand must fail. riscv-formal
+   on the candidate uses the same split check as the reference
+   ([T10-ibex-reference.md](T10-ibex-reference.md)); "no worse than the
+   reference" includes the abstracted status.
+
 ## Deliverables
 
 - Chisel core under `hw/ip/perf_core/` emitting SystemVerilog under `build/`.

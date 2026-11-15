@@ -16,7 +16,9 @@ is established in the build task before any block relies on it.
 2. **Prove, do not just bound, where the block is small enough.** Each
    property is recorded as *proved* (unbounded: induction or an unbounded
    engine), *bounded* (holds to a stated depth) or *covered* (a witness
-   exists). A bounded result is never reported as a proof.
+   exists). A bounded result is never reported as a proof. A result
+   obtained with arithmetic replaced by a simpler function is recorded as
+   *arithmetic abstracted* beside its kind, and never as a plain result.
 3. **Assumptions are part of the proof.** Every `assume` is listed in the
    block README with its justification, and wherever a block's assumption
    is another block's guarantee, that guarantee is itself a checked
@@ -39,6 +41,21 @@ is established in the build task before any block relies on it.
 | Model checking emitted or vendored SystemVerilog | SymbiYosys with its bounded, induction and PDR engines | Needed for vendored blocks and as a second engine |
 | Processor correctness | riscv-formal, through the RVFI trace port | Both Chisel cores need verified RVFI. The performance core is also proved equivalent to the pinned Ibex reference before F is added (T11) |
 | Equivalence | Yosys-based equivalence checking | RTL against synthesized netlist, before and after scan insertion, and against the final netlist |
+
+### Multiplication and division (D44)
+
+Bit-level solvers cannot prove a full-width product equal to a multiplier
+built from partial products; T10 measured a timeout at 600 and at 1,800
+seconds with no counterexample. For multiply, and for divide if it shows the
+same behaviour, the instruction check is split: an integration check with
+the arithmetic abstracted on both sides (riscv-formal ALTOPS), plus a
+separate arithmetic argument (an algebraic identity proved over integers,
+and seeded simulation with injected faults). Module equivalence between the
+Ibex reference and the Chisel conversion matches multiply operators
+structurally and needs no arithmetic proof. The unabstracted end-to-end
+check is kept as an on-demand diagnostic recorded as unresolved. Details are
+in [tasks/T10-ibex-reference.md](tasks/T10-ibex-reference.md). The same
+approach applies to the FPU's multiplier and divider in T12.
 
 Which checker gives unbounded proofs on which block is not known until the
 tools are run on real blocks. The proof ledger records what was achieved.

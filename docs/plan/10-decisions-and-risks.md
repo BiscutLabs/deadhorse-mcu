@@ -52,6 +52,7 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | **D41** | Debug access policy | Unlocked debug for initial chip; explicit test-mode scan access. No permanent debug-disable fuses or authenticated debug. Physical debug/gateway access permits firmware and memory access; boot programming lock is not a security boundary. |
 | **D42** | Fabrication target | wafer.space GF180MCU 1x1 slot; shuttle date open. Target approval does not qualify PDK options, libraries, SRAM, analog devices or pad ring. |
 | **D43** | Whole-chip bus | Approved 2026-11-14: remove the NoC and use a simple request/response bus per clock domain with a reviewed domain bridge, a two-way mailbox between the cores and the gateway as a bus master (T14). Ownership and memory checks of D24/D25 apply at the endpoints. Reserve one address window and one interrupt for a future NoC bridge; nothing is built behind it. Supersedes D3 and D14; T03, T04 and S2 are withdrawn. |
+| **D44** | Multiply/divide formal | Approved 2026-11-14: the end-to-end riscv-formal multiply check does not finish (solver complexity, no counterexample). Split it into an integration check with arithmetic abstracted (ALTOPS), an integer-arithmetic lemma and required seeded simulation; keep the unabstracted check as a non-gating diagnostic recorded as unresolved. Applies to divide on the same evidence, and to the candidate core in T11. This is an approved change of acceptance, not a weakened check made by an agent. |
 
 ## Risks and evidence still required
 
@@ -73,6 +74,7 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | K13 | USB delivery late | Same-port stub; no tapeout dependency after approved cutoff |
 | K14 | Domain bridge and mailbox are new and cross a stopped clock | T14 proves one response per request, no lost wake, cancel on reset; independent models |
 | K21 | A later neuromorphic or chip-to-chip project must add a NoC | Reserved address window and interrupt (D43); that project carries its own router, source rights and area |
+| K22 | Multiplier arithmetic rests on an algebraic lemma, review and simulation, not an end-to-end proof | T10 attempts the stronger abstract-function check once; lockstep and the stress fixture stay in CI; module equivalence carries the conversion |
 | K15 | RISCay clean baseline not fully reproduced | T06, with independent receipt and no changes to upstream |
 | K16 | New pinned environment/build unverified | T08 then T07; missing tools fail required checks |
 | K17 | Performance/power improvements unmeasured | Document intended improvements and measure; do not inherit Ibex results |
