@@ -1010,3 +1010,65 @@ plus authenticated working-tree inputs are 122.010 seconds for the native
 query, then 91.625 and 121.234 seconds for the two partitions; timeout process
 times include cleanup. All retain check cycle 64/depth 144. The T13 report gives
 the commands and independent-review scope. No further solver cascade is queued.
+
+
+### User-directed timeout triage and CI (2026-11-16)
+
+Source baseline `ecc5d7e` plus recorded working-tree hashes. Performance was
+measured before new proof jobs using `dv/core/performance.py`; architectural
+comparisons passed and an independent reviewer recomputed cycle statistics.
+The T13 report records the simulation/frequency table.
+
+`python3 dv/core/formal_triage.py --stage step0` completed in measured 110.900 s.
+Concrete checked nontrapping retirement first covers at cycle 12 for LW and 11
+for C.ADD; every earlier check cycle was tested and unreachable. Both original
+jobs reached frame 127 at requested depth 144/check 64. Quarter (36) and half (72)
+depths precede check activation and are timing diagnostics only. Prepared models
+have 6,923/6,960 cells respectively, 5,711 FF bits and no memory cells. A reviewed
+metadata correction includes 145 `$ff` bits and excludes the configured maximum
+bound from progress; raw receipt and exact executed runner remain preserved.
+All 263 Step 0 input fingerprints were independently checked.
+
+The unchanged concrete portfolio uses btormc, SMTBMC/Yices, SMTBMC/Z3 and
+ABC/bmc3, capped at 600 seconds per job. LW passed bounded at depth 144/check 64
+in measured 584.257 s (Yices); its concrete cover and both actual result-bit fault
+controls passed qualification. C.ADD timed out in measured 601.855 s including
+cleanup, at frame 127, without a counterexample. Timeout remains unresolved.
+Parser-only native VCD scope repairs reused completed identical jobs, never
+reran them; executed sources and interrupted receipts are preserved.
+
+Rung 2 timed out for C.ADD in measured 601.472 s, at unchanged depth 144/check 64. Exact
+32-bit data cutpoints, independently checked against the prepared netlist:
+
+- `wrapper.core.u_ibex_core.ex_block_i.clocked_execute.multiplier.result_o`
+- `wrapper.core.u_ibex_core.floatExecution.fpu.io_rsp_bits_result`
+
+All handshake/control signals remain real. The divider remains concrete because
+its result aliases internal recurrence that influences completion control; the
+shared execution result also carries ALU data and must not be cut for C.ADD.
+This retains more real data behavior than the authorized abstraction. Positive
+results with these cuts are labelled **bounded, abstracted**; concrete covers
+and both concrete fault controls are required. No induction is authorized.
+
+Final rung: `python3 dv/core/formal_triage.py --stage window --cutpoints
+build/t13/feedback/triage/data-cutpoints.json` passes. C.ADD uses check cycle 19
+(minimum concrete cover 11 + 8), depth 54; btormc wins in measured 71.281 s.
+Concrete cover passes in 5.500 s; ordinary and nonzero-destination result-bit
+faults are rejected in 7.414 s and 6.758 s. Status: **bounded, abstracted** with
+exactly the two cutpoints above, and **fewer preceding histories**. Original
+144-step C.ADD remains unresolved. LW retains its concrete check 64/depth 144
+result without another solver run. M/divide/float windows remain unchanged.
+Receipts: `build/t13/feedback/triage/{portfolio,cutpoints,window}/result.json`.
+Both-property triage is complete; no further rungs or induction are queued.
+
+Fast tier passes all 21 commands in measured 475.113 s. Full tier was executed,
+not waived: 51 commands passed, then registered no-F timing failed at
+25.335854 ns against the unchanged 24.960000 ns allowance. Its measured
+3217.428 s is **partial elapsed time to failure**, not complete full-suite time.
+The critical mapped path is controller-run state to mcycle counter bit 59;
+26 later commands were unrun, including registered and F-integrated ISA sweeps.
+The faithful configured ISA sweep passed at depth 40, retaining ALTOPS and
+zero-divisor-only classifications. T13 remains blocked. Independent review
+verified both gate receipts, all 922 frozen source hashes, and the timing failure.
+Receipts: `build/t13/feedback/ci-fast-registered/result.json` and
+`build/t13/feedback/ci-full/result.json`. No RTL or timing-limit repair was made.

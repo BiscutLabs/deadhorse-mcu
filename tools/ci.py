@@ -1,4 +1,15 @@
-"""Local check gate. Invoke through tools/env/run.py run."""
+"""Local CI tiers. Invoke through tools/env/run.py run.
+
+Default / --tier fast: structure, Python units, selected clocked block tests,
+fresh core emission/timing, concrete lockstep smoke and a fixed small formal set.
+Intended for minutes; it is not complete ISA acceptance.
+--tier full: fast checks plus all prior full-gate workloads, complete configured
+ISA sweeps for baseline/registered/F profiles, full block tests and FPU checks.
+Both record actual wall time, step outcomes and tier in result.json. Full can
+run for hours; an early failure is reported as a partial run, never a full pass.
+The old --scope fpu/t13 entry points remain explicitly scoped compatibility routes.
+Every task report must identify the tier run and the full tier's actual status.
+"""
 from pathlib import Path
 import subprocess
 import sys
@@ -8,16 +19,8 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def main():
-    if sys.argv[1:3] == ['--scope', 't13']:
-        import t13_gate
-        sys.argv = [sys.argv[0], *sys.argv[3:]]
-        return t13_gate.main()
-    started = time.monotonic()
-    output = ROOT/'build/ci'
-    output.mkdir(parents=True,exist_ok=True)
-    receipt = dict(status='running',commands=[])
-    commands = ([sys.executable, 'tools/env/check.py'],
+def legacy_commands():
+    return ([sys.executable, 'tools/env/check.py'],
                     [sys.executable, '-m', 'unittest', 'discover', '-s', 'tools', '-p', 'test_*.py', '-v'],
                     [sys.executable, 'tools/check_structure.py', '--include-untracked'],
                     [sys.executable, 'hw/vendor/ibex_ref/verify_lock.py'],
@@ -72,6 +75,21 @@ def main():
                     [sys.executable, 'dv/core/lockstep.py', '--candidate', 'build/t10/ci/reference_copy', '--suite', 'arch,flight', '--output', 'build/t10/ci/lockstep_suites'],
                     [sys.executable, 'dv/core/candidate_check.py', '--output', 'build/t10/ci/candidate_negative'],
                     [sys.executable, 'dv/fpu/check.py', '--output', 'build/t12'])
+
+
+def main():
+    if not sys.argv[1:] or sys.argv[1] == '--tier':
+        import ci_tiers
+        return ci_tiers.main(sys.argv[1:], legacy_commands())
+    if sys.argv[1:3] == ['--scope', 't13']:
+        import t13_gate
+        sys.argv = [sys.argv[0], *sys.argv[3:]]
+        return t13_gate.main()
+    started = time.monotonic()
+    output = ROOT/'build/ci'
+    output.mkdir(parents=True,exist_ok=True)
+    receipt = dict(status='running',commands=[])
+    commands = legacy_commands()
     if sys.argv[1:]:
         if sys.argv[1:] != ['--scope', 'fpu']:
             raise ValueError('Usage: tools/ci.py [--scope fpu]')

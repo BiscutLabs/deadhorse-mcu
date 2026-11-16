@@ -1,6 +1,7 @@
 #include "Vibex_top.h"
 #include "verilated.h"
 #include <cstdint>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -12,6 +13,12 @@ int main(int argc, char **argv) {
   if (argc != 2 && argc != 3) return 2;
   const bool flight = argc == 3 && std::string(argv[2]) == "flight";
   if (argc == 3 && !flight) return 2;
+  // Optional external cycle observations; architectural RVFI rows stay unchanged.
+  std::ofstream cycle_trace;
+  if (const char *path = std::getenv("DEADHORSE_CYCLE_TRACE")) {
+    cycle_trace.open(path);
+    if (!cycle_trace) return 2;
+  }
   std::ifstream input(argv[1], std::ios::binary);
   if (!input) return 2;
   std::vector<uint8_t> memory((std::istreambuf_iterator<char>(input)), {});
@@ -66,6 +73,7 @@ int main(int argc, char **argv) {
       }
       dut.clk_i=1; dut.eval(); context.timeInc(1);
       if (dut.rvfi_valid) {
+        if (cycle_trace.is_open()) cycle_trace << dut.rvfi_order << ' ' << cycle << '\n';
         std::cout << "{\"order\":" << dut.rvfi_order;
 #define FIELD(name) std::cout << ",\"" #name "\":" << uint64_t(dut.rvfi_##name)
         FIELD(insn); FIELD(trap); FIELD(halt); FIELD(intr); FIELD(mode); FIELD(ixl);

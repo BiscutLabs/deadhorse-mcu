@@ -52,6 +52,17 @@ def selected_checks(available,selection):
     return chosen
 
 
+def triage_policy(data):
+    checks=data.get('checks',{})
+    if data.get('status')!='pass' or set(checks)!={'lw','c_add'}:
+        raise ValueError('Critical triage unresolved: stop without repeating its proof attempts')
+    for value in checks.values():
+        if (value.get('status')!='accepted' or not 8<=value.get('check_cycle',0)<=64 or
+                value.get('depth')!=2*(value['check_cycle']+8) or not isinstance(value.get('cutpoints'),list)):
+            raise ValueError('Invalid accepted triage settings')
+    return checks
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target', choices=['reference','candidate'], required=True)
@@ -61,6 +72,7 @@ def main():
     parser.add_argument('--split-assertions',action='store_true',help='Require exact assertion-union coverage in separate positive proof jobs')
     parser.add_argument('--prove-window',action='store_true',help='PDR proof of the same fixed startup-window checker; not unbounded ISA correctness')
     parser.add_argument('--checks',help='Explicit focused subset; omitted checks remain unverified')
+    parser.add_argument('--triage-policy',help='Accepted budgeted triage result: repeat its approved engine/data/window settings for its named checks')
     parser.add_argument('--timeout',type=int,default=600,help='Per-partition limit, at most the original 600 seconds')
     parser.add_argument('--unabstracted-multiply', action='store_true',
                         help='On-demand unresolved arithmetic diagnostic; never used by CI')
@@ -69,11 +81,21 @@ def main():
     if args.jalr_address_invariant and (args.target!='candidate' or args.checks!='jalr' or args.split_assertions or args.unabstracted_multiply):
         parser.error('JALR invariant requires candidate --checks jalr, without split/arithmetic diagnostic')
     if args.checks and args.unabstracted_multiply: parser.error('--checks cannot select the multiply diagnostic')
+    policy={}
+    if args.triage_policy:
+        from common import local
+        accepted=json.loads(local(args.triage_policy).read_text())
+        policy=triage_policy(accepted)
+        if (args.timeout!=600 or args.prove_window or args.split_assertions or args.jalr_address_invariant or
+                set(policy)-{'lw','c_add'} or any(v.get('status')!='accepted' for v in policy.values())):
+            parser.error('Unsupported triage policy or incompatible diagnostic mode')
     started = time.monotonic()
     if (args.target == 'candidate') != bool(args.candidate):
         parser.error('--candidate source directory is required only for target candidate')
     from candidate import manifest
     registered=bool(args.candidate and (manifest(args.candidate) or {}).get('implementation') in ('registered-execution-v1','rv32imfc-v1'))
+    if policy and (not args.candidate or (manifest(args.candidate) or {}).get('implementation')!='rv32imfc-v1'):
+        parser.error('Accepted T13 triage settings apply only to the F-integrated candidate')
     # Preserve the reference/baseline windows. The separately identified
     # registered profile needs room for operand qualification and 36 MUL edges.
     # This still does not cover a full nonzero 111-edge divide; its class remains
@@ -148,6 +170,12 @@ def main():
         config.write_text(f'[options]\nmode {proof_mode}\ndepth {depth}\nmulticlock on\ntimeout {args.timeout}\n' +
                           f'[engines]\n{engine}\n[script]\n' + source.replace(
                               'RISCV_FORMAL_INSN_MODEL=rvfi_isa_rv32imc', f'RISCV_FORMAL_INSN_MODEL=rvfi_insn_{model}'))
+        if model in policy:
+            from formal_triage import configured
+            settings=policy[model]
+            config.write_text(configured(config.read_text(),mode=proof_mode,depth=settings['depth'],
+                cycle=settings['check_cycle'],timeout=args.timeout,
+                cutpoints=settings['cutpoints'] if name.endswith('/bmc') else ()))
         result = run(['sby', '-f', '-d', directory/'work', config], directory, mode, allowed=(0,2,8,16), timeout=args.timeout+30)
         return sby_status(directory/'work', result.returncode)
 
@@ -174,6 +202,11 @@ def main():
         run([sys.executable, 'tools/sbt.py', 'set hw / Compile / unmanagedSourceDirectories += file("/work/dv/core")',
              f'hw/runMain deadhorse.reference.EmitReferenceFormal {nonzero} fault-nonzero'], output, 'emit-nonzero-fault')
         alt_fault_script = alt_script.replace(str(output/'rvfi_wrapper.sv'), str(nonzero/'rvfi_wrapper.sv'))
+    elif policy:
+        nonzero=output_dir(output/'nonzero-fault-wrapper')
+        for filename in ('parameters.tsv','ports.tsv'):shutil.copyfile(output/filename,nonzero/filename)
+        run([sys.executable,'tools/sbt.py','set hw / Compile / unmanagedSourceDirectories += file("/work/dv/core")',
+             f'hw/runMain deadhorse.reference.EmitReferenceFormal {nonzero} fault-nonzero'],output,'emit-nonzero-fault')
     results = {}
     def instruction(name):
         abstracted = name in MULTIPLY and not args.unabstracted_multiply
@@ -189,15 +222,25 @@ def main():
         capture_negative = check(name + '/capture-negative', 'bmc', name, capture_script) if abstracted and covered == 'PASS' else None
         if abstracted and (covered != 'PASS' or capture_negative != 'FAIL'):
             raise RuntimeError(f'{name}: missing ALTOPS cover or operand-capture fault escaped')
+        nonzero_negative=None
+        if name in policy:
+            concrete_nonzero=script.replace(str(output/'rvfi_wrapper.sv'),str(output/'nonzero-fault-wrapper/rvfi_wrapper.sv'))
+            nonzero_negative=check(name+'/nonzero-negative','bmc',name,concrete_nonzero)
+            if nonzero_negative!='FAIL':raise RuntimeError(name+': nonzero result-bit fault escaped')
         kind = ('bounded, arithmetic abstracted (ALTOPS)' if abstracted else
                 f'bounded, divisor-zero early-finish path only at check cycle {check_cycle}' if name in ('div','divu','rem','remu') else
                 'bounded, unabstracted diagnostic' if args.unabstracted_multiply else 'bounded')
+        settings=policy.get(name,{})
+        if settings.get('cutpoints'):kind='bounded, abstracted'
         result = dict(status=kind if covered == 'PASS' else 'unsupported',
-                      depth=depth, check_cycle=check_cycle, cover=covered, negative_control=negative,
+                      depth=settings.get('depth',depth), check_cycle=settings.get('check_cycle',check_cycle), cover=covered, negative_control=negative,
+                      cutpoints=settings.get('cutpoints',[]),nonzero_negative_control=nonzero_negative,
+                      engine_policy='BMC portfolio' if settings else 'default',
+                      histories=settings.get('histories','original startup window'),
                       capture_negative_control=capture_negative,
                       unabstracted='unresolved (arithmetic)' if abstracted else None,
                       reason=None if covered == 'PASS' else 'Checked retirement not reached within bound')
-        print(f'{name}: {result["status"]}, depth {depth}, cover {covered}', flush=True)
+        print(f'{name}: {result["status"]}, depth {result["depth"]}, cover {covered}', flush=True)
         return name, result
 
     # Partitioning the same upstream ISA property avoids a monolithic divider
@@ -212,7 +255,7 @@ def main():
         else:
             run_partitions(insns, instruction, collect)
     except Exception as exc:
-        status = 'unresolved (arithmetic)' if args.unabstracted_multiply and isinstance(exc, ArithmeticTimeout) else 'failed'
+        status = ('unresolved (arithmetic)' if args.unabstracted_multiply else 'unresolved (timeout)') if isinstance(exc, ArithmeticTimeout) else 'failed'
         (output/'result.json').write_text(json.dumps(dict(status=status, error=str(exc), checks=results), indent=2)+'\n')
         raise
     (output/'result.json').write_text(json.dumps(dict(status='diagnostic complete' if args.unabstracted_multiply else 'pass', depth=depth, check_cycle=check_cycle,

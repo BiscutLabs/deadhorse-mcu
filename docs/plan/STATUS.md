@@ -74,7 +74,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T10 | [Ibex reference and harness](tasks/T10-ibex-reference.md) | Codex | T07, T08 | [Report](tasks/reports/T10.md): sequential/whole-core harness, candidate suites and divide stress pass; full local gate and independent review pass; D44 limits retained |
 | [x] | T11 | [Ibex conversion](tasks/T11-ibex-conversion.md) | Codex | T10, T09 | [Report](tasks/reports/T11.md): user-approved focused verification complete; exact revision proof carries prior ISA evidence; current tests/timing/lockstep and independent review pass; repeated full CI stopped, not passed |
 | [x] | T12 | [FPU](tasks/T12-fpu.md) | Codex | T07, T09 | [Report](tasks/reports/T12.md): standalone RV32F, focused local gate, arithmetic-abstracted control proof, reference tests, GF180 timing and independent review pass; full CI intentionally not rerun |
-| [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Report](tasks/reports/T13.md): critical LW memory/trap partition unresolved at unchanged short cap; C.ADD/focused gate open; JALR, IF and widened integration reviewed; incomplete checkpoint authorized for review |
+| [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Report](tasks/reports/T13.md): performance/triage reviewed; fast passes in 475.113 s; full fails registered no-F timing (25.335854 ns > 24.96 ns), later checks unrun |
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
 | [ ] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | unassigned | T07, T09 | Replaces the NoC work |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
@@ -138,6 +138,10 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-16: T13 in progress -> blocked, Codex; performance measured before proof work; approved three-rung triage accepts concrete LW (144/64) and abstracted shorter-window C.ADD (54/19), with concrete covers and both faults. Independently reviewed fast tier passes in 475.113 s. Requested full run fails registered no-F timing after 3217.428 s (51 commands passed, 26 unrun); no RTL or limit change. User-authorized commit/push follows fast acceptance; full/T13 completion not claimed. [Report](tasks/reports/T13.md).
+
+- 2026-11-16: T13 blocked -> in progress, Codex; pulled timeout-triage skill and user-authorized performance-first measurements, at most three triage rungs, fast/full CI tiers, report condensation and consolidation proposal. No RTL changes or further bespoke instruction proofs authorized.
 
 - 2026-11-16: T13 remains blocked, Codex; user explicitly requested commit/push of the incomplete checkpoint for their review, with the unresolved formal-verification problem described in the commit. No acceptance requirement or status was changed; the existing T11 baseline tag accompanies the checkpoint.
 
