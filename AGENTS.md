@@ -73,28 +73,28 @@ Read this file fully before doing anything.
 There is no asynchronous circuit work in this project. If a brief seems to
 ask for some, stop and ask.
 
-## Stop and ask
+## Routine fixes and critical approvals
 
-Stop, write down what you found, and wait for a person when any of these
-happens. Do not work around them.
+The user authorizes minor implementation fixes, tooling repairs and verification
+refinements within the assigned brief and agreed design without repeated
+approval. Preserve failure evidence, diagnose the cause, do quick research into
+existing solutions when available, make the smallest justified fix, rerun
+relevant checks, and obtain independent agent review before accepting it.
+Follow `.agents/skills/deadhorse-task-execution/SKILL.md` for this workflow.
+Keep all required checks, assumptions, limits and measurement baselines intact.
+A failed command, out-of-tolerance result or proof timeout alone does not require
+approval; never report an unresolved check as passed. Avoid unchanged retries
+and long formal sweeps.
 
-User authorization: fix routine tooling issues and resume without asking,
-including checkout line endings and tool invocation problems. Keep every
-required check and tolerance intact, obtain independent agent review, then
-commit and push. This does not authorize changed measurement baselines,
-architecture decisions, or expanded proprietary-IP imports.
-
-- A command in the brief fails and the brief's own notes do not explain it,
-  unless the cause is a routine tooling issue covered by the authorization above.
-- A measured result differs from the brief's expected value by more than the
-  stated tolerance.
-- The brief conflicts with this file, with another brief, or with the plan.
-- Completing the task would need a decision listed as open in
-  [docs/plan/10-decisions-and-risks.md](docs/plan/10-decisions-and-risks.md).
-- You would need to touch a file outside the brief's "May change" list.
-- You need network access, credentials or a repository you were not given.
-- You find proprietary material about to enter this repository.
-- You are about to delete anything you did not create in this task.
+Stop for a person only when existing authorization does not cover a critical
+case: architecture or behavior changes; changed acceptance, assumptions or
+limits; a substantive plan conflict or open decision; work outside authorized
+scope; new credentials, privileges or unprovided repositories; destructive or
+irreversible actions; unauthorized external actions or deletion of pre-existing
+material; prohibited IP imports; or a genuine impasse requiring user input after
+focused diagnosis and independent review. Public documentation research needs
+no new approval. Explain the concrete decision needed, and continue independent
+authorized work where possible. Do not request approvals already given.
 
 ## Done means
 
