@@ -26,6 +26,11 @@ def prepare(output, sources, capture_fault=False, candidate=None):
     if str(CONFIG['parameters']['RV32M']) != '2':
         raise ValueError('D44 capture contract only supports RV32MFast')
     output = output_dir(output)
+    if candidate:
+        from candidate import manifest
+        if (manifest(candidate) or {}).get('implementation')=='registered-execution-v1':
+            from registered_altops import prepare as prepare_registered
+            return prepare_registered(output,sources,candidate,capture_fault)
     adaptation = adaptation_entry('multiply_altops')
     matches = [p for p in sources if str(p).endswith('/ibex_multdiv_fast.sv')]
     if len(matches) != 1:

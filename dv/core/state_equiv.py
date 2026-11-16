@@ -28,11 +28,15 @@ def named_pairs(gold, gate, predicate, output_port, names):
                    if all(b in wire['bits'] for b in bits) and not n.startswith('$')}
         matches = set()
         for alias, indices in aliases.items():
-            wire = gate['netnames'].get(names.get(alias, alias))
-            if wire is not None and max(indices) < len(wire['bits']):
-                mapped = [wire['bits'][i] for i in indices]
-                matches.update(n for n, cell in remaining.items()
-                               if cell['connections'][output_port] == mapped)
+            # A translation map adds a spelling; it must not break comparison
+            # against the unchanged reference. If both spellings identify
+            # different state cells, retain the ambiguity and fail closed.
+            for candidate_alias in {alias, names.get(alias, alias)}:
+                wire = gate['netnames'].get(candidate_alias)
+                if wire is not None and max(indices) < len(wire['bits']):
+                    mapped = [wire['bits'][i] for i in indices]
+                    matches.update(n for n, cell in remaining.items()
+                                   if cell['connections'][output_port] == mapped)
         if not matches and output_port == 'Y':
             # Products may have unnamed/truncated results. Pair by recorded
             # cell name (or the sole remaining operator), then prove operands;

@@ -1,6 +1,31 @@
 {
   "schema": 2,
   "entries": {
+    "id_priority": {
+      "id": "T11-ID-procedural-priority",
+      "source": "rtl/ibex_id_stage.sv",
+      "source_sha256": "077a8a4035b9330c32c23bf68a45fff00f69dca322582cdbdc53ff77fdab3e21",
+      "normalized_sha256": "ed6b27180db1bc58810118a00b06a505bd71b498b393b12e22a77dd346b16ac8",
+      "edits": [
+        {"line": 809, "before": "          unique case (1'b1)\n", "after": "          case (1'b1)\n"}
+      ],
+      "authorization": "User approved 2026-11-15: extend source-priority analysis normalization to this single ID-stage selector, only in generated formal-analysis copies, preserving every input combination, proof obligation and fault check.",
+      "reason": "Parallel unique-case lowering changes behavior for disagreeing replicated instruction inputs. Preserve the procedural LSU/multdiv/branch/jump/ALU priority without adding an equality or one-hot assumption.",
+      "reversal": "Restore the exact qualifier at line 809 and verify the pinned source SHA-256. Original failure remains at build/t11/id1/equiv; see hw/ip/perf_core/ID-PRIORITY-INVESTIGATION.md."
+    },
+    "csr_priority": {
+      "id": "T11-CSR-procedural-priority",
+      "source": "rtl/ibex_cs_registers.sv",
+      "source_sha256": "8f403e1faa0c11a1b1b645b704912cbad55bbdd7437241d7fb24cba743ccb9c1",
+      "normalized_sha256": "6c9cadde850909c0fdc253746a256da2fdfd7cc6604de3206dd25917c24136e6",
+      "edits": [
+        {"line": 711, "before": "    unique case (1'b1)\n", "after": "    case (1'b1)\n"},
+        {"line": 714, "before": "        unique case (1'b1)\n", "after": "        case (1'b1)\n"}
+      ],
+      "authorization": "User approved 2026-11-15: remove these two unique annotations only from the generated formal-analysis copy, preserving source priority and all input combinations, state/output obligations and negative controls.",
+      "reason": "Uniqueness-based synthesis removes a redundant ID branch and changes the lowered function on conflicting selectors. Preserve procedural case priority for unrestricted-input equivalence; this is an explicitly changed analysis model, not the old optimized reference.",
+      "reversal": "Restore the two exact qualifiers at their recorded lines and require the original SHA-256. Original failure and counterexample remain at build/t11/csrbank1/equiv; see hw/ip/perf_core/CSR-PRIORITY-INVESTIGATION.md."
+    },
     "unused_initializer": {
       "id": "T10-unused-scramble-initializer",
       "source": "rtl/ibex_top.sv",

@@ -14,7 +14,8 @@ repository-local copy, but its bytes must match the pinned SS/125 C/3.0 V hash.
 All paths must remain inside this repository; outputs must be below `build/`.
 Paths containing whitespace or Tcl/Yosys metacharacters are rejected.
 
-The exit codes are 0 for a passing measurement, 1 for an over-budget path,
+The exit codes are 0 for a passing measurement, 1 for an over-budget path or
+library max-capacitance/max-slew violation,
 and 2 for an unsupported or incomplete analysis. The self-test expects the
 historical elapsed-time path to exit 1; it does not waive any production block.
 It also checks Hello and the mixed and coverage RegBlock configurations, verifies
@@ -23,6 +24,31 @@ in the real timer, and rejects the T06 SRAM synthesis stub before optimization.
 The larger RegBlock coverage configuration initially exceeded the budget.
 The user-authorized local write/read decode repair now passes with the same
 interface, behavior, corner and ceiling; the failing history remains in the ledger.
+
+Inherited stateless core leaves can use `--combinational` instead of `--clock`.
+This uses a virtual clock with the same IO constraints and budget. Both the
+netlist boundary validator and STA reject sequential cells in this mode.
+The self-test includes a pure Chisel XOR positive control and actual sequential
+wrong-mode negatives. An electrically overloaded Hello output must fail even
+while its data delay meets the budget; missing electrical reports also block.
+
+The qualified `buffered-sized-alias-load-v3` mapping recipe uses ABC
+buffering and sizing with an explicit script containing no retiming. Its
+`buf_1` driver, output load in fF and target in ps are mapping heuristics,
+recorded separately from the unchanged final STA slew/load constraints.
+After synthesis, output pins that share a net are counted. ABC uses the maximum
+aggregate output load as a conservative global mapping heuristic; constants are
+excluded, and any new alias multiplicity introduced by ABC blocks the result.
+Final STA still loads each output port with 0.05 pF. The AliasTiming fixture
+checks two output pins, 100 fF mapping load and unchanged 50 fF per-port STA.
+The historical v1 recipe used one 50 fF mapper load regardless of aliases.
+The intermediate v2 recipe reimported a premapped JSON design, perturbing ABC
+traversal order even without aliases. V3 uses the premap pass only for alias
+discovery and repeats the original frontend/synthesis sequence for mapping.
+
+Synthesis buffers are included in timing and area; physical clock-tree/wire
+buffering is still outside this pre-layout screen. Historical area-only
+measurements retain their original flow hashes and are not overwritten.
 
 ## Supported constraints
 
@@ -33,25 +59,43 @@ delay; every output has zero external delay. These isolate the block's data
 delay. The clock is ideal with zero latency/uncertainty; no parasitics, wire
 delay, placement, clock tree or physical buffering are modeled.
 
-This first flow accepts a single direct rising-edge clock. Latches, non-root
-clock connections, falling-edge clocks, inouts and uncharacterized black boxes
-are blockers. SRAM instances require qualified macro timing views and a later
+The flow accepts one rising-edge root clock, directly or through the qualified
+root-driven `gf180mcu_fd_sc_mcu7t5v0__icgtp_1`. Every sequential pin must report
+exactly that root clock by identity; merely counting clocks is insufficient in
+OpenSTA. Arbitrary clock logic, cascaded gates, extra clocks, explicit storage
+latches, falling-edge clocks, inouts and uncharacterized black boxes are
+blockers. SRAM instances require qualified macro timing views and a later
 explicit integration; an empty SRAM stub must never be flattened away and
 mistaken for timed logic. No false paths, multicycle exceptions, alternate
 periods, corner substitutions or waiver switches are provided.
 
-For RR, IR, RO and IO paths, OpenSTA enumerates every endpoint and both
+For RR, IR, RO, IO and register/input-to-ICG-enable (RG/IG) paths, OpenSTA enumerates every endpoint and both
 transition polarities. The budget uses endpoint arrival from the ideal launch
 edge (or zero input delay), including clock-to-Q. Subtracting the first listed
 point would be wrong because that point may already be a flop's Q output.
 Logic depth counts unique combinational instances; cell depth also includes
 launch/capture registers. Missing path classes are recorded as `null`.
 
+For each ICG E/TE pin, all rise/fall setup/hold paths must exist and have
+nonnegative slack; evidence is in `gate_checks.tsv` and `clock_gate_checks`.
+The gated fixture includes actual STA negatives for an alien clock and late
+setup/early hold. Clock propagation at a characterized cell load is checked
+separately by `hw/lib/formal/clock_gate_timing.py`; ideal pre-CTS top timing
+does not imply clock-tree signoff.
+
 This is a **maximum data-path screening check**, not routed timing signoff.
 Setup/hold/recovery/removal reports are retained as diagnostics; zero IO timing
 assumptions can produce hold/removal violations, and these are not represented
 as qualified interface timing. Full physical timing and SRAM/clock integration
 remain required by the physical-verification plan.
+ICG E/TE setup/hold checks are the explicit mandatory exception to the diagnostic
+handling above, because the wrapper must not glitch its clock.
+
+`dv/core/reference_timing.py` supplies only the locked reference configuration
+to the shared numeric flow and labels its receipts `reference-benchmark-only`.
+It binds the same ASIC gate and omits RVFI in both compared physical profiles.
+The production API and CLI always enforce reference-source isolation; a
+benchmark result never waives a production timing failure.
 
 ## Evidence
 

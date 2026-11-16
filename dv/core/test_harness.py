@@ -8,10 +8,44 @@ import unittest
 from unittest.mock import patch
 
 import candidate
+from equiv import elaborate, validate_child_usage
+from state_equiv import named_pairs, Mismatch
 from common import CONFIG,output_dir
 from div_diagnose import expected
 from riscv_formal import require_candidate_coverage
 from suites import flight_reentry
+
+
+class StateNames(unittest.TestCase):
+    def test_translation_map_preserves_reference_self_check(self):
+        gold = {'cells': {'q': {'connections': {'Q': [2, 3]}}},
+                'netnames': {'nested.q': {'bits': [2, 3]}}}
+        translated = {'cells': {'q': {'connections': {'Q': [4, 5]}}},
+                      'netnames': {'nested_q': {'bits': [4, 5]}}}
+        mapping = {'nested.q': 'nested_q'}
+        for gate in (gold, translated):
+            self.assertEqual(len(named_pairs(gold, gate, lambda c: True, 'Q', mapping)), 1)
+        ambiguous = copy.deepcopy(translated)
+        ambiguous['cells']['other'] = {'connections': {'Q': [6, 7]}}
+        ambiguous['netnames']['nested.q'] = {'bits': [6, 7]}
+        with self.assertRaisesRegex(Mismatch, 'No unique named Q match'):
+            named_pairs(gold, ambiguous, lambda c: True, 'Q', mapping)
+
+
+class IncrementalEquivalence(unittest.TestCase):
+    def test_top_cannot_use_incremental_replacements(self):
+        with self.assertRaisesRegex(ValueError, 'production manifest'):
+            elaborate('ibex_top', 'unused', Path('build'), 'candidate',
+                      replacements={'ibex_alu': 'unused'})
+
+    def test_only_reachable_children_count_as_substituted(self):
+        design = {'modules': {
+            'parent': {'cells': {'child': {'type': 'middle'}}},
+            'middle': {'cells': {'leaf': {'type': 'ibex_alu$parent.middle.leaf'}}},
+            'ibex_alu$parent.middle.leaf': {'cells': {}}, 'ibex_csr': {'cells': {}}}}
+        validate_child_usage(design, 'parent', {'ibex_alu': 'unused'})
+        with self.assertRaisesRegex(ValueError, 'absent from parent hierarchy'):
+            validate_child_usage(design, 'parent', {'ibex_csr': 'unused'})
 
 
 class Coverage(unittest.TestCase):

@@ -48,7 +48,14 @@ def main():
                '-Ddeadhorse.root=' + str(ROOT)]
     command += [f'-Ddeadhorse.{key}={value}' for key, value in pins.items()]
     command += ['-jar', '/opt/sbt/bin/sbt-launch.jar', *sys.argv[1:]]
-    return subprocess.call(command, cwd=work)
+    # All invocations share Zinc's class products, even when a formal emitter
+    # temporarily adds unmanagedSources. Concurrent sbt processes can remove
+    # each other's products between compilation and runMain. Serialize the
+    # complete child lifetime across pinned-container invocations.
+    import fcntl
+    with (ROOT / 'build/sbt/compile.lock').open('a') as guard:
+        fcntl.flock(guard.fileno(), fcntl.LOCK_EX)
+        return subprocess.call(command, cwd=work)
 
 
 if __name__ == '__main__':

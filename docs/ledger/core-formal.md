@@ -1,5 +1,116 @@
 # Core reference formal ledger
 
+## T11 final focused acceptance, 2026-11-15
+
+Final-source configured proofs, faithful core/top proofs and all fault controls
+pass. `python tools/env/run.py run -- python3 dv/core/revision_equiv.py --before
+build/t11/ci-before-csr-fix/registered --after build/t11/csrfinal1/candidate
+--output build/t11/csrfinal1/revision_equiv_final` proves unbounded exact
+whole-top equality of all 246 states, outputs, resets, clocks and enables with
+no assumptions or normalizations; output/reset/next-state/gained-reset faults
+are rejected. Source/manifest hashes bind the before revision to the completed
+70-partition registered ISA run. Independent review verified every underlying
+job and the binding. Prior ISA/integration evidence is transported through this
+exact proof, not reported as rerun. Current architectural/flight comparisons,
+58 simulations and critical timing checks pass; full CI was stopped under the
+user's explicit focused-verification instruction. Full details, limitations
+and hashes are in [T11 report](../plan/tasks/reports/T11.md).
+
+The following sections are historical checkpoints, with their original scope.
+
+## T11 continuation: repaired leaves and prefetch hierarchy
+
+The final checkpoint driver run uses `--emitted build/t11/checkpoint/emit
+--output build/t11/checkpoint/formal` and passes all eleven configured checks,
+including the restored faithful multiplier MAC. The first full local gate
+found that newly recorded Chisel aliases displaced reference names during
+reference self-comparison. `state_equiv.named_pairs` now considers both
+spellings while still rejecting ambiguity and unmatched state. All state,
+reset, clock, next-state and product-operand obligations remain. A behavioral
+regression covers original/translated/ambiguous cases; fifteen core harness
+tests and reference/candidate multdiv plus reference RF self-checks pass.
+Fresh independent review reproduced the fix under
+`build/t11/checkpoint_review/state_names/`. The first gate failure is preserved
+at `build/t11/ci-first-failure.json`; it is not reclassified as a pass.
+
+Measured at base `a5323044dfe4f7a8ddb8aee5ad75c2ce12ed06bb` plus working
+changes. All commands use `python tools/env/run.py run --`.
+`python3 hw/ip/perf_core/formal/check_leaves.py --emitted
+build/t11/counter11/emit --output build/t11/counter11/formal` passed the then
+registered CSR/counter/ALU/register-file/compressed-decoder/FIFO cases. Each
+rejects applicable output, reset-value, next-state and gained-reset faults.
+Counter11 preserves staged parallel-prefix carries; independent review proved
+widths 1, 5, 17, 33, 63 and 64 in both update-output modes with three faults each
+under `build/t11/review/counter11/`. These extra parameter runs were performed
+by the reviewer, not the primary agent.
+
+`python3 dv/core/equiv.py --module ibex_prefetch_buffer --candidate
+build/t11/prefetch2/emit/prefetch_buffer/ibex_prefetch_buffer.sv --replace
+ibex_fetch_fifo=build/t11/prefetch2/emit/prefetch_buffer/ibex_fetch_fifo.sv
+--self-check --output build/t11/prefetch2/formal` passed unbounded named-state
+induction with four fault controls rejected. Independent review reproduced it.
+The incremental helper rejects unused replacements and both top-check routes;
+it records effective child source/hash and is explicitly verification-only.
+
+`python3 dv/core/equiv.py --module ibex_multdiv_fast --candidate
+build/t11/multdiv2/emit/multdiv_fast/ibex_multdiv_fast.sv --self-check --output
+build/t11/multdiv2/formal` passed six-state induction and one structural signed
+multiply congruence, with output/reset/next-state/sign faults rejected. The
+parallel MAC addition trial in `multdiv3` also passes these same obligations.
+No multiply was expanded for SAT and no environmental assumption was added.
+The first translation's reversed unpacked-array packing failed equivalence;
+correcting element zero to the high word resolved the translation defect.
+The reference was not changed. These proofs do not claim timing closure or
+whole-core acceptance.
+
+## T11 counter repair and faithful ALU
+
+Measured at `a5323044dfe4f7a8ddb8aee5ad75c2ce12ed06bb` plus uncommitted
+T11 changes. `python tools/env/run.py run -- python3
+hw/ip/perf_core/formal/check_leaves.py --emitted build/t11/repair6/emit
+--output build/t11/repair6/formal` passed all configurations in the initial
+leaf table below, each with output, reset-value and next-state faults rejected.
+No state or assumptions changed in the authorized combinational counter repair.
+Independent review also proved partial widths 1, 5, 17, 33 and 63 in both
+update-output modes with the same controls; its evidence is under
+`build/t11/review/repair6_final/`.
+
+`python tools/env/run.py run -- python3 dv/core/equiv.py --module ibex_alu
+--candidate build/t11/alu1/emit/alu/ibex_alu.sv --self-check
+--output build/t11/alu1/formal_fixed_fault` passed: exhaustive combinational
+equivalence for RV32BNone and a rejected result-bit inverter. No input assumption
+restricts operator encodings, first-cycle selection or multdiv operands. The
+reference self-check also passed with the same real output mutation. The old
+ALU-only constant-port mutation could be hidden by emitted JSON wire aliasing;
+that self-check failed closed under `build/t11/alu1/formal/`. It was repaired
+to use the existing driven-wire inverter mechanism, not excluded or weakened.
+
+Independent review reproduced ALU proof/fault results and fresh emitted bytes.
+These historical leaf results do not prove a complete processor. Subsequent
+approved repairs and timing-flow qualification are recorded above and in the
+[timing ledger](timing.md).
+
+## T11 initial leaf translations
+
+Measured at `a5323044dfe4f7a8ddb8aee5ad75c2ce12ed06bb` plus uncommitted
+T11 changes with `python tools/env/run.py run -- python3
+hw/ip/perf_core/formal/check_leaves.py` (exit 0).
+
+| Leaf configuration | Result | Required negative controls |
+| --- | --- | --- |
+| ibex_csr defaults | Proved, unbounded named-state induction | Output, reset value, next state rejected |
+| ibex_counter defaults | Proved, unbounded named-state induction | Output, reset value, next state rejected |
+| ibex_counter width 64, ProvideValUpd false | Proved, unbounded named-state induction | Output, reset value, next state rejected |
+| ibex_counter width 64, ProvideValUpd true | Proved, unbounded named-state induction | Output, reset value, next state rejected |
+| ibex_csr width 8, ShadowCopy true, ResetValue 0xa5 | Proved, unbounded named-state induction | Output, reset value, next state rejected |
+
+The existing Yosys SAT checker compares every named state, reset/clock/enable
+function and output with no added assumptions. The optional shadow register
+has an explicit name map. Parameters are explicit in each configuration's
+receipt under `build/t11/leaves/configurations/`. These are leaf proofs;
+they do not establish a complete Chisel processor. The initial mcycle timing
+failure and later authorized repair are recorded in the [timing ledger](timing.md).
+
 ## T10 harness continuation
 
 User-assigned continuation of T10 at base commit
@@ -296,3 +407,132 @@ integer lemmas and stress simulation. The final outcome receipt is
 `build/t10/d44/ci-final.json`. The current parser also successfully
 reclassified all 214 CI job outcomes. This is completion under D44's revised
 contract, not a raw multiply proof.
+
+
+T11 approved iterative-multiply checkpoint (base a532304 plus working changes):
+`hw/ip/perf_core/formal/check_iterative.py` exit 0 at
+`build/t11/iterative2/formal`; unbounded emitted RTL-to-transaction-model
+induction, separate integer lemmas, twelve rejected emitted faults and six
+formal cover witnesses. Integer/bitvector composition remains explicitly
+reviewed. Independent rerun: `build/t11/iterative_review/formal_factored`.
+`check_division.py` at `build/t11/iterative2/division_final` proves selected
+DIV/REM exactly, with generated reference roundtrip and output/next/reset
+faults. Independent rerun: `build/t11/iterative_review/division`.
+No whole-core claim. The old nested word-projection timeout remains a failed
+diagnostic; equivalent factored lemmas pass without changing the 600-second limit.
+
+
+Fresh-context current checkpoint review (`build/t11/iterative_checkpoint_final/`)
+independently reproduces iterative model induction/lemmas/twelve faults/six
+covers and repaired EX exact equivalence/three faults, with no remaining review
+finding. Main CI's Scala stage passes all 21 tests (six suites); main CI final
+status and physical timing remain separate obligations, not a completion claim.
+
+
+Current revised local gate (`build/t11/ci-approved-checkpoint.json`) ends exit 1
+on multdiv/EX timing. Before that failure, all 21 Scala tests, 13 configured
+reference-equivalence cases/faults, iterative proofs/lemmas/twelve faults/six
+covers, and selected-division/normalization proofs pass. Downstream reference
+ISA/lockstep commands remain present but were not reached after the timing gate;
+no full Chisel core acceptance or task completion is claimed.
+
+T11 registered execution, base `a532304` plus working changes (2026-11-15):
+`check_execute.py --variant normal` at `build/t11/registered_formal/prove7`
+passes unbounded k-induction (12-step search), including producer deadlines,
+capture/hold/reset/no-loss, and divider step refinement. Exact production
+projection binds 32 state elements, with output/next-state faults. Six contract
+faults rejected at `fault2-*`; all eight covers reached within depth120 at
+`cover3`. Startup reset only; internal correspondence/ranking are assertions.
+Arithmetic composes separately recorded leaf proofs and integer lemmas; this
+is not a new direct full-product/division theorem or whole-core equivalence.
+Fresh reviewer reproduced the entire aggregate at
+`build/t11/registered_review/formal` and approved focused scope.
+
+Decoder/LSU follow-up, same base plus working changes: root
+`build/t11/decoder1/equiv_checked` proves every combinational input/output
+without assumptions and rejects output fault; `build/t11/lsu1/equiv` proves
+ten named states/reset/clocks and rejects output/reset/next-state faults.
+Fresh independent repetitions at `build/t11/decoder_review/equiv` and
+`build/t11/lsu_review/equiv` pass. Both focused simulation suites and their
+corrupt-result controls pass; LSU simulation scope limits are in the block README.
+
+IF/controller/WB follow-up, base `a532304` plus working changes, 2026-11-15:
+`dv/core/equiv.py --module ... --self-check` at `build/t11/if1/equiv_mapped`,
+`build/t11/controller1/equiv`, and `build/t11/wb1/equiv` proves all selected
+outputs without environmental assumptions. IF matches 24 named states with
+all translated children and rejects output/reset/next-state/gained-reset faults;
+controller matches ten states and rejects output/reset/next-state faults; WB
+is exhaustive combinational with an output fault. Fresh independent reviews
+reproduce proofs, timing and both tests for each block at
+`build/t11/{if_review,controller_review,wb_review}`. These results establish
+the selected block boundaries, not whole-core retirement or timing.
+
+CSR approved normalization, 2026-11-15, base `a532304` plus working changes:
+`check_leaves.py --emitted build/t11/csrbank2/emit --output build/t11/csrbank2/leaves`
+passes all 19 then-configured cases and their faults. CSR proves 22 state
+elements against the explicitly approved priority-preserving analysis model,
+without input assumptions; output/reset/next-state faults rejected. Exact
+hash/location/reversal guards and source/netlist/parameter receipts qualify the
+two-qualifier change, leaving vendor and production RTL unchanged. Root top
+reference-copy proof/faults pass at `build/t11/csrbank2/top_reference_copy`.
+Independent CSR/core/top proof, simulation, timing and provenance review passes
+at `build/t11/csrbank2/independent-review`. The old failed model remains recorded.
+
+ID follow-up, same base plus working changes: original unrestricted proof at
+`build/t11/id1/equiv` fails on conflicting duplicate instruction inputs, where
+unique-case lowering differs from procedural priority. The source-priority
+trial at `build/t11/id1/priority_trial` proves 15 states without assumptions and
+rejects all three faults; independent fresh elaboration at
+`build/t11/id1/independent-priority` agrees. The single additional normalization
+was subsequently approved explicitly. The accepted root run
+`check_leaves.py --emitted build/t11/id2/emit --output build/t11/id2/leaves`
+passes all 20 configured cases and their fault controls. Top reference-copy
+proof/faults pass at `build/t11/id2/top_reference_copy`. Independent accepted
+ID/core/top normalization review passes at `build/t11/id2/independent-review`.
+The original failure remains recorded; no whole-Chisel-core pass is claimed.
+
+Faithful Chisel core baseline, 2026-11-15, same base plus working changes:
+`python3 hw/ip/perf_core/formal/check_core.py --emitted build/t11/core2/emit
+--output build/t11/core2/equiv` passes unbounded named-state induction, 163
+state elements, one structural multiplier, all thirteen active child declarations
+replaced. No environmental assumptions; output/reset-value/next-state/gained-reset
+faults rejected. Uses the explicitly approved CSR/ID priority analysis models.
+Independent source review and reproduction at
+`build/t11/core2/independent-review/equiv` passes. Both architectural-model
+simulation and corrupted-retirement tests pass for root and independent reviewer.
+This supersedes only the absence of a core baseline result: retimed production,
+top, candidate ISA/workload/physical acceptance remain outstanding.
+
+Registered integration, frozen `integrated23`, 2026-11-15, base `a532304`
+plus receipt source hashes: `hw/ip/perf_core/formal/check_integration.py
+--emitted build/t11/integrated23/emit/asic --variant <variant> --output <path>`
+through `python tools/env/run.py run -- python3`. Normal at `protocol/normal`
+passes **bounded** ABC BMC depth160 with 21 assertions; cover at
+`protocol_retry/cover` reaches all 14 covers with btormc depth160. Real early
+RF-write and redirect-target-bit mutations are rejected at depth40 under
+`protocol_retry/{fault,redirect-fault}`. Each variant proves its stripped
+instrumentation equal to the exact production core; normal binding also rejects
+its correspondence faults. Only startup reset is constrained; subsequent reset,
+memory responses, IRQ/debug and external RF values remain arbitrary. This is
+bounded control, not unbounded ISA/memory causality. The initial fault-emission
+attempt timed out waiting for the shared Scala runner; reruns retained the
+600-second limit. The final local gate remains pending; registered ISA results
+are recorded below.
+
+Fresh independent baseline reproduction on the frozen source:
+`python tools/env/run.py run -- python3 dv/core/equiv.py --top --candidate
+build/t11/ci/baseline --self-check --output
+build/t11/registered_top_review/baseline_equiv` passes unbounded named-state
+induction, 196 state elements, one structurally matched multiply, no assumptions,
+and all four negative controls. Approved CSR/ID analysis normalizations are
+explicitly recorded. The registered-profile obligations remain separate.
+
+Registered ISA acceptance, same frozen source and base commit, 2026-11-15:
+`python tools/env/run.py run -- python3 dv/core/riscv_formal.py --target
+candidate --candidate build/t11/ci/registered --output
+build/t11/ci/registered_rvf` passes all 70 partitions, retirement covers and
+required fault controls at depth144/check64. Measured elapsed time 13860.50
+seconds. MUL remains arithmetic-abstracted (ALTOPS), with result and operand-
+capture faults rejected; DIV/REM remain divisor-zero early-finish coverage.
+No unbounded ISA or direct full-product proof is claimed. Full local CI is
+still running.

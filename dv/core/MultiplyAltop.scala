@@ -67,9 +67,27 @@ object EmitMultiplyAltop {
       (parts(1) == "-", BigInt(parts(2), 16))
     }
     require(operations.size == 4)
-    ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new MultiplyAltop(operations,
-      args.drop(1).contains("capture-fault"), args.drop(1).contains("candidate"))),
+    ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(
+      if(args.drop(1).contains("iterative")) new IterativeMultiplyAltop(operations,args.drop(1).contains("capture-fault"))
+      else new MultiplyAltop(operations,args.drop(1).contains("capture-fault"),args.drop(1).contains("candidate"))),
       Array("--target-dir", directory.toString), Array("--disable-all-randomization",
         "--verification-flavor=immediate", "--lower-to-core", "-strip-debug-info"))
   }
+}
+
+/** Same D44 capture/assertions, bound to the registered core's multiply unit. */
+class IterativeMultiplyAltop(operations:Seq[(Boolean,BigInt)],captureFault:Boolean) extends RawModule {
+  override def desiredName="DeadhorseIterativeAltop"
+  val clk_i=IO(Input(Clock())); val rst_ni=IO(Input(Bool()))
+  val enable_i=IO(Input(Bool())); val ready_i=IO(Input(Bool())); val idle_i=IO(Input(Bool()))
+  val a_i=IO(Input(UInt(32.W))); val b_i=IO(Input(UInt(32.W)))
+  val signed_mode_i=IO(Input(UInt(2.W))); val high_i=IO(Input(Bool())); val valid_i=IO(Input(Bool()))
+  val result=IO(Output(UInt(32.W)))
+  val adapter=Module(new MultiplyAltop(operations,captureFault))
+  adapter.clk_i:=clk_i; adapter.rst_ni:=rst_ni
+  adapter.mult_en_internal:=enable_i; adapter.sva_mul_fsm_idle:=idle_i
+  adapter.mult_sel_i:=enable_i; adapter.mult_valid:=valid_i; adapter.multdiv_ready_id_i:=ready_i
+  adapter.op_a_i:=a_i; adapter.op_b_i:=b_i
+  adapter.operator_i:=chisel3.util.Cat(false.B,high_i); adapter.signed_mode_i:=signed_mode_i
+  result:=adapter.result
 }

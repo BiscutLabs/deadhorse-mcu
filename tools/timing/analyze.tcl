@@ -4,11 +4,20 @@ read_liberty $liberty
 read_verilog $netlist
 link_design $top
 set_units -time ns -capacitance pF
-set clocks [get_ports $clock_port]
-if {[llength $clocks] != 1} {error "Expected one clock port"}
-create_clock -name block_clock -period $period $clocks
+if {![info exists combinational]} {set combinational 0}
+if {![info exists gate_path_report]} {set gate_path_report [file join [file dirname $path_report] gate_checks.tsv]}
+set clocks {}
+if {$combinational} {
+    create_clock -name block_clock -period $period
+} else {
+    set clocks [get_ports $clock_port]
+    if {[llength $clocks] != 1} {error "Expected one clock port"}
+    create_clock -name block_clock -period $period $clocks
+}
 set data_inputs [get_ports -filter "direction == input" *]
-set data_inputs [lsearch -all -inline -not -exact $data_inputs [lindex $clocks 0]]
+if {!$combinational} {
+    set data_inputs [lsearch -all -inline -not -exact $data_inputs [lindex $clocks 0]]
+}
 if {[llength $data_inputs]} {
     set_input_delay 0 -clock block_clock $data_inputs
     set_input_transition $input_transition $data_inputs
@@ -19,11 +28,16 @@ if {[llength $outputs]} {
     set_load $output_load $outputs
 }
 set regs [all_registers]
-if {![llength $regs]} {error "No clocked registers found"}
+if {$combinational && [llength $regs]} {error "Sequential cell in combinational timing mode"}
+if {!$combinational && ![llength $regs]} {error "No clocked registers found"}
 if {[llength [all_registers -level_sensitive]]} {error "Unsupported latch timing"}
 foreach pin [all_registers -clock_pins] {
-    if {[llength [get_property $pin clocks]] != 1} {
+    set pin_clocks [get_property $pin clocks]
+    if {[llength $pin_clocks] != 1} {
         error "Missing clock: [get_full_name $pin]"
+    }
+    if {[get_full_name [lindex $pin_clocks 0]] != "block_clock"} {
+        error "Unexpected clock: [get_full_name $pin]"
     }
 }
 if {[llength [all_registers -rise_clock block_clock]] != [llength $regs]} {
@@ -34,6 +48,26 @@ set groups [list RR [list [all_registers -clock_pins] [all_registers -data_pins]
                  IR [list $data_inputs [all_registers -data_pins]] \
                  RO [list [all_registers -clock_pins] $outputs] \
                  IO [list $data_inputs $outputs]]
+if {[info exists clock_gate_pins] && [llength $clock_gate_pins]} {
+    set gate_enables [get_pins $clock_gate_pins]
+    if {[llength $gate_enables] != [llength $clock_gate_pins]} {error "Missing clock-gate enable pin"}
+    # Root and gated clocks retain the existing ideal pre-CTS convention.
+    # Enable setup/hold is characterized by the actual ICG Liberty arcs.
+    set gate_report [open $gate_path_report w]
+    puts $gate_report "pin\tcheck\tslack_ns"
+    foreach pin $gate_enables {
+        foreach polarity {max_rise max_fall min_rise min_fall} {
+            set paths [find_timing_paths -to $pin -path_delay $polarity -group_path_count 1]
+            if {[llength $paths] != 1} {error "Missing clock-gate enable path"}
+            set slack [get_property [lindex $paths 0] slack]
+            puts $gate_report "[get_full_name $pin]\t$polarity\t$slack"
+            flush $gate_report
+            if {$slack < 0} {close $gate_report; error "Clock-gate enable setup/hold violation"}
+        }
+    }
+    close $gate_report
+    lappend groups RG [list [all_registers -clock_pins] $gate_enables] IG [list $data_inputs $gate_enables]
+}
 set f [open $path_report w]
 puts $f "class\tdelay_ns\tstart\tend\tcell_depth\tlogic_depth\tpoints"
 foreach {kind ends} $groups {
@@ -73,4 +107,7 @@ foreach {kind ends} $groups {
 close $f
 report_checks -path_delay max -group_path_count 4 -format full_clock_expanded -digits 6
 report_checks -path_delay min -group_path_count 4 -format full_clock_expanded -digits 6
+puts "ELECTRICAL_BEGIN"
+report_check_types -max_slew -max_capacitance -violators -digits 6
+puts "ELECTRICAL_END"
 puts "TIMING_COMPLETE"

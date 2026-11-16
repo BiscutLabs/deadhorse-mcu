@@ -24,11 +24,22 @@ def prepare(output,sources,original,candidate,capture_fault):
     # Tool elaboration checks that each named cutpoint really exists and is
     # scalar, before any generated wiring can create an implicit wire.
     from equiv import elaborate
-    parsed = elaborate('ibex_multdiv_fast',candidate,output,'candidate-contract',optimize=False)
+    # Inspect the exact hash-bound source being adapted, never a standalone
+    # per-module verification view from the candidate manifest.
+    parsed = elaborate('ibex_multdiv_fast',original,output,'candidate-contract',optimize=False)
     module = json.loads(parsed.read_text())['modules']['ibex_multdiv_fast']
     for name in signals.values():
         if name not in module['netnames'] or len(module['netnames'][name]['bits']) != 1:
             raise ValueError(f'Candidate ALTOPS signal absent/not scalar: {name}')
+    port_widths = dict(clk_i=1, rst_ni=1, mult_sel_i=1, multdiv_ready_id_i=1,
+                       op_a_i=32, op_b_i=32, operator_i=2, signed_mode_i=2, div_sel_i=1)
+    for name, width in port_widths.items():
+        port = module['ports'].get(name)
+        if not port or port['direction'] != 'input' or len(port['bits']) != width:
+            raise ValueError(f'Candidate ALTOPS input absent/wrong width: {name}')
+    result_port = module['ports'].get('multdiv_result_o')
+    if not result_port or result_port['direction'] != 'output' or len(result_port['bits']) != 32:
+        raise ValueError('Candidate ALTOPS result must be a 32-bit output')
     text = data.decode()
     matches = list(re.finditer(r'\bassign\s+multdiv_result_o\s*=\s*[^;]+;',text))
     if len(matches) != 1 or any(name in text for name in ('deadhorse_raw_result','deadhorse_alt')):

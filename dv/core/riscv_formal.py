@@ -55,6 +55,13 @@ def main():
     started = time.monotonic()
     if (args.target == 'candidate') != bool(args.candidate):
         parser.error('--candidate source directory is required only for target candidate')
+    from candidate import manifest
+    registered=bool(args.candidate and (manifest(args.candidate) or {}).get('implementation')=='registered-execution-v1')
+    # Preserve the reference/baseline windows. The separately identified
+    # registered profile needs room for operand qualification and 36 MUL edges.
+    # This still does not cover a full nonzero 111-edge divide; its class remains
+    # explicitly early-zero-only, with separate divider/refinement obligations.
+    depth,check_cycle=(144,64) if registered else (DEPTH,CHECK_CYCLE)
     output = output_dir(args.output)
     (output / 'result.json').write_text('{"status":"blocked"}\n')
     lock = inputs()
@@ -93,19 +100,21 @@ def main():
     defines = [*lock['defines'], 'YOSYS', 'RISCV_FORMAL', 'RISCV_FORMAL_NRET=1', 'RISCV_FORMAL_XLEN=32',
                'RISCV_FORMAL_ILEN=32', 'RISCV_FORMAL_COMPRESSED', 'RISCV_FORMAL_CHECKER=rvfi_insn_check',
                'RISCV_FORMAL_INSN_MODEL=rvfi_isa_rv32imc', 'RISCV_FORMAL_RESET_CYCLES=1',
-               f'RISCV_FORMAL_CHECK_CYCLE={CHECK_CYCLE}']
+               f'RISCV_FORMAL_CHECK_CYCLE={check_cycle}']
     split = sources.index(str(rf / 'checks/rvfi_macros.vh'))
     script = ('read_slang --top rvfi_wrapper ' + ' '.join('-D'+d for d in lock['defines']) + ' ' +
               ' '.join('-I'+str(VENDOR/p) for p in lock['include_dirs']) + ' ' + ' '.join(sources[:split]) + '\n' +
               'read_verilog -formal -sv ' + ' '.join('-D'+d for d in defines) + ' ' + ' '.join(sources[split:]) + '\n' +
               'prep -top rvfi_testbench -flatten\nsetundef -undriven -anyseq\n' +
-              'fminit -seq clock ' + ','.join(str(i % 2) for i in range(DEPTH)) + '\n')
+              'fminit -seq clock ' + ','.join(str(i % 2) for i in range(depth)) + '\n')
 
     def check(name, mode, model, source):
         directory = output_dir(output / name)
         config = directory / 'check.sby'
-        engine = 'abc bmc3' if mode == 'bmc' else 'btor btormc'
-        config.write_text(f'[options]\nmode {mode}\ndepth {DEPTH}\nmulticlock on\ntimeout 600\n' +
+        # The longer registered window is substantially better handled by
+        # btormc. Same model, depth, assumptions, obligations and timeout.
+        engine = 'abc bmc3' if mode == 'bmc' and not registered else 'btor btormc'
+        config.write_text(f'[options]\nmode {mode}\ndepth {depth}\nmulticlock on\ntimeout 600\n' +
                           f'[engines]\n{engine}\n[script]\n' + source.replace(
                               'RISCV_FORMAL_INSN_MODEL=rvfi_isa_rv32imc', f'RISCV_FORMAL_INSN_MODEL=rvfi_insn_{model}'))
         result = run(['sby', '-f', '-d', directory/'work', config], directory, mode, allowed=(0,2,8,16), timeout=630)
@@ -150,14 +159,14 @@ def main():
         if abstracted and (covered != 'PASS' or capture_negative != 'FAIL'):
             raise RuntimeError(f'{name}: missing ALTOPS cover or operand-capture fault escaped')
         kind = ('bounded, arithmetic abstracted (ALTOPS)' if abstracted else
-                'bounded, divisor-zero early-finish path only at check cycle 12' if name in ('div','divu','rem','remu') else
+                f'bounded, divisor-zero early-finish path only at check cycle {check_cycle}' if name in ('div','divu','rem','remu') else
                 'bounded, unabstracted diagnostic' if args.unabstracted_multiply else 'bounded')
         result = dict(status=kind if covered == 'PASS' else 'unsupported',
-                      depth=DEPTH, check_cycle=CHECK_CYCLE, cover=covered, negative_control=negative,
+                      depth=depth, check_cycle=check_cycle, cover=covered, negative_control=negative,
                       capture_negative_control=capture_negative,
                       unabstracted='unresolved (arithmetic)' if abstracted else None,
                       reason=None if covered == 'PASS' else 'Checked retirement not reached within bound')
-        print(f'{name}: {result["status"]}, depth {DEPTH}, cover {covered}', flush=True)
+        print(f'{name}: {result["status"]}, depth {depth}, cover {covered}', flush=True)
         return name, result
 
     # Partitioning the same upstream ISA property avoids a monolithic divider
@@ -172,12 +181,13 @@ def main():
         status = 'unresolved (arithmetic)' if args.unabstracted_multiply and isinstance(exc, ArithmeticTimeout) else 'failed'
         (output/'result.json').write_text(json.dumps(dict(status=status, error=str(exc), checks=results), indent=2)+'\n')
         raise
-    (output/'result.json').write_text(json.dumps(dict(status='diagnostic complete' if args.unabstracted_multiply else 'pass', depth=DEPTH, check_cycle=CHECK_CYCLE,
+    (output/'result.json').write_text(json.dumps(dict(status='diagnostic complete' if args.unabstracted_multiply else 'pass', depth=depth, check_cycle=check_cycle,
+        profile='registered-execution-v1' if registered else 'reference-cycle-baseline',
         target=args.target, candidate=args.candidate, elapsed_seconds=time.monotonic()-started,
         checks=results, negative_control='rejected', limitations=['bounded startup window only',
         'CSR, interrupts, debug, liveness, memory causality, and unbounded ISA proof unsupported']), indent=2)+'\n')
     label = 'DIAGNOSTIC COMPLETE' if args.unabstracted_multiply else 'PASS'
-    print(f'{label} riscv-formal: bounded/covered classifications recorded at depth {DEPTH}; fault rejected; no unbounded proof')
+    print(f'{label} riscv-formal: bounded/covered classifications recorded at depth {depth}; fault rejected; no unbounded proof')
     return 0
 
 

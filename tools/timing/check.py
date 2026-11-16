@@ -1,4 +1,4 @@
-"""Pinned, single-clock GF180 pre-layout block timing. No exception/waiver flags."""
+"""Pinned single-clock or stateless GF180 timing. No exception/waiver flags."""
 import argparse
 import csv
 import hashlib
@@ -29,6 +29,29 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def output_aliases(module):
+    groups = {}
+    for name, port in module['ports'].items():
+        if port['direction'] == 'output':
+            for index, bit in enumerate(port['bits']):
+                if isinstance(bit, int):
+                    groups.setdefault(bit, []).append(f'{name}[{index}]')
+    aliases = [names for names in groups.values() if len(names)>1]
+    return max((len(names) for names in groups.values()),default=1), aliases
+
+
+def electrical_checks(log):
+    """Require the actual STA electrical report, not absence of warning text."""
+    sections = re.findall(r'ELECTRICAL_BEGIN\n(.*?)ELECTRICAL_END', log, re.S)
+    if len(sections) != 1:
+        raise ValueError('Missing or ambiguous STA electrical report')
+    return {'max_capacitance_and_slew_violations': sections[0].count('(VIOLATED)')}
+
+
+def result_status(delay, budget, electrical):
+    return 'pass' if delay <= budget and electrical['max_capacitance_and_slew_violations'] == 0 else 'fail'
+
+
 def run(command, output, name, allowed=(0,)):
     result = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
@@ -40,28 +63,52 @@ def run(command, output, name, allowed=(0,)):
     return result.stdout
 
 
-def validate_boundary(module, clock, library_cells):
+def validate_boundary(module, clock, library_cells, combinational=False):
     ports = module['ports']
-    if clock not in ports or ports[clock]['direction'] != 'input' or len(ports[clock]['bits']) != 1:
+    if not combinational and (clock not in ports or ports[clock]['direction'] != 'input' or len(ports[clock]['bits']) != 1):
         raise ValueError('Missing scalar clock input')
     if any(p['direction'] == 'inout' for p in ports.values()):
         raise ValueError('Unsupported bidirectional timing boundary')
+    # A characterized, non-inverting integrated gate preserves the root clock.
+    # Only this qualified cell driven directly by the root is supported; no
+    # arbitrary logic, cascaded gates, dividers, or extra clock domains.
+    gate_type='gf180mcu_fd_sc_mcu7t5v0__icgtp_1'
+    clock_nets=[] if combinational else [ports[clock]['bits']]
+    for cell in module['cells'].values():
+        if cell['type']==gate_type:
+            pins=cell['connections']
+            if combinational or pins.get('CLK')!=ports[clock]['bits'] or set(pins)!={'CLK','E','TE','Q'} or any(len(v)!=1 for v in pins.values()):
+                raise ValueError('Unsupported integrated clock-gate binding')
+            clock_nets.append(pins['Q'])
     for cell in module['cells'].values():
         if cell['type'] not in library_cells:
             raise ValueError(f'Unsupported macro/cell timing view: {cell["type"]}')
-        # This first flow supports a direct, single clock only. Propagating a
-        # clock through arbitrary logic is not a substitute for generated-clock
-        # constraints. The timer independently checks every sequential clock pin.
-        if 'CLK' in cell['connections'] and cell['connections']['CLK'] != ports[clock]['bits']:
-            raise ValueError('Unsupported or missing clock constraint: non-root CLK net')
+        # STA independently checks every sequential clock pin. Ideal pre-CTS
+        # launch constraints remain unchanged for the root and its gated branch.
+        if 'CLK' in cell['connections']:
+            if combinational:
+                raise ValueError('Sequential cell in combinational timing mode')
+            if cell['connections']['CLK'] not in clock_nets:
+                raise ValueError('Unsupported or missing clock constraint: non-root CLK net')
 
 
-def measure(top, sources, clock, output, liberty=None):
-    reject_sources(sources)
+def measure(top, sources, clock, output, liberty=None, combinational=False):
+    return _measure(top,sources,clock,output,liberty,combinational)
+
+
+def _measure(top, sources, clock, output, liberty=None, combinational=False,
+             reference_options=None):
+    # Shared numerical flow. The production entry above always checks isolation.
+    # Only dv/core/reference_timing.py supplies authenticated reference options;
+    # such receipts are explicitly benchmarks, never production acceptance.
+    if reference_options is None:
+        reject_sources(sources)
     cfg = json.loads(CONFIG.read_text())
     if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', top + ''):
         raise ValueError('Top must be a simple identifier')
-    if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', clock):
+    if combinational and clock is not None:
+        raise ValueError('Combinational mode has a virtual clock, not a clock port')
+    if not combinational and not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', clock or ''):
         raise ValueError('Clock must be a simple identifier')
     output = local(output)
     output.relative_to(ROOT / 'build')
@@ -82,7 +129,8 @@ def measure(top, sources, clock, output, liberty=None):
     synth = output / 'synth.ys'
     frontend = [
         f'read_liberty -lib "{liberty}"',
-        f'read_slang --keep-hierarchy --top {top} -DSYNTHESIS ' + ' '.join(str(p) for p in sources),
+        f'read_slang --keep-hierarchy --top {top} -DSYNTHESIS ' +
+        ' '.join(reference_options or [])+' '+' '.join(str(p) for p in sources),
         f'hierarchy -check -top {top}']
     elaborate = output / 'elaborate.ys'
     elaborate.write_text('\n'.join(frontend + [f'write_json "{output / "elaborated.json"}"', '']))
@@ -95,30 +143,87 @@ def measure(top, sources, clock, output, liberty=None):
         if name not in library_cells and (
                 name.startswith('gf180') or int(mod.get('attributes', {}).get('blackbox', '0'), 2)):
             raise ValueError(f'Unsupported macro/cell timing view: {name}')
+    # ABC constraints guide combinational mapping only. Final STA continues to
+    # use the pinned input slew/output load, independently of this driver model.
+    # An explicit script avoids the retime command inserted by ABC's -D default.
+    budget = cfg['period_ns'] * cfg['budget_fraction']
+    target_ps = budget * 1000
+    driver = cfg['library'] + '__buf_1'
+    if driver not in library_cells:
+        raise ValueError('Missing ABC mapping driver in pinned library')
+    # ABC sees one PO per net, while STA loads each top-level output port.
+    # Determine aliases after logic optimization, and conservatively apply the
+    # maximum aggregate load to every mapper PO. STA constraints do not change.
+    premap = output / 'premap.ys'
+    premap.write_text('\n'.join(frontend + [
+        'check -assert', f'synth -top {top} -flatten -noabc',
+        f'dfflibmap -liberty "{liberty}"', f'write_json "{output / "premapped.json"}"', '']))
+    run(['yosys','-Q','-T','-s',str(premap)],output,'premap')
+    predesign = json.loads((output/'premapped.json').read_text())
+    multiplicity, aliases = output_aliases(predesign['modules'][top])
+    mapping = dict(flow='buffered-sized-alias-load-v3', target_ps=target_ps,
+                   driver_cell_heuristic=driver, output_load_ff=cfg['output_load_pf'] * 1000 * multiplicity,
+                   output_alias_multiplier=multiplicity, output_alias_groups=aliases,
+                   retiming=False)
+    abc_constraints = output / 'mapping.constr'
+    abc_constraints.write_text(f'set_driving_cell {driver}\nset_load {mapping["output_load_ff"]:g}\n')
+    abc_script = output / 'mapping.abc'
+    abc_script.write_text('strash; &get -n; &fraig -x; &put; scorr; dc2; strash; '
+                         f'&get -n; &dch -f; &nf -D {target_ps:g}; &put; buffer; '
+                         f'upsize -D {target_ps:g}; dnsize -D {target_ps:g}; stime -p\n')
+    mapping['script_sha256'] = digest(abc_script)
+    mapping['constraints_sha256'] = digest(abc_constraints)
+    # Reproduce the same frontend/synthesis sequence for mapping instead of
+    # reimporting JSON: serialization changes ABC's traversal order and would
+    # gratuitously perturb the qualified mapping even for non-aliased blocks.
     synth.write_text('\n'.join(frontend + [
         'check -assert', f'synth -top {top} -flatten -noabc',
-        f'dfflibmap -liberty "{liberty}"', f'abc -liberty "{liberty}"',
+        f'dfflibmap -liberty "{liberty}"',
+        f'abc -liberty "{liberty}" -constr "{abc_constraints}" -script "{abc_script}"',
         'clean -purge', 'check -assert', f'stat -liberty "{liberty}"',
         f'write_json "{output / "mapped.json"}"',
         f'write_verilog -noattr -noexpr "{output / "mapped.v"}"', '']))
     synthesis = run(['yosys', '-Q', '-T', '-s', str(synth)], output, 'synthesis')
     design = json.loads((output / 'mapped.json').read_text())
     module = design['modules'][top]
-    validate_boundary(module, clock, library_cells)
+    post_multiplicity, post_aliases = output_aliases(module)
+    if post_multiplicity > multiplicity:
+        raise ValueError('ABC introduced additional output aliases; mapping load must be revised')
+    mapping['mapped_output_alias_multiplier'] = post_multiplicity
+    mapping['mapped_output_alias_groups'] = post_aliases
+    validate_boundary(module, clock, library_cells, combinational)
     areas = re.findall(r'Chip area for (?:top )?module.*?:\s*([0-9.]+)', synthesis)
     if not areas:
         raise ValueError('Missing mapped area')
     tcl = output / 'timing.tcl'
+    gate_pins=[name+'/'+pin for name,cell in module['cells'].items()
+               if cell['type']=='gf180mcu_fd_sc_mcu7t5v0__icgtp_1' for pin in ('E','TE')]
+    if any(re.search(r'[{}\s]',pin) for pin in gate_pins):
+        raise ValueError('Unsupported clock-gate instance name')
     tcl.write_text('\n'.join([
         f'set liberty {{{liberty}}}', f'set netlist {{{output / "mapped.v"}}}',
-        f'set top {top}', f'set clock_port {clock}', f'set period {cfg["period_ns"]}',
+        f'set top {top}', f'set clock_port {{{clock or ""}}}', f'set period {cfg["period_ns"]}',
+        f'set combinational {int(combinational)}',
+        'set clock_gate_pins {'+' '.join(gate_pins)+'}',
         f'set input_transition {cfg["input_transition_ns"]}',
         f'set output_load {cfg["output_load_pf"]}',
         f'set path_report {{{output / "paths.tsv"}}}',
+        f'set gate_path_report {{{output / "gate_checks.tsv"}}}',
         f'source {{{ROOT / "tools/timing/analyze.tcl"}}}', '']))
     timing = run(['sta', '-no_init', '-exit', str(tcl)], output, 'sta')
     if 'TIMING_COMPLETE' not in timing or re.search(r'(?im)^Error:', timing):
         raise ValueError('Incomplete STA analysis; see sta.log')
+    electrical = electrical_checks(timing)
+    gate_checks=[]
+    if gate_pins:
+        with (output/'gate_checks.tsv').open() as stream:
+            gate_checks=list(csv.DictReader(stream,delimiter='\t'))
+        if {(r['pin'],r['check']) for r in gate_checks}!={(p,c) for p in gate_pins for c in ('max_rise','max_fall','min_rise','min_fall')} or len(gate_checks)!=len(gate_pins)*4:
+            raise ValueError('Incomplete clock-gate setup/hold report')
+        for row in gate_checks:
+            row['slack_ns']=float(row['slack_ns'])
+            if not math.isfinite(row['slack_ns']) or row['slack_ns']<0:
+                raise ValueError('Invalid/violating clock-gate setup/hold slack')
     with (output / 'paths.tsv').open() as stream:
         paths = list(csv.DictReader(stream, delimiter='\t'))
     if not paths:
@@ -130,12 +235,15 @@ def measure(top, sources, clock, output, liberty=None):
         if not math.isfinite(path['delay_ns']) or path['delay_ns'] < 0:
             raise ValueError('Invalid path delay')
     worst = max(paths, key=lambda p: p['delay_ns'])
-    budget = cfg['period_ns'] * cfg['budget_fraction']
-    report = dict(status='pass' if worst['delay_ns'] <= budget else 'fail', top=top,
+    report = dict(status=result_status(worst['delay_ns'], budget, electrical), top=top,
+                  role='reference-benchmark-only' if reference_options is not None else 'production',
+                  mapping=mapping, electrical=electrical,
+                  boundary='combinational' if combinational else 'root-clock-with-icg' if gate_pins else 'single-clock',
+                  clock_gate_checks=gate_checks,
                   budget_ns=budget, worst=worst,
                   classes={kind: max((p for p in paths if p['class'] == kind),
                                     key=lambda p: p['delay_ns'], default=None)
-                           for kind in ('RR', 'IR', 'RO', 'IO')},
+                           for kind in ('RR', 'IR', 'RO', 'IO', 'RG', 'IG')},
                   area_um2=float(areas[-1]), assumptions=cfg, tools=versions,
                   flow_sha256={str(p.relative_to(ROOT)): digest(p) for p in
                                [CONFIG, *sorted((ROOT / 'tools/timing').glob('*.py')),
@@ -147,7 +255,8 @@ def measure(top, sources, clock, output, liberty=None):
     (output / 'ledger-row.md').write_text(
         f'| {top} | {worst["delay_ns"]:.6f} ns | {worst["start"]} | {worst["end"]} | '
         f'{worst["logic_depth"]} | {report["area_um2"]:.4f} um2 | {report["status"]} |\n')
-    print(f'{report["status"].upper()} {top}: {worst["delay_ns"]:.6f} ns, budget {budget:.6f} ns', flush=True)
+    print(f'{report["status"].upper()} {top}: {worst["delay_ns"]:.6f} ns, budget {budget:.6f} ns; '
+          f'electrical violations {electrical["max_capacitance_and_slew_violations"]}', flush=True)
     return report
 
 
@@ -174,10 +283,57 @@ def self_test(output):
     # Exercise the actual timer with the clock deliberately attached to reset.
     clock_fault = output / 'hello/missing-clock.tcl'
     clock_fault.write_text((output / 'hello/timing.tcl').read_text().replace(
-        'set clock_port clock\n', 'set clock_port reset_n\n'))
+        'set clock_port {clock}\n', 'set clock_port {reset_n}\n'))
     log = run(['sta', '-no_init', '-exit', str(clock_fault)], output, 'missing-clock', allowed=(1,))
     if 'Missing clock:' not in log or 'TIMING_COMPLETE' in log:
         raise ValueError('Missing-clock negative control escaped')
+    # Overload a real mapped output, without remapping it. This checks the STA
+    # report and parser can distinguish electrical failure from a timing pass.
+    load_fault = output / 'hello/excess-load.tcl'
+    load_fault.write_text((output / 'hello/timing.tcl').read_text().replace(
+        f'set output_load {good["assumptions"]["output_load_pf"]}\n',
+        'set output_load 0.5\n').replace('hello/paths.tsv', 'hello/excess-load-paths.tsv'))
+    log = run(['sta', '-no_init', '-exit', str(load_fault)], output, 'excess-load')
+    electrical_fault = electrical_checks(log)
+    with (output / 'hello/excess-load-paths.tsv').open() as stream:
+        fault_delay = max(float(p['delay_ns']) for p in csv.DictReader(stream, delimiter='\t'))
+    if ('TIMING_COMPLETE' not in log or fault_delay > good['budget_ns'] or
+            result_status(fault_delay, good['budget_ns'], electrical_fault) != 'fail'):
+        raise ValueError('Electrical overload negative control escaped')
+    (output / 'electrical-negative.json').write_text(json.dumps(dict(
+        status='rejected', injected_output_load_pf=0.5, delay_ns=fault_delay,
+        budget_ns=good['budget_ns'], electrical=electrical_fault), indent=2) + '\n')
+    # Stateless timing is an additional boundary contract, not a route for
+    # bypassing the clock checks on a sequential block.
+    try:
+        measure('Hello', [str(output / 'emit/Hello.sv')], None,
+                output / 'wrong-combinational', combinational=True)
+    except ValueError as exc:
+        if 'Sequential cell in combinational timing mode' not in str(exc):
+            raise
+    else:
+        raise ValueError('Sequential design escaped stateless boundary check')
+    mode_fault = output / 'hello/wrong-mode.tcl'
+    mode_fault.write_text((output / 'hello/timing.tcl').read_text().replace(
+        'set combinational 0\n', 'set combinational 1\n'))
+    log = run(['sta', '-no_init', '-exit', str(mode_fault)], output, 'wrong-mode', allowed=(0, 1))
+    if 'Sequential cell in combinational timing mode' not in log or 'TIMING_COMPLETE' in log:
+        raise ValueError('STA stateless boundary negative control escaped')
+    run([sys.executable, 'tools/sbt.py',
+         f'set hw / Compile / unmanagedSources += file("{ROOT}/tools/timing/EmitCombTiming.scala")',
+         f'hw/runMain deadhorse.timing.EmitCombTiming {output}/comb_emit'], output, 'comb-emit')
+    comb = measure('CombTiming', [str(output/'comb_emit/CombTiming.sv')], None,
+                   output/'combinational', combinational=True)
+    if comb['status'] != 'pass' or not comb['classes']['IO'] or comb['worst']['delay_ns'] <= 0:
+        raise ValueError('Stateless positive control lacks a timed IO path')
+    if any(comb['classes'][kind] is not None for kind in ('RR', 'IR', 'RO')):
+        raise ValueError('Stateless fixture unexpectedly contains register paths')
+    alias = measure('AliasTiming',[str(output/'comb_emit/AliasTiming.sv')],None,
+                    output/'alias',combinational=True)
+    if (alias['status'] != 'pass' or alias['mapping']['output_alias_multiplier'] != 2 or
+            alias['mapping']['output_load_ff'] != 100 or alias['assumptions']['output_load_pf'] != 0.05):
+        raise ValueError('Aliased output aggregate mapping load or unchanged STA load lost')
+    gated_self_test(output/'gated')
     try:
         measure('ClockedSram', ['build/riscay-mcu/build/export/clocked/ClockedSram.sv',
                 'build/riscay-mcu/build/export/clocked/gf180mcu_ocd_ip_sram__sram1024x8m8wm1.sv'],
@@ -203,9 +359,44 @@ def self_test(output):
     (output / 'self-test.json').write_text(json.dumps({
         'status': 'pass', 'controls': {'over_budget_cli': 'exit 1',
         'clock_to_q': 'positive direct-register output delay',
-        'missing_clock': 'OpenSTA error', 'unsupported_sram': 'blocked before mapping'},
+        'missing_clock': 'OpenSTA error', 'unsupported_sram': 'blocked before mapping',
+        'electrical_overload': 'STA max-capacitance/slew violations detected',
+        'output_aliases': 'two ports give 100fF mapper load; each retains 50fF STA load',
+        'clock_gate': 'root/gated paths, enable setup/hold; alien clock and setup/hold faults rejected',
+        'stateless': 'positive IO path; sequential inputs rejected by Python and STA'},
         'production': ['Hello', 'RegBlock/mixed', 'RegBlock/coverage']}, indent=2) + '\n')
     print('PASS timing self-test: valid path accepted; real over-budget path rejected', flush=True)
+
+
+def gated_self_test(output):
+    output=local(output); output.mkdir(parents=True,exist_ok=True)
+    (output/'result.json').write_text('{"status":"blocked"}\n')
+    run([sys.executable,'tools/sbt.py',
+         f'set hw / Compile / unmanagedSources += file("{ROOT}/tools/timing/EmitGatedTiming.scala")',
+         f'hw/runMain deadhorse.timing.EmitGatedTiming {output}/emit'],output,'emit')
+    result=measure('GatedTiming',[str(p) for p in sorted((output/'emit').glob('*.sv'))],
+                   'clk',output/'normal')
+    if result['status']!='pass' or len(result['clock_gate_checks'])!=8 or not result['classes']['RG'] or not result['classes']['IG']:
+        raise ValueError('Gated positive control lost data/enable paths')
+    design=json.loads((output/'normal/mapped.json').read_text())['modules']['GatedTiming']
+    gate=next(name for name,cell in design['cells'].items() if cell['type']=='gf180mcu_fd_sc_mcu7t5v0__icgtp_1')
+    original=(ROOT/'tools/timing/analyze.tcl').read_text()
+    faults={
+        'alien-clock':(f'create_clock -name alien -period $period [get_pins {gate}/Q]\n','Unexpected clock:'),
+        'enable-setup':('set_input_delay 50 -max -clock block_clock [get_ports test_enable]\n','Clock-gate enable setup/hold violation'),
+        'enable-hold':('set_input_delay -5 -min -clock block_clock [get_ports test_enable]\n','Clock-gate enable setup/hold violation')}
+    for name,(injection,expected) in faults.items():
+        analysis=output/(name+'-analysis.tcl')
+        analysis.write_text(original.replace('set regs [all_registers]',injection+'set regs [all_registers]',1))
+        driver=output/(name+'.tcl')
+        driver.write_text((output/'normal/timing.tcl').read_text().replace(
+            str(ROOT/'tools/timing/analyze.tcl'),str(analysis)).replace(
+            str(output/'normal/gate_checks.tsv'),str(output/(name+'-gate_checks.tsv'))))
+        log=run(['sta','-no_init','-exit',str(driver)],output,name,allowed=(0,1))
+        if expected not in log or 'TIMING_COMPLETE' in log:
+            raise ValueError('Gated timing negative control escaped: '+name)
+    (output/'result.json').write_text(json.dumps(dict(status='pass',negative_controls=list(faults)),indent=2)+'\n')
+    print('PASS gated timing: root clock, enable setup/hold and three rejected faults',flush=True)
 
 
 def main():
@@ -215,15 +406,17 @@ def main():
     parser.add_argument('--top')
     parser.add_argument('--source', action='append', default=[])
     parser.add_argument('--clock')
+    parser.add_argument('--combinational', action='store_true')
     parser.add_argument('--liberty')
     args = parser.parse_args()
     try:
         if args.self_test:
             self_test(args.output)
             return 0
-        if not args.top or not args.clock:
-            parser.error('--top and --clock are required')
-        return int(measure(args.top, args.source, args.clock, args.output, args.liberty)['status'] != 'pass')
+        if not args.top or (not args.clock and not args.combinational):
+            parser.error('--top and either --clock or --combinational are required')
+        return int(measure(args.top, args.source, args.clock, args.output,
+                           args.liberty, args.combinational)['status'] != 'pass')
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f'BLOCKED timing: {exc}', file=sys.stderr)
         return 2
