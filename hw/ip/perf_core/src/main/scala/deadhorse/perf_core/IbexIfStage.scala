@@ -17,7 +17,7 @@ class IbexIfStage(val DmHaltAddr: BigInt = BigInt("1a110800",16),
     val RndCnstLfsrSeed: BigInt = BigInt("ac533bf4",16),
     val RndCnstLfsrPerm: BigInt = BigInt("1e35ecba467fd1b12e958152c04fa43878a8daed",16),
     val BranchPredictor: Boolean = false, val MemECC: Boolean = false,
-    val MemDataWidth: Int = 32, val RegisteredRedirect: Boolean = false) extends RawModule {
+    val MemDataWidth: Int = 32, val RegisteredRedirect: Boolean = false, val WithF: Boolean = false) extends RawModule {
   require(!DummyInstructions && !ICache && !ICacheECC && !PCIncrCheck && !ResetAll && !BranchPredictor && !MemECC)
   require(BusSizeECC==32 && TagSizeECC==22 && LineSizeECC==64 && MemDataWidth==32)
   require(DmHaltAddr>=0 && DmHaltAddr<(BigInt(1)<<32) && DmExceptionAddr>=0 && DmExceptionAddr<(BigInt(1)<<32))
@@ -99,7 +99,7 @@ class IbexIfStage(val DmHaltAddr: BigInt = BigInt("1a110800",16),
   // In particular, JAL/JALR redirect before their second (link) phase finishes.
   // Only new FIFO-to-ID transfers are suppressed across the redirect register.
   val fetch_valid = prefetch.valid_o && !nt_branch_mispredict_i && !redirectBlocksFetch
-  val compressed_decoder_i = Module(new IbexCompressedDecoder)
+  val compressed_decoder_i = Module(new IbexCompressedDecoder(WithF))
   compressed_decoder_i.clk_i := clk_i; compressed_decoder_i.rst_ni := rst_ni
   compressed_decoder_i.valid_i := fetch_valid && !prefetch.err_o
   compressed_decoder_i.instr_i := prefetch.rdata_o

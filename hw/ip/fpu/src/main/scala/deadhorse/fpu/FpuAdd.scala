@@ -32,3 +32,9 @@ object FpuAdd {
     Cat(sums.reverse)(width - 1, 0)
   }
 }
+
+/** Fixed-width signed subtraction: extend the subtrahend before complementing. */
+object FpuExponentSubtract {
+  def apply(a: SInt, b: SInt, width: Int): SInt =
+    FpuAdd(a.asUInt, ~(b.pad(width).asUInt), width, true.B).asSInt
+}

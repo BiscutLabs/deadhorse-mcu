@@ -190,13 +190,23 @@ def negatives(module, gold, candidate, output):
     if module == 'ibex_multdiv_fast':
         bad = copy.deepcopy(design)
         target = bad['modules'][module]
-        cell = next(c for c in target['cells'].values() if c['type']=='$mul')
-        operand = cell['connections']['A']
+        products=[c for c in target['cells'].values() if c['type']=='$mul']
         bit = max(b for w in target['netnames'].values() for b in w['bits'] if isinstance(b,int))+1
+        if products:
+            operand=products[0]['connections']['A']; original=operand[-1]; operand[-1]=bit
+            fault_name='multiply-sign'
+        else:
+            # Registered execution specializes this child to division only;
+            # its unused multiplier disappears. Corrupt a live divide sign.
+            original=target['ports']['signed_mode_i']['bits'][0]
+            for cell in target['cells'].values():
+                for port,direction in cell['port_directions'].items():
+                    if direction=='input':
+                        cell['connections'][port]=[bit if value==original else value for value in cell['connections'][port]]
+            fault_name='division-sign'
         target['cells']['__sign_fault'] = dict(type='$not', parameters={'A_SIGNED':'0','A_WIDTH':'1','Y_WIDTH':'1'},
-            attributes={},port_directions={'A':'input','Y':'output'},connections={'A':[operand[-1]],'Y':[bit]})
-        operand[-1] = bit
-        cases['multiply-sign'] = bad
+            attributes={},port_directions={'A':'input','Y':'output'},connections={'A':[original],'Y':[bit]})
+        cases[fault_name] = bad
     for name, bad in cases.items():
         directory = output_dir(output/name)
         fault = directory/'fault.json'
@@ -223,11 +233,15 @@ def main():
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--all-modules', action='store_true')
     modes.add_argument('--top', action='store_true')
+    modes.add_argument('--unchanged-since', metavar='TAG')
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
     output = output_dir(args.output)
     (output / 'result.json').write_text('{"status":"blocked"}\n')
     run([sys.executable, 'tools/env/check.py'], output, 'environment')
+    if args.unchanged_since:
+        from unchanged import check
+        return check(args.unchanged_since,args.candidate,output)
     if not re.fullmatch(r'ibex_[a-z0-9_]+', args.module):
         raise ValueError('Invalid module name')
     replacements = {}

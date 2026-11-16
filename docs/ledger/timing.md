@@ -317,3 +317,22 @@ timing. This is mapped pre-layout screening, not routed signoff or chip fit.
 Named emission must preserve the prefix-adder keep attributes. See the
 [T12 report](../plan/tasks/reports/T12.md) for arithmetic/protocol qualification
 and remaining T13/S1 integration work.
+
+
+## T13 approved exponent timing repair (2026-11-15)
+
+Measured on base `11c72b3` plus the T13 working tree, pinned GF180 7t5v0
+SS/125C/3.0V using the unchanged flow and 24.96 ns budget. Commands (after
+`python tools/env/run.py run --`):
+`python3 hw/ip/perf_core/check_top_timing.py --emitted build/t13/exponent/emit/asic --output build/t13/timing-exponent`
+and `python3 hw/ip/fpu/check_timing.py` (through the complete T12 regression).
+
+| Block | Worst path | Mapped area (um2) | Result |
+| --- | --- | --- | --- |
+| Integrated DeadhorsePerfCore, RV32IMFC | 24.698816 ns | 875676.2560 | Pass; zero electrical violations |
+| Standalone Fpu after exponent repair | 24.421045 ns | 218211.6608 | Pass; zero electrical violations |
+
+Same registers and latency: exact whole-top revision equivalence passes with
+all four fault controls; signed-subtraction and prefix-adder proofs pass. No
+upstream source edits or budget change. Pre-layout only, no SRAM/peripherals or
+chip-fit claim. T13 ISA/refinement acceptance remains incomplete.

@@ -9,7 +9,7 @@ import chisel3.reflect.DataMirror
 import deadhorse.lib.{ClockGate,ClockGateTarget}
 
 class IbexTop(val gateTarget: ClockGateTarget = ClockGateTarget.Asic,
-    val WithRVFI: Boolean = true, val RegisteredExecution: Boolean = false) extends RawModule {
+    val WithRVFI: Boolean = true, val RegisteredExecution: Boolean = false, val WithF: Boolean = false) extends RawModule {
   override def desiredName="ibex_top"
   val clk_i=IO(Input(Clock())); val rst_ni=IO(Input(Bool())); val test_en_i=IO(Input(Bool()))
   val ram_cfg_i=IO(Input(UInt(10.W))); val scan_rst_ni=IO(Input(Bool()))
@@ -18,7 +18,7 @@ class IbexTop(val gateTarget: ClockGateTarget = ClockGateTarget.Asic,
   val scramble_key_valid_i=IO(Input(Bool())); val scramble_key_i=IO(Input(UInt(128.W)))
   val scramble_nonce_i=IO(Input(UInt(64.W))); val scramble_req_o=IO(Output(Bool()))
   val core_sleep_o=IO(Output(Bool()))
-  val u_ibex_core=Module(new IbexCore(WithRVFI=WithRVFI,RegisteredExecution=RegisteredExecution))
+  val u_ibex_core=Module(new IbexCore(WithRVFI=WithRVFI,RegisteredExecution=RegisteredExecution,WithF=WithF))
   val gen_regfile_ff_register_file_i=Module(new IbexRegisterFile)
   val core_clock_gate_i=Module(new ClockGate(gateTarget))
   val core=u_ibex_core; val rf=gen_regfile_ff_register_file_i

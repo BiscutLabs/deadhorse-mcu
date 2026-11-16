@@ -13,7 +13,7 @@ class IbexCsRegisters(val DbgTriggerEn: Boolean = true, val DbgHwBreakNum: Int =
     val ShadowCSR: Boolean = false, val ICache: Boolean = false,
     val MHPMCounterNum: Int = 0, val MHPMCounterWidth: Int = 40,
     val PMPEnable: Boolean = false, val PMPGranularity: Int = 0, val PMPNumRegions: Int = 4,
-    val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int = 0) extends RawModule {
+    val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int = 0, val WithF: Boolean = false) extends RawModule {
   require(DbgTriggerEn && DbgHwBreakNum == 1 && !DataIndTiming && !DummyInstructions &&
     !ShadowCSR && !ICache && MHPMCounterNum == 0 && MHPMCounterWidth == 40 &&
     !PMPEnable && PMPGranularity == 0 && PMPNumRegions == 4 && !RV32E && RV32M == 2 && RV32B == 0,
@@ -52,6 +52,11 @@ class IbexCsRegisters(val DbgTriggerEn: Boolean = true, val DbgHwBreakNum: Int =
   val csr_save_cause_i=IO(Input(Bool())); val csr_mcause_i=IO(Input(UInt(7.W)))
   val csr_mtval_i=IO(Input(UInt(32.W))); val illegal_csr_insn_o=IO(Output(Bool()))
   val double_fault_seen_o=IO(Output(Bool()))
+  val fp_commit_i=if(WithF) Some(IO(Input(Bool()))) else None
+  val fp_flags_i=if(WithF) Some(IO(Input(UInt(5.W)))) else None
+  val fp_dirty_i=if(WithF) Some(IO(Input(Bool()))) else None
+  val fp_fs_o=if(WithF) Some(IO(Output(UInt(2.W)))) else None
+  val fp_fcsr_o=if(WithF) Some(IO(Output(UInt(8.W)))) else None
   val instr_ret_i=IO(Input(Bool())); val instr_ret_compressed_i=IO(Input(Bool()))
   val instr_ret_spec_i=IO(Input(Bool())); val instr_ret_compressed_spec_i=IO(Input(Bool()))
   val iside_wait_i=IO(Input(Bool())); val jump_i=IO(Input(Bool())); val branch_i=IO(Input(Bool()))
@@ -105,6 +110,10 @@ class IbexCsRegisters(val DbgTriggerEn: Boolean = true, val DbgHwBreakNum: Int =
   }
   withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
     val priv_lvl_q=RegInit(3.U(2.W))
+    val fpStatus=if(WithF) RegInit(0.U(2.W)) else 0.U(2.W)
+    val fcsr=if(WithF) RegInit(0.U(8.W)) else 0.U(8.W)
+    val fpCsr=csr_addr_i>=1.U && csr_addr_i<=3.U
+    if(WithF) { fp_fs_o.get:=fpStatus; fp_fcsr_o.get:=fcsr }
     val mcountinhibit_q=RegInit(0.U(3.W))
     val mip=Cat(irq_software_i,irq_timer_i,irq_external_i,irq_fast_i)
     def irqWord(value: UInt): UInt = Cat(0.U(1.W),value(14,0),0.U(4.W),value(15),
@@ -135,10 +144,11 @@ class IbexCsRegisters(val DbgTriggerEn: Boolean = true, val DbgHwBreakNum: Int =
     val readData=WireDefault(0.U(32.W)); val known=WireDefault(false.B)
     val debugCsr=csr_addr_i >= "h7b0".U && csr_addr_i <= "h7b3".U
     val statusWord= (mstatus_q(5).asUInt<<3) | (mstatus_q(4).asUInt<<7) |
-      (mstatus_q(3,2)<<11) | (mstatus_q(1).asUInt<<17) | (mstatus_q(0).asUInt<<21)
+      (mstatus_q(3,2)<<11) | (mstatus_q(1).asUInt<<17) | (mstatus_q(0).asUInt<<21) |
+      (if(WithF) (fpStatus<<13) | ((fpStatus===3.U).asUInt<<31) else 0.U(32.W))
     val values=Seq(
       0xf11->0.U,0xf12->22.U,0xf13->0.U,0xf14->hart_id_i,0xf15->0.U,
-      0x300->statusWord,0x310->0.U,0x30a->0.U,0x31a->0.U,0x301->"h40101104".U,
+      0x300->statusWord,0x310->0.U,0x30a->0.U,0x31a->0.U,0x301->(if(WithF) "h40101124".U else "h40101104".U),
       0x304->irqWord(mie_q),0x306->0.U,0x340->u_mscratch_csr.rd_data_o,
       0x305->u_mtvec_csr.rd_data_o,0x341->mepc_q,
       0x342->Cat(mcause_q(5)||mcause_q(6),Fill(26,mcause_q(6)),mcause_q(4,0)),
@@ -147,7 +157,8 @@ class IbexCsRegisters(val DbgTriggerEn: Boolean = true, val DbgHwBreakNum: Int =
       0x7b3->u_dscratch1_csr.rd_data_o,0x320->mcountinhibit_q,
       0x7a0->tselect.rd_data_o,0x7a1->("h28001048".U(32.W)|(tcontrol.rd_data_o<<2)),
       0x7a2->tvalue.rd_data_o,0x7a3->0.U,0x7a8->0.U,0x5a8->0.U,0x7aa->0.U,
-      0x7c0->cpuctrlsts_part_q,0x7c1->0.U)
+      0x7c0->cpuctrlsts_part_q,0x7c1->0.U) ++
+      (if(WithF) Seq(0x001->fcsr(4,0),0x002->fcsr(7,5),0x003->fcsr) else Seq.empty)
     // Disjoint address decode is a parallel selection, not a priority chain.
     // Keep the same values for every address, including unsupported counters.
     require(values.map(_._1).distinct.size==values.size)
@@ -159,7 +170,8 @@ class IbexCsRegisters(val DbgTriggerEn: Boolean = true, val DbgHwBreakNum: Int =
     csr_rdata_o:=readData
     val csr_wr=csr_op_i=/=0.U
     illegal_csr_insn_o:=csr_access_i && (!known || (debugCsr && !debug_mode_i) ||
-      csr_addr_i(9,8)>priv_lvl_q || (csr_addr_i(11,10)===3.U && csr_wr))
+      csr_addr_i(9,8)>priv_lvl_q || (csr_addr_i(11,10)===3.U && csr_wr) ||
+      (if(WithF) fpCsr && fpStatus===0.U else false.B))
     // Each write destination has its own exact address/range decode below.
     // An unknown address selects no destination, so the global read-address
     // recognition tree need not be serial with every write enable. Privilege,
@@ -168,6 +180,26 @@ class IbexCsRegisters(val DbgTriggerEn: Boolean = true, val DbgHwBreakNum: Int =
       ((debugCsr && !debug_mode_i) || csr_addr_i(9,8)>priv_lvl_q || csr_addr_i(11,10)===3.U))
     csr_wdata_int:=Mux(csr_op_i===2.U,csr_wdata_i|readData,
       Mux(csr_op_i===3.U,~csr_wdata_i&readData,csr_wdata_i))
+    if(WithF) {
+      when(fp_commit_i.get) {
+        fcsr:=Cat(fcsr(7,5),fcsr(4,0)|fp_flags_i.get)
+        when(fp_dirty_i.get || fp_flags_i.get.orR) { fpStatus:=3.U }
+      }
+      when(csr_we_int && csr_addr_i==="h300".U) {
+        val next=Mux(csr_op_i===2.U,csr_wdata_i|statusWord,
+          Mux(csr_op_i===3.U,~csr_wdata_i&statusWord,csr_wdata_i))
+        fpStatus:=next(14,13)
+      }
+      when(csr_we_int && fpCsr && fpStatus=/=0.U) {
+        val ownRead=Mux(csr_addr_i===1.U,fcsr(4,0).pad(32),
+          Mux(csr_addr_i===2.U,fcsr(7,5).pad(32),fcsr.pad(32)))
+        val next=Mux(csr_op_i===2.U,csr_wdata_i|ownRead,
+          Mux(csr_op_i===3.U,~csr_wdata_i&ownRead,csr_wdata_i))
+        fcsr:=Mux(csr_addr_i===1.U,Cat(fcsr(7,5),next(4,0)),
+          Mux(csr_addr_i===2.U,Cat(next(2,0),fcsr(4,0)),next(7,0)))
+        fpStatus:=3.U
+      }
+    }
     u_mtvec_csr.wr_en_i:=csr_mtvec_init_i
     u_mtvec_csr.wr_data_i:=Cat(Mux(csr_mtvec_init_i,boot_addr_i(31,8),csr_wdata_int(31,8)),1.U(8.W))
     u_mstatus_csr.wr_data_i:=bits(mstatus_d)

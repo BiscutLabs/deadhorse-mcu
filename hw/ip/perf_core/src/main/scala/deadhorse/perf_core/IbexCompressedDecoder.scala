@@ -8,7 +8,7 @@ package deadhorse.perf_core
 import chisel3._
 import chisel3.util.{Cat, Fill, switch, is}
 
-class IbexCompressedDecoder extends RawModule {
+class IbexCompressedDecoder(val WithF: Boolean = false) extends RawModule {
   override def desiredName = "ibex_compressed_decoder"
   // The reference uses these three pins only for simulation assertions.
   val clk_i = IO(Input(Clock()))
@@ -147,4 +147,23 @@ class IbexCompressedDecoder extends RawModule {
       }
     }
   }
+  if(WithF) {
+    when(i(1,0)===0.U && i(15,13)===3.U) {
+      instr_o:=Cat(u(0,5),i(5),i(12,10),i(6),u(0,2),u(1,2),i(9,7),u(2,3),u(1,2),i(4,2),u(0x07,7))
+      illegal_instr_o:=false.B
+    }
+    when(i(1,0)===0.U && i(15,13)===7.U) {
+      instr_o:=Cat(u(0,5),i(5),i(12),u(1,2),i(4,2),u(1,2),i(9,7),u(2,3),i(11,10),i(6),u(0,2),u(0x27,7))
+      illegal_instr_o:=false.B
+    }
+    when(i(1,0)===2.U && i(15,13)===3.U) {
+      instr_o:=Cat(u(0,4),i(3,2),i(12),i(6,4),u(0,2),u(2,5),u(2,3),i(11,7),u(0x07,7))
+      illegal_instr_o:=false.B // f0 is writable, unlike x0 in C.LWSP.
+    }
+    when(i(1,0)===2.U && i(15,13)===7.U) {
+      instr_o:=Cat(u(0,4),i(8,7),i(12),i(6,2),u(2,5),u(2,3),i(11,9),u(0,2),u(0x27,7))
+      illegal_instr_o:=false.B
+    }
+  }
+
 }

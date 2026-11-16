@@ -38,13 +38,14 @@ int main(int argc, char **argv) {
   dut.instr_gnt_i=0; dut.data_gnt_i=0; dut.instr_rvalid_i=0; dut.data_rvalid_i=0;
   dut.instr_rdata_i=0; dut.data_rdata_i=0;
   dut.eval(); dut.rst_ni=0; dut.eval();
-  bool ip=false, dp=false; uint32_t ir=0, dr=0;
+  bool ip=false, dp=false, software_interrupt=false; uint32_t ir=0, dr=0;
   try {
     // Separate functional fixture budget for the existing full T02 QEMU
     // workload. The smoke/architecture/divide budget remains unchanged.
     const unsigned deadline = flight ? 50000000 : 50000;
     for (unsigned cycle=0; cycle<deadline; ++cycle) {
       dut.clk_i=0; dut.rst_ni=cycle>=5;
+      dut.irq_software_i=software_interrupt;
       dut.instr_rvalid_i=ip; dut.instr_rdata_i=ir;
       dut.data_rvalid_i=dp; dut.data_rdata_i=dr;
       dut.instr_gnt_i=0; dut.data_gnt_i=0; dut.eval();
@@ -54,7 +55,11 @@ int main(int argc, char **argv) {
       uint32_t next_ir=next_ip ? load(dut.instr_addr_o) : 0, next_dr=0;
       const bool flight_marker = flight && dut.data_we_o &&
           (dut.data_addr_o == 0x10000000 || dut.data_addr_o == 0x10000004);
-      if (next_dp && dut.data_addr_o != 0x100000 && !flight_marker) {
+      if (next_dp && dut.data_addr_o == 0x02000000) {
+        // QEMU virt's hart-zero CLINT MSIP, for architectural IRQ injection.
+        next_dr=software_interrupt;
+        if (dut.data_we_o && (dut.data_be_o & 1)) software_interrupt=dut.data_wdata_o & 1;
+      } else if (next_dp && dut.data_addr_o != 0x100000 && !flight_marker) {
         next_dr=load(dut.data_addr_o);
         if (dut.data_we_o) for (int n=0;n<4;++n) if (dut.data_be_o & (1<<n))
           memory[(dut.data_addr_o & ~3u)-base+n]=(dut.data_wdata_o>>(8*n)) & 255;
@@ -67,6 +72,14 @@ int main(int argc, char **argv) {
         FIELD(rs1_addr); FIELD(rs2_addr); FIELD(rs1_rdata); FIELD(rs2_rdata);
         FIELD(rd_addr); FIELD(rd_wdata); FIELD(pc_rdata); FIELD(pc_wdata);
         FIELD(mem_addr); FIELD(mem_rmask); FIELD(mem_wmask); FIELD(mem_rdata); FIELD(mem_wdata);
+#ifdef DEADHORSE_F
+        FIELD(frs_en); FIELD(frs1_addr); FIELD(frs2_addr); FIELD(frs3_addr);
+        FIELD(frs1_rdata); FIELD(frs2_rdata); FIELD(frs3_rdata);
+        FIELD(frd_wen); FIELD(frd_addr); FIELD(frd_wdata); FIELD(ext_fcsr); FIELD(ext_fs);
+        std::cout << ",\"fregs\":[";
+        for (int n=0;n<32;++n) { if(n) std::cout << ','; std::cout << dut.rvfi_ext_fregs[n]; }
+        std::cout << ']';
+#endif
 #undef FIELD
         std::cout << "}\n";
         if (dut.rvfi_mem_wmask && dut.rvfi_mem_addr == 0x100000) {

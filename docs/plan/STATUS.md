@@ -1,6 +1,6 @@
 # Status
 
-Single progress tracker. Last updated: 2026-11-15.
+Single progress tracker. Last updated: 2026-11-16.
 States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete,
 `[-]` withdrawn.
 Decision checks record the user's approvals, not implementation completion.
@@ -74,7 +74,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T10 | [Ibex reference and harness](tasks/T10-ibex-reference.md) | Codex | T07, T08 | [Report](tasks/reports/T10.md): sequential/whole-core harness, candidate suites and divide stress pass; full local gate and independent review pass; D44 limits retained |
 | [x] | T11 | [Ibex conversion](tasks/T11-ibex-conversion.md) | Codex | T10, T09 | [Report](tasks/reports/T11.md): user-approved focused verification complete; exact revision proof carries prior ISA evidence; current tests/timing/lockstep and independent review pass; repeated full CI stopped, not passed |
 | [x] | T12 | [FPU](tasks/T12-fpu.md) | Codex | T07, T09 | [Report](tasks/reports/T12.md): standalone RV32F, focused local gate, arithmetic-abstracted control proof, reference tests, GF180 timing and independent review pass; full CI intentionally not rerun |
-| [ ] | T13 | [F integration](tasks/T13-core-f-integration.md) | unassigned | T11, T12 | |
+| [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Report](tasks/reports/T13.md): critical LW memory/trap partition unresolved at unchanged short cap; C.ADD/focused gate open; JALR, IF and widened integration reviewed; incomplete checkpoint authorized for review |
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
 | [ ] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | unassigned | T07, T09 | Replaces the NoC work |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
@@ -138,6 +138,76 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-16: T13 remains blocked, Codex; user explicitly requested commit/push of the incomplete checkpoint for their review, with the unresolved formal-verification problem described in the commit. No acceptance requirement or status was changed; the existing T11 baseline tag accompanies the checkpoint.
+
+- 2026-11-16: T13 in progress -> blocked, Codex; one native solver-query refinement and one exact two-group split preserve all checks. LW control/register partition passes at depth 144; memory/trap partition reaches the unchanged 120-second cap without a counterexample. No further cascade, concrete qualification or C.ADD runs were launched. Focused gate remains unresolved and T13 uncommitted; workflow commit `ac45fd4` is pushed.
+
+- 2026-11-16: T13 continued, Codex; widened-model integration safety and fresh production binding pass independent review. One critical LW attempt reaches the unchanged short cap without a counterexample; C.ADD is checked separately. Focused gate authenticates prior evidence but correctly refuses unresolved critical checks.
+
+- 2026-11-16: T13 continued, Codex; all33 original JALR assertions close with exact accounting, concrete covers/faults and independent review. Corrected FPU model has constructive trace inclusion; unchanged28 safety assertions/eight abstract covers pass, with fresh production-binding companion pending. Remaining critical load/compressed-add checks and final focused gate remain open.
+
+- 2026-11-16: T13 continued, Codex; exact operand, RF source and capture/staged arithmetic compositions close original JALR next-PC assertion with active covers/faults and independent review. Local IF equivalence passes in explicit raw-encoding domain. 104 harness tests pass. Full critical-ISA accounting and final gate remain open; reviewer found an invalid/completion-payload coupling in the old FPU formal model, so a new inclusion-qualified model is being prepared without changing production RTL.
+
+- 2026-11-16: T13 continued, Codex; exact monitor reset/step/final SAT composition proves full capture ownership identity with all mutation negatives and independent review. Active capture-valid and real production PC fault qualification pass; 88 harness tests pass. Workflow-only commit `ac45fd4` pushed separately. Remaining arithmetic, ISA/IF and local gate stay open; no full formal sweep.
+
+- 2026-11-16: User authorized minor fixes and verification refinements with quick research and independent agent review; updated task workflow and resumed T13 compositional ownership checks. Acceptance requirements remain unchanged.
+
+- 2026-11-16: T13 in progress -> blocked, Codex; no-write/no-clear/transition-tag stability prove unbounded with active covers, real faults and independent review. Authenticated inherited-monitor equivalence passes; one owner-JALR attempt retaining all three phase helpers as assertions still times out at unchanged120 seconds without counterexample. Eighty-one harness tests and structure pass; no further global retry, commit or push. [Report](tasks/reports/T13.md).
+
+- 2026-11-16: T13 resumed, Codex; user approved transition-local instruction/phase stability checks while integer execution is outstanding. Retain exact production model, assumptions, short limits and independent review.
+
+- 2026-11-16: T13 in progress -> blocked, Codex; exact ownership split passes owner-valid, then times out on owner-JALR alone at unchanged120 seconds without counterexample. Remaining first/instruction/PC partitions unrun. Qualification and omitted-PC negative pass; independent review authenticates final models/statuses and finds no concrete stale-response defect. Seventy-seven harness tests and structure pass. No kind composition, acceptance waiver, commit or push. [Report](tasks/reports/T13.md).
+
+- 2026-11-16: T13 resumed, Codex; user approved isolating existing capture ownership flags from instruction/PC identity. Exact full-inventory partition, original assumptions and short limits retained; independent review required.
+
+- 2026-11-16: T13 in progress -> blocked, Codex; actual accepted-request classification, kind/phase retention and retained JALR kind prove with active covers and real faults. Exact authenticated reuse resolves a trace-parser issue without rerunning completed proofs. Redirect instruction/PC identity times out at unchanged120 seconds without counterexample; later covers/fault unrun. Independent review clears scoped control evidence and authenticated reuse; hardened companion audit verifies identity status directly. Seventy-four harness tests and structure pass. No commit/push. [Report](tasks/reports/T13.md).
+
+- 2026-11-16: T13 resumed, Codex; user approved observing actual request acceptance and tracking instruction/PC/phase through redirect capture. No assumptions or limits changed; independent review required.
+
+- 2026-11-16: T13 in progress -> blocked, Codex; approved exact six-conjunct alignment diagnostic passes response validity, then times out on saved ALU-kind ownership at the unchanged120-second limit without counterexample. Remaining four partitions and original cover/fault/ADD obligations unrun. Boolean equivalence and omitted-condition negative pass, seventy-one harness tests and structure pass, and independent review verifies models/hashes/statuses. No commit/push. [Report](tasks/reports/T13.md).
+
+- 2026-11-16: T13 resumed, Codex; user approved exact partitioning of the existing saved-request alignment conjuncts. Preserve the full condition inventory, unchanged production/environment, short limits and independent review.
+
+- 2026-11-16: T13 continuation -> blocked, Codex; independently reviewed narrower saved-request alignment also times out at unchanged120 seconds without counterexample. Later covers/fault and local ADD roles unrun; independent final review verifies protected hashes/statuses and clears no proof result. Further solver attempts stopped. Sixty-eight harness tests and structure check pass; no acceptance waiver, commit or push. [Report](tasks/reports/T13.md).
+
+- 2026-11-16: T13 continued autonomously, Codex; narrow diagnostic capture arithmetic timed out with original acceptance unchanged. Pursue independently recommended saved-request alignment and local ADD lemmas under the same short caps; no architecture or acceptance change.
+
+- 2026-11-16: T13 in progress -> blocked, Codex; capture-source correspondence proves unbounded with active x0/alias covers and actual source-bit fault. Exact authenticated resume repairs a witness-parser issue without rerunning completed proofs. Capture arithmetic times out at unchanged120-second cap without counterexample; later arithmetic roles unrun. Source-only guard audit passes and retains unresolved aggregate status. Independent review clears reuse/source evidence; remaining acceptance prevents commit/push. [Report](tasks/reports/T13.md).
+
+- 2026-11-16: T13 resumed, Codex; user requested autonomous continuation through remaining focused proofs and review, asking only for substantive problems. Continue capture arithmetic/source correspondence without changing checks or limits.
+
+- 2026-11-16: T13 focused transport continuation completed, Codex; redirect capture/identity/retirement/RVFI transport proves unbounded within unchanged short cap; active cover, actual PC-bit fault and guard-negative audit pass. Independent review clears the scoped proof and audit; sixty-three Python tests pass. Target arithmetic and remaining acceptance keep T13 blocked; no complete-checker retry, commit or push. [Report](tasks/reports/T13.md).
+
+- 2026-11-16: T13 resumed, Codex; user approved the focused JALR redirect-target transport proof, retaining asserted capture validity, instruction identity, original environment and short limits.
+
+- 2026-11-16: T13 in progress -> blocked, Codex; focused target-PC predicate passes exact guard qualification and sign-extension fault, but sequential proof times out at unchanged 120-second cap without counterexample. Later proof/cover/fault roles did not run. Repaired shared audit metadata using exact hash-matching immutable snapshots, without rewriting raw results or rerunning proofs. Sixty Python tests and structure check pass; independent review clears harness and metadata repair, not target proof or task acceptance. No commit/push. [Report](tasks/reports/T13.md).
+
+- 2026-11-16: T13 resumed, Codex; user continued with the focused JALR jump-target PC proof, exact pinned-checker guards and independent review. Preserve every acceptance obligation and short limit.
+
+- 2026-11-16: T13 focused return-value continuation completed, Codex; JALR link invariant proves unbounded and original line177 plus helper passes within unchanged 120-second cap. Exact guard qualification, wrong-increment rejection, active x0/nonzero covers and real output-fault witness pass independent review. Fifty-two Python tests and structure check pass. Remaining next-PC/ISA/IF/local gate keep T13 blocked; no complete-checker retry, commit or push. [Report](tasks/reports/T13.md).
+
+- 2026-11-16: T13 resumed, Codex; user approved targeted JALR return-value invariant and independent review. Preserve original guards, all acceptance obligations and the 120-second cap; no complete ISA sweep.
+
+- 2026-11-15: T13 in progress -> blocked, Codex; approved all-retirement JALR address invariant and original address assertion pass with exact guard qualification, real fault/witness checks and independent review. One complete JALR attempt retains all original checks but times out at unchanged 120 seconds without counterexample; no sweep or further retry. Forty-seven Python tests and structure check pass. No commit/push. [Report](tasks/reports/T13.md).
+
+- 2026-11-15: T13 resumed, Codex; user approved one targeted all-retirement JALR source-address invariant, exact checker-guard qualification and independent review. Existing ISA checks and 120-second limit unchanged.
+
+- 2026-11-15: T13 in progress -> blocked, Codex; approved exact ISA partitioning implemented and independently audited. Six of 33 JALR assertions pass, source-register-address assertion times out at unchanged 120 seconds without counterexample; fail-fast stops all later jobs. Forty-one Python tests and structure check pass. Original assertions, assumptions, depths, covers and fault obligations remain intact. No commit/push. [Report](tasks/reports/T13.md).
+
+- 2026-11-15: T13 blocked -> in progress, Codex; user approved splitting critical ISA assertions into smaller proof jobs. Preserve the complete assertion inventory, assumptions, depth 144/check cycle 64, 120-second limits, covers and real fault controls; no acceptance waiver.
+
+- 2026-11-15: T13 in progress -> blocked, Codex; approved exponent repair passes timing, exact whole-top equivalence, complete FPU regression and 51 core tests. All 28 integration safety assertions prove unbounded under the authenticated FPU contract; fault/covers and local compressed/CSR proofs pass independent review. Twelve untouched modules prove against rebuilt T11. Three critical ISA bounds and one jump induction trial time out at 120 seconds without counterexamples; further retries stopped. Remaining refinement/local gate incomplete; no commit/push. [Report](tasks/reports/T13.md).
+
+- 2026-11-15: T13 blocked -> in progress, Codex; user approved the narrow internal FPU exponent-subtractor repair through the existing HardFloat patch, exact arithmetic proofs and revalidation. All timing and verification limits unchanged.
+
+- 2026-11-15: T13 in progress -> blocked, Codex; core repairs and architectural/random/flight lockstep pass, default profile exactly matches tagged T11. Remaining timing path is internal FPU arithmetic outside the brief's interface-glue scope; narrow patch approval requested after independent review. Integration formal remains unresolved at unchanged short timeouts. [Report](tasks/reports/T13.md).
+
+- 2026-11-15: T13 blocked -> in progress, Codex; user approved registered F decode and continued timing closure with all checks and limits unchanged.
+
+- 2026-11-15: T13 in progress -> blocked, Codex; initial integrated timing fails the unchanged budget. Independent review supports registered F decode; awaiting approval required by the brief. Work uncommitted; acceptance incomplete. [Report](tasks/reports/T13.md).
+
+- 2026-11-15: T13 not started -> in progress, Codex; user assigned next task with independent review and commit/push. Preserve T11 baseline tag, implement F integration first, keep checks focused without another hours-long ISA sweep.
 
 - 2026-11-15: T12 in progress -> done, Codex; focused gate and independent review pass. Exact emitted-RTL identity qualifies canonical upstream-byte restoration. All operations retained; unchanged timing budget passes. [Report](tasks/reports/T12.md); T13 not started.
 

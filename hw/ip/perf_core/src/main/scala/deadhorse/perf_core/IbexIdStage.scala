@@ -10,7 +10,7 @@ import chisel3.util._
 class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int = 0,
     val DataIndTiming: Boolean = false, val BranchTargetALU: Boolean = false,
     val WritebackStage: Boolean = false, val BranchPredictor: Boolean = false,
-    val MemECC: Boolean = false, val RegisteredExecution: Boolean = false) extends RawModule {
+    val MemECC: Boolean = false, val RegisteredExecution: Boolean = false, val WithF: Boolean = false) extends RawModule {
   require(!RV32E && RV32M==2 && RV32B==0 && !DataIndTiming && !BranchTargetALU &&
     !WritebackStage && !BranchPredictor && !MemECC,"T11 implements the pinned ID stage")
   override def desiredName="ibex_id_stage"
@@ -70,6 +70,9 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
   val instr_id_done_o=IO(Output(Bool()))
   val execute_req_o=if(RegisteredExecution) Some(IO(Output(Bool()))) else None
   val execute_consume_o=if(RegisteredExecution) Some(IO(Output(Bool()))) else None
+  val fp_instr_i=if(WithF) Some(IO(Input(UInt(32.W)))) else None
+  val fp_illegal_i=if(WithF) Some(IO(Input(Bool()))) else None
+  val fp_load_commit_o=if(WithF) Some(IO(Output(Bool()))) else None
   val executionPhaseReady=WireDefault(true.B)
 
   val decoder_i=Module(new IbexDecoder(RV32E,RV32M,RV32B,BranchTargetALU))
@@ -78,6 +81,8 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
   def stableControl(value:Bool):Bool=if(RegisteredExecution)
     withClockAndReset(clk_i,(!rst_ni).asAsyncReset) { RegNext(value,false.B) } else value
   val dataRequest=stableControl(dec.data_req_o)
+  val integerWrite=if(WithF) stableControl(dec.rf_we_o) else dec.rf_we_o
+  val storeInstruction=if(WithF) stableControl(dec.data_we_o) else dec.data_we_o
   val multiplyEnable=stableControl(dec.mult_en_o); val divideEnable=stableControl(dec.div_en_o)
   val branchInstruction=stableControl(dec.branch_in_dec_o); val jumpInstruction=stableControl(dec.jump_in_dec_o)
   val ecallInstruction=stableControl(dec.ecall_insn_o); val ebreakInstruction=stableControl(dec.ebrk_insn_o)
@@ -88,7 +93,8 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
   val decodeReady=WireDefault(true.B)
   val effectiveIllegalCsr=WireDefault(illegal_csr_insn_i)
   dec.clk_i:=clk_i; dec.rst_ni:=rst_ni; ctrl.clk_i:=clk_i; ctrl.rst_ni:=rst_ni
-  dec.instr_rdata_i:=instr_rdata_i; dec.instr_rdata_alu_i:=instr_rdata_alu_i
+  dec.instr_rdata_i:=(if(WithF) fp_instr_i.get else instr_rdata_i)
+  dec.instr_rdata_alu_i:=(if(WithF) fp_instr_i.get else instr_rdata_alu_i)
   dec.illegal_c_insn_i:=illegal_c_insn_i; dec.branch_taken_i:=true.B
   icache_inval_o:=dec.icache_inval_o; rf_raddr_a_o:=dec.rf_raddr_a_o
   rf_raddr_b_o:=dec.rf_raddr_b_o; rf_waddr_id_o:=dec.rf_waddr_o
@@ -96,7 +102,7 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
   mult_sel_ex_o:=dec.mult_sel_o; div_sel_ex_o:=dec.div_sel_o
   multdiv_operator_ex_o:=dec.multdiv_operator_o; multdiv_signed_mode_ex_o:=dec.multdiv_signed_mode_o
   csr_access_o:=dec.csr_access_o; csr_op_o:=dec.csr_op_o
-  lsu_we_o:=dec.data_we_o; lsu_type_o:=dec.data_type_o; lsu_sign_ext_o:=dec.data_sign_extension_o
+  lsu_we_o:=storeInstruction; lsu_type_o:=dec.data_type_o; lsu_sign_ext_o:=dec.data_sign_extension_o
   lsu_wdata_o:=rf_rdata_b_i
   multdiv_operand_a_ex_o:=rf_rdata_a_i; multdiv_operand_b_ex_o:=rf_rdata_b_i
   multdiv_ready_id_o:=ready_wb_i
@@ -105,22 +111,31 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
   rf_wdata_id_o:=Mux(dec.rf_wdata_sel_o===1.U,csr_rdata_i,result_ex_i)
   val illegal_dret=dec.dret_insn_o && !ctrl.debug_mode_o
   val illegal_umode=priv_mode_i=/=3.U && (dec.mret_insn_o || (csr_mstatus_tw_i && dec.wfi_insn_o))
-  val decodedIllegal=dec.illegal_insn_o || illegal_csr_insn_i || illegal_dret || illegal_umode
+  val currentCsrIllegal=if(WithF) dec.csr_access_o && illegal_csr_insn_i else illegal_csr_insn_i
+  val decodedIllegal=dec.illegal_insn_o || currentCsrIllegal || illegal_dret || illegal_umode || (if(WithF) fp_illegal_i.get else false.B)
   if(RegisteredExecution) {
     // Break the instruction -> CSR legality -> controller -> fetch-ready path.
     // No execution request or instruction effect is allowed before this stage.
     withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
       val decoded_q=RegInit(false.B)
       val operands_staged_q=RegInit(false.B)
+      // With F, instruction selection precedes decode. CSR legality also
+      // traverses the core CSR request register and needs one further cycle.
+      val csr_request_staged_q=if(WithF) Some(RegInit(false.B)) else None
       val illegal_q=RegInit(false.B)
       val illegal_csr_q=RegInit(false.B)
       when(instr_valid_i && ctrl.controller_run_o && !decoded_q) {
         operands_staged_q:=true.B
-        when(operands_staged_q) {
-          decoded_q:=true.B; illegal_q:=decodedIllegal; illegal_csr_q:=illegal_csr_insn_i
+        if(WithF) { csr_request_staged_q.get:=operands_staged_q }
+        val settled=if(WithF) !dec.csr_access_o || csr_request_staged_q.get else true.B
+        when(operands_staged_q && settled) {
+          decoded_q:=true.B; illegal_q:=decodedIllegal; illegal_csr_q:=currentCsrIllegal
         }
       }
-      when(instr_valid_clear_o) { decoded_q:=false.B; operands_staged_q:=false.B }
+      when(instr_valid_clear_o) {
+        decoded_q:=false.B; operands_staged_q:=false.B
+        if(WithF) { csr_request_staged_q.get:=false.B }
+      }
       decodeReady:=decoded_q
       illegal_insn_o:=instr_valid_i && decoded_q && illegal_q
       effectiveIllegalCsr:=illegal_csr_q
@@ -190,7 +205,7 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
       execute_consume_o.get:=instr_executing && phaseNeedsExecute && ex_valid_i && ready_wb_i
     }
     val id_fsm_d=WireDefault(id_fsm_q)
-    val rf_we_raw=WireDefault(dec.rf_we_o)
+    val rf_we_raw=WireDefault(integerWrite)
     val stall_multdiv=WireDefault(false.B); val stall_jump=WireDefault(false.B)
     val stall_branch=WireDefault(false.B); val stall_alu=WireDefault(false.B)
     val branch_set_raw_d=WireDefault(false.B); val jump_set_raw=WireDefault(false.B)
@@ -212,7 +227,7 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
             id_fsm_d:=true.B; stall_alu:=true.B; rf_we_raw:=false.B
           }.otherwise { id_fsm_d:=false.B }
       }.otherwise {
-        when(multdiv_en_dec) { rf_we_raw:=dec.rf_we_o && ex_valid_i }
+        when(multdiv_en_dec) { rf_we_raw:=integerWrite && ex_valid_i }
         when(multicycle_done && ready_wb_i) { id_fsm_d:=false.B }
           .otherwise { stall_multdiv:=multdiv_en_dec; stall_branch:=branchInstruction; stall_jump:=jumpInstruction }
       }
@@ -246,6 +261,12 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
     val instr_done= !stall_id && !ctrl.flush_id_o && instr_executing
     dec.instr_first_cycle_i:=instr_first_cycle; instr_first_cycle_id_o:=instr_first_cycle
     instr_id_done_o:=instr_done; en_wb_o:=instr_done
+    if(WithF) {
+      // A load's response phase has no branch/execute stall. Resolve its
+      // architectural commit directly instead of routing through that tree.
+      fp_load_commit_o.get:=instr_executing && !ctrl.flush_id_o && dataRequest &&
+        !instr_first_cycle && !storeInstruction && lsu_resp_valid_i
+    }
     lsu_req_o:=instr_executing && instr_first_cycle && dataRequest && executionPhaseReady
     mult_en_ex_o:=instr_executing && multiplyEnable; div_en_ex_o:=instr_executing && divideEnable
     if(RegisteredExecution) {
@@ -255,8 +276,8 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
       csr_op_en_o:=csrInstruction && execute_consume_o.get && decodeReady && !illegal_insn_o
     } else { csr_op_en_o:=csrInstruction && instr_executing && instr_done }
     rf_we_id_o:=rf_we_raw && instr_executing && !effectiveIllegalCsr && executionPhaseReady
-    expecting_load_resp_o:=instr_valid_i && dataRequest && !instr_first_cycle && !dec.data_we_o
-    expecting_store_resp_o:=instr_valid_i && dataRequest && !instr_first_cycle && dec.data_we_o
+    expecting_load_resp_o:=instr_valid_i && dataRequest && !instr_first_cycle && !storeInstruction
+    expecting_store_resp_o:=instr_valid_i && dataRequest && !instr_first_cycle && storeInstruction
     perf_dside_wait_o:=instr_executing && dataRequest && !lsu_resp_valid_i
     perf_mul_wait_o:=stall_multdiv && multiplyEnable; perf_div_wait_o:=stall_multdiv && divideEnable
   }

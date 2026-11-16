@@ -7,7 +7,7 @@ from common import ROOT, output_dir, run
 from lockstep import BASE, compile_sim, compare, qemu_trace, architectural_effect
 
 
-def flight_reentry(records,binary,base):
+def flight_reentry(records,binary,base,allow_compressed=False):
     """Validate QEMU's repeated post-MMIO load prestate; never drop a retirement.
 
     Only identical consecutive snapshots at a RAM load immediately after a
@@ -24,7 +24,13 @@ def flight_reentry(records,binary,base):
                     return 0
                 return int.from_bytes(binary[offset:offset+4],'little')
             store,load = instruction(before),instruction(record)
-            if store & 0x707f == 0x2023 and load & 0x7f == 3 and record['pc']==before['pc']+4:
+            store_size=4 if store&3==3 else 2
+            compressed_store=allow_compressed and store&3 in (0,2) and (store&0xffff)>>13==6
+            compressed_load=allow_compressed and load&3 in (0,2) and (load&0xffff)>>13==2
+            if ((store & 0x707f == 0x2023 or compressed_store) and
+                    (load & 0x7f == 3 or compressed_load) and record['pc']==before['pc']+store_size):
+                if store_size==2: store &= 0xffff
+                if load&3!=3: load &= 0xffff
                 _,access = architectural_effect(store,before['regs'])
                 _,loaded = architectural_effect(load,record['regs'])
                 if (access and access[0] and access[1] in (0x10000000,0x10000004)

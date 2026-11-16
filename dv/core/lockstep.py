@@ -23,7 +23,10 @@ def compile_sim(output, candidate=None, original=False):
             sources[sources.index(original_top)] = str(local(candidate))
     from candidate import parameters as candidate_parameters
     parameters = candidate_parameters(candidate)
+    from candidate import manifest
+    floating=bool(candidate and local(candidate).is_dir() and (manifest(candidate) or {}).get('implementation')=='rv32imfc-v1')
     run(['verilator', '--cc', '--exe', '--build', '-j', '4', '--top-module', 'ibex_top',
+         *(['-CFLAGS','-DDEADHORSE_F'] if floating else []),
          '-Wno-fatal', '--Mdir', str(output / 'obj'),
          *['-D' + p for p in lock['defines']],
          *['-I' + str(VENDOR / p) for p in lock['include_dirs']],
@@ -40,7 +43,7 @@ def build_program(output):
     return elf
 
 
-def qemu_trace(elf, output, base=BASE, image=None, entry=None):
+def qemu_trace(elf, output, base=BASE, image=None, entry=None, floating=False):
     pin = json.loads((ROOT / 'dv/core/iss.json').read_text())
     actual = run(['dpkg-query', '-W', '-f=${Version}', pin['package']], output, 'iss-pin').stdout.strip()
     if actual != pin['package_version']:
@@ -50,13 +53,14 @@ def qemu_trace(elf, output, base=BASE, image=None, entry=None):
     if image is not None:
         loader = ['-device',f'loader,file={image},addr={base},force-raw=on',
                   '-device',f'loader,addr={entry},cpu-num=0']
-    run([pin['executable'], '-machine', pin['machine'], '-cpu', pin['cpu'], '-nographic',
-         '-bios', 'none', *loader, '-singlestep', '-d', 'cpu', '-D', str(output / 'qemu.trace')],
+    cpu=pin['cpu']+(',a=false,zawrs=false,d=false,h=false,s=false' if floating else '')
+    run([pin['executable'], '-machine', pin['machine'], '-cpu', cpu, '-nographic',
+         '-bios', 'none', *loader, '-singlestep', '-d', 'cpu,fpu' if floating else 'cpu', '-D', str(output / 'qemu.trace')],
         output, 'qemu', timeout=30)
-    return read_qemu_trace(output/'qemu.trace',entry)
+    return read_qemu_trace(output/'qemu.trace',entry,floating)
 
 
-def read_qemu_trace(path,entry=BASE):
+def read_qemu_trace(path,entry=BASE,floating=False):
     records = []
     current = None
     for line in path.open():
@@ -65,9 +69,17 @@ def read_qemu_trace(path,entry=BASE):
             if current is not None:
                 records.append(current)
             current = dict(pc=int(match[1], 16), regs={})
+            if floating: current['fregs']={}
         if current is not None:
             for index, value in re.findall(r'x(\d+)/\S+\s+([0-9a-f]+)', line):
                 current['regs'][int(index)] = int(value, 16)
+            if floating:
+                for index,value in re.findall(r'f(\d+)/\S+\s+([0-9a-f]+)',line):
+                    current['fregs'][int(index)]=int(value,16)&0xffffffff
+                status=re.match(r'^\s*mstatus\s+([0-9a-f]+)',line)
+                if status: current['mstatus']=int(status[1],16)
+                privileged=re.match(r'^\s*(mcause|mepc|mtvec)\s+([0-9a-f]+)',line)
+                if privileged: current[privileged[1]]=int(privileged[2],16)
     if current is not None:
         records.append(current)
     start = next((i for i, r in enumerate(records) if r['pc'] == entry), None)
@@ -76,6 +88,8 @@ def read_qemu_trace(path,entry=BASE):
     records = records[start:]
     if any(len(r['regs']) != 32 for r in records):
         raise ValueError('Incomplete ISS register snapshot')
+    if floating and any(len(r['fregs'])!=32 or 'mstatus' not in r for r in records):
+        raise ValueError('Incomplete floating ISS snapshot')
     return records
 
 
@@ -142,7 +156,7 @@ def architectural_effect(insn, regs):
     return rd, memory
 
 
-def completion_window(iss, binary, base=BASE):
+def completion_window(iss, binary, base=BASE, allow_compressed_store=False):
     """Delimit by the ISS's own finisher store; validate every shutdown-tail row.
 
     QEMU shutdown is asynchronous. Its trace can contain multiple iterations
@@ -154,24 +168,28 @@ def completion_window(iss, binary, base=BASE):
         if offset < 0 or offset + 4 > len(binary):
             continue
         insn = int.from_bytes(binary[offset:offset+4], 'little')
-        if insn & 0x707f != 0x2023:
-            continue
-        immediate = ((insn >> 25) << 5) | ((insn >> 7) & 31)
-        if immediate & 0x800:
-            immediate -= 4096
-        address = (state['regs'][(insn >> 15) & 31] + immediate) & 0xffffffff
-        if address != 0x100000 or state['regs'][(insn >> 20) & 31] != 0x5555:
+        size=4
+        if insn & 0x707f == 0x2023:
+            _,access=architectural_effect(insn,state['regs'])
+        elif allow_compressed_store and insn&3==0 and (insn&0xffff)>>13==6:
+            size=2
+            _,access=architectural_effect(insn&0xffff,state['regs'])
+        else: continue
+        if not access or access[:3]!=(True,0x100000,4) or access[3]!=0x5555:
             continue
         tail = iss[index+1:]
         if not tail:
             raise ValueError('Missing ISS completion-store poststate')
-        pc = state['pc'] + 4
+        pc = state['pc'] + size
         offset = pc - base
         instruction = int.from_bytes(binary[offset:offset+4], 'little')
         if not (instruction == 0x0000006f or instruction & 0xffff == 0xa001):
             raise ValueError('Completion tail is not the required inert self-jump')
         if any(row['pc'] != pc or row['regs'] != state['regs'] for row in tail):
             raise ValueError('Unexpected instruction/state in ISS shutdown tail')
+        if 'fregs' in state and any(row['fregs']!=state['fregs'] or
+                (row['mstatus']&0x6000)!=(state['mstatus']&0x6000) for row in tail):
+            raise ValueError('Unexpected floating state in ISS shutdown tail')
         return iss[:index+2]
     raise ValueError('ISS did not execute the completion store')
 
@@ -241,6 +259,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--self-check', action='store_true')
     parser.add_argument('--candidate')
+    parser.add_argument('--isa',choices=['rv32imc','rv32imfc'],default='rv32imc')
     parser.add_argument('--suite',default='smoke')
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
@@ -249,6 +268,9 @@ def main():
     output = output_dir(args.output)
     (output / 'result.json').write_text('{"status":"blocked"}\n')
     run([sys.executable, 'tools/env/check.py'], output, 'environment')
+    if args.isa=='rv32imfc':
+        from float_suites import run_suites
+        return run_suites(args.candidate,args.suite,output)
     if args.suite != 'smoke':
         from suites import run_suites
         return run_suites(args.candidate,args.suite,output)

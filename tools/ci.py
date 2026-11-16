@@ -9,6 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    if sys.argv[1:3] == ['--scope', 't13']:
+        import t13_gate
+        sys.argv = [sys.argv[0], *sys.argv[3:]]
+        return t13_gate.main()
     started = time.monotonic()
     output = ROOT/'build/ci'
     output.mkdir(parents=True,exist_ok=True)

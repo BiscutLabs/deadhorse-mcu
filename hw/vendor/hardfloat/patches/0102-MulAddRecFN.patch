@@ -9,7 +9,7 @@
  {
      override def desiredName = s"MulAddRecFNToRaw_preMul_e${expWidth}_s${sigWidth}"
      val io = IO(new Bundle {
-@@ -96,8 +96,8 @@
+@@ -96,20 +96,21 @@
  
      val signProd = rawA.sign ^ rawB.sign ^ io.op(1)
  //*** REVIEW THE BIAS FOR 'sExpAlignedProd':
@@ -20,7 +20,12 @@
  
      val doSubMags = signProd ^ rawC.sign ^ io.op(0)
  
-@@ -108,8 +108,8 @@
+     //------------------------------------------------------------------------
+     //------------------------------------------------------------------------
+-    val sNatCAlignDist = sExpAlignedProd - rawC.sExp
++    val sNatCAlignDist = deadhorse.fpu.FpuExponentSubtract(
++        sExpAlignedProd, rawC.sExp, expWidth + 3)
+     val posNatCAlignDist = sNatCAlignDist(expWidth + 1, 0)
      val isMinCAlign = rawA.isZero || rawB.isZero || (sNatCAlignDist < 0.S)
      val CIsDominant =
          ! rawC.isZero && (isMinCAlign || (posNatCAlignDist <= sigWidth.U))
@@ -31,7 +36,7 @@
              0.U,
              Mux(posNatCAlignDist < (sigSumWidth - 1).U,
                  posNatCAlignDist(log2Ceil(sigSumWidth) - 1, 0),
-@@ -166,7 +166,7 @@
+@@ -166,7 +167,7 @@
  
  //----------------------------------------------------------------------------
  //----------------------------------------------------------------------------
@@ -40,7 +45,7 @@
  {
      override def desiredName = s"MulAddRecFNToRaw_postMul_e${expWidth}_s${sigWidth}"
      val io = IO(new Bundle {
-@@ -190,7 +190,7 @@
+@@ -190,7 +191,7 @@
      val opSignC = io.fromPreMul.signProd ^ io.fromPreMul.doSubMags
      val sigSum =
          Cat(Mux(io.mulAddResult(sigWidth * 2),
@@ -49,7 +54,7 @@
                  io.fromPreMul.highAlignedSigC
                 ),
              io.mulAddResult(sigWidth * 2 - 1, 0),
-@@ -230,13 +230,16 @@
+@@ -230,13 +231,16 @@
      //------------------------------------------------------------------------
      //------------------------------------------------------------------------
      val notCDom_signSigSum = sigSum(sigWidth * 2 + 3)

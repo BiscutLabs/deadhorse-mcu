@@ -44,19 +44,36 @@ def require_candidate_coverage(target,name,covered):
         raise RuntimeError(f'{name}: candidate lost reference-supported retirement coverage')
 
 
+def selected_checks(available,selection):
+    if selection is None: return list(available)
+    chosen=selection.split(',')
+    if not chosen or len(set(chosen))!=len(chosen) or not set(chosen)<=set(available):
+        raise ValueError('Unknown, empty or duplicate selected ISA check')
+    return chosen
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target', choices=['reference','candidate'], required=True)
     parser.add_argument('--candidate')
     parser.add_argument('--output', required=True)
+    parser.add_argument('--jalr-address-invariant',action='store_true',help='Independent all-retirement diagnostic; does not replace ISA checks')
+    parser.add_argument('--split-assertions',action='store_true',help='Require exact assertion-union coverage in separate positive proof jobs')
+    parser.add_argument('--prove-window',action='store_true',help='PDR proof of the same fixed startup-window checker; not unbounded ISA correctness')
+    parser.add_argument('--checks',help='Explicit focused subset; omitted checks remain unverified')
+    parser.add_argument('--timeout',type=int,default=600,help='Per-partition limit, at most the original 600 seconds')
     parser.add_argument('--unabstracted-multiply', action='store_true',
                         help='On-demand unresolved arithmetic diagnostic; never used by CI')
     args = parser.parse_args()
+    if not 0<args.timeout<=600: parser.error('--timeout must be between 1 and 600')
+    if args.jalr_address_invariant and (args.target!='candidate' or args.checks!='jalr' or args.split_assertions or args.unabstracted_multiply):
+        parser.error('JALR invariant requires candidate --checks jalr, without split/arithmetic diagnostic')
+    if args.checks and args.unabstracted_multiply: parser.error('--checks cannot select the multiply diagnostic')
     started = time.monotonic()
     if (args.target == 'candidate') != bool(args.candidate):
         parser.error('--candidate source directory is required only for target candidate')
     from candidate import manifest
-    registered=bool(args.candidate and (manifest(args.candidate) or {}).get('implementation')=='registered-execution-v1')
+    registered=bool(args.candidate and (manifest(args.candidate) or {}).get('implementation') in ('registered-execution-v1','rv32imfc-v1'))
     # Preserve the reference/baseline windows. The separately identified
     # registered profile needs room for operand qualification and 36 MUL edges.
     # This still does not cover a full nonzero 111-edge divide; its class remains
@@ -97,6 +114,8 @@ def main():
         # Exercise the changed proof route first; every other partition stays
         # mandatory, with exactly its existing model and environment.
         insns = list(MULTIPLY) + [name for name in insns if name not in MULTIPLY]
+    available=list(insns)
+    insns=selected_checks(available,args.checks)
     defines = [*lock['defines'], 'YOSYS', 'RISCV_FORMAL', 'RISCV_FORMAL_NRET=1', 'RISCV_FORMAL_XLEN=32',
                'RISCV_FORMAL_ILEN=32', 'RISCV_FORMAL_COMPRESSED', 'RISCV_FORMAL_CHECKER=rvfi_insn_check',
                'RISCV_FORMAL_INSN_MODEL=rvfi_isa_rv32imc', 'RISCV_FORMAL_RESET_CYCLES=1',
@@ -108,16 +127,28 @@ def main():
               'prep -top rvfi_testbench -flatten\nsetundef -undriven -anyseq\n' +
               'fminit -seq clock ' + ','.join(str(i % 2) for i in range(depth)) + '\n')
 
+    if args.jalr_address_invariant:
+        from jalr_invariant import check_invariant
+        return check_invariant(output, script.replace(
+            'RISCV_FORMAL_INSN_MODEL=rvfi_isa_rv32imc', 'RISCV_FORMAL_INSN_MODEL=rvfi_insn_jalr'),
+            sources, depth, args.timeout)
+
     def check(name, mode, model, source):
         directory = output_dir(output / name)
         config = directory / 'check.sby'
+        if args.split_assertions and mode=='bmc' and name.endswith('/bmc'):
+            from assertion_partitions import run_split
+            return run_split(directory,source.replace(
+                'RISCV_FORMAL_INSN_MODEL=rvfi_isa_rv32imc',f'RISCV_FORMAL_INSN_MODEL=rvfi_insn_{model}'),
+                depth,args.timeout,args.prove_window,run,sby_status)
         # The longer registered window is substantially better handled by
         # btormc. Same model, depth, assumptions, obligations and timeout.
-        engine = 'abc bmc3' if mode == 'bmc' and not registered else 'btor btormc'
-        config.write_text(f'[options]\nmode {mode}\ndepth {depth}\nmulticlock on\ntimeout 600\n' +
+        proof_mode='prove' if mode=='bmc' and args.prove_window and name.endswith('/bmc') else mode
+        engine = 'abc pdr' if proof_mode=='prove' else 'abc bmc3' if mode=='bmc' and not registered else 'btor btormc'
+        config.write_text(f'[options]\nmode {proof_mode}\ndepth {depth}\nmulticlock on\ntimeout {args.timeout}\n' +
                           f'[engines]\n{engine}\n[script]\n' + source.replace(
                               'RISCV_FORMAL_INSN_MODEL=rvfi_isa_rv32imc', f'RISCV_FORMAL_INSN_MODEL=rvfi_insn_{model}'))
-        result = run(['sby', '-f', '-d', directory/'work', config], directory, mode, allowed=(0,2,8,16), timeout=630)
+        result = run(['sby', '-f', '-d', directory/'work', config], directory, mode, allowed=(0,2,8,16), timeout=args.timeout+30)
         return sby_status(directory/'work', result.returncode)
 
     fault = output_dir(output / 'fault-wrapper')
@@ -127,7 +158,7 @@ def main():
          f'hw/runMain deadhorse.reference.EmitReferenceFormal {fault} fault'], output, 'emit-fault')
     fault_script = script.replace(str(output/'rvfi_wrapper.sv'), str(fault/'rvfi_wrapper.sv'))
     alt_script = capture_script = alt_fault_script = None
-    if not args.unabstracted_multiply:
+    if not args.unabstracted_multiply and set(insns)&set(MULTIPLY):
         original_sources = sources[:split]
         alt_sources = prepare_altops(output/'altops', original_sources, candidate=args.candidate)
         capture_sources = prepare_altops(output/'capture-fault', original_sources, capture_fault=True, candidate=args.candidate)
@@ -176,13 +207,20 @@ def main():
         results[name] = result
         (output/'result.json').write_text(json.dumps(dict(status='running', checks=results), indent=2)+'\n')
     try:
-        run_partitions(insns, instruction, collect)
+        if args.split_assertions:
+            for name in insns: collect(instruction(name))
+        else:
+            run_partitions(insns, instruction, collect)
     except Exception as exc:
         status = 'unresolved (arithmetic)' if args.unabstracted_multiply and isinstance(exc, ArithmeticTimeout) else 'failed'
         (output/'result.json').write_text(json.dumps(dict(status=status, error=str(exc), checks=results), indent=2)+'\n')
         raise
     (output/'result.json').write_text(json.dumps(dict(status='diagnostic complete' if args.unabstracted_multiply else 'pass', depth=depth, check_cycle=check_cycle,
-        profile='registered-execution-v1' if registered else 'reference-cycle-baseline',
+        profile=(manifest(args.candidate) or {}).get('implementation','reference-cycle-baseline') if args.candidate else 'reference-cycle-baseline',
+        scope='selected instruction subset' if args.checks else 'complete configured instruction list',
+        omitted_checks=[name for name in available if name not in insns],timeout_seconds=args.timeout,
+        engine='PDR over the fixed startup-window checker' if args.prove_window else 'BMC',
+        assertion_partitioning=args.split_assertions,
         target=args.target, candidate=args.candidate, elapsed_seconds=time.monotonic()-started,
         checks=results, negative_control='rejected', limitations=['bounded startup window only',
         'CSR, interrupts, debug, liveness, memory causality, and unbounded ISA proof unsupported']), indent=2)+'\n')

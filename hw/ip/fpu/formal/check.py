@@ -76,21 +76,31 @@ def prepare(sources,directory):
     (directory/'abstraction.json').write_text(json.dumps(manifest,indent=2)+'\n')
     return path, '\n'.join('cutpoint w:'+name for name in cuts)
 
-def check():
+def run_checks():
     out=ROOT/'build/t12/formal';out.mkdir(parents=True,exist_ok=True)
     with (out/'emit.log').open('w') as log:
         subprocess.run([sys.executable,'tools/sbt.py',
             f'set hw / Compile / unmanagedSources += file("{ROOT}/hw/ip/fpu/formal/FpuFormal.scala")',
             f'hw/runMain deadhorse.fpu.EmitFpuFormal {out}/emit'],cwd=ROOT,
             stdout=log,stderr=subprocess.STDOUT,check=True,timeout=180)
+    from receipt import fingerprints, unchanged, snapshot
+    protected=fingerprints(ROOT,sorted((ROOT/'build/t12/emit').glob('*.sv'))+
+        [ROOT/'hw/ip/fpu/formal'/name for name in ('check.py','FpuFormal.scala','receipt.py')])
     results={}
     for role in ['normal','cover_operations','cover_protocol','cover_division','cancel_fault','hold_fault','progress_fault']:
         mode='cover' if role.startswith('cover') else 'prove' if role=='normal' else 'bmc'
         depth=64 if role=='cover_division' else 44 if role in ('normal','cover_operations','progress_fault') else 14 if role=='cover_protocol' else 8
         sources=sorted((out/'emit'/role).glob('*.sv'))
         directory=out/role;directory.mkdir(exist_ok=True)
+        before=fingerprints(ROOT,sources)
         prepared,cuts=prepare(sources,directory)
-        if role=='normal': bind_production(prepared,directory)
+        unchanged(ROOT,before)
+        before.update(fingerprints(ROOT,[prepared,directory/'abstraction.json']))
+        protected.update(before)
+        if role=='normal':
+            unchanged(ROOT,protected)
+            bind_production(prepared,directory)
+            unchanged(ROOT,protected)
         config=directory/'check.sby'
         skip='skip 63\n' if role=='cover_division' else 'skip 43\n' if role in ('cover_operations','progress_fault') else ''
         stimulus=''
@@ -109,10 +119,14 @@ def check():
         config.write_text(f'[options]\nmode {mode}\ndepth {depth}\n{skip}timeout 120\n\n'
             '[engines]\n'+('abc pdr' if mode=='prove' else 'smtbmc z3')+'\n\n[script]\n'
             f'read_json {prepared}\n{cuts}\nopt_clean\n{stimulus}async2sync\ndffunmap\n')
+        unchanged(ROOT,before)
+        before.update(fingerprints(ROOT,[config]))
+        protected.update(before)
         start=time.monotonic()
         with (directory/'run.log').open('w') as log:
             process=subprocess.run(['sby','-f','-d',str(directory/'proof'),str(config)],
                 cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,timeout=135)
+        unchanged(ROOT,before)
         status=(directory/'proof/status').read_text().strip().split()[0]
         expected='FAIL' if role.endswith('fault') else 'PASS'
         if status!=expected or (status=='PASS' and process.returncode):
@@ -124,7 +138,17 @@ def check():
                           depth=depth,seconds=time.monotonic()-start)
         if stimulus: results[role]['witness_stimulus']=stimulus.strip()
         print('PASS formal',role,results[role],flush=True)
-    (out/'result.json').write_text(json.dumps(dict(status='pass',assumptions=['reset asserted in initial formal cycle; subsequent reset unconstrained'],
+    (out/'result.json').write_text(json.dumps(dict(status='pass',authentication=snapshot(ROOT,out,protected),assumptions=['reset asserted in initial formal cycle; subsequent reset unconstrained'],
         arithmetic='unconstrained combinational cutpoints; original control and register enables',results=results),indent=2)+'\n')
+
+def check():
+    out=ROOT/'build/t12/formal'; out.mkdir(parents=True,exist_ok=True)
+    path=out/'result.json'
+    path.write_text(json.dumps(dict(status='running'))+'\n')
+    try:
+        run_checks()
+    except BaseException as exc:
+        path.write_text(json.dumps(dict(status='failed',error=str(exc)))+'\n')
+        raise
 
 if __name__=='__main__': check()

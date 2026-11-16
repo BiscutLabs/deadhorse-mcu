@@ -11,8 +11,9 @@ import chisel3.util.experimental.BoringUtils
 class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
     val DmHaltAddr: BigInt = BigInt("1a110800",16),
     val DmExceptionAddr: BigInt = BigInt("1a110808",16),
-    val RegisteredExecution: Boolean = false) extends RawModule {
+    val RegisteredExecution: Boolean = false, val WithF: Boolean = false) extends RawModule {
   require(DbgTriggerEn, "T11 core implements the pinned debug-trigger configuration")
+  require(!WithF || RegisteredExecution,"F integration requires registered execution")
   override def desiredName = "ibex_core"
   val clk_i=IO(Input(Clock())); val rst_ni=IO(Input(Bool()))
   val hart_id_i=IO(Input(UInt(32.W))); val boot_addr_i=IO(Input(UInt(32.W)))
@@ -72,14 +73,69 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
   val rvfi_ext_mhpmcounters=trace(UInt(320.W)); val rvfi_ext_mhpmcountersh=trace(UInt(320.W))
   val rvfi_ext_ic_scr_key_valid=trace(Bool()); val rvfi_ext_irq_valid=trace(Bool())
 
-  val if_stage_i=Module(new IbexIfStage(DmHaltAddr,DmExceptionAddr,RegisteredRedirect=RegisteredExecution))
-  val id_stage_i=Module(new IbexIdStage(RegisteredExecution=RegisteredExecution))
+  val rvfi_frs1_addr=if(WithF) Some(trace(UInt(5.W))) else None
+  val rvfi_frs2_addr=if(WithF) Some(trace(UInt(5.W))) else None
+  val rvfi_frs3_addr=if(WithF) Some(trace(UInt(5.W))) else None
+  val rvfi_frs1_rdata=if(WithF) Some(trace(UInt(32.W))) else None
+  val rvfi_frs2_rdata=if(WithF) Some(trace(UInt(32.W))) else None
+  val rvfi_frs3_rdata=if(WithF) Some(trace(UInt(32.W))) else None
+  val rvfi_frs_en=if(WithF) Some(trace(UInt(3.W))) else None
+  val rvfi_frd_addr=if(WithF) Some(trace(UInt(5.W))) else None
+  val rvfi_frd_wdata=if(WithF) Some(trace(UInt(32.W))) else None
+  val rvfi_frd_wen=if(WithF) Some(trace(Bool())) else None
+  val rvfi_ext_fcsr=if(WithF) Some(trace(UInt(8.W))) else None
+  val rvfi_ext_fs=if(WithF) Some(trace(UInt(2.W))) else None
+  val rvfi_ext_fregs=if(WithF) Some(trace(UInt(1024.W))) else None
+
+  val if_stage_i=Module(new IbexIfStage(DmHaltAddr,DmExceptionAddr,RegisteredRedirect=RegisteredExecution,WithF=WithF))
+  val id_stage_i=Module(new IbexIdStage(RegisteredExecution=RegisteredExecution,WithF=WithF))
   val ex_block_i=Module(new IbexExBlock(RegisteredExecution=RegisteredExecution))
   val load_store_unit_i=Module(new IbexLoadStoreUnit)
   val wb_stage_i=Module(new IbexWbStage)
-  val cs_registers_i=Module(new IbexCsRegisters(DbgTriggerEn))
+  val cs_registers_i=Module(new IbexCsRegisters(DbgTriggerEn,WithF=WithF))
   private val fetch=if_stage_i; private val id=id_stage_i; private val ex=ex_block_i
   private val lsu=load_store_unit_i; private val wb=wb_stage_i; private val csr=cs_registers_i
+  val floatDecoded=if(WithF) Some(withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
+    // Decode is qualified to this ID instruction. Clear on every completion or
+    // squash, so stale F controls cannot redirect the next integer/CSR decode.
+    // The existing ID operand/decode stages settle this register and the FP
+    // operand registers before the first execution request is accepted.
+    val decoded=FloatInstruction(fetch.instr_rdata_id_o,csr.fp_fcsr_o.get(7,5),csr.fp_fs_o.get)
+    val selected=WireDefault(decoded)
+    // Register the instruction selection too: a legal-F mux after this stage
+    // would put its fanout and the full integer decoder on the RF write path.
+    selected.substitute:=Mux(decoded.legal,decoded.substitute,fetch.instr_rdata_id_o)
+    val metadata=RegNext(selected,0.U.asTypeOf(new FloatDecoded))
+    val qualified=RegNext(fetch.instr_valid_id_o,false.B)
+    when(id.instr_valid_clear_o) { qualified:=false.B }
+    val current=WireDefault(metadata)
+    current.recognized:=qualified && metadata.recognized
+    current.legal:=qualified && metadata.legal
+    current
+  }) else None
+  val floatExecution=if(WithF) Some(withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
+    Module(new FloatExecution)
+  }) else None
+  val floatArithmetic=if(WithF) floatDecoded.get.legal && floatDecoded.get.arithmetic else false.B
+  val floatLoad=if(WithF) floatDecoded.get.legal && floatDecoded.get.load else false.B
+  val floatStore=if(WithF) floatDecoded.get.legal && floatDecoded.get.store else false.B
+  if(WithF) {
+    val fp=floatExecution.get; val d=floatDecoded.get
+    id.fp_instr_i.get:=d.substitute
+    id.fp_illegal_i.get:=d.recognized && !d.legal
+    fp.io.decoded:=d; fp.io.integerOperand:=rf_rdata_a_ecc_i
+    fp.io.request:=id.execute_req_o.get && floatArithmetic
+    // Legal FP arithmetic is one execute phase; use its accepted response
+    // directly, as CSR commit does, without the unrelated LSU/branch-done tree.
+    fp.io.commitArithmetic:=id.execute_consume_o.get && floatArithmetic
+    fp.io.commitLoad:=id.fp_load_commit_o.get && floatLoad && lsu.lsu_rdata_valid_o &&
+      !lsu.load_err_o && !lsu.load_resp_intg_err_o
+    fp.io.loadData:=lsu.lsu_rdata_o
+    fp.io.cancel:=id.instr_valid_clear_o && !id.instr_id_done_o
+    csr.fp_commit_i.get:=fp.io.commitArithmetic || fp.io.commitLoad
+    csr.fp_flags_i.get:=Mux(fp.io.commitArithmetic,fp.io.flags,0.U)
+    csr.fp_dirty_i.get:=fp.io.commitLoad || (fp.io.commitArithmetic && d.writeFloat)
+  }
   fetch.clk_i:=clk_i; fetch.rst_ni:=rst_ni; id.clk_i:=clk_i; id.rst_ni:=rst_ni
   ex.clk_i:=clk_i; ex.rst_ni:=rst_ni; lsu.clk_i:=clk_i; lsu.rst_ni:=rst_ni
   wb.clk_i:=clk_i; wb.rst_ni:=rst_ni; csr.clk_i:=clk_i; csr.rst_ni:=rst_ni
@@ -112,7 +168,14 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
   id.instr_exec_i:=fetch_enable_i(0); id.branch_decision_i:=ex.branch_decision_o
   id.illegal_c_insn_i:=fetch.illegal_c_insn_id_o; id.instr_fetch_err_i:=fetch.instr_fetch_err_o
   id.instr_fetch_err_plus2_i:=fetch.instr_fetch_err_plus2_o; id.pc_id_i:=fetch.pc_id_o
-  id.ex_valid_i:=ex.ex_valid_o; id.lsu_resp_valid_i:=lsu.lsu_resp_valid_o
+  val executionValid=if(WithF) withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
+    // The new F/integer completion selector is a registered boundary. Both
+    // producers hold their response and payload until the qualified consume.
+    val valid=RegNext(Mux(floatArithmetic,floatExecution.get.io.valid,ex.ex_valid_o),false.B)
+    when(id.execute_consume_o.get || id.instr_valid_clear_o) { valid:=false.B }
+    valid
+  } else ex.ex_valid_o
+  id.ex_valid_i:=executionValid; id.lsu_resp_valid_i:=lsu.lsu_resp_valid_o
   id.imd_val_we_ex_i:=ex.imd_val_we_o; id.imd_val_d_ex_i:=ex.imd_val_d_o
   id.priv_mode_i:=csr.priv_mode_id_o; id.csr_mstatus_tw_i:=csr.csr_mstatus_tw_o
   id.illegal_csr_insn_i:=csr.illegal_csr_insn_o; id.data_ind_timing_i:=csr.data_ind_timing_o
@@ -123,8 +186,8 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
   id.lsu_store_err_i:=lsu.store_err_o; id.lsu_store_resp_intg_err_i:=lsu.store_resp_intg_err_o
   id.debug_req_i:=debug_req_i; id.debug_single_step_i:=csr.debug_single_step_o
   id.debug_ebreakm_i:=csr.debug_ebreakm_o; id.debug_ebreaku_i:=csr.debug_ebreaku_o
-  id.trigger_match_i:=csr.trigger_match_o; id.result_ex_i:=ex.result_ex_o; id.csr_rdata_i:=csr.csr_rdata_o
-  id.rf_rdata_a_i:=rf_rdata_a_ecc_i; id.rf_rdata_b_i:=rf_rdata_b_ecc_i
+  id.trigger_match_i:=csr.trigger_match_o; id.result_ex_i:=(if(WithF) Mux(floatArithmetic,floatExecution.get.io.result,ex.result_ex_o) else ex.result_ex_o); id.csr_rdata_i:=csr.csr_rdata_o
+  id.rf_rdata_a_i:=rf_rdata_a_ecc_i; id.rf_rdata_b_i:=(if(WithF) Mux(floatStore,floatExecution.get.io.source2,rf_rdata_b_ecc_i) else rf_rdata_b_ecc_i)
   id.rf_waddr_wb_i:=wb.rf_waddr_wb_o; id.rf_wdata_fwd_wb_i:=wb.rf_wdata_fwd_wb_o
   id.rf_write_wb_i:=wb.rf_write_wb_o; id.ready_wb_i:=wb.ready_wb_o
   id.outstanding_load_wb_i:=wb.outstanding_load_wb_o; id.outstanding_store_wb_i:=wb.outstanding_store_wb_o
@@ -139,8 +202,8 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
   ex.multdiv_ready_id_i:=id.multdiv_ready_id_o; ex.data_ind_timing_i:=csr.data_ind_timing_o
   ex.imd_val_q_i:=id.imd_val_q_ex_o
   if(RegisteredExecution) {
-    ex.execute_req_i.get:=id.execute_req_o.get
-    ex.execute_consume_i.get:=id.execute_consume_o.get
+    ex.execute_req_i.get:=id.execute_req_o.get && !floatArithmetic
+    ex.execute_consume_i.get:=id.execute_consume_o.get && !floatArithmetic
   }
 
   data_req_o:=lsu.data_req_o; lsu.data_gnt_i:=data_gnt_i; lsu.data_rvalid_i:=data_rvalid_i
@@ -167,9 +230,13 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
   wb.en_wb_i:=id.en_wb_o; wb.instr_type_wb_i:=id.instr_type_wb_o; wb.pc_id_i:=fetch.pc_id_o
   wb.instr_is_compressed_id_i:=fetch.instr_is_compressed_id_o
   wb.instr_perf_count_id_i:=id.instr_perf_count_id_o
-  wb.rf_waddr_id_i:=id.rf_waddr_id_o; wb.rf_wdata_id_i:=id.rf_wdata_id_o; wb.rf_we_id_i:=id.rf_we_id_o
+  wb.rf_waddr_id_i:=id.rf_waddr_id_o; wb.rf_wdata_id_i:=id.rf_wdata_id_o; wb.rf_we_id_i:=id.rf_we_id_o && !floatLoad
   wb.dummy_instr_id_i:=fetch.dummy_instr_id_o; wb.rf_wdata_lsu_i:=lsu.lsu_rdata_o
-  wb.rf_we_lsu_i:=lsu.lsu_rdata_valid_o; wb.lsu_resp_valid_i:=lsu.lsu_resp_valid_o
+  // A memory response belongs only to a qualified outstanding integer load.
+  // In particular an unsolicited response during F decode must not write X.
+  val integerLoadWrite=lsu.lsu_rdata_valid_o && !floatLoad &&
+    (if(WithF) id.expecting_load_resp_o else true.B)
+  wb.rf_we_lsu_i:=integerLoadWrite; wb.lsu_resp_valid_i:=lsu.lsu_resp_valid_o
   wb.lsu_resp_err_i:=lsu.load_err_o || lsu.store_err_o
   rf_raddr_a_o:=id.rf_raddr_a_o; rf_raddr_b_o:=id.rf_raddr_b_o; rf_waddr_wb_o:=wb.rf_waddr_wb_o
   rf_we_wb_o:=wb.rf_we_wb_o; rf_wdata_wb_ecc_o:=wb.rf_wdata_wb_o
@@ -264,12 +331,12 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
       val rvfi_rs1_data_q=RegInit(0.U(32.W)); val rvfi_rs2_data_q=RegInit(0.U(32.W))
       val rvfi_rs1_addr_q=RegInit(0.U(5.W)); val rvfi_rs2_addr_q=RegInit(0.U(5.W))
       val rs1Data=Mux(id.instr_first_cycle_id_o,Mux(id.rf_ren_a_o,id.multdiv_operand_a_ex_o,0.U),rvfi_rs1_data_q)
-      val rs2Data=Mux(id.instr_first_cycle_id_o,Mux(id.rf_ren_b_o,id.multdiv_operand_b_ex_o,0.U),rvfi_rs2_data_q)
+      val rs2Data=Mux(id.instr_first_cycle_id_o,Mux(id.rf_ren_b_o && !floatStore,id.multdiv_operand_b_ex_o,0.U),rvfi_rs2_data_q)
       val rs1Addr=Mux(id.instr_first_cycle_id_o,Mux(id.rf_ren_a_o,id.rf_raddr_a_o,0.U),rvfi_rs1_addr_q)
-      val rs2Addr=Mux(id.instr_first_cycle_id_o,Mux(id.rf_ren_b_o,id.rf_raddr_b_o,0.U),rvfi_rs2_addr_q)
+      val rs2Addr=Mux(id.instr_first_cycle_id_o,Mux(id.rf_ren_b_o && !floatStore,id.rf_raddr_b_o,0.U),rvfi_rs2_addr_q)
       rvfi_rs1_data_q:=rs1Data; rvfi_rs2_data_q:=rs2Data; rvfi_rs1_addr_q:=rs1Addr; rvfi_rs2_addr_q:=rs2Addr
       val rvfi_rd_addr_q=RegInit(0.U(5.W)); val rvfi_rd_wdata_q=RegInit(0.U(32.W))
-      val rdWe=wb.rf_we_wb_o || lsu.lsu_rdata_valid_o
+      val rdWe=wb.rf_we_wb_o || integerLoadWrite
       val rdAddr=Mux(rdWe,wb.rf_waddr_wb_o,Mux(fetch.instr_new_id_o,0.U,rvfi_rd_addr_q))
       val rdWrite=Mux(rdWe,Mux(wb.rf_waddr_wb_o===0.U,0.U,
         Mux(wb.rf_we_wb_o,wb.rf_wdata_wb_o,lsu.lsu_rdata_o)),Mux(fetch.instr_new_id_o,0.U,rvfi_rd_wdata_q))
@@ -324,6 +391,22 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
       when(rvfi_id_done) { order:=Mux(fetch.dummy_instr_id_o,order,order+1.U) }
       rvfi_order:=order
       rvfi_valid:=stage("rvfi_stage_valid",rvfi_id_done && !fetch.dummy_instr_id_o,false.B,true.B)
+      if(WithF) {
+        val fp=floatExecution.get; val d=floatDecoded.get
+        val enabled=d.legal && !trap
+        rvfi_frs_en.get:=stage("rvfi_stage_frs_en",Mux(enabled,Cat(d.useF3,d.useF2,d.useF1),0.U),0.U(3.W))
+        rvfi_frs1_addr.get:=stage("rvfi_stage_frs1_addr",d.rs1,0.U(5.W))
+        rvfi_frs2_addr.get:=stage("rvfi_stage_frs2_addr",d.rs2,0.U(5.W))
+        rvfi_frs3_addr.get:=stage("rvfi_stage_frs3_addr",d.rs3,0.U(5.W))
+        rvfi_frs1_rdata.get:=stage("rvfi_stage_frs1_rdata",fp.io.source1,0.U(32.W))
+        rvfi_frs2_rdata.get:=stage("rvfi_stage_frs2_rdata",fp.io.source2,0.U(32.W))
+        rvfi_frs3_rdata.get:=stage("rvfi_stage_frs3_rdata",fp.io.source3,0.U(32.W))
+        rvfi_frd_wen.get:=stage("rvfi_stage_frd_wen",fp.io.write && !trap,false.B)
+        rvfi_frd_addr.get:=stage("rvfi_stage_frd_addr",fp.io.writeAddress,0.U(5.W))
+        rvfi_frd_wdata.get:=stage("rvfi_stage_frd_wdata",fp.io.writeData,0.U(32.W))
+        rvfi_ext_fcsr.get:=csr.fp_fcsr_o.get; rvfi_ext_fs.get:=csr.fp_fs_o.get
+        rvfi_ext_fregs.get:=fp.io.registers
+      }
       rvfi_halt:=stage("rvfi_stage_halt",false.B,false.B)
       rvfi_trap:=stage("rvfi_stage_trap",trap,false.B)
       rvfi_intr:=stage("rvfi_stage_intr",intr,false.B)
@@ -340,7 +423,12 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
       rvfi_rd_addr:=stage("rvfi_stage_rd_addr",rdAddr,0.U(5.W))
       rvfi_rd_wdata:=stage("rvfi_stage_rd_wdata",rdWrite,0.U(32.W))
       rvfi_pc_rdata:=stage("rvfi_stage_pc_rdata",fetch.pc_id_o,0.U(32.W))
-      rvfi_pc_wdata:=stage("rvfi_stage_pc_wdata",Mux(id.pc_set_o,ex.branch_target_o,fetch.pc_if_o),0.U(32.W))
+      val observedNextPc=Mux(id.pc_set_o,ex.branch_target_o,fetch.pc_if_o)
+      // Returns retire before the controller's redirect phase. Report their
+      // architectural target, not the still-sequential prefetch PC.
+      val retiredNextPc=if(WithF) Mux(!trap && fetch.instr_rdata_id_o==="h30200073".U,csr.csr_mepc_o,
+        Mux(!trap && fetch.instr_rdata_id_o==="h7b200073".U,csr.csr_depc_o,observedNextPc)) else observedNextPc
+      rvfi_pc_wdata:=stage("rvfi_stage_pc_wdata",retiredNextPc,0.U(32.W))
       val mask=MuxLookup(id.lsu_type_o,0.U(4.W))(Seq(0.U->15.U(4.W),1.U->3.U(4.W),2.U->1.U(4.W)))
       rvfi_mem_rmask:=stage("rvfi_stage_mem_rmask",mask,0.U(4.W))
       rvfi_mem_wmask:=stage("rvfi_stage_mem_wmask",Mux(data_we_o,mask,0.U),0.U(4.W))
@@ -370,6 +458,13 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
       rvfi_ext_nmi:=nmi1; rvfi_ext_nmi_int:=nmiInt1; rvfi_ext_debug_req:=debugReq1
     }
   } else {
+    if(WithF) {
+      Seq(rvfi_frs1_addr.get,rvfi_frs2_addr.get,rvfi_frs3_addr.get,
+        rvfi_frs1_rdata.get,rvfi_frs2_rdata.get,rvfi_frs3_rdata.get,rvfi_frs_en.get,
+        rvfi_frd_addr.get,rvfi_frd_wdata.get,rvfi_ext_fcsr.get,rvfi_ext_fs.get,
+        rvfi_ext_fregs.get).foreach(_:=0.U)
+      rvfi_frd_wen.get:=false.B
+    }
     Seq(rvfi_valid,rvfi_trap,rvfi_halt,rvfi_intr,rvfi_ext_nmi,rvfi_ext_nmi_int,
       rvfi_ext_debug_req,rvfi_ext_debug_mode,rvfi_ext_rf_wr_suppress,rvfi_ext_ic_scr_key_valid,
       rvfi_ext_irq_valid).foreach(_:=false.B)
