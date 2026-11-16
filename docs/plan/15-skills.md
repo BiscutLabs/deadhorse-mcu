@@ -1,6 +1,6 @@
 # 15 Skills
 
-Seven skills teach an agent how to do the recurring kinds of work in this
+Eight skills teach an agent how to do the recurring kinds of work in this
 project. The plan and the briefs say what to build; the skills say how to do
 it well. Load the skills listed for your task before you start it.
 
@@ -18,6 +18,8 @@ repository document wins.
 | `reference-model-testing` | Block tests in ScalaTest, system tests on the four-target interface, reference models, actuator checkers, negative controls | Rules from the plan; frameworks not yet run here |
 | `regmap-authoring` | The register-map YAML format, choosing access types, register-map design rules, pre-generation checks | Format is a draft; generator not yet built |
 | `sv-to-chisel-translation` | Translating the Ibex reference to Chisel so it passes equivalence: names, reset, widths and signs, case and enum idioms, don't-care values, reading a counterexample | First version from language semantics; no translation or equivalence run yet |
+
+| `formal-timeout-triage` | What to do when a proof times out: measure first, then a seven-rung ladder (engine portfolio, right-sized bounds, cutpoints, case splits, separate arithmetic, induction, more time), with a budget and a stop rule | First version, written after the T10 to T13 timeouts; not yet exercised |
 
 The skills are kept under `.agents/skills/<name>/SKILL.md`.
 
@@ -39,6 +41,7 @@ The skills are kept under `.agents/skills/<name>/SKILL.md`.
 | Translate reference SystemVerilog to Chisel, or debug a failed equivalence check | `sv-to-chisel-translation` |
 | Define or change a block's registers | `regmap-authoring` |
 | Write, run or review formal properties or a proof | `chisel-formal-properties` |
+| A formal check times out, or you are choosing depth, engines or abstractions for a large model | `formal-timeout-triage` |
 | Write or review a block test, a system test, a model or a checker | `reference-model-testing` |
 | Synthesize anything to GF180, report area, or check a timing budget | `gf180-synth-timing-check` |
 | Fix a block that is over its timing budget | `gf180-synth-timing-check`, then `clocked-chisel-block-design` |
@@ -60,12 +63,12 @@ called done.
 | T06 RISCay baseline | `gf180-synth-timing-check` (reference area) |
 | T07 Clocked Chisel build | `clocked-chisel-block-design`, `chisel-formal-properties` (smoke test) |
 | T09 GF180 timing flow | `gf180-synth-timing-check` |
-| T10 Ibex reference and harness | `reference-model-testing`, `chisel-formal-properties` (negative controls, proved versus bounded) |
-| T11 Ibex conversion | `sv-to-chisel-translation`, `clocked-chisel-block-design`, `chisel-formal-properties`, `gf180-synth-timing-check` |
-| T12 FPU | `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check` |
-| T13 F integration | `sv-to-chisel-translation` (unchanged modules must stay equivalent), `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check` |
+| T10 Ibex reference and harness | `reference-model-testing`, `chisel-formal-properties` (negative controls, proved versus bounded), `formal-timeout-triage` |
+| T11 Ibex conversion | `sv-to-chisel-translation`, `clocked-chisel-block-design`, `chisel-formal-properties`, `gf180-synth-timing-check`, `formal-timeout-triage` |
+| T12 FPU | `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check`, `formal-timeout-triage` |
+| T13 F integration | `sv-to-chisel-translation` (unchanged modules must stay equivalent), `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check`, `formal-timeout-triage` |
 | S1 Core measurement | `gf180-synth-timing-check`, `reference-model-testing` |
-| T14 Bus, bridge and mailbox | `clocked-chisel-block-design`, `chisel-formal-properties`, `gf180-synth-timing-check`, `reference-model-testing` |
+| T14 Bus, bridge and mailbox | `clocked-chisel-block-design`, `chisel-formal-properties`, `gf180-synth-timing-check`, `reference-model-testing`, `formal-timeout-triage` |
 | S3 Memory | `reference-model-testing` |
 | S4 Latency and test | `gf180-synth-timing-check`, `reference-model-testing` |
 
