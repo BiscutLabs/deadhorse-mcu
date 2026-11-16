@@ -73,7 +73,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T09 | [Timing flow](tasks/T09-timing-flow.md) | Codex | T01, T06, T07, T08 | [Report](tasks/reports/T09.md): timing gate and authorized RegBlock repair verified |
 | [x] | T10 | [Ibex reference and harness](tasks/T10-ibex-reference.md) | Codex | T07, T08 | [Report](tasks/reports/T10.md): sequential/whole-core harness, candidate suites and divide stress pass; full local gate and independent review pass; D44 limits retained |
 | [x] | T11 | [Ibex conversion](tasks/T11-ibex-conversion.md) | Codex | T10, T09 | [Report](tasks/reports/T11.md): user-approved focused verification complete; exact revision proof carries prior ISA evidence; current tests/timing/lockstep and independent review pass; repeated full CI stopped, not passed |
-| [ ] | T12 | [FPU](tasks/T12-fpu.md) | unassigned | T07, T09 | Parallel with T10/T11 |
+| [x] | T12 | [FPU](tasks/T12-fpu.md) | Codex | T07, T09 | [Report](tasks/reports/T12.md): standalone RV32F, focused local gate, arithmetic-abstracted control proof, reference tests, GF180 timing and independent review pass; full CI intentionally not rerun |
 | [ ] | T13 | [F integration](tasks/T13-core-f-integration.md) | unassigned | T11, T12 | |
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
 | [ ] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | unassigned | T07, T09 | Replaces the NoC work |
@@ -138,6 +138,10 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-15: T12 in progress -> done, Codex; focused gate and independent review pass. Exact emitted-RTL identity qualifies canonical upstream-byte restoration. All operations retained; unchanged timing budget passes. [Report](tasks/reports/T12.md); T13 not started.
+
+- 2026-11-15: T12 not started -> in progress, Codex; user assigned standalone FPU with independent review and commit/push. Focus checks on T12 per user direction; no repeated whole-core formal sweep.
 
 - 2026-11-15: T11 in progress -> done, Codex; user directed critical verification instead of another hours-long sweep. Final CSR repair passes exact leaf/core/top and registered revision proofs, all 58 simulations, block/whole-top timing and current arch/flight lockstep. Independent review approved evidence transport from the prior complete ISA sweep. Full CI stopped at user direction, not reported as passed; no gate condition changed. [Report](tasks/reports/T11.md).
 

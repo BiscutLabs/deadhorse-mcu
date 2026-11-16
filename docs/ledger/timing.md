@@ -295,3 +295,25 @@ violations, strict **FAIL** against 24.96 ns. Both physical profiles omit RVFI
 and use the same ASIC gate binding. Independent review confirmed identical
 constraints, tools, mapping recipes, loads and interface widths. Benchmark
 receipts are explicitly reference-only and do not count as production acceptance.
+
+## T12 standalone FPU
+
+Measured 2026-11-15 with `python tools/env/run.py run -- python3
+hw/ip/fpu/check_timing.py`, base `3dfa92ea25cea14f3fde0ee0b3f318c849815285`
+plus the T12 working tree. Receipt: `build/t12/timing/result.json`; exact
+emitted-source, flow and library hashes are retained there. Fresh emission
+after canonical upstream-byte restoration is byte-identical, qualified in
+`build/t12/provenance/result.json`.
+
+| Block | Worst path | Start | End | Cell / logic depth | Mapped area (um2) | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Fpu, standalone | 24.402643 ns (RR) | _16400_/Q | _16585_/D | 30 / 28 | 217553.1008 | Pass; zero electrical violations |
+
+Same `buffered-sized-alias-load-v3` flow and unchanged 24.96 ns allowance
+(assumed 41.6 ns period times 0.60), GF180 7t5v0 SS/125C/3.0V, assumed
+0.5 ns input slew and 0.05 pF output load, zero IO delay and ideal clock.
+No multicycle exception, retiming or wire-delay assumption is used to repair
+timing. This is mapped pre-layout screening, not routed signoff or chip fit.
+Named emission must preserve the prefix-adder keep attributes. See the
+[T12 report](../plan/tasks/reports/T12.md) for arithmetic/protocol qualification
+and remaining T13/S1 integration work.

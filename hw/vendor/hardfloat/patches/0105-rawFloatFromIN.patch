@@ -1,0 +1,16 @@
+--- a/rawFloatFromIN.scala
++++ b/rawFloatFromIN.scala
+@@ -49,9 +49,11 @@
+         val extIntWidth = 1<<(expWidth - 1)
+ 
+         val sign = signedIn && in(in.getWidth - 1)
+-        val absIn = Mux(sign, -in.asUInt, in.asUInt)
++        val absIn = Reg(UInt((in.getWidth).W))
++        absIn := Mux(sign, -in.asUInt, in.asUInt)
+         val extAbsIn = (0.U(extIntWidth.W) ## absIn)(extIntWidth - 1, 0)
+-        val adjustedNormDist = countLeadingZeros(extAbsIn)
++        val adjustedNormDist = Reg(UInt((expWidth - 1).W))
++        adjustedNormDist := countLeadingZeros(extAbsIn)
+         val sig =
+             (extAbsIn<<adjustedNormDist)(
+                 extIntWidth - 1, extIntWidth - in.getWidth)

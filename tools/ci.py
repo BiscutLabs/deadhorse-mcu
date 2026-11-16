@@ -13,8 +13,7 @@ def main():
     output = ROOT/'build/ci'
     output.mkdir(parents=True,exist_ok=True)
     receipt = dict(status='running',commands=[])
-    (output/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
-    for command in ([sys.executable, 'tools/env/check.py'],
+    commands = ([sys.executable, 'tools/env/check.py'],
                     [sys.executable, '-m', 'unittest', 'discover', '-s', 'tools', '-p', 'test_*.py', '-v'],
                     [sys.executable, 'tools/check_structure.py', '--include-untracked'],
                     [sys.executable, 'hw/vendor/ibex_ref/verify_lock.py'],
@@ -67,7 +66,20 @@ def main():
                     [sys.executable, 'dv/core/div_diagnose.py', '--output', 'build/t10/ci/div_stress'],
                     ['bash', 'sw/flight/loop-measurement/check.sh'],
                     [sys.executable, 'dv/core/lockstep.py', '--candidate', 'build/t10/ci/reference_copy', '--suite', 'arch,flight', '--output', 'build/t10/ci/lockstep_suites'],
-                    [sys.executable, 'dv/core/candidate_check.py', '--output', 'build/t10/ci/candidate_negative']):
+                    [sys.executable, 'dv/core/candidate_check.py', '--output', 'build/t10/ci/candidate_negative'],
+                    [sys.executable, 'dv/fpu/check.py', '--output', 'build/t12'])
+    if sys.argv[1:]:
+        if sys.argv[1:] != ['--scope', 'fpu']:
+            raise ValueError('Usage: tools/ci.py [--scope fpu]')
+        output = ROOT/'build/ci/fpu'
+        output.mkdir(parents=True,exist_ok=True)
+        receipt['scope']='fpu; unrelated core checks not run'
+        commands = ([sys.executable, 'tools/env/check.py'],
+                    [sys.executable, '-m', 'unittest', 'discover', '-s', 'tools', '-p', 'test_*.py', '-v'],
+                    [sys.executable, 'tools/check_structure.py', '--include-untracked'],
+                    [sys.executable, 'dv/fpu/check.py', '--output', 'build/t12'])
+    (output/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    for command in commands:
         step_started = time.monotonic()
         result = subprocess.run(command, cwd=ROOT)
         receipt['commands'].append(dict(command=command,returncode=result.returncode,

@@ -1,0 +1,36 @@
+--- a/RecFNToIN.scala
++++ b/RecFNToIN.scala
+@@ -85,7 +85,8 @@
+                 rawIn.sExp(min(expWidth - 2, log2Up(intWidth) - 1), 0),
+                 0.U
+             )
+-    val alignedSig =
++    val alignedSig = Reg(UInt((intWidth + 2).W))
++    alignedSig :=
+         (shiftedSig>>(sigWidth - 2)) ## shiftedSig(sigWidth - 3, 0).orR
+     val unroundedInt = 0.U(intWidth.W) | alignedSig>>2
+ 
+@@ -94,16 +95,18 @@
+         (magGeOne       && (alignedSig(2, 1).andR || alignedSig(1, 0).andR)) ||
+         (magJustBelowOne && alignedSig(1, 0).orR)
+     val roundIncr_near_maxMag = (magGeOne && alignedSig(1)) || magJustBelowOne
+-    val roundIncr =
+-        (roundingMode_near_even   && roundIncr_near_even  ) ||
++    val roundIncr = Reg(Bool())
++    roundIncr := (roundingMode_near_even   && roundIncr_near_even  ) ||
+         (roundingMode_near_maxMag && roundIncr_near_maxMag) ||
+         ((roundingMode_min || roundingMode_odd) &&
+              (rawIn.sign && common_inexact)) ||
+         (roundingMode_max && (!rawIn.sign && common_inexact))
+-    val complUnroundedInt = Mux(rawIn.sign, ~unroundedInt, unroundedInt)
+-    val roundedInt =
++    val complUnroundedInt = Reg(UInt(intWidth.W))
++    complUnroundedInt := Mux(rawIn.sign, ~unroundedInt, unroundedInt)
++    val roundedInt = Reg(UInt((intWidth).W))
++    roundedInt :=
+         Mux(roundIncr ^ rawIn.sign,
+-            complUnroundedInt + 1.U,
++            deadhorse.fpu.FpuAdd(complUnroundedInt, 0.U, intWidth, true.B),
+             complUnroundedInt
+         ) | (roundingMode_odd && common_inexact)
+ 

@@ -1,0 +1,59 @@
+--- a/RoundAnyRawFNToRecFN.scala
++++ b/RoundAnyRawFNToRecFN.scala
+@@ -52,7 +52,7 @@
+         outSigWidth: Int,
+         options: Int
+     )
+-    extends RawModule
++    extends Module
+ {
+     override def desiredName = s"RoundAnyRawFNToRecFN_ie${inExpWidth}_is${inSigWidth}_oe${outExpWidth}_os${outSigWidth}"
+     val io = IO(new Bundle {
+@@ -148,7 +148,8 @@
+ 
+         //--------------------------------------------------------------------
+         //--------------------------------------------------------------------
+-        val roundMask =
++        val roundMask = Reg(UInt((outSigWidth + 3).W))
++        roundMask := (
+             if (neverUnderflows)
+                 0.U(outSigWidth.W) ## doShiftSigDown1 ## 3.U(2.W)
+             else
+@@ -158,6 +159,7 @@
+                         outMinNormExp
+                     ) | doShiftSigDown1) ##
+                   3.U(2.W)
++        )
+ 
+         val shiftedRoundMask = 0.U(1.W) ## roundMask>>1
+         val roundPosMask = ~shiftedRoundMask & roundMask
+@@ -169,9 +171,10 @@
+             ((roundingMode_near_even || roundingMode_near_maxMag) &&
+                  roundPosBit) ||
+                 (roundMagUp && anyRound)
+-        val roundedSig: Bits =
++        val roundedSig = Reg(UInt((outSigWidth + 2).W))
++        roundedSig := (
+             Mux(roundIncr,
+-                (((adjustedSig | roundMask)>>2) +& 1.U) &
++                deadhorse.fpu.FpuAdd((adjustedSig | roundMask)>>2, 0.U, outSigWidth + 2, true.B) &
+                     ~Mux(roundingMode_near_even && roundPosBit &&
+                              ! anyRoundExtra,
+                          roundMask>>1,
+@@ -180,6 +183,7 @@
+                 (adjustedSig & ~roundMask)>>2 |
+                     Mux(roundingMode_odd && anyRound, roundPosMask>>1, 0.U)
+             )
++        )
+ //*** IF SIG WIDTH IS VERY NARROW, NEED TO ACCOUNT FOR ROUND-EVEN ZEROING
+ //***  M.S. BIT OF SUBNORMAL SIG?
+         val sRoundedExp = sAdjustedExp +& (roundedSig>>outSigWidth).asUInt.zext
+@@ -293,7 +297,7 @@
+ 
+ class
+     RoundRawFNToRecFN(expWidth: Int, sigWidth: Int, options: Int)
+-    extends RawModule
++    extends Module
+ {
+     override def desiredName = s"RoundRawFNToRecFN_e${expWidth}_s${sigWidth}"
+     val io = IO(new Bundle {

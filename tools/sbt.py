@@ -14,6 +14,8 @@ def main():
     if not installed.is_file() or installed.read_bytes() != lock_file.read_bytes():
         raise RuntimeError('use the pinned T08 image via tools/env/run.py')
     lock = json.loads(lock_file.read_text())
+    subprocess.run([sys.executable, str(ROOT / 'hw/vendor/hardfloat/prepare.py')],
+                   cwd=ROOT, check=True)
     pins = lock['versions']
     if (ROOT / 'project/build.properties').read_text().strip() != 'sbt.version=' + pins['sbt']:
         raise RuntimeError('project/build.properties disagrees with T08 lock')
