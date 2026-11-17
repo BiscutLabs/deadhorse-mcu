@@ -9,6 +9,8 @@ import sys
 import time
 
 ROOT=Path(__file__).resolve().parents[1]
+BUS_FORMAL_DEFERRALS=frozenset(('T14-BUS-FAIR-M0','T14-BUS-FAIR-M1',
+    'T14-BUS-FAIR-M2','T14-BRIDGE-RETURN-DATA'))
 
 
 def fast_commands(output):
@@ -30,6 +32,9 @@ def fast_commands(output):
         ('fpu-receipt-units',[py,'-m','unittest','discover','-s','hw/ip/fpu/formal','-p','test_*.py']),
         ('regmap-units',[py,'-m','unittest','hw/regmap/test_regmap.py']),
         ('block-smoke',[py,'tools/sbt.py','hw/testOnly deadhorse.perf_core.ClockedExecuteSpec deadhorse.perf_core.FloatCoreSpec deadhorse.perf_core.FaithfulFloatCoreSpec']),
+        ('bus-block-tests',[py,'tools/sbt.py','hw/testOnly deadhorse.lib.CdcSpec deadhorse.bus.* deadhorse.bus_bridge.* deadhorse.mailbox.*']),
+        ('bus-formal',[py,'tools/formal.py','--blocks','cdc,bus,bus_bridge,mailbox','--output',f'{root}/bus-formal']),
+        ('bus-timing',[py,'hw/ip/bus/formal/timing.py','--output',f'{root}/bus-timing']),
         ('emit-leaves',emit('deadhorse.perf_core.EmitLeaves','leaves')),
         ('emit-core',emit('deadhorse.perf_core.EmitCore','core')),
         ('emit-baseline',emit('deadhorse.perf_core.EmitRegisteredCore','baseline-emit')),
@@ -96,6 +101,7 @@ def main(argv,legacy):
     if (output/'result.json').exists():raise ValueError('Use a fresh output directory; retain previous CI evidence')
     output.mkdir(parents=True,exist_ok=True);started=time.monotonic();sources=snapshot()
     receipt=dict(status='running',tier=args.tier,commands=[],source_sha256=sources,
+        deferred=[],qualification_limits=[],
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         full_tier='running' if args.tier=='full' else 'not run by this invocation',
         scope='fixed fast checks; complete ISA sweep excluded' if args.tier=='fast' else 'fast plus complete legacy checks and F-integrated ISA/lockstep')
@@ -124,24 +130,50 @@ def main(argv,legacy):
                 result=subprocess.run(command,cwd=ROOT,stdout=stream,stderr=subprocess.STDOUT)
             receipt['commands'].append(dict(name=name,command=command,returncode=result.returncode,
                 seconds=time.monotonic()-step,log=str(log.relative_to(ROOT))))
+            step_receipt=receipt['commands'][-1]
+            bus_formal_success=name=='bus-formal' and result.returncode==0
+            if bus_formal_success and '--output' not in command:
+                raise ValueError('Missing bus-formal output receipt path')
+            if '--output' in command:
+                child=(ROOT/command[command.index('--output')+1]/'result.json').resolve()
+                child.relative_to(ROOT)
+                if bus_formal_success and not child.is_file():
+                    raise ValueError('Missing bus-formal success receipt')
+                if child.exists():
+                    detail=json.loads(child.read_text())
+                    step_receipt['child_status']=detail.get('status','')
+                    step_receipt['child_receipt']=dict(path=str(child.relative_to(ROOT)),
+                        sha256=hashlib.sha256(child.read_bytes()).hexdigest())
+                    deferred=detail.get('deferred',[])
+                    if not isinstance(deferred,list) or any(not isinstance(d,dict) or not d.get('id') for d in deferred):
+                        raise ValueError('Invalid child deferral inventory: '+name)
+                    if detail.get('status')=='pass_with_deferrals' and not deferred:
+                        raise ValueError('Missing child deferral inventory: '+name)
+                    if bus_formal_success and (detail.get('status')!='pass_with_deferrals' or
+                            len(deferred)!=len(BUS_FORMAL_DEFERRALS) or
+                            {d['id'] for d in deferred}!=BUS_FORMAL_DEFERRALS or
+                            any(d.get('status')!='deferred_unproved' for d in deferred)):
+                        raise ValueError('Invalid bus-formal success receipt: expected exactly four approved, unproved deferrals')
+                    step_receipt['deferred']=deferred
+                    receipt['deferred'].extend(dict(d,command=name,receipt=str(child.relative_to(ROOT))) for d in deferred)
+                    limits=detail.get('qualification_limits',[])
+                    if not isinstance(limits,list):raise ValueError('Invalid child qualification limits: '+name)
+                    step_receipt['qualification_limits']=limits
+                    receipt['qualification_limits'].extend(dict(command=name,receipt=str(child.relative_to(ROOT)),limit=limit) for limit in limits)
             save()
             if result.returncode:
                 receipt['status']='failed (partial tier run)'
                 if args.tier=='full':receipt['full_tier']='failed; later commands not run'
-                if '--output' in command:
-                    child=ROOT/command[command.index('--output')+1]/'result.json'
-                    if child.exists():
-                        child_status=json.loads(child.read_text()).get('status','')
-                        receipt['commands'][-1]['child_status']=child_status
-                        if child_status.startswith('unresolved'):
-                            receipt['status']='unresolved (partial tier run)'
-                            if args.tier=='full':receipt['full_tier']='unresolved; later commands not run'
+                if step_receipt.get('child_status','').startswith('unresolved'):
+                    receipt['status']='unresolved (partial tier run)'
+                    if args.tier=='full':receipt['full_tier']='unresolved; later commands not run'
                 print(log.read_text()[-5000:],flush=True);return result.returncode
-            print('PASS '+name,flush=True)
+            print('PASS '+name+(' active checks; '+str(len(step_receipt.get('deferred',[])))+' deferred, unproved' if step_receipt.get('deferred') else ''),flush=True)
         if snapshot()!=sources:raise RuntimeError('Source changed during CI; result not accepted')
-        receipt['status']='pass'
-        if args.tier=='full':receipt['full_tier']='pass'
-        print('PASS '+args.tier+' tier',flush=True);return 0
+        receipt['status']='pass_with_deferrals' if receipt['deferred'] else 'pass'
+        if args.tier=='full':receipt['full_tier']=receipt['status']
+        suffix=(' active checks; '+str(len(receipt['deferred']))+' deferred, unproved (see receipt)' if receipt['deferred'] else '')
+        print('PASS '+args.tier+' tier'+suffix,flush=True);return 0
     except BaseException as exc:
         receipt.update(status='unresolved',error=str(exc));raise
     finally:save()

@@ -1,0 +1,53 @@
+block: mailbox
+description: Local endpoint of the two-way core mailbox
+data_width: 32
+address_width: 8
+registers:
+  - name: tx_data
+    offset: 0x00
+    fields:
+      - name: value
+        bits: [31, 0]
+        access: wo
+  - name: command
+    offset: 0x04
+    fields:
+      - name: push
+        bits: 0
+        access: w1p
+      - name: pop
+        bits: 1
+        access: w1p
+  - name: rx_data
+    offset: 0x08
+    fields:
+      - name: value
+        bits: [31, 0]
+        access: ro
+  - name: status
+    offset: 0x0c
+    fields:
+      - name: tx_ready
+        bits: 0
+        access: ro
+      - name: rx_valid
+        bits: 1
+        access: ro
+      - name: link_ready
+        bits: 2
+        access: ro
+  - name: events
+    offset: 0x10
+    fields:
+      - name: overflow
+        bits: 0
+        access: w1c
+        reset: 0
+      - name: underflow
+        bits: 1
+        access: w1c
+        reset: 0
+      - name: peer_reset
+        bits: 2
+        access: w1c
+        reset: 0

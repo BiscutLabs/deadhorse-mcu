@@ -1,6 +1,6 @@
 # Status
 
-Single progress tracker. Last updated: 2026-11-16.
+Single progress tracker. Last updated: 2026-11-17.
 States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete,
 `[-]` withdrawn.
 Decision checks record the user's approvals, not implementation completion.
@@ -76,7 +76,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T12 | [FPU](tasks/T12-fpu.md) | Codex | T07, T09 | [Report](tasks/reports/T12.md): standalone RV32F, focused local gate, arithmetic-abstracted control proof, reference tests, GF180 timing and independent review pass; full CI intentionally not rerun |
 | [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Full non-formal run](tasks/reports/T13-nonformal.md): 54/54 jobs pass; depth-160 integration unresolved; standard full tier unrun |
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
-| [ ] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | unassigned | T07, T09 | Replaces the NoC work |
+| [x] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | Codex | T07, T09 | [Active checks complete with four user-approved unproved deferrals; fast 29/29 and independent review pass; full not run](tasks/reports/T14.md) |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [ ] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | unassigned | T02, T07, T08 | |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -138,6 +138,16 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-17: T14 in progress -> done under explicit user deferrals, Codex; 16 simulation tests, active formal and 15 timing configurations pass; fast tier 29/29 in 1185.432 s, independent review clear. Four named proofs remain deferred/unproved; full tier not run. [Report](tasks/reports/T14.md).
+
+- 2026-11-17: T14 blocked -> in progress, Codex; user authorized completion if tests pass with deferrals recorded, then the next ready task. Closing the active gate with explicit deferred/unproved property records; no proof retries or helper work on the deferred obligations.
+
+- 2026-11-17: User deferred the three T14 bus fairness proofs and one bridge return-data proof for later. Attempts and proposed helper work stopped; assertions and failure/timeout evidence retained as unproved. Production watchdog qualification, final review and CI handling of the deferral remain open; no completion or gate pass recorded. [Report](tasks/reports/T14.md).
+
+- 2026-11-17: T14 in progress -> blocked, Codex; 14 combined simulations and 15 module timing configurations pass; CDC, mailbox and direction proofs pass. Three bus fairness assertions and bridge return-data equality remain unresolved after bounded triage; production watchdog qualification remains open. Helper-proof approval requested; no CI tier, commit or push claimed. [Report](tasks/reports/T14.md).
+
+- 2026-11-16: T14 started, Codex; user assigned bus, shared CDC bridge and mailbox. Review contracts first, preserve reset containment and endpoint ownership, use focused block proofs and independent review; no T13 formal sweep.
 
 - 2026-11-16: T13 remains blocked, Codex; user-requested full non-formal validation passes 54/54 jobs in measured 2387.400 s (39m 47s), with 259 Python tests and 71 RTL tests across 20 suites. Both F profiles pass architectural/random/flight lockstep; candidate timing gates pass. Reference Ibex benchmark still exceeds the old default budget. Formal, including environment solver probes, explicitly not run; neither standard CI tier ran this continuation. Default checks unchanged, no RTL changes; independent evidence review complete. [Report](tasks/reports/T13-nonformal.md).
 

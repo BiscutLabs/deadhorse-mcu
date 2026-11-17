@@ -16,7 +16,8 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 lazy val hw = project.in(file(".")).settings(
   name := "deadhorse-hw",
   target := repo / "build/sbt/hw",
-  Compile / unmanagedSourceDirectories := sources("main") :+ (repo / "hw/lib/formal") :+ (repo / "build/vendor/hardfloat"),
+  Compile / unmanagedSourceDirectories := sources("main") ++ Seq(repo / "hw/lib/formal", repo / "hw/ip/bus/formal",
+    repo / "hw/ip/bus_bridge/formal", repo / "hw/ip/mailbox/formal", repo / "build/vendor/hardfloat"),
   Test / unmanagedSourceDirectories := sources("test"),
   Compile / unmanagedResourceDirectories := Seq.empty,
   Test / unmanagedResourceDirectories := Seq.empty,

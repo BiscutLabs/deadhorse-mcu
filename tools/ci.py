@@ -2,6 +2,10 @@
 
 Default / --tier fast: structure, Python units, selected clocked block tests,
 fresh core emission/timing, concrete lockstep smoke and a fixed small formal set.
+T14 adds CDC, bus, bridge and mailbox block tests, their focused formal driver,
+and production-domain GF180 timing to both tiers. Only the four explicit T14
+user-authorized deferrals are excluded from proof attempts and remain unproved
+in receipts; no timeout automatically makes any check optional.
 Intended for minutes; it is not complete ISA acceptance.
 --tier full: fast checks plus all prior full-gate workloads, complete configured
 ISA sweeps for baseline/registered/F and faithful-F profiles, full block tests and FPU checks.
