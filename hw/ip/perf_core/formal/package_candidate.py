@@ -8,7 +8,7 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[4]
 sys.path.insert(0,str(ROOT/'dv/core'))
-from candidate import INACTIVE, F_EXTRAS, parameters
+from candidate import INACTIVE, F_EXTRAS, FAITHFUL_F_EXTRAS, parameters
 from common import CONFIG, inputs, local, output_dir
 
 
@@ -18,13 +18,14 @@ def main():
     parser.add_argument('--core',required=True); parser.add_argument('--output',required=True)
     parser.add_argument('--registered',action='store_true')
     parser.add_argument('--float',dest='floating',action='store_true')
+    parser.add_argument('--integrated-views',action='store_true',
+                        help='Use emitted top hierarchy for faithful module checks, not standalone leaf views')
     args=parser.parse_args(); top=local(args.top); leaves=local(args.leaves); core=local(args.core)
     output=output_dir(args.output); lock=inputs()
     data=dict(schema=2,kind='fixed',parameters=CONFIG['parameters'],source_sha256={},excluded=INACTIVE,
               extra_sources={},module_views={},implementation='faithful baseline; execution retiming remains separate')
-    if args.floating and not args.registered: raise ValueError('--float requires --registered')
     if args.registered: data['implementation']='registered-execution-v1'
-    if args.floating: data.update(implementation='rv32imfc-v1',isa='rv32imfc')
+    if args.floating: data.update(implementation='rv32imfc-v1' if args.registered else 'rv32imfc-faithful-v1',isa='rv32imfc')
     views={'ibex_csr':'csr','ibex_counter':'counter','ibex_register_file_ff':'register_file',
         'ibex_cs_registers':'cs_registers','ibex_ex_block':'ex_block',
         **{'ibex_'+n:n for n in ('alu','compressed_decoder','controller','decoder','wb_stage','id_stage',
@@ -38,7 +39,7 @@ def main():
         shutil.copyfile(origin,target)
         data['source_sha256'][source]=hashlib.sha256(target.read_bytes()).hexdigest()
         view_dir=core if module=='ibex_core' else leaves/views[module] if module in views else None
-        if view_dir and not args.registered:
+        if view_dir and not args.registered and not args.floating and not args.integrated_views:
             view={}
             for path in view_dir.glob('ibex_*.sv'):
                 dest=output/'modules'/module/path.name; dest.parent.mkdir(parents=True,exist_ok=True)
@@ -48,8 +49,9 @@ def main():
             data['module_views'][module]=view
     shutil.copyfile(top/'ClockGate.sv',output/'ClockGate.sv')
     data['extra_sources']['ClockGate.sv']=hashlib.sha256((output/'ClockGate.sv').read_bytes()).hexdigest()
-    if args.registered:
-        for name in sorted(F_EXTRAS-{'ClockGate.sv'} if args.floating else {'ClockedExecute.sv','IterativeMultiply.sv'}):
+    if args.registered or args.floating:
+        extras=(F_EXTRAS if args.registered else FAITHFUL_F_EXTRAS)-{'ClockGate.sv'} if args.floating else {'ClockedExecute.sv','IterativeMultiply.sv'}
+        for name in sorted(extras):
             shutil.copyfile(top/name,output/name)
             data['extra_sources'][name]=hashlib.sha256((output/name).read_bytes()).hexdigest()
     (output/'candidate.json').write_text(json.dumps(data,indent=2)+'\n')

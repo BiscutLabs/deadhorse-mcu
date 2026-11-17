@@ -7,8 +7,8 @@ import _root_.circt.stage.ChiselStage
 import java.nio.file.{Files,Paths}
 
 /** Production control instrumentation; arithmetic remains a separate obligation. */
-class FloatIntegrationFormal(coversOnly:Boolean=false)
-    extends IbexCore(WithRVFI=false,RegisteredExecution=true,WithF=true) {
+class FloatIntegrationFormal(coversOnly:Boolean=false,faithful:Boolean=false)
+    extends IbexCore(WithRVFI=false,RegisteredExecution= !faithful,WithF=true) {
   override def desiredName="FloatIntegrationFormal"
   val checking=IO(Input(Bool()))
   val fp=floatExecution.get
@@ -16,14 +16,18 @@ class FloatIntegrationFormal(coversOnly:Boolean=false)
   val response=BoringUtils.bore(fp.fpu.io.rsp.valid)
   val consumed=(BoringUtils.bore(fp.fpu.io.rsp.valid) && BoringUtils.bore(fp.fpu.io.rsp.ready))
   val cancel=fp.io.cancel
-  val intAccepted=(BoringUtils.bore(ex_block_i.clocked_execute.get.req.valid) && BoringUtils.bore(ex_block_i.clocked_execute.get.req.ready))
-  val intConsumed=(BoringUtils.bore(ex_block_i.clocked_execute.get.rsp.valid) && BoringUtils.bore(ex_block_i.clocked_execute.get.rsp.ready))
-  val intResponse=BoringUtils.bore(ex_block_i.clocked_execute.get.rsp.valid)
+  val intAccepted=if(faithful) id_stage_i.mult_en_ex_o || id_stage_i.div_en_ex_o ||
+    id_stage_i.lsu_req_o || id_stage_i.csr_op_en_o || rf_we_wb_o else
+    (BoringUtils.bore(ex_block_i.clocked_execute.get.req.valid) && BoringUtils.bore(ex_block_i.clocked_execute.get.req.ready))
+  val intConsumed=if(faithful) id_stage_i.instr_id_done_o && !floatArithmetic else
+    (BoringUtils.bore(ex_block_i.clocked_execute.get.rsp.valid) && BoringUtils.bore(ex_block_i.clocked_execute.get.rsp.ready))
+  val intResponse=if(faithful) ex_block_i.ex_valid_o else BoringUtils.bore(ex_block_i.clocked_execute.get.rsp.valid)
   val fetched=BoringUtils.bore(if_stage_i.newInstruction)
   val instruction=if_stage_i.instr_rdata_id_o
   val d=floatDecoded.get
   val effect=intAccepted || accepted || id_stage_i.lsu_req_o || id_stage_i.csr_op_en_o || rf_we_wb_o || fp.io.write
-  val current=FloatInstruction(instruction,cs_registers_i.fp_fcsr_o.get(7,5),cs_registers_i.fp_fs_o.get)
+  val current=FloatInstruction(instruction,cs_registers_i.fp_fcsr_o.get(7,5),cs_registers_i.fp_fs_o.get,
+    directIntegerRead=faithful)
   val monitorPending=withClockAndReset(clk_i,(!rst_ni).asAsyncReset) { RegInit(false.B) }
   val monitorInstruction=withClockAndReset(clk_i,(!rst_ni).asAsyncReset) { RegInit(0.U(32.W)) }
   val monitorPc=withClockAndReset(clk_i,(!rst_ni).asAsyncReset) { RegInit(0.U(32.W)) }
@@ -74,10 +78,18 @@ class FloatIntegrationFormal(coversOnly:Boolean=false)
         assert(!fp.io.commitLoad || !rf_we_wb_o)
         assert(!(intAccepted && accepted))
         assert(!executionValid || Mux(d.legal && d.arithmetic,response,intResponse))
-        assert(!id_stage_i.execute_consume_o.get || intConsumed || consumed)
-        assert(!rf_we_wb_o || id_stage_i.execute_consume_o.get || integerLoadWrite)
+        if(faithful) {
+          assert(!id_stage_i.execute_consume_o.get || consumed)
+          assert(!rf_we_wb_o || id_stage_i.instr_id_done_o || integerLoadWrite)
+        } else {
+          assert(!id_stage_i.execute_consume_o.get || intConsumed || consumed)
+          assert(!rf_we_wb_o || id_stage_i.execute_consume_o.get || integerLoadWrite)
+        }
         assert(!fetched || !if_stage_i.instr_valid_id_o || id_stage_i.instr_valid_clear_o)
-        when(previousClear || previousReset) { assert(!d.legal && !d.recognized) }
+        when(previousClear || previousReset) {
+          if(faithful) { assert(!accepted && !consumed && !response && !monitorPending) }
+          else { assert(!d.legal && !d.recognized) }
+        }
         when(monitorPending) {
           assert(if_stage_i.instr_valid_id_o)
           assert(instruction===monitorInstruction && if_stage_i.pc_id_o===monitorPc)
@@ -85,7 +97,7 @@ class FloatIntegrationFormal(coversOnly:Boolean=false)
         assert(!(id_stage_i.csr_save_cause_o || id_stage_i.debug_csr_save_o ||
           id_stage_i.csr_restore_mret_id_o || id_stage_i.csr_restore_dret_id_o) || !monitorPending)
         when(effect) {
-          assert(d.substitute===Mux(current.legal,current.substitute,instruction))
+          assert(d.substitute===Mux(if(faithful) current.recognized else current.legal,current.substitute,instruction))
           assert(d.legal===current.legal && d.recognized===current.recognized)
         }
         when(accepted) {
@@ -100,11 +112,11 @@ class FloatIntegrationFormal(coversOnly:Boolean=false)
 
 object EmitFloatIntegrationFormal {
   def main(args:Array[String]):Unit={
-    require(args.length==2)
+    require(args.length==2 || (args.length==3 && args(2)=="faithful"))
     val output=Paths.get(args(0)).toAbsolutePath.normalize
     require(output.startsWith(Paths.get("build").toAbsolutePath.normalize))
     Files.createDirectories(output)
-    ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new FloatIntegrationFormal(args(1)=="cover")),
+    ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new FloatIntegrationFormal(args(1)=="cover",args.length==3)),
       Array("--target-dir",output.toString),Array("--disable-all-randomization",
         "--verification-flavor=immediate","--lower-to-core","-strip-debug-info","--preserve-values=named"))
   }

@@ -13,7 +13,6 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
     val DmExceptionAddr: BigInt = BigInt("1a110808",16),
     val RegisteredExecution: Boolean = false, val WithF: Boolean = false) extends RawModule {
   require(DbgTriggerEn, "T11 core implements the pinned debug-trigger configuration")
-  require(!WithF || RegisteredExecution,"F integration requires registered execution")
   override def desiredName = "ibex_core"
   val clk_i=IO(Input(Clock())); val rst_ni=IO(Input(Bool()))
   val hart_id_i=IO(Input(UInt(32.W))); val boot_addr_i=IO(Input(UInt(32.W)))
@@ -45,7 +44,7 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
   val fetch_enable_i=IO(Input(UInt(4.W)))
   val alert_minor_o=IO(Output(Bool())); val alert_major_internal_o=IO(Output(Bool()))
   val alert_major_bus_o=IO(Output(Bool())); val core_busy_o=IO(Output(UInt(4.W)))
-  if(RegisteredExecution) {
+  if(RegisteredExecution || WithF) {
     // Retain the fixed core interface in both top specialization and standalone
     // instrumentation, so production binding does not discard any ports.
     Seq(ic_data_write_o,dummy_instr_id_o,dummy_instr_wb_o,ic_tag_wdata_o,ic_scr_key_valid_i,
@@ -100,18 +99,24 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
     // squash, so stale F controls cannot redirect the next integer/CSR decode.
     // The existing ID operand/decode stages settle this register and the FP
     // operand registers before the first execution request is accepted.
-    val decoded=FloatInstruction(fetch.instr_rdata_id_o,csr.fp_fcsr_o.get(7,5),csr.fp_fs_o.get)
+    val decoded=FloatInstruction(fetch.instr_rdata_id_o,csr.fp_fcsr_o.get(7,5),csr.fp_fs_o.get,
+      directIntegerRead= !RegisteredExecution)
     val selected=WireDefault(decoded)
     // Register the instruction selection too: a legal-F mux after this stage
     // would put its fanout and the full integer decoder on the RF write path.
-    selected.substitute:=Mux(decoded.legal,decoded.substitute,fetch.instr_rdata_id_o)
-    val metadata=RegNext(selected,0.U.asTypeOf(new FloatDecoded))
-    val qualified=RegNext(fetch.instr_valid_id_o,false.B)
-    when(id.instr_valid_clear_o) { qualified:=false.B }
-    val current=WireDefault(metadata)
-    current.recognized:=qualified && metadata.recognized
-    current.legal:=qualified && metadata.legal
-    current
+    // In the faithful path opcode recognition selects the integer-shaped
+    // encoding; full F legality qualifies effects in ID, not this wide mux.
+    selected.substitute:=Mux(if(RegisteredExecution) decoded.legal else decoded.recognized,
+      decoded.substitute,fetch.instr_rdata_id_o)
+    if(RegisteredExecution) {
+      val metadata=RegNext(selected,0.U.asTypeOf(new FloatDecoded))
+      val qualified=RegNext(fetch.instr_valid_id_o,false.B)
+      when(id.instr_valid_clear_o) { qualified:=false.B }
+      val current=WireDefault(metadata)
+      current.recognized:=qualified && metadata.recognized
+      current.legal:=qualified && metadata.legal
+      current
+    } else selected
   }) else None
   val floatExecution=if(WithF) Some(withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
     Module(new FloatExecution)
@@ -123,6 +128,10 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
     val fp=floatExecution.get; val d=floatDecoded.get
     id.fp_instr_i.get:=d.substitute
     id.fp_illegal_i.get:=d.recognized && !d.legal
+    if(!RegisteredExecution) {
+      id.fp_arithmetic_i.get:=floatArithmetic
+      id.fp_prepare_i.get:=floatArithmetic || floatStore
+    }
     fp.io.decoded:=d; fp.io.integerOperand:=rf_rdata_a_ecc_i
     fp.io.request:=id.execute_req_o.get && floatArithmetic
     // Legal FP arithmetic is one execute phase; use its accepted response
@@ -168,13 +177,13 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
   id.instr_exec_i:=fetch_enable_i(0); id.branch_decision_i:=ex.branch_decision_o
   id.illegal_c_insn_i:=fetch.illegal_c_insn_id_o; id.instr_fetch_err_i:=fetch.instr_fetch_err_o
   id.instr_fetch_err_plus2_i:=fetch.instr_fetch_err_plus2_o; id.pc_id_i:=fetch.pc_id_o
-  val executionValid=if(WithF) withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
+  val executionValid=if(WithF && RegisteredExecution) withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
     // The new F/integer completion selector is a registered boundary. Both
     // producers hold their response and payload until the qualified consume.
     val valid=RegNext(Mux(floatArithmetic,floatExecution.get.io.valid,ex.ex_valid_o),false.B)
     when(id.execute_consume_o.get || id.instr_valid_clear_o) { valid:=false.B }
     valid
-  } else ex.ex_valid_o
+  } else if(WithF) Mux(floatArithmetic,floatExecution.get.io.valid,ex.ex_valid_o) else ex.ex_valid_o
   id.ex_valid_i:=executionValid; id.lsu_resp_valid_i:=lsu.lsu_resp_valid_o
   id.imd_val_we_ex_i:=ex.imd_val_we_o; id.imd_val_d_ex_i:=ex.imd_val_d_o
   id.priv_mode_i:=csr.priv_mode_id_o; id.csr_mstatus_tw_i:=csr.csr_mstatus_tw_o
@@ -206,8 +215,22 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
     ex.execute_consume_i.get:=id.execute_consume_o.get && !floatArithmetic
   }
 
-  data_req_o:=lsu.data_req_o; lsu.data_gnt_i:=data_gnt_i; lsu.data_rvalid_i:=data_rvalid_i
-  lsu.data_bus_err_i:=data_err_i; lsu.data_pmp_err_i:=false.B
+  // The F-enabled integration hardens the inherited LSU's bus contract:
+  // a response belongs to an earlier granted beat, never an idle/new request.
+  // Split accesses can have two grants outstanding; a concurrent old response
+  // and new grant exchange ownership without changing the count. Reset alone
+  // discards ownership: cancellation cannot retract a grant already on the bus.
+  val ownedDataResponse=if(WithF) withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
+    val outstanding=RegInit(0.U(2.W))
+    val granted=lsu.data_req_o && data_gnt_i
+    val returned=data_rvalid_i && outstanding=/=0.U
+    when(granted && !returned) { outstanding:=outstanding+1.U }
+      .elsewhen(returned && !granted) { outstanding:=outstanding-1.U }
+    returned
+  } else data_rvalid_i
+  data_req_o:=lsu.data_req_o; lsu.data_gnt_i:=data_gnt_i; lsu.data_rvalid_i:=ownedDataResponse
+  lsu.data_bus_err_i:=(if(WithF) data_err_i && ownedDataResponse else data_err_i)
+  lsu.data_pmp_err_i:=false.B
   data_addr_o:=lsu.data_addr_o; data_we_o:=lsu.data_we_o; data_be_o:=lsu.data_be_o
   data_wdata_o:=lsu.data_wdata_o; lsu.data_rdata_i:=data_rdata_i
   lsu.lsu_we_i:=id.lsu_we_o; lsu.lsu_type_i:=id.lsu_type_o; lsu.lsu_wdata_i:=id.lsu_wdata_o
@@ -330,9 +353,11 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
       rvfi_mem_addr_q:=memAddr; rvfi_mem_wdata_q:=memWrite; rvfi_mem_rdata_q:=memRead
       val rvfi_rs1_data_q=RegInit(0.U(32.W)); val rvfi_rs2_data_q=RegInit(0.U(32.W))
       val rvfi_rs1_addr_q=RegInit(0.U(5.W)); val rvfi_rs2_addr_q=RegInit(0.U(5.W))
-      val rs1Data=Mux(id.instr_first_cycle_id_o,Mux(id.rf_ren_a_o,id.multdiv_operand_a_ex_o,0.U),rvfi_rs1_data_q)
+      val readIntegerA=id.rf_ren_a_o && (if(WithF && !RegisteredExecution)
+        !floatArithmetic || floatDecoded.get.useInteger else true.B)
+      val rs1Data=Mux(id.instr_first_cycle_id_o,Mux(readIntegerA,id.multdiv_operand_a_ex_o,0.U),rvfi_rs1_data_q)
       val rs2Data=Mux(id.instr_first_cycle_id_o,Mux(id.rf_ren_b_o && !floatStore,id.multdiv_operand_b_ex_o,0.U),rvfi_rs2_data_q)
-      val rs1Addr=Mux(id.instr_first_cycle_id_o,Mux(id.rf_ren_a_o,id.rf_raddr_a_o,0.U),rvfi_rs1_addr_q)
+      val rs1Addr=Mux(id.instr_first_cycle_id_o,Mux(readIntegerA,id.rf_raddr_a_o,0.U),rvfi_rs1_addr_q)
       val rs2Addr=Mux(id.instr_first_cycle_id_o,Mux(id.rf_ren_b_o && !floatStore,id.rf_raddr_b_o,0.U),rvfi_rs2_addr_q)
       rvfi_rs1_data_q:=rs1Data; rvfi_rs2_data_q:=rs2Data; rvfi_rs1_addr_q:=rs1Addr; rvfi_rs2_addr_q:=rs2Addr
       val rvfi_rd_addr_q=RegInit(0.U(5.W)); val rvfi_rd_wdata_q=RegInit(0.U(32.W))

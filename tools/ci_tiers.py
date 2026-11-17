@@ -29,7 +29,7 @@ def fast_commands(output):
         ('formal-harness-units',[py,'-m','unittest','discover','-s','hw/lib/formal','-p','test_*.py']),
         ('fpu-receipt-units',[py,'-m','unittest','discover','-s','hw/ip/fpu/formal','-p','test_*.py']),
         ('regmap-units',[py,'-m','unittest','hw/regmap/test_regmap.py']),
-        ('block-smoke',[py,'tools/sbt.py','hw/testOnly deadhorse.perf_core.ClockedExecuteSpec deadhorse.perf_core.FloatCoreSpec']),
+        ('block-smoke',[py,'tools/sbt.py','hw/testOnly deadhorse.perf_core.ClockedExecuteSpec deadhorse.perf_core.FloatCoreSpec deadhorse.perf_core.FaithfulFloatCoreSpec']),
         ('emit-leaves',emit('deadhorse.perf_core.EmitLeaves','leaves')),
         ('emit-core',emit('deadhorse.perf_core.EmitCore','core')),
         ('emit-baseline',emit('deadhorse.perf_core.EmitRegisteredCore','baseline-emit')),
@@ -40,7 +40,17 @@ def fast_commands(output):
         ('register-formal',[py,'hw/lib/formal/regblock_proof.py']),
         ('emit-clock-gate',emit('deadhorse.lib.EmitClockGate','clock-gate')),
         ('clock-gate-formal',[py,'hw/lib/formal/clock_gate_proof.py','--emitted',f'{root}/clock-gate','--output',f'{root}/clock-gate-formal']),
-        ('local-no-f-formal',[py,'hw/ip/perf_core/formal/check_no_f.py','--baseline',f'{root}/baseline','--candidate',f'{root}/floating','--output',f'{root}/no-f-formal'])]
+        ('local-no-f-formal',[py,'hw/ip/perf_core/formal/check_no_f.py','--baseline',f'{root}/baseline','--candidate',f'{root}/floating','--output',f'{root}/no-f-formal']),
+        ('emit-faithful-floating',emit('deadhorse.perf_core.EmitFaithfulFloatCore','faithful-float-emit')),
+        ('package-faithful-floating',[py,'hw/ip/perf_core/formal/package_candidate.py','--float',
+            '--top',f'{root}/faithful-float-emit/model','--leaves',f'{root}/leaves','--core',f'{root}/core',
+            '--output',f'{root}/faithful-floating']),
+        ('faithful-floating-timing',[py,'hw/ip/perf_core/check_top_timing.py','--emitted',f'{root}/faithful-float-emit/asic',
+            '--operating-point','main-9mhz','--output',f'{root}/faithful-floating-timing']),
+        ('faithful-floating-smoke',[py,'dv/core/lockstep.py','--candidate',f'{root}/faithful-floating',
+            '--isa','rv32imfc','--suite','random','--output',f'{root}/faithful-floating-smoke']),
+        ('faithful-local-no-f-formal',[py,'hw/ip/perf_core/formal/check_no_f.py','--baseline',f'{root}/baseline',
+            '--candidate',f'{root}/faithful-floating','--output',f'{root}/faithful-no-f-formal'])]
 
 
 def plan(tier,output,legacy,triage_result=None):
@@ -57,6 +67,11 @@ def plan(tier,output,legacy,triage_result=None):
             *(['--triage-policy',str(triage_result)] if triage_result else [])]))
         commands.append(('full-f-lockstep',[sys.executable,'dv/core/lockstep.py','--candidate',f'{prefix}/fast/floating',
             '--isa','rv32imfc','--suite','arch,random,flight-float','--output',f'{prefix}/floating-lockstep']))
+        commands.append(('full-faithful-f-isa',[sys.executable,'dv/core/riscv_formal.py','--target','candidate',
+            '--candidate',f'{prefix}/fast/faithful-floating','--output',f'{prefix}/faithful-floating-isa']))
+        commands.append(('full-faithful-f-lockstep',[sys.executable,'dv/core/lockstep.py',
+            '--candidate',f'{prefix}/fast/faithful-floating','--isa','rv32imfc',
+            '--suite','arch,random,flight-float','--output',f'{prefix}/faithful-floating-lockstep']))
     return commands
 
 

@@ -4,7 +4,7 @@ Default / --tier fast: structure, Python units, selected clocked block tests,
 fresh core emission/timing, concrete lockstep smoke and a fixed small formal set.
 Intended for minutes; it is not complete ISA acceptance.
 --tier full: fast checks plus all prior full-gate workloads, complete configured
-ISA sweeps for baseline/registered/F profiles, full block tests and FPU checks.
+ISA sweeps for baseline/registered/F and faithful-F profiles, full block tests and FPU checks.
 Both record actual wall time, step outcomes and tier in result.json. Full can
 run for hours; an early failure is reported as a partial run, never a full pass.
 The old --scope fpu/t13 entry points remain explicitly scoped compatibility routes.

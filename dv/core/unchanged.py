@@ -13,7 +13,7 @@ def check(tag,candidate,out):
     from equiv import elaborate, compare, negatives
     if tag!='t11-baseline' or not candidate: raise ValueError('T13 needs t11-baseline and a candidate')
     parameters(candidate); current=manifest(candidate)
-    if current.get('implementation')!='rv32imfc-v1': raise ValueError('Expected F-enabled production profile')
+    if current.get('implementation') not in ('rv32imfc-v1','rv32imfc-faithful-v1'): raise ValueError('Expected F-enabled production profile')
     revision=subprocess.check_output(['git','rev-parse',tag+'^{commit}'],cwd=ROOT,text=True).strip()
     archive=out/'baseline.tar'; source=output_dir(ROOT/'build'/('tag-'+revision[:8]))
     run(['git','archive','--format=tar','--output='+str(archive),revision],out,'archive')
@@ -25,12 +25,14 @@ def check(tag,candidate,out):
     if archived_lock.read_bytes().replace(b'\r\n',b'\n')!=pinned_lock.read_bytes().replace(b'\r\n',b'\n'):
         raise ValueError('Tagged baseline toolchain differs from installed pins')
     archived_lock.write_bytes(pinned_lock.read_bytes())
+    faithful=current['implementation']=='rv32imfc-faithful-v1'
+    emitter='EmitTop' if faithful else 'EmitRegisteredCore'
     run([sys.executable,source/'tools/sbt.py',
-         'hw/runMain deadhorse.perf_core.EmitRegisteredCore build/registered-emit',
+         f'hw/runMain deadhorse.perf_core.{emitter} build/registered-emit',
          'hw/runMain deadhorse.perf_core.EmitLeaves build/leaves'],out,'emit-baseline',timeout=180)
     emitted=source/'build/registered-emit/model'
     baseline=out/'baseline'
-    run([sys.executable,'hw/ip/perf_core/formal/package_candidate.py','--registered',
+    run([sys.executable,'hw/ip/perf_core/formal/package_candidate.py',*(['--integrated-views'] if faithful else ['--registered']),
          '--top',emitted,'--leaves',source/'build/leaves','--core',emitted,'--output',baseline],out,'package-baseline')
     # Match module filenames, then compare complete newline-normalized source
     # bytes to the tag. Changed modules remain separate proof obligations.

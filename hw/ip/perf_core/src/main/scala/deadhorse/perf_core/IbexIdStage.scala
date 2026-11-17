@@ -68,8 +68,10 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
   val perf_jump_o=IO(Output(Bool())); val perf_branch_o=IO(Output(Bool())); val perf_tbranch_o=IO(Output(Bool()))
   val perf_dside_wait_o=IO(Output(Bool())); val perf_mul_wait_o=IO(Output(Bool())); val perf_div_wait_o=IO(Output(Bool()))
   val instr_id_done_o=IO(Output(Bool()))
-  val execute_req_o=if(RegisteredExecution) Some(IO(Output(Bool()))) else None
-  val execute_consume_o=if(RegisteredExecution) Some(IO(Output(Bool()))) else None
+  val execute_req_o=if(RegisteredExecution || WithF) Some(IO(Output(Bool()))) else None
+  val execute_consume_o=if(RegisteredExecution || WithF) Some(IO(Output(Bool()))) else None
+  val fp_arithmetic_i=if(WithF && !RegisteredExecution) Some(IO(Input(Bool()))) else None
+  val fp_prepare_i=if(WithF && !RegisteredExecution) Some(IO(Input(Bool()))) else None
   val fp_instr_i=if(WithF) Some(IO(Input(UInt(32.W)))) else None
   val fp_illegal_i=if(WithF) Some(IO(Input(Bool()))) else None
   val fp_load_commit_o=if(WithF) Some(IO(Output(Bool()))) else None
@@ -80,7 +82,8 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
   val dec=decoder_i; val ctrl=controller_i
   def stableControl(value:Bool):Bool=if(RegisteredExecution)
     withClockAndReset(clk_i,(!rst_ni).asAsyncReset) { RegNext(value,false.B) } else value
-  val dataRequest=stableControl(dec.data_req_o)
+  val fpEffectsAllowed=if(WithF && !RegisteredExecution) !fp_illegal_i.get else true.B
+  val dataRequest=stableControl(dec.data_req_o) && fpEffectsAllowed
   val integerWrite=if(WithF) stableControl(dec.rf_we_o) else dec.rf_we_o
   val storeInstruction=if(WithF) stableControl(dec.data_we_o) else dec.data_we_o
   val multiplyEnable=stableControl(dec.mult_en_o); val divideEnable=stableControl(dec.div_en_o)
@@ -91,6 +94,15 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
   val csrInstruction=stableControl(dec.csr_access_o)
   val jumpSet=stableControl(dec.jump_set_o)
   val decodeReady=WireDefault(true.B)
+  if(WithF && !RegisteredExecution) {
+    withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
+      val fp_operands_ready_q=RegInit(false.B)
+      when(instr_valid_i && ctrl.controller_run_o && fp_prepare_i.get) { fp_operands_ready_q:=true.B }
+      when(instr_valid_clear_o) { fp_operands_ready_q:=false.B }
+      decodeReady:= !fp_prepare_i.get || fp_operands_ready_q
+      executionPhaseReady:=decodeReady
+    }
+  }
   val effectiveIllegalCsr=WireDefault(illegal_csr_insn_i)
   dec.clk_i:=clk_i; dec.rst_ni:=rst_ni; ctrl.clk_i:=clk_i; ctrl.rst_ni:=rst_ni
   dec.instr_rdata_i:=(if(WithF) fp_instr_i.get else instr_rdata_i)
@@ -209,7 +221,8 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
     val stall_multdiv=WireDefault(false.B); val stall_jump=WireDefault(false.B)
     val stall_branch=WireDefault(false.B); val stall_alu=WireDefault(false.B)
     val branch_set_raw_d=WireDefault(false.B); val jump_set_raw=WireDefault(false.B)
-    val multdiv_en_dec=multiplyEnable || divideEnable
+    val multdiv_en_dec=multiplyEnable || divideEnable ||
+      (if(WithF && !RegisteredExecution) fp_arithmetic_i.get else false.B)
     val multicycle_done=Mux(dataRequest,lsu_resp_valid_i,ex_valid_i)
     perf_branch_o:=false.B
     when(instr_executing && executionPhaseReady) {
@@ -233,7 +246,7 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
       }
       id_fsm_q:=id_fsm_d
     }
-    if(RegisteredExecution) {
+    if(RegisteredExecution || WithF) {
       // A controller flush cancels the old instruction's phase as well as its
       // qualification state; the next instruction must start with an address/
       // execution request even if the previous LSU operation ended in error.
@@ -259,6 +272,10 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
     val stall_id=stall_mem || (instr_executing && (!executionPhaseReady || phaseStall))
     ctrl.stall_id_i:=stall_id
     val instr_done= !stall_id && !ctrl.flush_id_o && instr_executing
+    if(WithF && !RegisteredExecution) {
+      execute_req_o.get:=instr_executing && decodeReady && fp_arithmetic_i.get && !illegal_insn_o
+      execute_consume_o.get:=instr_done && fp_arithmetic_i.get
+    }
     dec.instr_first_cycle_i:=instr_first_cycle; instr_first_cycle_id_o:=instr_first_cycle
     instr_id_done_o:=instr_done; en_wb_o:=instr_done
     if(WithF) {
@@ -275,12 +292,12 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
       // than the general instruction-done tree that also includes LSU stalls.
       csr_op_en_o:=csrInstruction && execute_consume_o.get && decodeReady && !illegal_insn_o
     } else { csr_op_en_o:=csrInstruction && instr_executing && instr_done }
-    rf_we_id_o:=rf_we_raw && instr_executing && !effectiveIllegalCsr && executionPhaseReady
+    rf_we_id_o:=rf_we_raw && instr_executing && !effectiveIllegalCsr && executionPhaseReady && fpEffectsAllowed
     expecting_load_resp_o:=instr_valid_i && dataRequest && !instr_first_cycle && !storeInstruction
     expecting_store_resp_o:=instr_valid_i && dataRequest && !instr_first_cycle && storeInstruction
     perf_dside_wait_o:=instr_executing && dataRequest && !lsu_resp_valid_i
     perf_mul_wait_o:=stall_multdiv && multiplyEnable; perf_div_wait_o:=stall_multdiv && divideEnable
   }
   instr_perf_count_id_o:= !dec.ebrk_insn_o && !dec.ecall_insn_o && !dec.illegal_insn_o &&
-    !effectiveIllegalCsr && !instr_fetch_err_i
+    !effectiveIllegalCsr && !instr_fetch_err_i && fpEffectsAllowed
 }

@@ -15,7 +15,7 @@ class FloatDecoded extends Bundle {
 
 /** Architectural decode; no floating arithmetic is duplicated here. */
 object FloatInstruction {
-  def apply(i:UInt,frm:UInt,fs:UInt):FloatDecoded = {
+  def apply(i:UInt,frm:UInt,fs:UInt,directIntegerRead:Boolean=false):FloatDecoded = {
     val d=WireDefault(0.U.asTypeOf(new FloatDecoded))
     val opcode=i(6,0); val f3=i(14,12); val f7=i(31,25)
     val encoding=WireDefault(false.B); val rounding=WireDefault(false.B)
@@ -75,7 +75,9 @@ object FloatInstruction {
     when(!rounding) { d.rm:=0.U }
     // Reuse the established address/CSR/integer-control path, while retaining
     // the original instruction separately for exceptions and retirement.
-    d.substitute:=Cat(0.U(12.W),Mux(d.useInteger,d.rs1,0.U(5.W)),0.U(3.W),
+    // A faithful pipeline can read the raw rs1 address unconditionally. Only
+    // useInteger operations consume that value; trace read-enables stay exact.
+    d.substitute:=Cat(0.U(12.W),if(directIntegerRead) d.rs1 else Mux(d.useInteger,d.rs1,0.U(5.W)),0.U(3.W),
       Mux(d.writeInteger,d.rd,0.U(5.W)),"h33".U(7.W))
     when(d.load) { d.substitute:=Cat(i(31,12),0.U(5.W),"h03".U(7.W)) }
     when(d.store) { d.substitute:=Cat(i(31,7),"h23".U(7.W)) }

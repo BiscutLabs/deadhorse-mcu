@@ -124,6 +124,9 @@ def main():
     ap.add_argument('--faithful',default='build/t11/ci/baseline')
     ap.add_argument('--registered',default='build/t13/current-baseline')
     ap.add_argument('--floating',default='build/t13/exponent/candidate')
+    ap.add_argument('--faithful-floating',help='Optional faithful-pipeline F candidate')
+    ap.add_argument('--profiles',default='faithful,registered,registered-f',
+                    help='Comma-separated profiles to measure; faithful-f requires --faithful-floating')
     ap.add_argument('--output')
     ap.add_argument('--analyze-existing',help='Recompute integer/FP spacing from a completed raw measurement')
     args=ap.parse_args()
@@ -132,8 +135,14 @@ def main():
     out=output_dir(args.output)
     profiles={'faithful':local(args.faithful),'registered':local(args.registered),
               'registered-f':local(args.floating)}
+    if args.faithful_floating: profiles['faithful-f']=local(args.faithful_floating)
+    selected=args.profiles.split(',')
+    if not selected or len(set(selected))!=len(selected) or any(p not in profiles for p in selected):
+        ap.error('Unknown/duplicate profile or missing --faithful-floating')
+    profiles={p:profiles[p] for p in selected}
     expected={'faithful':'faithful baseline; execution retiming remains separate',
-              'registered':'registered-execution-v1','registered-f':'rv32imfc-v1'}
+              'registered':'registered-execution-v1','registered-f':'rv32imfc-v1',
+              'faithful-f':'rv32imfc-faithful-v1'}
     protected={}
     for profile,directory in profiles.items():
         parameters(directory)
@@ -149,7 +158,7 @@ def main():
         environment='port-only RTL simulation; ideal one-cycle instruction/data memory; no interrupts',
         iteration='previous retirement before first loop instruction through loop backedge retirement; includes input staging, control_step, checksum and loop housekeeping',
         arithmetic='retirement-to-retirement spacing from existing smoke/flight instructions; includes pipeline/fetch effects, not isolated unit latency',
-        unsupported={'faithful/hard-float':'Faithful profile is RV32IMC; WithF requires RegisteredExecution. No RTL changed.'})
+        unsupported={'faithful/hard-float':'Integer-only faithful profile is RV32IMC; supply faithful-f separately for F.'})
     try:
         fixed=next(flight_program(out/'fixed'))
         floating=next(float_flight(out/'hard-float'))[:5]
@@ -167,7 +176,7 @@ def main():
         reference={}
         for profile,candidate in profiles.items():
             sim=compile_sim(out/profile/'sim',candidate);receipt['profiles'][profile]={}
-            for name in ('fixed','smoke',*(['hard-float'] if profile=='registered-f' else [])):
+            for name in ('fixed','smoke',*(['hard-float'] if profile in ('registered-f','faithful-f') else [])):
                 directory=output_dir(out/profile/name)
                 _,elf,binary,base,flags=workloads[name];iss,bounds=prepared[name]
                 cycle_file=directory/'cycles.txt'
@@ -177,7 +186,7 @@ def main():
                 if name=='hard-float':compare_float(rows,iss,binary.read_bytes(),base)
                 else:
                     clean=integer_rows(rows)
-                    if profile=='faithful': reference[name]=clean
+                    if name not in reference: reference[name]=clean
                     compare(reference[name],clean,iss,binary.read_bytes(),base)
                 measured=dict(status='measured; architectural lockstep passed',retirements=len(rows),
                               arithmetic=arithmetic(rows,cycles),model=manifest(candidate)['implementation'])
@@ -186,13 +195,13 @@ def main():
                     measured.update(boundaries=bounds,iterations=stats([s['cycles'] for s in samples]),
                         per_mode={str(m):stats([s['cycles'] for s in samples if s['mode']==m]) for m in range(3)})
                     measured['derived_loop_us']={str(mhz):{k:measured['iterations'][k]/mhz for k in ('mean','worst')}
-                                                for mhz in (12,24)}
+                                                for mhz in (9,12,24)}
                 receipt['profiles'][profile][name]=measured
                 print(profile+'/'+name+': '+json.dumps({k:v for k,v in measured.items() if k not in ('arithmetic','per_mode')}),flush=True)
                 (out/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
         for path,value in protected.items():
             if hashlib.sha256(Path(path).read_bytes()).hexdigest()!=value:raise ValueError('Measurement input changed: '+path)
-        receipt['status']='pass (measured supported profiles; faithful hard-float unsupported)'
+        receipt['status']='pass (measured selected supported profiles)'
     except BaseException as exc:receipt.update(status='unresolved',error=str(exc));raise
     finally:(out/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
 

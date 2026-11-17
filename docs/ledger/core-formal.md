@@ -1072,3 +1072,46 @@ zero-divisor-only classifications. T13 remains blocked. Independent review
 verified both gate receipts, all 922 frozen source hashes, and the timing failure.
 Receipts: `build/t13/feedback/ci-fast-registered/result.json` and
 `build/t13/feedback/ci-full/result.json`. No RTL or timing-limit repair was made.
+
+## T13 faithful F continuation (2026-11-16)
+
+Base `d8683936` plus recorded working-tree hashes. [Report](../plan/tasks/reports/T13-faithful-f.md).
+`build/t13/faithful-f/qualified/unchanged/result.json`: 12 unchanged modules
+proved with rejected faults. Changed integration remains a separate obligation.
+`isa-focused/result.json`: ADDI/LW/C.ADD **bounded**, depth 40/check 12,
+concrete covers and result faults, no cutpoints, measured 69.410 s total;
+all other instructions omitted from this focused invocation.
+`fpu-wide/result.json`: existing five all-port inclusion roles proved and
+five controls rejected for this candidate. Normal integration uses that
+qualified protocol, not a concrete arithmetic proof.
+`integration/result.json`: production binding proved, binding faults rejected,
+but normal integration assertion 15 fails at bound 10. Unsolicited data error
+coincides with FP acceptance; next cycle load-fault cause-save and cancellation
+overlap pending ownership. No FP/flag/integer commit in the relevant cycles.
+Next recorded state also asserts reset; cancellation-only recovery and concrete
+replay are unrun. Independent review confirms hashes and trace interpretation.
+No induction extension, new bus assumption or weakened assertion was introduced.
+Fault/cover integration roles were not reached; do not claim integration safety.
+
+Fast tier **failed (partial tier run)**, measured 426.823 s to stop; 15 commands passed, failed at integrated-timing. Full tier **not run this continuation**.
+
+## T13 bus-error repair (2026-11-16)
+
+User-requested fix qualifies data responses by prior bus grants, for F-enabled
+profiles only. No inherited LSU change or new environmental assumption.
+Original unsolicited-response simulation fails before repair and passes after;
+real aligned/split load/store errors, backpressure and reset regression pass.
+Bound production monitor equivalence and all binding controls pass.
+Original 28 integration assertions: depth160/120s **unresolved**, timeout at
+step93; one unchanged-model portfolio also times out. Diagnostic depths40/80
+pass (25.428/94.154s), **bounded, abstracted**, not replacement acceptance.
+Only the existing qualified wide FPU protocol is substituted; no new cutpoint.
+All eight **concrete** covers pass (earliest bounds5,9,10,13) and original
+commit-on-cancel fault is rejected on the concrete model. No induction extension
+or timeout increase. Prepared size3110cells/2240state bits/no memories.
+Receipts under `build/t13/bus-error/{integration,diagnostics,concrete-fault}`.
+Only emitted ibex_core changes against the preceding faithful-F candidate;
+other source and extra-source hashes remain identical. Prior unchanged-module
+proofs are not claimed as new runs. Selected full lockstep suites pass freshly.
+Fast tier **PASS**, all 26 commands, measured 824.220 s (13m 44s), including 14 RTL tests. **Full tier not run.**
+See [repair report](../plan/tasks/reports/T13-bus-error.md) for commands and independent review.

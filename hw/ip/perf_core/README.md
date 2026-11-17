@@ -238,3 +238,40 @@ The registered profile has its own bounded integration checks, abstracted ISA
 classification and architectural/flight retirement comparisons. The baseline
 cycle-equivalence proof is not substituted for those obligations. Consult
 the task report and sole status tracker for current acceptance completion.
+
+## Faithful F integration candidate
+
+The T13 continuation adds F to the faithful two-stage integer pipeline, in
+its existing gated main clock domain and asynchronous reset convention.
+The integer-only faithful configuration and the registered profiles stay
+available. The new candidate is not qualified until its own checks pass.
+
+Reuse FloatExecution, the standalone multicycle FPU, float register file,
+F decode/compressed expansion and architectural CSR logic. Integer decode
+and execution retain the faithful cycle path. Legal FP arithmetic and FSW
+wait one preparation cycle for the existing registered operand reads; FP
+arithmetic then stalls the existing ID multicycle state until the FPU holds
+a result. Only instruction completion commits result/flags/FS state; a flush
+cancels an uncommitted request. FLW uses the existing qualified LSU response.
+No new clock, reset boundary or CDC is introduced. Inherited combinational
+boundaries remain under the faithful conversion exception; new F operand
+and result boundaries retain their registers.
+
+F-enabled cores qualify incoming data responses against previously granted
+bus beats. A two-bit counter accommodates both beats of a split access;
+simultaneous grant/owned response preserves the count. Responses without
+ownership and error values without a valid owned response are ignored. Real
+load/store errors remain architectural faults. Reset clears ownership;
+instruction cancellation does not revoke a granted bus transaction. The
+integer-only reference profile and adopted LSU are unchanged. This follows
+the [Ibex bus protocol](https://ibex-core.readthedocs.io/en/stable/03_reference/load_store_unit.html),
+which returns responses in grant order, one or more cycles after each grant.
+
+The repaired faithful-F candidate measures 839962.5472 um2 mapped cell area
+and 65.726219 ns against the 66.666667 ns 9 MHz allowance: timing passes.
+The unsolicited-response regression passes; genuine memory errors remain
+precise. Original integration assertions pass diagnostic depths 40 and 80,
+but the required depth-160 check and one engine portfolio time out. Concrete
+covers and a commit-on-cancel fault control pass. This is not full integration
+qualification. See [the repair report](../../../docs/plan/tasks/reports/T13-bus-error.md)
+for commands, review, the passing fast tier and the unrun full tier.

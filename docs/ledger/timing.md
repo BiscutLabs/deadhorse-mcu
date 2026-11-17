@@ -414,3 +414,34 @@ re-import and initial fresh-mapping failure are preserved in the report.
 Independent review accepts the reproducible fresh 9 MHz experiment. Final
 fast tier passes 21 commands in measured 474.641 s; full not rerun. This is
 RV32IMC pre-layout evidence, not faithful-F integration or production adoption.
+
+## T13 faithful F continuation (2026-11-16)
+
+Measured base `d8683936` plus frozen sources, pinned Yosys 0.71+34/OpenSTA 3.2.0,
+GF180 7t5v0 SS/125C/3.0V, mapped pre-layout with ideal clocks.
+Command: `python tools/env/run.py run -- python3 hw/ip/perf_core/check_top_timing.py --emitted build/t13/faithful-f/qualified/emit/asic --operating-point main-9mhz --output build/t13/faithful-f/qualified/timing`.
+**FAIL 67.791702 ns / 66.666667 ns**, area **838720.064 um2**, electrical
+violations zero. Instruction bit 4 to integer RF bit 350; 80 logic stages.
+Derived excess 1.125035 ns. Mapping target remains 62500 ps; no default clock
+or allowance changed. Earlier 64.900009 ns emission omitted preservation of
+unused interface ports and is not substituted for this final measurement.
+Independent review authenticated final source hashes. [Report](../plan/tasks/reports/T13-faithful-f.md).
+
+Fast tier **failed (partial tier run)**, measured 426.823 s to stop; 15 commands passed, failed at integrated-timing. Full tier **not run this continuation**.
+
+The retained registered F profile also fails in this fast run: 25.225288 ns / 24.960000 ns, zero electrical violations (build/t13/faithful-f/ci-fast/fast/timing/result.json). This occurs before the added faithful CI jobs; they were not run by the tier. No default-clock failure was bypassed.
+
+## T13 bus-response ownership repair (2026-11-16)
+
+Measured base91dd5c88 plus frozen working-tree sources, pinned GF1807t5v0
+SS/125C/3.0V, Yosys0.71+34/OpenSTA3.2.0, mapped pre-layout/ideal clocks.
+`python tools/env/run.py run -- python3 hw/ip/perf_core/check_top_timing.py --emitted build/t13/bus-error/emit/asic --operating-point main-9mhz --output build/t13/bus-error/timing`
+passes **65.726219 / 66.666667 ns**, cell area **839962.5472 um2**, zero
+electrical violations. Fresh fast-tier emission reproduces this passing result.
+Retained registered F default check passes **24.947506 / 24.960000 ns**.
+Derived margins0.940448ns and0.012494ns respectively; neither is routed signoff.
+No timing limit or mapping target changed. Source repair adds two ownership
+bits and response qualification; mapping changes prevent attributing the entire
+area/delay delta to those bits. Earlier failed receipts remain historical.
+Fast tier **PASS**, all 26 commands, measured 824.220 s (13m 44s), including 14 RTL tests. **Full tier not run.**
+[Repair report](../plan/tasks/reports/T13-bus-error.md).

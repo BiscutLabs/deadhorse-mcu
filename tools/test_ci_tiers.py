@@ -4,6 +4,16 @@ from ci_tiers import ROOT, plan
 
 
 class TierTest(unittest.TestCase):
+    def test_faithful_float_checks_are_separate_and_preserve_registered_checks(self):
+        jobs=dict(plan('full',ROOT/'build/tier-test',[]))
+        self.assertNotIn('--registered',jobs['package-faithful-floating'])
+        self.assertIn('--float',jobs['package-faithful-floating'])
+        self.assertIn('main-9mhz',jobs['faithful-floating-timing'])
+        self.assertNotIn('--operating-point',jobs['integrated-timing'])
+        self.assertIn('--registered',jobs['package-floating'])
+        self.assertNotIn('--checks',jobs['full-faithful-f-isa'])
+        self.assertNotIn('--triage-policy',jobs['full-faithful-f-isa'])
+
     def test_fast_is_fixed_and_excludes_sweep(self):
         jobs=plan('fast',ROOT/'build/tier-test',[])
         names={name for name,_ in jobs}

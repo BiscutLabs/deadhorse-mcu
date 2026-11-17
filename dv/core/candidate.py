@@ -24,6 +24,10 @@ INACTIVE = {
 F_EXTRAS = {'DivSqrtRawFN_small_e8_s24.sv', 'RoundRawFNToRecFN_e8_s24.sv', 'CompareRecFN.sv', 'RoundAnyRawFNToRecFN_ie8_is26_oe8_os24.sv', 'RecFNToIN_e8_s24_i32.sv', 'MulAddRecFNToRaw_postMul_e8_s24.sv', 'Fpu.sv', 'MulAddRecFNToRaw_preMul_e8_s24.sv', 'IterativeMultiply.sv', 'ClockedExecute.sv', 'FloatExecution.sv', 'ClockGate.sv'}
 
 
+FAITHFUL_F_EXTRAS = F_EXTRAS - {'ClockedExecute.sv', 'IterativeMultiply.sv'}
+F_PROFILES = ('rv32imfc-v1', 'rv32imfc-faithful-v1')
+
+
 def manifest(directory):
     path=local(directory)/'candidate.json'
     return json.loads(path.read_text()) if path.exists() else None
@@ -78,10 +82,12 @@ def parameters(directory):
             required_extras.update(('ClockedExecute.sv','IterativeMultiply.sv'))
             if data.get('module_views'):
                 raise ValueError('Registered candidate cannot substitute baseline module views')
-        if data.get('implementation')=='rv32imfc-v1':
+        if data.get('implementation') in F_PROFILES:
             if data.get('isa')!='rv32imfc':
                 raise ValueError('Floating candidate must declare rv32imfc')
-            required_extras=F_EXTRAS
+            required_extras=F_EXTRAS if data['implementation']=='rv32imfc-v1' else FAITHFUL_F_EXTRAS
+            if data.get('module_views'):
+                raise ValueError('Floating candidate cannot substitute baseline module views')
         elif 'isa' in data:
             raise ValueError('ISA extension requires its authenticated implementation profile')
         if set(extras)!=required_extras:

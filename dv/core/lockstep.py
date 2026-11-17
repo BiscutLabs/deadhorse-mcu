@@ -23,8 +23,8 @@ def compile_sim(output, candidate=None, original=False):
             sources[sources.index(original_top)] = str(local(candidate))
     from candidate import parameters as candidate_parameters
     parameters = candidate_parameters(candidate)
-    from candidate import manifest
-    floating=bool(candidate and local(candidate).is_dir() and (manifest(candidate) or {}).get('implementation')=='rv32imfc-v1')
+    from candidate import manifest, F_PROFILES
+    floating=bool(candidate and local(candidate).is_dir() and (manifest(candidate) or {}).get('implementation') in F_PROFILES)
     run(['verilator', '--cc', '--exe', '--build', '-j', '4', '--top-module', 'ibex_top',
          *(['-CFLAGS','-DDEADHORSE_F'] if floating else []),
          '-Wno-fatal', '--Mdir', str(output / 'obj'),

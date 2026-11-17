@@ -6,11 +6,33 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from candidate import INACTIVE, parameters, sources
+from candidate import INACTIVE, FAITHFUL_F_EXTRAS, parameters, sources
 from common import CONFIG, ROOT
 
 
 class CandidateManifestTests(unittest.TestCase):
+    def test_faithful_float_profile_authenticates_exact_extras_and_isa(self):
+        self.data.update(implementation='rv32imfc-faithful-v1',isa='rv32imfc',module_views={})
+        self.data['extra_sources']={name:self.write(name,('fixture:'+name).encode())
+                                   for name in FAITHFUL_F_EXTRAS}
+        self.save()
+        self.assertEqual(parameters(self.directory),{})
+        for name in sorted(FAITHFUL_F_EXTRAS):
+            digest=self.data['extra_sources'].pop(name);self.save()
+            with self.assertRaises(ValueError):parameters(self.directory)
+            self.data['extra_sources'][name]='0'*64;self.save()
+            with self.assertRaises(ValueError):parameters(self.directory)
+            self.data['extra_sources'][name]=digest
+        self.data['extra_sources']['ClockedExecute.sv']=self.write('ClockedExecute.sv',b'wrong-profile')
+        self.save()
+        with self.assertRaises(ValueError):parameters(self.directory)
+        self.data['extra_sources'].pop('ClockedExecute.sv')
+        self.data['isa']='rv32imc';self.save()
+        with self.assertRaises(ValueError):parameters(self.directory)
+        self.data['isa']='rv32imfc'
+        self.data['module_views']={'ibex_alu':{}};self.save()
+        with self.assertRaisesRegex(ValueError,'cannot substitute'):parameters(self.directory)
+
     def setUp(self):
         base=ROOT/'build/test_candidate_manifest'; base.mkdir(parents=True,exist_ok=True)
         self.temp=tempfile.TemporaryDirectory(dir=base)

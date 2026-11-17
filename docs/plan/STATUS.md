@@ -74,7 +74,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T10 | [Ibex reference and harness](tasks/T10-ibex-reference.md) | Codex | T07, T08 | [Report](tasks/reports/T10.md): sequential/whole-core harness, candidate suites and divide stress pass; full local gate and independent review pass; D44 limits retained |
 | [x] | T11 | [Ibex conversion](tasks/T11-ibex-conversion.md) | Codex | T10, T09 | [Report](tasks/reports/T11.md): user-approved focused verification complete; exact revision proof carries prior ISA evidence; current tests/timing/lockstep and independent review pass; repeated full CI stopped, not passed |
 | [x] | T12 | [FPU](tasks/T12-fpu.md) | Codex | T07, T09 | [Report](tasks/reports/T12.md): standalone RV32F, focused local gate, arithmetic-abstracted control proof, reference tests, GF180 timing and independent review pass; full CI intentionally not rerun |
-| [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Faithful 9 MHz trial](tasks/reports/T13-faithful-9mhz.md) passes 65.306 ns / 66.667 ns with tighter mapping target; fast passes in 474.641 s; production adoption/F integration/full acceptance remain open |
+| [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Bus-error repair](tasks/reports/T13-bus-error.md) verified; both timing checks and fast tier pass; depth-160 integration unresolved, full tier unrun |
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
 | [ ] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | unassigned | T07, T09 | Replaces the NoC work |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
@@ -138,6 +138,14 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-16: T13 in progress -> blocked on remaining acceptance, Codex; user-requested bus-error repair verified. WithF tracks granted beats; idle/pregrant errors ignored and real faults preserved. Fast tier **PASS**, all 26 commands, measured 824.220 s (13m 44s), including 14 RTL tests. **Full tier not run.** Final stronger reset test also passes. Faithful timing 65.726219 / 66.666667 ns; registered F 24.947506 / 24.960000 ns. Original integration depth160 and one portfolio time out; diagnostic40/80, concrete covers/fault pass. Independent review complete; no assumptions/bounds changed. [Report](tasks/reports/T13-bus-error.md).
+
+- 2026-11-16: T13 resumed, Codex; user requests the unsolicited bus-error fix. Replay concretely, qualify responses by granted ownership, preserve real faults and existing assertions, obtain independent review.
+
+- 2026-11-16: T13 in progress -> blocked, Codex; faithful F candidate implemented and independently reviewed. Final ADDI/LW/C.ADD depth-40 checks, simulation and 12 unchanged-module proofs pass. Integration assertion fails at bound 10 on unsolicited error/trap/cancellation; final timing fails 67.791702 / 66.666667 ns. Fast tier **failed (partial tier run)**, measured 426.823 s to stop; 15 commands passed, failed at integrated-timing. Full tier **not run this continuation**. No assertion/assumption/budget relaxation, production adoption or commit/push. [Report](tasks/reports/T13-faithful-f.md).
+
+- 2026-11-16: T13 resumed, Codex; user directed continuation after the faithful 9 MHz timing pass. Integrate the existing FPU on the faithful pipeline as an explicitly separate candidate; preserve old profiles, default clock and checks until qualification.
 
 - 2026-11-16: T13 in progress -> blocked, Codex; fresh faithful RV32IMC 9 MHz trial passes 65.305771 ns / 66.666667 ns by retaining the tighter 62500 ps mapping target. Initial looser mapping failure and diagnostics preserved; no RTL/default clock change. Independent review and final fast tier pass (21 commands, 474.641 s); full not rerun. Production clock/profile adoption and faithful F integration remain open. [Report](tasks/reports/T13-faithful-9mhz.md).
 

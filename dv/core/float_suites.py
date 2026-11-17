@@ -122,7 +122,7 @@ def flight(output):
 
 
 def run_suites(candidate,selected,output):
-    if not candidate or (manifest(candidate) or {}).get('implementation')!='rv32imfc-v1':
+    if not candidate or (manifest(candidate) or {}).get('implementation') not in ('rv32imfc-v1','rv32imfc-faithful-v1'):
         raise ValueError('F lockstep requires the authenticated F candidate')
     names=selected.split(',')
     if len(set(names))!=len(names) or set(names)-{'arch','random','flight-float'}:

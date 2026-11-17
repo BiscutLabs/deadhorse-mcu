@@ -9,8 +9,11 @@ import scala.collection.mutable
 import scala.sys.process._
 
 /** Architectural known answers, driven and observed exclusively at core ports. */
-class FloatCoreSpec extends AnyFunSuite with ChiselSim {
-  private val directory=Paths.get("build/t13/core-tests").toAbsolutePath
+class FloatCoreSpec extends FloatCoreBehavior(true, "registered")
+class FaithfulFloatCoreSpec extends FloatCoreBehavior(false, "faithful")
+
+abstract class FloatCoreBehavior(registered: Boolean, profile: String) extends AnyFunSuite with ChiselSim {
+  private val directory=Paths.get(s"build/t13/core-tests/$profile").toAbsolutePath
   implicit val outputDirectory:HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=directory
   }
@@ -31,15 +34,18 @@ class FloatCoreSpec extends AnyFunSuite with ChiselSim {
   private val setup="li x1,0x2000\ncsrw mstatus,x1\nli x1,0x3f800000\nfmv.w.x f1,x1\nli x1,0x40000000\nfmv.w.x f2,x1\n"
   private case class Retirement(pc:BigInt,nextPc:BigInt,trap:Boolean,fs:BigInt,fcsr:BigInt,
       fregs:Vector[BigInt],write:Boolean,rd:BigInt,value:BigInt)
-  private class Rig(d:IbexCore,image:Image,delay:Int=1,grantEvery:Int=1) {
+  private class Rig(d:IbexCore,image:Image,delay:Int=1,grantEvery:Int=1,dataDelay:Int=1) {
     val x=Array.fill(32)(BigInt(0)); val rows=mutable.ArrayBuffer.empty[Retirement]
     val memory=mutable.Map.empty[BigInt,Int]
     image.bytes.zipWithIndex.foreach {case(b,i)=>memory(BigInt(0x80+i))=b&255}
     var timer=false; var debug=false; var nmi=false; var failData=false
+    var unsolicitedError=false; var allowDataGrant=true; var errorWithoutResponse=false
+    var failDataAt=Set.empty[Int]
     var fetchFault:Option[BigInt]=None
     var ticks=0
+    var dataRequests=0
     private val pending=mutable.Queue.empty[(Int,BigInt)]
-    private var dataPending:Option[(BigInt,Boolean)]=None
+    private val dataPending=mutable.Queue.empty[(Int,BigInt,Boolean)]
     private var held:Option[BigInt]=None
     def word(a:BigInt):BigInt=(0 until 4).map(i=>BigInt(memory.getOrElse(a+i,0))<<(8*i)).reduce(_|_)
     d.hart_id_i.poke(0.U); d.boot_addr_i.poke(0.U); d.fetch_enable_i.poke(5.U)
@@ -51,7 +57,7 @@ class FloatCoreSpec extends AnyFunSuite with ChiselSim {
     d.irq_nm_i.poke(false.B); d.irq_timer_i.poke(false.B); d.debug_req_i.poke(false.B)
     def reset():Unit={
       d.rst_ni.poke(false.B); d.clk_i.step(2); d.rst_ni.poke(true.B)
-      x.indices.foreach(i=>x(i)=0); rows.clear(); pending.clear(); dataPending=None; held=None; ticks=0
+      x.indices.foreach(i=>x(i)=0); rows.clear(); pending.clear(); dataPending.clear(); held=None; ticks=0; dataRequests=0
     }
     reset()
     def step():Unit={
@@ -61,24 +67,28 @@ class FloatCoreSpec extends AnyFunSuite with ChiselSim {
       d.instr_gnt_i.poke(grant.B); d.instr_rvalid_i.poke(response.nonEmpty.B)
       d.instr_rdata_i.poke(response.map(a=>if(memory.contains(a)) word(a) else BigInt(0x6f)).getOrElse(BigInt(0)).U)
       d.instr_err_i.poke(response.exists(a=>fetchFault.contains(a)).B)
-      d.data_gnt_i.poke(grant.B); d.data_rvalid_i.poke(dataPending.nonEmpty.B)
-      d.data_rdata_i.poke(dataPending.map(_._1).getOrElse(BigInt(0)).U)
-      d.data_err_i.poke(dataPending.exists(_._2).B)
+      val dataResponse=if(dataPending.headOption.exists(_._1<=ticks)) Some(dataPending.dequeue()) else None
+      val dataGrant=grant && allowDataGrant
+      d.data_gnt_i.poke(dataGrant.B); d.data_rvalid_i.poke((dataResponse.nonEmpty || unsolicitedError).B)
+      d.data_rdata_i.poke(dataResponse.map(_._2).getOrElse(BigInt(0)).U)
+      d.data_err_i.poke(dataResponse.map(_._3).getOrElse(unsolicitedError || errorWithoutResponse).B)
       d.rf_rdata_a_ecc_i.poke(x(d.rf_raddr_a_o.peek().litValue.toInt).U)
       d.rf_rdata_b_ecc_i.poke(x(d.rf_raddr_b_o.peek().litValue.toInt).U)
       val request=d.instr_req_o.peek().litToBoolean; val address=d.instr_addr_o.peek().litValue
       held.foreach(a=>assert(request && address==a,"FP_FETCH_HOLD"))
       if(request && grant) pending.enqueue((ticks+delay,address))
       held=if(request && !grant) Some(address) else None
-      dataPending=if(d.data_req_o.peek().litToBoolean && grant) {
+      if(d.data_req_o.peek().litToBoolean && dataGrant) {
+        dataRequests+=1
+        val error=failData || failDataAt.contains(dataRequests)
         val a=d.data_addr_o.peek().litValue & ~BigInt(3)
         val old=word(a)
-        if(d.data_we_o.peek().litToBoolean && !failData) {
+        if(d.data_we_o.peek().litToBoolean && !error) {
           val mask=d.data_be_o.peek().litValue.toInt; val value=d.data_wdata_o.peek().litValue
           for(i<-0 until 4 if (mask&(1<<i))!=0) memory(a+i)=((value>>(8*i))&255).toInt
         }
-        Some((old,failData))
-      } else None
+        dataPending.enqueue((ticks+dataDelay,old,error))
+      }
       if(d.rf_we_wb_o.peek().litToBoolean) {
         val rd=d.rf_waddr_wb_o.peek().litValue.toInt
         if(rd!=0) x(rd)=d.rf_wdata_wb_ecc_o.peek().litValue
@@ -100,7 +110,105 @@ class FloatCoreSpec extends AnyFunSuite with ChiselSim {
     def row(label:String):Retirement=rows.find(_.pc==image.labels(label)).get
   }
 
-  test("registered F decode preserves dependencies, f0, CSR aliases and compressed memory under backpressure") {
+  test("unsolicited bus errors cannot trap or cancel an FP operation") {
+    val image=assemble("unsolicited",setup+"""
+      before: nop
+      divide: fdiv.s f0,f1,f2
+      after: fmv.x.w x10,f0
+      done: nop
+      j .
+    """)
+    simulateRaw(new IbexCore(RegisteredExecution=registered,WithF=true)) { d=>
+      val rig=new Rig(d,image)
+      rig.until(rig.reached("before")); rig.unsolicitedError=true
+      while(!rig.reached("done")) {
+        rig.step()
+        assert(rig.rows.forall(!_.trap),"UNOWNED_RESPONSE_TRAP")
+      }
+      assert(rig.dataRequests==0 && rig.x(10)==0x3f000000L)
+      assert(rig.rows.count(_.pc==image.labels("divide"))==1)
+      assert(rig.row("divide").write && rig.row("divide").fcsr==0)
+    }
+  }
+
+  test("owned bus responses preserve aligned and split loads, stores and real errors") {
+    val cases=for(op<-Seq("lw","sw","flw","fsw"); offset<-Seq(0,1)) yield {
+      val operand=if(op.startsWith("f")) "f0" else "x10"
+      val image=assemble(s"owned-$op-$offset",setup+s"""
+        li x1,0x200
+        csrw mtvec,x1
+        li x10,99
+        fmv.w.x f0,x1
+        li x1,${0x600+offset}
+        before: nop
+        access: $op $operand,0(x1)
+        after: nop
+        j done
+        .org 0x180
+        handler: csrr x17,mcause
+        csrr x18,mtval
+        csrr x19,mepc
+        done: nop
+        j .
+      """)
+      (op,offset,image)
+    }
+    simulateRaw(new IbexCore(RegisteredExecution=registered,WithF=true)) { d=>
+      for((op,offset,image)<-cases; latency<-Seq(1,4);
+          badBeat<-0 to (if(offset==0) 1 else 2)) {
+        val rig=new Rig(d,image,dataDelay=latency)
+        val address=BigInt(0x600+offset)
+        val initial=BigInt("12345678",16)
+        for(b<-0 until 4) rig.memory(address+b)=((initial>>(8*b))&255).toInt
+        rig.failDataAt=if(badBeat==0) Set.empty else Set(badBeat)
+        rig.allowDataGrant=false
+        rig.until(rig.reached("before"))
+        // Exercise unsolicited responses while a memory instruction waits for
+        // a grant, including its eventual grant cycle. Neither owns a response.
+        rig.unsolicitedError=true
+        for(_<-0 until 10) rig.step()
+        assert(rig.dataRequests==0 && !rig.reached("handler"))
+        rig.allowDataGrant=true
+        rig.until(rig.dataRequests==1)
+        rig.unsolicitedError=false; rig.errorWithoutResponse=true
+        rig.until(rig.reached("done"))
+        val label=s"$op offset=$offset latency=$latency badBeat=$badBeat"
+        assert(rig.dataRequests==(if(offset==0) 1 else 2),label)
+        if(badBeat==0) {
+          assert(rig.rows.forall(!_.trap) && !rig.reached("handler"),label)
+          if(op=="lw") assert(rig.x(10)==initial,label)
+          if(op=="flw") assert(rig.row("access").fregs(0)==initial,label)
+          if(op=="sw" || op=="fsw") assert(rig.word(address)==(if(op=="sw") 99 else 0x200),label)
+        } else {
+          assert(rig.x(17)==(if(op.endsWith("lw")) 5 else 7),label)
+          assert(rig.x(19)==image.labels("access"),label)
+          assert(rig.x(18)==(if(badBeat==1) address else BigInt(0x604)),label)
+          assert(!rig.reached("after"),label)
+          if(op=="lw") assert(rig.x(10)==99,label)
+          if(op=="flw") assert(rig.row("access").fregs(0)==0x200 && !rig.row("access").write,label)
+        }
+      }
+      // Reset with both split grants outstanding, before either returns.
+      // Old responses arriving after reset must not be assigned to the restart.
+      val resetImage=cases.find(c=>c._1=="lw" && c._2==1).get._3
+      val resetRig=new Rig(d,resetImage,dataDelay=6)
+      for(b<-0 until 4) resetRig.memory(BigInt(0x601+b))=((0x12345678L>>(8*b))&255).toInt
+      resetRig.until(resetRig.dataRequests==2)
+      assert(!resetRig.reached("access"))
+      resetRig.reset(); resetRig.allowDataGrant=false
+      resetRig.until(resetRig.reached("before"))
+      // Hold old responses until exception entry is observable after boot;
+      // otherwise stale credits could drain unnoticed in the reset states.
+      resetRig.unsolicitedError=true
+      for(_<-0 until 10) resetRig.step()
+      assert(resetRig.dataRequests==0 && !resetRig.reached("handler") && resetRig.rows.forall(!_.trap))
+      resetRig.unsolicitedError=false; resetRig.allowDataGrant=true
+      resetRig.until(resetRig.reached("done"))
+      assert(resetRig.rows.forall(!_.trap) && resetRig.x(10)==0x12345678L && resetRig.dataRequests==2)
+    }
+  }
+
+  test("F decode preserves dependencies, f0, CSR aliases and compressed memory under backpressure") {
     val image=assemble("dependencies",setup+"""
       sum: fadd.s f0,f1,f2
       integer: addi x10,x0,17
@@ -130,7 +238,7 @@ class FloatCoreSpec extends AnyFunSuite with ChiselSim {
       done: addi x20,x0,1
       j .
     """)
-    simulateRaw(new IbexCore(RegisteredExecution=true,WithF=true)) { d=>
+    simulateRaw(new IbexCore(RegisteredExecution=registered,WithF=true)) { d=>
       for((delay,grant)<-Seq((1,1),(5,3))) {
         val rig=new Rig(d,image,delay,grant); rig.until(rig.reached("done"))
         assert(rig.rows.forall(!_.trap)); assert(rig.x(10)==17 && rig.x(11)==0x40400000L)
@@ -163,7 +271,7 @@ class FloatCoreSpec extends AnyFunSuite with ChiselSim {
       ("load-fault",initialized+"li x1,0x600\n", "flw f0,0(x1)",true,false),
       ("fetch-fault",initialized, "fadd.s f0,f1,f2",false,true))
     val images=cases.map {case(name,init,op,_,_)=>assemble(name,init+s"fault: $op\nafter: addi x20,x0,1\nj .\n")}
-    simulateRaw(new IbexCore(RegisteredExecution=true,WithF=true)) { d=>
+    simulateRaw(new IbexCore(RegisteredExecution=registered,WithF=true)) { d=>
       for(((name,_,_,data,fetch),image)<-cases.zip(images)) {
         val rig=new Rig(d,image); rig.failData=data
         if(fetch) rig.fetchFault=Some(image.labels("fault") & ~BigInt(3))
@@ -173,6 +281,38 @@ class FloatCoreSpec extends AnyFunSuite with ChiselSim {
         assert(row.fregs(0)==0x40000000L,"fault must preserve actual FP payload: "+name)
         assert(row.fcsr==(if(name=="reserved-rm") 0xa0 else 0),name)
         assert(row.fs==(if(name.endsWith("off")) 0 else 3),name)
+      }
+    }
+  }
+
+  test("illegal F encodings cannot issue memory, write X, or count as retired") {
+    val cases=Seq(("off-flw",false,0x0000a507L),("off-fsw",false,0x0020a027L),
+      ("bad-load-width",true,0x00008507L),("bad-store-width",true,0x00208027L),
+      ("bad-to-int-rm",true,0xc000d553L))
+    val images=cases.map {case(name,enabled,encoding)=>
+      assemble(name,(if(enabled) "li x1,0x2000\ncsrw mstatus,x1\n" else "")+s"""
+        li x1,0x200
+        csrw mtvec,x1
+        li x10,99
+        li x1,0x600
+        csrr x15,minstret
+      fault: .word 0x${encoding.toHexString}
+        j .
+        .org 0x180
+      handler: csrr x16,minstret
+        csrr x17,mcause
+        csrr x18,mtval
+      done: j .
+      """)
+    }
+    simulateRaw(new IbexCore(RegisteredExecution=registered,WithF=true)) { d=>
+      for(((name,_,encoding),image)<-cases.zip(images)) {
+        val rig=new Rig(d,image)
+        rig.until(rig.reached("done"))
+        assert(rig.dataRequests==0 && rig.x(10)==99,name)
+        assert(rig.x(16)==rig.x(15)+1,s"$name illegal instruction counted in minstret")
+        assert(rig.x(17)==2 && rig.x(18)==encoding,name)
+        assert(rig.row("fault").trap && !rig.row("fault").write,name)
       }
     }
   }
@@ -198,7 +338,7 @@ class FloatCoreSpec extends AnyFunSuite with ChiselSim {
       csrr x22,mcause
       mret
     """)
-    simulateRaw(new IbexCore(RegisteredExecution=true,WithF=true)) { d=>
+    simulateRaw(new IbexCore(RegisteredExecution=registered,WithF=true)) { d=>
       val baseline=new Rig(d,image,3,2)
       baseline.until(baseline.reached("divide"))
       val commitTick=baseline.ticks
