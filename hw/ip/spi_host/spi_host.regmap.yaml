@@ -1,0 +1,69 @@
+block: spi_host
+description: Owner checked mode 0 or 3 bounded full duplex SPI host
+data_width: 32
+address_width: 8
+registers:
+  - name: configuration
+    offset: 0x00
+    fields:
+      - {name: enable, bits: 0, access: rw, reset: 0}
+      - {name: mode3, bits: 1, access: rw, reset: 0}
+      - {name: chip_select, bits: 2, access: rw, reset: 0}
+  - name: divider
+    offset: 0x04
+    fields:
+      - {name: half_period, bits: [7, 0], access: rw, reset: 3}
+  - name: length
+    offset: 0x08
+    fields:
+      - {name: bytes, bits: [4, 0], access: rw, reset: 1}
+  - name: command
+    offset: 0x0c
+    fields:
+      - {name: apply, bits: 0, access: w1p}
+      - {name: start, bits: 1, access: w1p}
+      - {name: rx_pop, bits: 2, access: w1p}
+      - {name: tx_flush, bits: 3, access: w1p}
+      - {name: rx_flush, bits: 4, access: w1p}
+  - name: tx_data
+    offset: 0x10
+    fields:
+      - {name: value, bits: [7, 0], access: wo}
+  - name: rx_data
+    offset: 0x14
+    fields:
+      - {name: value, bits: [7, 0], access: ro}
+  - name: status
+    offset: 0x18
+    fields:
+      - {name: tx_ready, bits: 0, access: ro}
+      - {name: rx_valid, bits: 1, access: ro}
+      - {name: busy, bits: 2, access: ro}
+      - {name: tx_count, bits: [12, 8], access: ro}
+      - {name: rx_count, bits: [20, 16], access: ro}
+  - name: events
+    offset: 0x1c
+    fields:
+      - {name: tx_overflow, bits: 0, access: w1c, reset: 0}
+      - {name: rx_overflow, bits: 1, access: w1c, reset: 0}
+      - {name: rx_underflow, bits: 2, access: w1c, reset: 0}
+      - {name: command_error, bits: 3, access: w1c, reset: 0}
+      - {name: done, bits: 4, access: w1c, reset: 0}
+  - name: irq_enable
+    offset: 0x20
+    fields:
+      - {name: rx_valid, bits: 0, access: rw, reset: 0}
+      - {name: tx_ready, bits: 1, access: rw, reset: 0}
+      - {name: errors, bits: 2, access: rw, reset: 0}
+      - {name: done, bits: 3, access: rw, reset: 0}
+  - name: active
+    offset: 0x24
+    fields:
+      - {name: enable, bits: 0, access: ro}
+      - {name: mode3, bits: 1, access: ro}
+      - {name: chip_select, bits: 2, access: ro}
+      - {name: half_period, bits: [15, 8], access: ro}
+  - name: timestamp
+    offset: 0x28
+    fields:
+      - {name: value, bits: [31, 0], access: ro}

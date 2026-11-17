@@ -1,5 +1,25 @@
 # Per-block GF180 timing ledger
 
+## T16 SPI host, 2026-11-17
+
+Measured at base `ea9f238` plus T16 sources, pinned GF180 7t5v0 SS/125C/3.0V,
+Yosys `0.71+34 e419c4eef`, OpenSTA `3.2.0`. Preliminary receipt:
+`build/t16/timing-count-fix/result.json`, command `python tools/env/run.py run --
+python3 tools/timing/check.py --top SpiHost --clock clk`, every source from
+`build/t16/emit-count-fix`, output `build/t16/timing-count-fix`.
+
+SpiHost FIFO 16 measures **63564.2112 um2** and **24.328402 ns**, worst path
+`_3260_/Q` to `_3297_/D`, 20 logic stages, zero electrical violations. Passes
+the unchanged assumed 24.96 ns budget. Pre-layout mapped cells, ideal clock,
+no wire delay; qualified reset input, excluding reset/clock tree and pads.
+Initial **26.434401 ns** failure is retained at `build/t16/timing-initial`.
+An independently checked Boolean simplification of FIFO count conditions
+removed redundant admission logic without changing behavior or the budget.
+Aggregate `python tools/env/run.py run -- python3 hw/ip/spi_host/check.py
+--output build/t16/check-final` reproduces these exact measurements with fresh
+emission; receipt `build/t16/check-final/spi_host/result.json`.
+[Report](../plan/tasks/reports/T16.md).
+
 ## T15 UART, 2026-11-17
 
 Measured at base `172d4f1d2279bb5cc5c621685ad94923bfd15282` plus T15

@@ -78,6 +78,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
 | [x] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | Codex | T07, T09 | [Active checks complete with four user-approved unproved deferrals; fast 29/29 and independent review pass; full not run](tasks/reports/T14.md) |
 | [x] | T15 | [UART peripheral](tasks/T15-uart.md) | Codex | T05, T07, T09, T14 | [Report](tasks/reports/T15.md): UART acceptance, GF180 timing and independent review pass; fast 30/30 with inherited T14 deferrals, no UART deferrals; full not run |
+| [x] | T16 | [SPI host](tasks/T16-spi-host.md) | Codex | T05, T07, T09, T14, T15 | [Report](tasks/reports/T16.md): SPI acceptance, GF180 timing and independent review pass; fast 31/31 with inherited T14 deferrals, no SPI deferrals; full not run |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -139,6 +140,10 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-17: T16 in progress -> done, Codex; SPI modes 0/3, two chip selects, timestamped full-duplex transfers and owner/sleep/IRQ/DMA interfaces pass final aggregate and all 31 active fast-tier jobs. Independent RTL, boundary-test and gate review approved. No SPI deferrals; four inherited T14 obligations remain unproved. Report/ledgers retain bounded formal scope, physical limits and failed initial attempts. No gate checked; earlier S1/T13 work remains separate.
+
+- 2026-11-17: T16 assigned -> in progress, Codex; user assigned SPI controller completion. Preparing reviewed contract, modes 0/3 with two chip selects, bounded timestamped transfers, generated registers and owner/sleep/DMA interfaces; no core optimization or gate change.
 
 - 2026-11-17: T15 in progress -> done, Codex; recovered implementation passes fresh aggregate acceptance and all 30 active fast-tier jobs, with independent RTL/gate review and serial rerun. No UART deferrals; four inherited T14 obligations remain explicitly unproved. Report and ledgers record measured timing/area and bounded formal scope. Full not run; no gate checked. Earlier S1/T13 work remains separate.
 
