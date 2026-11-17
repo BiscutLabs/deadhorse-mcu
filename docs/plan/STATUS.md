@@ -78,7 +78,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
 | [x] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | Codex | T07, T09 | [Active checks complete with four user-approved unproved deferrals; fast 29/29 and independent review pass; full not run](tasks/reports/T14.md) |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
-| [ ] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | unassigned | T02, T07, T08 | |
+| [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
 
 Former P0-f/P0-g now have briefs T08/T09. P0-a actuator split and P0-b parts
@@ -138,6 +138,10 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-17: S3 in progress -> done, Codex; aggregate acceptance passes in 72.288 s, main fixture allocations estimated 10176/10616 B with reserved stack, lite subset 648/664 B; independent review clear. Fast 29/29 in 1187.791 s with inherited T14 proof deferrals; full not run. No capacity increase, production RTL change or full-firmware/physical qualification claimed. [Report](tasks/reports/S3.md).
+
+- 2026-11-17: S3 not started -> in progress, Codex; user directed the next task after T14 active checks passed. T02/T07/T08 prerequisites complete; measure separate hard-float firmware allocation/stack, banked access and assumption-qualified flash interference. No core/profile change.
 
 - 2026-11-17: T14 in progress -> done under explicit user deferrals, Codex; 16 simulation tests, active formal and 15 timing configurations pass; fast tier 29/29 in 1185.432 s, independent review clear. Four named proofs remain deferred/unproved; full tier not run. [Report](tasks/reports/T14.md).
 
