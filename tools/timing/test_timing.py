@@ -1,8 +1,35 @@
 """Boundary-contract tests on netlist data, never RTL source text."""
 import copy
+import json
 import unittest
 
-from tools.timing.check import validate_boundary, electrical_checks, result_status, output_aliases
+from tools.timing.check import CONFIG, timing_config, validate_boundary, electrical_checks, result_status, output_aliases
+
+
+class OperatingPointTests(unittest.TestCase):
+    def test_trial_changes_only_period_and_provenance_without_mutating_default(self):
+        original = json.loads(CONFIG.read_text())
+        self.assertEqual(timing_config(), original)
+        trial = timing_config('main-12mhz')
+        self.assertAlmostEqual(trial['period_ns'], 1000 / 12)
+        self.assertAlmostEqual(trial['period_ns'] * trial['budget_fraction'], 50)
+        for key in original.keys() - {'period_ns', 'provenance'}:
+            self.assertEqual(trial[key], original[key])
+        self.assertEqual(timing_config(), original)
+
+    def test_unknown_operating_point_is_rejected(self):
+        for name in ('waiver', '6mhz', '', None):
+            with self.assertRaisesRegex(ValueError, 'operating point'):
+                timing_config(name)
+
+    def test_trial_still_rejects_over_budget_and_electrical_failures(self):
+        cfg = timing_config('main-12mhz')
+        budget = cfg['period_ns'] * cfg['budget_fraction']
+        clean = {'max_capacitance_and_slew_violations': 0}
+        bad = {'max_capacitance_and_slew_violations': 1}
+        self.assertEqual(result_status(25.335854, budget, clean), 'pass')
+        self.assertEqual(result_status(50.001, budget, clean), 'fail')
+        self.assertEqual(result_status(25.335854, budget, bad), 'fail')
 
 
 class ElectricalTests(unittest.TestCase):

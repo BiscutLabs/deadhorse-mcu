@@ -336,3 +336,30 @@ Same registers and latency: exact whole-top revision equivalence passes with
 all four fault controls; signed-subtraction and prefix-adder proofs pass. No
 upstream source edits or budget change. Pre-layout only, no SRAM/peripherals or
 chip-fit claim. T13 ISA/refinement acceptance remains incomplete.
+
+
+## T13 user-authorized 12 MHz trial (2026-11-16)
+
+Measured on `9d7520d` plus the recorded timing-tool working tree, pinned Yosys
+0.71+34 / OpenSTA 3.2.0, GF180 7t5v0 SS/125C/3.0V. The named
+`main-12mhz` trial changes only the operating period (1000/12 ns), preserving
+the 60 percent fraction (50 ns), IO/slew/load, electrical and clock-gate checks.
+Default production/CI remains 41.6 ns / 24.96 ns; no RTL was changed.
+Commands, hashes and independent review: [T13 12 MHz report](../plan/tasks/reports/T13-12mhz.md).
+
+| Core profile | Worst path (measured) | Mapped area (measured, um2) | Trial result |
+| --- | ---: | ---: | --- |
+| Registered no-F | 27.500998 ns | 453539.296 | Pass; electrical violations 0 |
+| F-integrated | 30.671665 ns | 872504.192 | Pass; electrical violations 0 |
+
+Each has all eight ICG setup/hold checks, minimum slack 0.704980 ns. Both
+fresh emitted designs are byte-identical to their earlier timing inputs; cell
+mapping was redone at the slower target. Negative ClockedElapsedTicks still
+fails at 71.002609 ns with CLI exit 1. Default-flow self-tests pass unchanged.
+Pre-layout only, no wire/SRAM/CTS signoff. Derived hard-float loop worst case
+at 12 MHz is 1959.083 us, so this does not establish the 1 kHz system target.
+
+The trial continuation fast tier passes all 21 commands in measured 460.822 s:
+`python tools/env/run.py run -- python3 tools/ci.py --tier fast --output build/t13/clock12/ci-fast`.
+Its default F-integrated timing remains 24.698816 ns / 24.96 ns. Full tier was
+not rerun; previous default-clock failure and outstanding checks remain open.

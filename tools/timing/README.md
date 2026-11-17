@@ -66,7 +66,7 @@ OpenSTA. Arbitrary clock logic, cascaded gates, extra clocks, explicit storage
 latches, falling-edge clocks, inouts and uncharacterized black boxes are
 blockers. SRAM instances require qualified macro timing views and a later
 explicit integration; an empty SRAM stub must never be flattened away and
-mistaken for timed logic. No false paths, multicycle exceptions, alternate
+mistaken for timed logic. No false paths, multicycle exceptions, arbitrary
 periods, corner substitutions or waiver switches are provided.
 
 For RR, IR, RO, IO and register/input-to-ICG-enable (RG/IG) paths, OpenSTA enumerates every endpoint and both
@@ -109,3 +109,24 @@ The self-test emits production Chisel without modifying it. Its Scala entry
 point is loaded for that invocation only. The local gate includes the timing
 check after the existing simulation/formal checks, which remain intact.
 See the [timing ledger](../../docs/ledger/timing.md) for measured results.
+
+## User-authorized 12 MHz trial
+
+`--operating-point main-12mhz` selects the T13 experiment requested on
+2026-11-16. It sets the clock period to 1000/12 ns and preserves the 60 percent
+allowance (50 ns), slow-corner library, slew/load, clock-gate and electrical
+checks. ABC's mapping target and OpenSTA's clock both use that operating point.
+No RTL is changed. The default and all existing CI commands remain at the
+pinned 41.6 ns period / 24.96 ns allowance.
+
+```sh
+python tools/env/run.py run -- python3 hw/ip/perf_core/check_top_timing.py --emitted build/t13/clock12/no-f-emit/asic --operating-point main-12mhz --output build/t13/clock12/no-f-timing
+```
+
+Receipts label this `role: operating-point-trial`, with the named operating
+point and effective assumptions. A trial pass is not default production
+acceptance or physical signoff. The generic timing CLI also accepts this named
+point for positive/negative fixtures; `--self-test` remains a default-flow test
+and rejects a simultaneous trial selection. Other frequencies are not accepted.
+The global clock decision and cycle-based firmware deadlines are separate from
+this pre-layout experiment.

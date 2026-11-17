@@ -11,6 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / 'phys/gf180-ws-1x1/block-timing.json'
+OPERATING_POINTS = ('default', 'main-12mhz')
 
 # Reference adapters and primitives are verification-only.
 sys.path.insert(0, str(ROOT / 'dv/core'))
@@ -92,18 +93,32 @@ def validate_boundary(module, clock, library_cells, combinational=False):
                 raise ValueError('Unsupported or missing clock constraint: non-root CLK net')
 
 
-def measure(top, sources, clock, output, liberty=None, combinational=False):
-    return _measure(top,sources,clock,output,liberty,combinational)
+def timing_config(operating_point='default'):
+    if operating_point not in OPERATING_POINTS:
+        raise ValueError('Unsupported timing operating point')
+    cfg = json.loads(CONFIG.read_text())
+    if operating_point == 'main-12mhz':
+        cfg['period_ns'] = 1000.0 / 12.0
+        cfg['provenance'] = ('User-authorized T13 12 MHz trial: only the period changes; '
+                             'the budget fraction and other constraints are unchanged. '
+                             'Default configuration provenance: ' + cfg['provenance'])
+    return cfg
+
+
+def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default'):
+    return _measure(top,sources,clock,output,liberty,combinational,operating_point=operating_point)
 
 
 def _measure(top, sources, clock, output, liberty=None, combinational=False,
-             reference_options=None):
+             reference_options=None, *, operating_point='default'):
     # Shared numerical flow. The production entry above always checks isolation.
     # Only dv/core/reference_timing.py supplies authenticated reference options;
     # such receipts are explicitly benchmarks, never production acceptance.
     if reference_options is None:
         reject_sources(sources)
-    cfg = json.loads(CONFIG.read_text())
+    if reference_options is not None and operating_point != 'default':
+        raise ValueError('Reference benchmark requires the default operating point')
+    cfg = timing_config(operating_point)
     if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', top + ''):
         raise ValueError('Top must be a simple identifier')
     if combinational and clock is not None:
@@ -236,7 +251,9 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
             raise ValueError('Invalid path delay')
     worst = max(paths, key=lambda p: p['delay_ns'])
     report = dict(status=result_status(worst['delay_ns'], budget, electrical), top=top,
-                  role='reference-benchmark-only' if reference_options is not None else 'production',
+                  role=('reference-benchmark-only' if reference_options is not None else
+                        'operating-point-trial' if operating_point != 'default' else 'production'),
+                  operating_point=operating_point,
                   mapping=mapping, electrical=electrical,
                   boundary='combinational' if combinational else 'root-clock-with-icg' if gate_pins else 'single-clock',
                   clock_gate_checks=gate_checks,
@@ -408,15 +425,19 @@ def main():
     parser.add_argument('--clock')
     parser.add_argument('--combinational', action='store_true')
     parser.add_argument('--liberty')
+    parser.add_argument('--operating-point', choices=OPERATING_POINTS, default='default',
+                        help='Named trial; default production acceptance remains unchanged')
     args = parser.parse_args()
     try:
         if args.self_test:
+            if args.operating_point != 'default':
+                parser.error('--self-test validates the default flow; use explicit trial measurements')
             self_test(args.output)
             return 0
         if not args.top or (not args.clock and not args.combinational):
             parser.error('--top and either --clock or --combinational are required')
         return int(measure(args.top, args.source, args.clock, args.output,
-                           args.liberty, args.combinational)['status'] != 'pass')
+                           args.liberty, args.combinational, operating_point=args.operating_point)['status'] != 'pass')
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f'BLOCKED timing: {exc}', file=sys.stderr)
         return 2
