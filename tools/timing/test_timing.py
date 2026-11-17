@@ -3,15 +3,30 @@ import copy
 import json
 import unittest
 
-from tools.timing.check import CONFIG, timing_config, validate_boundary, electrical_checks, result_status, output_aliases
+from tools.timing.check import CONFIG, timing_config, mapping_target_ps, validate_boundary, electrical_checks, result_status, output_aliases
 
 
 class OperatingPointTests(unittest.TestCase):
+    def test_mapping_target_is_separate_from_unchanged_sta_acceptance(self):
+        for point, expected in (('default', 24960), ('main-12mhz', 50000),
+                                ('main-9p6mhz', 62500), ('main-9mhz', 62500)):
+            with self.subTest(point=point):
+                cfg = timing_config(point)
+                target = mapping_target_ps(cfg, point)
+                allowance = cfg['period_ns'] * cfg['budget_fraction']
+                self.assertAlmostEqual(target, expected)
+                self.assertLessEqual(target, allowance * 1000)
+                if point == 'main-9mhz':
+                    self.assertAlmostEqual(allowance, 200 / 3)
+                    self.assertEqual(result_status(67, allowance,
+                        {'max_capacitance_and_slew_violations': 0}), 'fail')
+
     def test_trial_changes_only_period_and_provenance_without_mutating_default(self):
         original = json.loads(CONFIG.read_text())
         self.assertEqual(timing_config(), original)
         for point, period, budget in (('main-12mhz', 1000 / 12, 50),
-                                      ('main-9p6mhz', 1000 / 9.6, 62.5)):
+                                      ('main-9p6mhz', 1000 / 9.6, 62.5),
+                                      ('main-9mhz', 1000 / 9, 200 / 3)):
             with self.subTest(point=point):
                 trial = timing_config(point)
                 self.assertAlmostEqual(trial['period_ns'], period)
@@ -28,7 +43,8 @@ class OperatingPointTests(unittest.TestCase):
     def test_trial_still_rejects_over_budget_and_electrical_failures(self):
         clean = {'max_capacitance_and_slew_violations': 0}
         bad = {'max_capacitance_and_slew_violations': 1}
-        for point, budget in (('main-12mhz', 50), ('main-9p6mhz', 62.5)):
+        for point, budget in (('main-12mhz', 50), ('main-9p6mhz', 62.5),
+                              ('main-9mhz', 200 / 3)):
             with self.subTest(point=point):
                 cfg = timing_config(point)
                 self.assertAlmostEqual(cfg['period_ns'] * cfg['budget_fraction'], budget)

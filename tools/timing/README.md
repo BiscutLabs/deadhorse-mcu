@@ -140,3 +140,13 @@ physical ports, flop register file, disabled RVFI and real clock gate as the
 registered physical view. Its `model` view retains RVFI for comparison with
 the previously qualified faithful candidate. It does not implement F or
 adopt a production frequency.
+
+The follow-up `--operating-point main-9mhz` trial uses the same faithful
+emitter with period 1000/9 ns and allowance 200/3 ns (66.666667 ns).
+Use a separate output directory, such as `build/t13/faithful9/`, to preserve
+the failed 9.6 MHz receipt. It is a fresh mapping, not a relabelled result. This named trial retains the
+62500 ps ABC optimization target from the 9.6 MHz experiment: mapping at the
+looser 66666.667 ps target regressed the measured path. STA still applies the
+9 MHz period and 66.666667 ns allowance. Mapping-target provenance is explicit
+in the receipt; no arbitrary target override is offered. Default production
+timing, other trial targets and all non-period acceptance constraints stay unchanged.

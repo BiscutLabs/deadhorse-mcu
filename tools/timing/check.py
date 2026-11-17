@@ -11,7 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / 'phys/gf180-ws-1x1/block-timing.json'
-OPERATING_POINTS = ('default', 'main-12mhz', 'main-9p6mhz')
+OPERATING_POINTS = ('default', 'main-12mhz', 'main-9p6mhz', 'main-9mhz')
 
 # Reference adapters and primitives are verification-only.
 sys.path.insert(0, str(ROOT / 'dv/core'))
@@ -98,12 +98,23 @@ def timing_config(operating_point='default'):
         raise ValueError('Unsupported timing operating point')
     cfg = json.loads(CONFIG.read_text())
     if operating_point != 'default':
-        frequency_mhz = {'main-12mhz': 12.0, 'main-9p6mhz': 9.6}[operating_point]
+        frequency_mhz = {'main-12mhz': 12.0, 'main-9p6mhz': 9.6, 'main-9mhz': 9.0}[operating_point]
         cfg['period_ns'] = 1000.0 / frequency_mhz
         cfg['provenance'] = (f'User-authorized T13 {frequency_mhz:g} MHz trial: only the period changes; '
                              'the budget fraction and other constraints are unchanged. '
                              'Default configuration provenance: ' + cfg['provenance'])
+        if operating_point == 'main-9mhz':
+            cfg['provenance'] = cfg['provenance'].replace(
+                'only the period changes;',
+                'the STA period changes; ABC retains the tighter 62500 ps mapping target;')
     return cfg
+
+
+def mapping_target_ps(cfg, operating_point):
+    # Optimization target only, not the STA acceptance limit. The 9 MHz trial
+    # retains the measured 9.6 MHz mapping recipe; a looser target regressed it.
+    budget_ps = cfg['period_ns'] * cfg['budget_fraction'] * 1000
+    return min(budget_ps, 62500.0) if operating_point == 'main-9mhz' else budget_ps
 
 
 def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default'):
@@ -163,7 +174,7 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     # use the pinned input slew/output load, independently of this driver model.
     # An explicit script avoids the retime command inserted by ABC's -D default.
     budget = cfg['period_ns'] * cfg['budget_fraction']
-    target_ps = budget * 1000
+    target_ps = mapping_target_ps(cfg, operating_point)
     driver = cfg['library'] + '__buf_1'
     if driver not in library_cells:
         raise ValueError('Missing ABC mapping driver in pinned library')
@@ -181,6 +192,9 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
                    driver_cell_heuristic=driver, output_load_ff=cfg['output_load_pf'] * 1000 * multiplicity,
                    output_alias_multiplier=multiplicity, output_alias_groups=aliases,
                    retiming=False)
+    if operating_point == 'main-9mhz':
+        mapping['target_provenance'] = ('Retain the 9.6 MHz trial mapping target; '
+                                        'STA acceptance remains period * budget_fraction.')
     abc_constraints = output / 'mapping.constr'
     abc_constraints.write_text(f'set_driving_cell {driver}\nset_load {mapping["output_load_ff"]:g}\n')
     abc_script = output / 'mapping.abc'

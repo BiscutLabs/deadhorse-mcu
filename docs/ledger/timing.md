@@ -387,3 +387,30 @@ Estimated frequency ceiling for this mapped path is 600/65.305771 = 9.187549 MHz
 a fresh 9 MHz trial is recommended but not run. No F integration or routed
 signoff is claimed. Fast tier passes 21 commands in measured 475.169 s; full
 not rerun. Independent review accepts the failed measurement and provenance.
+
+## T13 faithful Chisel 9 MHz trial (2026-11-16)
+
+Measured on `78be66b` plus trial changes, pinned Yosys 0.71+34 / OpenSTA 3.2.0,
+GF180 7t5v0 SS/125C/3.0V. Mapped pre-layout, ideal clocks, no wire/SRAM signoff.
+[Report](../plan/tasks/reports/T13-faithful-9mhz.md); receipts under
+`build/t13/faithful9/`. All acceptance checks retain their original semantics.
+
+| Experiment | ABC optimization target | STA allowance | Worst delay | Cell area (um2) | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Initial fresh mapping | 66666.667 ps | 66.666667 ns | 69.336807 ns | 429822.3552 | FAIL |
+| Final fresh mapping | 62500 ps | 66.666667 ns | 65.305771 ns | 439002.6816 | PASS |
+
+Final command after `python tools/env/run.py run --`:
+`python3 hw/ip/perf_core/check_top_timing.py --emitted build/t13/faithful9/emit/asic --operating-point main-9mhz --output build/t13/faithful9/tight-mapping`.
+The named 9 MHz trial keeps the measured tighter mapping target; its freshly
+produced netlist is byte-identical to the previous 9.6 MHz mapping. No RTL,
+default clock, other trial target or acceptance limit changed. Derived margin:
+1.360896 ns / 2.041344% of allowance. Worst path remains instruction/rs1 address
+to x30[31], 58 logic stages; zero electrical violations, eight passing ICG
+checks, minimum slack 0.704980 ns. Negative fixture rejects 71.002609 ns.
+
+A retained-netlist STA diagnostic also passes; the blocked mapped-Verilog
+re-import and initial fresh-mapping failure are preserved in the report.
+Independent review accepts the reproducible fresh 9 MHz experiment. Final
+fast tier passes 21 commands in measured 474.641 s; full not rerun. This is
+RV32IMC pre-layout evidence, not faithful-F integration or production adoption.

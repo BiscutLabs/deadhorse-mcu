@@ -74,7 +74,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T10 | [Ibex reference and harness](tasks/T10-ibex-reference.md) | Codex | T07, T08 | [Report](tasks/reports/T10.md): sequential/whole-core harness, candidate suites and divide stress pass; full local gate and independent review pass; D44 limits retained |
 | [x] | T11 | [Ibex conversion](tasks/T11-ibex-conversion.md) | Codex | T10, T09 | [Report](tasks/reports/T11.md): user-approved focused verification complete; exact revision proof carries prior ISA evidence; current tests/timing/lockstep and independent review pass; repeated full CI stopped, not passed |
 | [x] | T12 | [FPU](tasks/T12-fpu.md) | Codex | T07, T09 | [Report](tasks/reports/T12.md): standalone RV32F, focused local gate, arithmetic-abstracted control proof, reference tests, GF180 timing and independent review pass; full CI intentionally not rerun |
-| [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Faithful 9.6 MHz trial](tasks/reports/T13-faithful-9p6mhz.md) fails 65.306 ns / 62.5 ns; fast passes in 475.169 s; default unchanged, full not rerun and acceptance incomplete |
+| [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Faithful 9 MHz trial](tasks/reports/T13-faithful-9mhz.md) passes 65.306 ns / 66.667 ns with tighter mapping target; fast passes in 474.641 s; production adoption/F integration/full acceptance remain open |
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
 | [ ] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | unassigned | T07, T09 | Replaces the NoC work |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
@@ -138,6 +138,10 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-16: T13 in progress -> blocked, Codex; fresh faithful RV32IMC 9 MHz trial passes 65.305771 ns / 66.666667 ns by retaining the tighter 62500 ps mapping target. Initial looser mapping failure and diagnostics preserved; no RTL/default clock change. Independent review and final fast tier pass (21 commands, 474.641 s); full not rerun. Production clock/profile adoption and faithful F integration remain open. [Report](tasks/reports/T13-faithful-9mhz.md).
+
+- 2026-11-16: T13 resumed for the approved faithful Chisel 9 MHz trial, Codex; preserve the default clock, all checks and the failed 9.6 MHz measurement. No RTL behavior change or full formal sweep.
 
 - 2026-11-16: T13 in progress -> blocked, Codex; faithful Chisel 9.6 MHz trial fails 65.305771 ns / 62.5 ns, with zero electrical violations and expected negative rejection. Independent review accepts the measurement; fast tier passes 21 commands in 475.169 s. Full tier not rerun. No production clock/profile or RTL behavior change; recommend a separately qualified 9 MHz trial. [Report](tasks/reports/T13-faithful-9p6mhz.md).
 
