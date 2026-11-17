@@ -1,0 +1,319 @@
+{
+  "version": 1,
+  "task": "T17",
+  "rationale": "Reviewed retention of actual 120-second timeouts under the assigned no-unchanged-retry direction. Every entry remains unproved; changed model or job identity fails closed.",
+  "entries": [
+    {
+      "id": "T17-RECOVER-COVER",
+      "solver_status": "TIMEOUT",
+      "returncode": 8,
+      "identity": {
+        "role": "recover",
+        "variant": "cover",
+        "top": "I2cProtocolFormal",
+        "mode": "cover",
+        "engine": "btor btormc",
+        "depth": 256,
+        "timeout_seconds": 120,
+        "expected_cells": 2,
+        "scope": "Bounded256 edges, same timing; nine recovery clocks then STOP/free on ideal released bus",
+        "flow_sha256": "60ff031b44e61bc6c0ee8271547ae62fc91aa094b980423fc4deb74533765d22",
+        "environment_sha256": "f71eedeba5148822a8fd95764f3f931c6ea96f6c370d3aac1dc8ee14e8b51e2a"
+      },
+      "source_sha256": {
+        "BusRegAdapter.sv": "b05e91f32d6a8eb3b91bae0b627b72799f970ad723af874f0e80f9911510c2b2",
+        "CdcSync.sv": "dc64c320311667ee0be50c79c6b4097607f320335a1c90a845244ca451bef214",
+        "I2cHost.sv": "c2516b4a86af58fe0980d8c07feaca616dc371a6783c9f8c0ba99585359325de",
+        "I2cProtocolFormal.sv": "aac0d103a111748ee59e3c9edc0f1e4d84fa2ee60ec2069376c5b1fb2be66d93",
+        "RegBlock.sv": "4baca86cf60ecc26b6c64cc358414ca124727e01704e9a0bc1d024b51d150f8c"
+      },
+      "provenance": {
+        "receipt": {
+          "path": "build/t17/formal-initial/result.json",
+          "sha256": "2914114e09dac083ebe02ede1bfa2cf077524e8b51675f8fae9ba7a3058e8886"
+        },
+        "status": {
+          "path": "build/t17/formal-initial/recover/cover/status",
+          "sha256": "14b0d5e4bf48a8c0c3fb3ae9460e49e06b917017ff3c67ebcc8d16645595a569"
+        },
+        "log": {
+          "path": "build/t17/formal-initial/recover/cover.log",
+          "sha256": "3e59b334d3cf3615eb799fa9231060b6a535f34954b1fbbee331e64ece8bb478"
+        }
+      }
+    },
+    {
+      "id": "T17-RECOVER-CORRUPT",
+      "solver_status": "TIMEOUT",
+      "returncode": 8,
+      "identity": {
+        "role": "recover",
+        "variant": "corrupt",
+        "top": "I2cProtocolFormal",
+        "mode": "bmc",
+        "engine": "btor btormc",
+        "depth": 256,
+        "timeout_seconds": 120,
+        "expected_cells": 1,
+        "scope": "Bounded256 edges, same timing; nine recovery clocks then STOP/free on ideal released bus",
+        "flow_sha256": "7c9832689d1ed736a9de912f30f7d985d002d0c9bfb3925094641eaa54fba87e",
+        "environment_sha256": "f71eedeba5148822a8fd95764f3f931c6ea96f6c370d3aac1dc8ee14e8b51e2a"
+      },
+      "source_sha256": {
+        "BusRegAdapter.sv": "f9bb08155ddda24a4fa3c6430b3d90c7ba59839402db1b85e85fb6a1a8e9c4cd",
+        "CdcSync.sv": "dc64c320311667ee0be50c79c6b4097607f320335a1c90a845244ca451bef214",
+        "I2cFault.sv": "2ef05b440e1313528a0e3a80f84af7d4668244718798c62c1eb9be5f25888525",
+        "I2cProtocolFormal.sv": "8abe58c88aaed6f05a023beb2d986f2f9323ebe04d986465dbbef0f2ccc5f365",
+        "RegBlock.sv": "6720d2abb7a2ff83836dd7974fc8938806ddbc6cc1cdfd801760c4a30b6af411"
+      },
+      "provenance": {
+        "receipt": {
+          "path": "build/t17/formal-initial/result.json",
+          "sha256": "2914114e09dac083ebe02ede1bfa2cf077524e8b51675f8fae9ba7a3058e8886"
+        },
+        "status": {
+          "path": "build/t17/formal-initial/recover/corrupt/status",
+          "sha256": "14b0d5e4bf48a8c0c3fb3ae9460e49e06b917017ff3c67ebcc8d16645595a569"
+        },
+        "log": {
+          "path": "build/t17/formal-initial/recover/corrupt.log",
+          "sha256": "2081c49d74fc808a5447b8a8c1add53d5d4287ca83a7bfdd042b62e89540f269"
+        }
+      }
+    },
+    {
+      "id": "T17-RECOVER-CORRECT",
+      "solver_status": "TIMEOUT",
+      "returncode": 8,
+      "identity": {
+        "role": "recover",
+        "variant": "correct",
+        "top": "I2cProtocolFormal",
+        "mode": "bmc",
+        "engine": "btor btormc",
+        "depth": 256,
+        "timeout_seconds": 120,
+        "expected_cells": 1,
+        "scope": "Bounded256 edges, same timing; nine recovery clocks then STOP/free on ideal released bus",
+        "flow_sha256": "230f2ba524b931349571d48c1e42df01bebbcf2f0042f8317f94a710fc50a51b",
+        "environment_sha256": "f71eedeba5148822a8fd95764f3f931c6ea96f6c370d3aac1dc8ee14e8b51e2a"
+      },
+      "source_sha256": {
+        "BusRegAdapter.sv": "f9bb08155ddda24a4fa3c6430b3d90c7ba59839402db1b85e85fb6a1a8e9c4cd",
+        "CdcSync.sv": "dc64c320311667ee0be50c79c6b4097607f320335a1c90a845244ca451bef214",
+        "I2cHost.sv": "18563ddc69baa9e56a49f4a14440442e21c7d95e3f9e9be55ffd8b9318126ef1",
+        "I2cProtocolFormal.sv": "86bf8c9c7a483865a25a81a0c8df2ce9f5f09ba737946a09316d585126cdbe09",
+        "RegBlock.sv": "e7bb513185362ae5288aaf10623cde757faa6c8fadf40ba0a903929e8a81b402"
+      },
+      "provenance": {
+        "receipt": {
+          "path": "build/t17/formal-initial/result.json",
+          "sha256": "2914114e09dac083ebe02ede1bfa2cf077524e8b51675f8fae9ba7a3058e8886"
+        },
+        "status": {
+          "path": "build/t17/formal-initial/recover/correct/status",
+          "sha256": "14b0d5e4bf48a8c0c3fb3ae9460e49e06b917017ff3c67ebcc8d16645595a569"
+        },
+        "log": {
+          "path": "build/t17/formal-initial/recover/correct.log",
+          "sha256": "f62a5be2c76150c9b7d063601fa67c2c668604b4c99a66fb487aa4af44f9c189"
+        }
+      }
+    },
+    {
+      "id": "T17-WRITE-COVER",
+      "solver_status": "TIMEOUT",
+      "returncode": 8,
+      "identity": {
+        "role": "write",
+        "variant": "cover",
+        "top": "I2cProtocolFormal",
+        "mode": "cover",
+        "engine": "btor btormc",
+        "depth": 320,
+        "timeout_seconds": 120,
+        "expected_cells": 2,
+        "scope": "Bounded320 edges, HOLD1/LOW4/HIGH4/FREE4 timeout64; scripted START then arbitrary WRITE byte and ACK peer",
+        "flow_sha256": "c9b206eba63acfeff135453c905eb684ed1aa577efb43fe53a87cb6775f3fe29",
+        "environment_sha256": "f71eedeba5148822a8fd95764f3f931c6ea96f6c370d3aac1dc8ee14e8b51e2a"
+      },
+      "source_sha256": {
+        "BusRegAdapter.sv": "b05e91f32d6a8eb3b91bae0b627b72799f970ad723af874f0e80f9911510c2b2",
+        "CdcSync.sv": "dc64c320311667ee0be50c79c6b4097607f320335a1c90a845244ca451bef214",
+        "I2cHost.sv": "c2516b4a86af58fe0980d8c07feaca616dc371a6783c9f8c0ba99585359325de",
+        "I2cProtocolFormal.sv": "6f7658c394b93334ad35a5be7e88642ad83b91d6e0cbc63f8316b431fbe0c1e5",
+        "RegBlock.sv": "4baca86cf60ecc26b6c64cc358414ca124727e01704e9a0bc1d024b51d150f8c"
+      },
+      "provenance": {
+        "receipt": {
+          "path": "build/t17/formal-final/result.json",
+          "sha256": "7beca179a7de7e3cbf755be7f015a4fdb3c357906411cb9483637a7cefaac624"
+        },
+        "status": {
+          "path": "build/t17/formal-final/write/cover/status",
+          "sha256": "14b0d5e4bf48a8c0c3fb3ae9460e49e06b917017ff3c67ebcc8d16645595a569"
+        },
+        "log": {
+          "path": "build/t17/formal-final/write/cover.log",
+          "sha256": "80cf1f3bdd25e692bb9882fa1a7612a94495b10d12d5c70b941607deb2f0b792"
+        }
+      }
+    },
+    {
+      "id": "T17-WRITE-CORRECT",
+      "solver_status": "TIMEOUT",
+      "returncode": 8,
+      "identity": {
+        "role": "write",
+        "variant": "correct",
+        "top": "I2cProtocolFormal",
+        "mode": "bmc",
+        "engine": "btor btormc",
+        "depth": 320,
+        "timeout_seconds": 120,
+        "expected_cells": 1,
+        "scope": "Bounded320 edges, HOLD1/LOW4/HIGH4/FREE4 timeout64; scripted START then arbitrary WRITE byte and ACK peer",
+        "flow_sha256": "9f16c8c7c330d4257e9a343197aeab4f33aec2c205ae469421a55c1243c92cba",
+        "environment_sha256": "f71eedeba5148822a8fd95764f3f931c6ea96f6c370d3aac1dc8ee14e8b51e2a"
+      },
+      "source_sha256": {
+        "BusRegAdapter.sv": "f9bb08155ddda24a4fa3c6430b3d90c7ba59839402db1b85e85fb6a1a8e9c4cd",
+        "CdcSync.sv": "dc64c320311667ee0be50c79c6b4097607f320335a1c90a845244ca451bef214",
+        "I2cHost.sv": "18563ddc69baa9e56a49f4a14440442e21c7d95e3f9e9be55ffd8b9318126ef1",
+        "I2cProtocolFormal.sv": "59241c74e71de54f3319d416f53ab999b63c6d832bd9bd302092691be0e140e7",
+        "RegBlock.sv": "e7bb513185362ae5288aaf10623cde757faa6c8fadf40ba0a903929e8a81b402"
+      },
+      "provenance": {
+        "receipt": {
+          "path": "build/t17/formal-final/result.json",
+          "sha256": "7beca179a7de7e3cbf755be7f015a4fdb3c357906411cb9483637a7cefaac624"
+        },
+        "status": {
+          "path": "build/t17/formal-final/write/correct/status",
+          "sha256": "14b0d5e4bf48a8c0c3fb3ae9460e49e06b917017ff3c67ebcc8d16645595a569"
+        },
+        "log": {
+          "path": "build/t17/formal-final/write/correct.log",
+          "sha256": "ea1b6f7957525f8f2b3754a3e16101d070ed2c15cc51bd63fa30c9c9377e9f33"
+        }
+      }
+    },
+    {
+      "id": "T17-READ-COVER",
+      "solver_status": "TIMEOUT",
+      "returncode": 8,
+      "identity": {
+        "role": "read",
+        "variant": "cover",
+        "top": "I2cProtocolFormal",
+        "mode": "cover",
+        "engine": "btor btormc",
+        "depth": 320,
+        "timeout_seconds": 120,
+        "expected_cells": 4,
+        "scope": "Bounded320 edges, same timing; scripted START then arbitrary READ byte with symbolic ACK/NACK",
+        "flow_sha256": "6df14fcf905dc098e9d787fff8b5101621eed7e739229d3d8bd8a2f14834cc7e",
+        "environment_sha256": "f71eedeba5148822a8fd95764f3f931c6ea96f6c370d3aac1dc8ee14e8b51e2a"
+      },
+      "source_sha256": {
+        "BusRegAdapter.sv": "b05e91f32d6a8eb3b91bae0b627b72799f970ad723af874f0e80f9911510c2b2",
+        "CdcSync.sv": "dc64c320311667ee0be50c79c6b4097607f320335a1c90a845244ca451bef214",
+        "I2cHost.sv": "c2516b4a86af58fe0980d8c07feaca616dc371a6783c9f8c0ba99585359325de",
+        "I2cProtocolFormal.sv": "16ed0e838e7ea28707e62c5d63065c738ffd6aefae39e20db28cc010d9573a9e",
+        "RegBlock.sv": "4baca86cf60ecc26b6c64cc358414ca124727e01704e9a0bc1d024b51d150f8c"
+      },
+      "provenance": {
+        "receipt": {
+          "path": "build/t17/formal-final/result.json",
+          "sha256": "7beca179a7de7e3cbf755be7f015a4fdb3c357906411cb9483637a7cefaac624"
+        },
+        "status": {
+          "path": "build/t17/formal-final/read/cover/status",
+          "sha256": "14b0d5e4bf48a8c0c3fb3ae9460e49e06b917017ff3c67ebcc8d16645595a569"
+        },
+        "log": {
+          "path": "build/t17/formal-final/read/cover.log",
+          "sha256": "10f173da4c736a21bc31f61625b37cf15562148f4a7e5e459438a1b57a41d183"
+        }
+      }
+    },
+    {
+      "id": "T17-READ-CORRUPT",
+      "solver_status": "TIMEOUT",
+      "returncode": 8,
+      "identity": {
+        "role": "read",
+        "variant": "corrupt",
+        "top": "I2cProtocolFormal",
+        "mode": "bmc",
+        "engine": "btor btormc",
+        "depth": 320,
+        "timeout_seconds": 120,
+        "expected_cells": 1,
+        "scope": "Bounded320 edges, same timing; scripted START then arbitrary READ byte with symbolic ACK/NACK",
+        "flow_sha256": "dba7e506dcceb8e03c0a4ab4a0c44c35aa0008e0d99269e45b315d0e4cc1df6e",
+        "environment_sha256": "f71eedeba5148822a8fd95764f3f931c6ea96f6c370d3aac1dc8ee14e8b51e2a"
+      },
+      "source_sha256": {
+        "BusRegAdapter.sv": "f9bb08155ddda24a4fa3c6430b3d90c7ba59839402db1b85e85fb6a1a8e9c4cd",
+        "CdcSync.sv": "dc64c320311667ee0be50c79c6b4097607f320335a1c90a845244ca451bef214",
+        "I2cFault.sv": "9b48ed217a1ef64f9a4fd3ba4c9d4fa6b886a2cee66c82ef97cfc5098d99598b",
+        "I2cProtocolFormal.sv": "e52659c3c114c5fd830872ff297f53f82c63ae306b86c020449104431ce52273",
+        "RegBlock.sv": "e7bb513185362ae5288aaf10623cde757faa6c8fadf40ba0a903929e8a81b402"
+      },
+      "provenance": {
+        "receipt": {
+          "path": "build/t17/formal-final/result.json",
+          "sha256": "7beca179a7de7e3cbf755be7f015a4fdb3c357906411cb9483637a7cefaac624"
+        },
+        "status": {
+          "path": "build/t17/formal-final/read/corrupt/status",
+          "sha256": "14b0d5e4bf48a8c0c3fb3ae9460e49e06b917017ff3c67ebcc8d16645595a569"
+        },
+        "log": {
+          "path": "build/t17/formal-final/read/corrupt.log",
+          "sha256": "1b01a06f0c9234802197fe15b2e5d72d76ed10afbe002ae6e2a8264e8da183e2"
+        }
+      }
+    },
+    {
+      "id": "T17-READ-CORRECT",
+      "solver_status": "TIMEOUT",
+      "returncode": 8,
+      "identity": {
+        "role": "read",
+        "variant": "correct",
+        "top": "I2cProtocolFormal",
+        "mode": "bmc",
+        "engine": "btor btormc",
+        "depth": 320,
+        "timeout_seconds": 120,
+        "expected_cells": 1,
+        "scope": "Bounded320 edges, same timing; scripted START then arbitrary READ byte with symbolic ACK/NACK",
+        "flow_sha256": "9f16c8c7c330d4257e9a343197aeab4f33aec2c205ae469421a55c1243c92cba",
+        "environment_sha256": "f71eedeba5148822a8fd95764f3f931c6ea96f6c370d3aac1dc8ee14e8b51e2a"
+      },
+      "source_sha256": {
+        "BusRegAdapter.sv": "f9bb08155ddda24a4fa3c6430b3d90c7ba59839402db1b85e85fb6a1a8e9c4cd",
+        "CdcSync.sv": "dc64c320311667ee0be50c79c6b4097607f320335a1c90a845244ca451bef214",
+        "I2cHost.sv": "18563ddc69baa9e56a49f4a14440442e21c7d95e3f9e9be55ffd8b9318126ef1",
+        "I2cProtocolFormal.sv": "580e9e3ec399edf8a868c7383e0fff637258f632700b003b2c24df84e17f3b64",
+        "RegBlock.sv": "e7bb513185362ae5288aaf10623cde757faa6c8fadf40ba0a903929e8a81b402"
+      },
+      "provenance": {
+        "receipt": {
+          "path": "build/t17/formal-final/result.json",
+          "sha256": "7beca179a7de7e3cbf755be7f015a4fdb3c357906411cb9483637a7cefaac624"
+        },
+        "status": {
+          "path": "build/t17/formal-final/read/correct/status",
+          "sha256": "14b0d5e4bf48a8c0c3fb3ae9460e49e06b917017ff3c67ebcc8d16645595a569"
+        },
+        "log": {
+          "path": "build/t17/formal-final/read/correct.log",
+          "sha256": "17be8b337efaa7e886ec451efca083211e84c809ef1e618a6932851e22415be5"
+        }
+      }
+    }
+  ]
+}

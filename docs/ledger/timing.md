@@ -1,5 +1,34 @@
 # Per-block GF180 timing ledger
 
+## T17 I2C controller, 2026-11-17
+
+Measured at base `6764ef8` plus T17 sources, pinned GF180 7t5v0 SS/125C/3.0V,
+Yosys `0.71+34 e419c4eef`, OpenSTA `3.2.0`. Command after pinned wrapper:
+`python3 tools/timing/check.py --top I2cHost --clock clk`, all emitted sources
+from `build/t17/emit-watch-bytes`, output `build/t17/timing-watch-bytes`.
+The exact full command is in the [report](../plan/tasks/reports/T17.md).
+
+Measured **47223.1424 um2**, **23.978615 ns**, path `_2705_/Q` to `_2653_/D`,
+16 logic stages; zero electrical violations, unchanged 24.96 ns assumed budget.
+Mapped pre-layout, ideal clock, no wire delay; excludes pads and reset/clock tree.
+Initial **28.143589 ns** failure (`build/t17/timing-initial`) is preserved.
+An independently reviewed split-byte watchdog keeps exact timeout arithmetic
+and progress-over-expiry priority while shortening the mux/decrement path.
+
+After the independently reviewed repeated-START SDA guard repair, fresh
+`EmitI2cHost` output `build/t17/emit-restart-guard` and the same timing command
+at output `build/t17/timing-restart-guard` measure **46557.9968 um2** and
+**22.349216 ns**, path `_2609_/Q` to `_2557_/D`, 16 logic stages, zero
+electrical violations. The exact guard regression passes. Mapping changes
+prevent attributing the full area/delay delta to a single gate.
+
+The standalone aggregate `python tools/env/run.py run -- python3
+hw/ip/i2c_host/check.py --output build/t17/check` and the final-source aggregate
+invoked by fast CI at output `build/t17/ci-fast/fast/i2c-host` reproduce
+**46557.9968 um2 / 22.349216 ns**, zero electrical violations. The latter
+receipt binds fresh emitted sources, timing-flow/library hashes and the
+independently checked worst path at `i2c_host/result.json` beneath that output.
+
 ## T16 SPI host, 2026-11-17
 
 Measured at base `ea9f238` plus T16 sources, pinned GF180 7t5v0 SS/125C/3.0V,

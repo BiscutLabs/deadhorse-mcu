@@ -24,6 +24,7 @@ PLAN01 is documentation only; no other task is started by this revision.
 | T14 | [Bus, bridge and mailbox](T14-bus-mailbox.md) | T07, T09 | Write `docs/spec/bus.md` first |
 | T15 | [UART peripheral](T15-uart.md) | T05, T07, T09, T14 | User assigned standalone peripheral implementation; core optimization deferred |
 | T16 | [SPI host](T16-spi-host.md) | T05, T07, T09, T14, T15 | User assigned standalone SPI controller; core optimization deferred |
+| T17 | [I2C controller](T17-i2c-host.md) | T05, T07, T09, T14, T16 | User assigned next serial peripheral; controller only, retained loader separate |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |

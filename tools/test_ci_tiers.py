@@ -32,6 +32,7 @@ class TierTest(unittest.TestCase):
         self.assertIn('faithful-local-no-f-formal',jobs)
         self.assertEqual(jobs['uart'][1:],['hw/ip/uart/check.py','--output','build/tier-test/fast/uart'])
         self.assertEqual(jobs['spi-host'][1:],['hw/ip/spi_host/check.py','--output','build/tier-test/fast/spi-host'])
+        self.assertEqual(jobs['i2c-host'][1:],['hw/ip/i2c_host/check.py','--output','build/tier-test/fast/i2c-host'])
         self.assertIn(('full-legacy-00',['python3','retained-legacy.py']),full)
 
     def test_faithful_float_checks_are_separate_and_preserve_registered_checks(self):
@@ -153,6 +154,18 @@ class TierTest(unittest.TestCase):
                 self.run_receipt_case(detail,job_name='spi-host')
         item=dict(id='T16-FRAME0-CORRECT',status='deferred_unproved')
         code,receipt,_=self.run_receipt_case(dict(task='T16',status='pass_with_deferrals',deferred=[item]),job_name='spi-host')
+        self.assertEqual(code,0)
+        self.assertEqual(receipt['deferred'][0]['id'],item['id'])
+
+    def test_i2c_success_requires_explicit_valid_receipt(self):
+        with self.assertRaisesRegex(ValueError,'Missing i2c-host success receipt'):
+            self.run_receipt_case(None,job_name='i2c-host')
+        for detail in (dict(status='pass'),dict(task='T17',status='failed'),
+                       dict(task='T17',status='pass_with_deferrals',deferred=[dict(id='unknown',status='deferred_unproved')])):
+            with self.subTest(detail=detail),self.assertRaisesRegex(ValueError,'Invalid I2C success receipt'):
+                self.run_receipt_case(detail,job_name='i2c-host')
+        item=dict(id='T17-WRITE-CORRECT',status='deferred_unproved')
+        code,receipt,_=self.run_receipt_case(dict(task='T17',status='pass_with_deferrals',deferred=[item]),job_name='i2c-host')
         self.assertEqual(code,0)
         self.assertEqual(receipt['deferred'][0]['id'],item['id'])
 
