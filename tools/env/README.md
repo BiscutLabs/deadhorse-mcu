@@ -41,3 +41,12 @@ The locked OSS CAD release supplies Icarus 14 development and native Yosys
 Ubuntu's historical Yosys is also available explicitly as `/usr/bin/yosys`.
 T06 must qualify historical replay and resolve any required simulator pin;
 T08 does not claim that the historical results have been reproduced.
+
+## Non-formal validation runs
+
+`DEADHORSE_NO_FORMAL=1` explicitly omits only the environment check's two
+Z3 solver probes, including in nested environment checks. The receipt records
+the omission; tool versions, pinned artifacts and compiler checks still run.
+The default retains both solver controls. This variable does not disable
+hardware formal jobs: a non-formal suite must also select only simulation,
+unit, synthesis and timing commands.

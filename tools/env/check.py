@@ -2,6 +2,7 @@
 import hashlib
 import importlib.metadata
 import json
+import os
 from pathlib import Path
 import platform
 import subprocess
@@ -19,7 +20,20 @@ def run(command, *, data=None):
     return p.stdout.strip()
 
 
+def solver_controls(skip=False):
+    """Keep default controls intact; explicit non-formal runs record omission."""
+    if skip:
+        return 'not run (explicit no-formal request)'
+    solver = run(['z3', '-in'], data='(set-logic QF_BV)\n(declare-const x (_ BitVec 8))\n(assert (not (= x x)))\n(check-sat)\n')
+    if solver != 'unsat': raise RuntimeError(f'solver negative control: {solver}')
+    solver = run(['z3', '-in'], data='(set-logic QF_BV)\n(declare-const x (_ BitVec 8))\n(assert (= x x))\n(check-sat)\n')
+    if solver != 'sat': raise RuntimeError(f'solver positive control: {solver}')
+    return 'pass'
+
+
 def main():
+    no_formal = os.environ.get('DEADHORSE_NO_FORMAL', '0')
+    if no_formal not in ('0', '1'): raise ValueError('DEADHORSE_NO_FORMAL must be 0 or 1')
     if platform.system() != 'Linux' or not (INSTALLED / 'lock.json').is_file():
         raise RuntimeError('run in the pinned Linux image via tools/env/run.py')
     lock_bytes = (ROOT / 'tools/env/lock.json').read_bytes()
@@ -62,19 +76,16 @@ def main():
         help_text = run([tool, '-Q', '-T', '-p', f'help {command}'])
         if 'No such command' in help_text or command not in help_text:
             raise RuntimeError(f'{tool}: missing {command}')
-    solver = run(['z3', '-in'], data='(set-logic QF_BV)\n(declare-const x (_ BitVec 8))\n(assert (not (= x x)))\n(check-sat)\n')
-    if solver != 'unsat': raise RuntimeError(f'solver negative control: {solver}')
-    solver = run(['z3', '-in'], data='(set-logic QF_BV)\n(declare-const x (_ BitVec 8))\n(assert (= x x))\n(check-sat)\n')
-    if solver != 'sat': raise RuntimeError(f'solver positive control: {solver}')
+    solver_status = solver_controls(skip=no_formal == '1')
     out = ROOT / 'build/env/smoke'; out.mkdir(parents=True, exist_ok=True)
     source = out / 'smoke.c'; source.write_text('int answer(void) { return 42; }\n')
     run(['riscv64-unknown-elf-gcc', '-march=rv32imc', '-mabi=ilp32', '-c', str(source), '-o', str(out/'smoke.o')])
     receipt = {'status': 'pass', 'lock_sha256': hashlib.sha256(lock_bytes).hexdigest(),
-               'python': sys.version, 'versions': versions,
+               'python': sys.version, 'versions': versions, 'solver_controls': solver_status,
                'apt_sha256': hashlib.sha256(inventory.encode()).hexdigest(),
                'scope': 'Environment presence and smoke only; no Chisel project or hardware qualification'}
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
-    print(f'PASS environment: {len(commands)} tools; locked artifacts, Python/Tcl/YAML, solver controls, RV32 compiler')
+    print(f'PASS environment: {len(commands)} tools; locked artifacts, Python/Tcl/YAML, RV32 compiler; solver controls: {solver_status}')
 
 
 if __name__ == '__main__':

@@ -19,9 +19,23 @@ def module(name):
 
 installer = module('install')
 launcher = module('run')
+checker = module('check')
 
 
 class EnvironmentTests(unittest.TestCase):
+    def test_nonformal_mode_never_calls_solver(self):
+        with patch.object(checker, 'run') as run:
+            self.assertEqual(checker.solver_controls(skip=True), 'not run (explicit no-formal request)')
+            run.assert_not_called()
+
+    def test_default_solver_controls_and_bad_results(self):
+        with patch.object(checker, 'run', side_effect=['unsat', 'sat']) as run:
+            self.assertEqual(checker.solver_controls(), 'pass')
+            self.assertEqual(run.call_count, 2)
+        for replies in (['sat'], ['unsat', 'unsat']):
+            with patch.object(checker, 'run', side_effect=replies):
+                with self.assertRaises(RuntimeError): checker.solver_controls()
+
     def setUp(self):
         output = Path(__file__).resolve().parents[2] / 'build/test_env'
         output.mkdir(parents=True, exist_ok=True)
