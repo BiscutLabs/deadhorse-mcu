@@ -363,3 +363,27 @@ The trial continuation fast tier passes all 21 commands in measured 460.822 s:
 `python tools/env/run.py run -- python3 tools/ci.py --tier fast --output build/t13/clock12/ci-fast`.
 Its default F-integrated timing remains 24.698816 ns / 24.96 ns. Full tier was
 not rerun; previous default-clock failure and outstanding checks remain open.
+
+## T13 faithful Chisel 9.6 MHz trial (2026-11-16)
+
+Measured on `ec736f2` plus the approved trial changes, with exact source/flow
+hashes under `build/t13/faithful9p6/timing/result.json`. Pinned Yosys 0.71+34,
+OpenSTA 3.2.0, GF180 7t5v0 SS/125C/3.0V; mapped pre-layout, ideal clocks,
+no wire/SRAM timing. [Report](../plan/tasks/reports/T13-faithful-9p6mhz.md).
+
+Command (after `python tools/env/run.py run --`):
+`python3 hw/ip/perf_core/check_top_timing.py --emitted build/t13/faithful9p6/emit/asic --operating-point main-9p6mhz --output build/t13/faithful9p6/timing`.
+
+| Profile | Worst path | Allowance | Mapped area | Result |
+| --- | ---: | ---: | ---: | --- |
+| Faithful Chisel RV32IMC | 65.305771 ns | 62.5 ns | 439002.6816 um2 | FAIL, CLI exit 1 |
+
+Worst path: instruction/rs1-address flop `_33260_/Q` to register-file x30[31]
+`_32120_/D`, 58 logic stages. Over budget by derived 2.805771 ns (4.489234%).
+Zero electrical violations; all eight ICG checks pass, minimum slack 0.704980 ns.
+The negative fixture rejects 71.002609 ns at the same 62.5 ns allowance.
+Default 41.6 ns / 24.96 ns and all checks remain unchanged; 9.6 MHz is not adopted.
+Estimated frequency ceiling for this mapped path is 600/65.305771 = 9.187549 MHz;
+a fresh 9 MHz trial is recommended but not run. No F integration or routed
+signoff is claimed. Fast tier passes 21 commands in measured 475.169 s; full
+not rerun. Independent review accepts the failed measurement and provenance.

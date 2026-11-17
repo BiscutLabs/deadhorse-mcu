@@ -110,7 +110,7 @@ point is loaded for that invocation only. The local gate includes the timing
 check after the existing simulation/formal checks, which remain intact.
 See the [timing ledger](../../docs/ledger/timing.md) for measured results.
 
-## User-authorized 12 MHz trial
+## User-authorized timing trials
 
 `--operating-point main-12mhz` selects the T13 experiment requested on
 2026-11-16. It sets the clock period to 1000/12 ns and preserves the 60 percent
@@ -127,6 +127,16 @@ Receipts label this `role: operating-point-trial`, with the named operating
 point and effective assumptions. A trial pass is not default production
 acceptance or physical signoff. The generic timing CLI also accepts this named
 point for positive/negative fixtures; `--self-test` remains a default-flow test
-and rejects a simultaneous trial selection. Other frequencies are not accepted.
+and rejects a simultaneous trial selection. Only the explicitly named trial frequencies are accepted.
 The global clock decision and cycle-based firmware deadlines are separate from
 this pre-layout experiment.
+
+The approved faithful-core trial uses `--operating-point main-9p6mhz`: period
+1000/9.6 ns, allowance 62.5 ns. Emit with
+`python3 tools/sbt.py "hw/runMain deadhorse.perf_core.EmitFaithfulCore build/t13/faithful9p6/emit"`,
+then run `hw/ip/perf_core/check_top_timing.py` on its `asic` directory.
+This emitter selects the existing faithful RV32IMC hierarchy, with the same
+physical ports, flop register file, disabled RVFI and real clock gate as the
+registered physical view. Its `model` view retains RVFI for comparison with
+the previously qualified faithful candidate. It does not implement F or
+adopt a production frequency.

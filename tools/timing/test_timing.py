@@ -10,11 +10,14 @@ class OperatingPointTests(unittest.TestCase):
     def test_trial_changes_only_period_and_provenance_without_mutating_default(self):
         original = json.loads(CONFIG.read_text())
         self.assertEqual(timing_config(), original)
-        trial = timing_config('main-12mhz')
-        self.assertAlmostEqual(trial['period_ns'], 1000 / 12)
-        self.assertAlmostEqual(trial['period_ns'] * trial['budget_fraction'], 50)
-        for key in original.keys() - {'period_ns', 'provenance'}:
-            self.assertEqual(trial[key], original[key])
+        for point, period, budget in (('main-12mhz', 1000 / 12, 50),
+                                      ('main-9p6mhz', 1000 / 9.6, 62.5)):
+            with self.subTest(point=point):
+                trial = timing_config(point)
+                self.assertAlmostEqual(trial['period_ns'], period)
+                self.assertAlmostEqual(trial['period_ns'] * trial['budget_fraction'], budget)
+                for key in original.keys() - {'period_ns', 'provenance'}:
+                    self.assertEqual(trial[key], original[key])
         self.assertEqual(timing_config(), original)
 
     def test_unknown_operating_point_is_rejected(self):
@@ -23,13 +26,15 @@ class OperatingPointTests(unittest.TestCase):
                 timing_config(name)
 
     def test_trial_still_rejects_over_budget_and_electrical_failures(self):
-        cfg = timing_config('main-12mhz')
-        budget = cfg['period_ns'] * cfg['budget_fraction']
         clean = {'max_capacitance_and_slew_violations': 0}
         bad = {'max_capacitance_and_slew_violations': 1}
-        self.assertEqual(result_status(25.335854, budget, clean), 'pass')
-        self.assertEqual(result_status(50.001, budget, clean), 'fail')
-        self.assertEqual(result_status(25.335854, budget, bad), 'fail')
+        for point, budget in (('main-12mhz', 50), ('main-9p6mhz', 62.5)):
+            with self.subTest(point=point):
+                cfg = timing_config(point)
+                self.assertAlmostEqual(cfg['period_ns'] * cfg['budget_fraction'], budget)
+                self.assertEqual(result_status(25.335854, budget, clean), 'pass')
+                self.assertEqual(result_status(budget + 0.001, budget, clean), 'fail')
+                self.assertEqual(result_status(25.335854, budget, bad), 'fail')
 
 
 class ElectricalTests(unittest.TestCase):

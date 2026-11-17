@@ -11,7 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / 'phys/gf180-ws-1x1/block-timing.json'
-OPERATING_POINTS = ('default', 'main-12mhz')
+OPERATING_POINTS = ('default', 'main-12mhz', 'main-9p6mhz')
 
 # Reference adapters and primitives are verification-only.
 sys.path.insert(0, str(ROOT / 'dv/core'))
@@ -97,9 +97,10 @@ def timing_config(operating_point='default'):
     if operating_point not in OPERATING_POINTS:
         raise ValueError('Unsupported timing operating point')
     cfg = json.loads(CONFIG.read_text())
-    if operating_point == 'main-12mhz':
-        cfg['period_ns'] = 1000.0 / 12.0
-        cfg['provenance'] = ('User-authorized T13 12 MHz trial: only the period changes; '
+    if operating_point != 'default':
+        frequency_mhz = {'main-12mhz': 12.0, 'main-9p6mhz': 9.6}[operating_point]
+        cfg['period_ns'] = 1000.0 / frequency_mhz
+        cfg['provenance'] = (f'User-authorized T13 {frequency_mhz:g} MHz trial: only the period changes; '
                              'the budget fraction and other constraints are unchanged. '
                              'Default configuration provenance: ' + cfg['provenance'])
     return cfg
