@@ -77,6 +77,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Full non-formal run](tasks/reports/T13-nonformal.md): 54/54 jobs pass; depth-160 integration unresolved; standard full tier unrun |
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
 | [x] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | Codex | T07, T09 | [Active checks complete with four user-approved unproved deferrals; fast 29/29 and independent review pass; full not run](tasks/reports/T14.md) |
+| [x] | T15 | [UART peripheral](tasks/T15-uart.md) | Codex | T05, T07, T09, T14 | [Report](tasks/reports/T15.md): UART acceptance, GF180 timing and independent review pass; fast 30/30 with inherited T14 deferrals, no UART deferrals; full not run |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -138,6 +139,12 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-17: T15 in progress -> done, Codex; recovered implementation passes fresh aggregate acceptance and all 30 active fast-tier jobs, with independent RTL/gate review and serial rerun. No UART deferrals; four inherited T14 obligations remain explicitly unproved. Report and ledgers record measured timing/area and bounded formal scope. Full not run; no gate checked. Earlier S1/T13 work remains separate.
+
+- 2026-11-17: T15 resumed, Codex; recovered UART implementation and verification artifacts after the prior session's system error. Running fresh aggregate acceptance and fast CI, with independent RTL and gate review; earlier S1/T13 checkpoint remains separate.
+
+- 2026-11-17: T15 assigned -> in progress, Codex; user directed completion of remaining IP before core performance optimization and approved the proposed UART task. Prepare/review UART contract, implement three reusable instances with ownership, DMA request and sleep/wake boundaries, test and independently review. Formal timeouts remain deferred/unproved; S1 is not closed.
 
 - 2026-11-17: S3 in progress -> done, Codex; aggregate acceptance passes in 72.288 s, main fixture allocations estimated 10176/10616 B with reserved stack, lite subset 648/664 B; independent review clear. Fast 29/29 in 1187.791 s with inherited T14 proof deferrals; full not run. No capacity increase, production RTL change or full-firmware/physical qualification claimed. [Report](tasks/reports/S3.md).
 

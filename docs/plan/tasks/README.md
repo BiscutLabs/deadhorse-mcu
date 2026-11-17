@@ -22,6 +22,7 @@ PLAN01 is documentation only; no other task is started by this revision.
 | T13 | [F integration](T13-core-f-integration.md) | T11, T12 | Improvements only after F passes |
 | S1 | [Selected core measurement](S-spikes.md#s1-core) | T13, T09, T02 | Not a core selection exercise |
 | T14 | [Bus, bridge and mailbox](T14-bus-mailbox.md) | T07, T09 | Write `docs/spec/bus.md` first |
+| T15 | [UART peripheral](T15-uart.md) | T05, T07, T09, T14 | User assigned standalone peripheral implementation; core optimization deferred |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |

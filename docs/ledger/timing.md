@@ -1,5 +1,29 @@
 # Per-block GF180 timing ledger
 
+## T15 UART, 2026-11-17
+
+Measured at base `172d4f1d2279bb5cc5c621685ad94923bfd15282` plus T15
+source hashes, using `python tools/env/run.py run -- python3 hw/ip/uart/check.py
+--output build/t15/check`. Its recorded `tools/timing/check.py` commands consume
+all freshly emitted sources for each top, clock `clk`, default operating point.
+Receipts: `build/t15/check/{uart,wake,bank}/result.json`.
+
+| Top | Measured area, um2 | Worst delay, ns | Worst path | Logic depth |
+| --- | ---: | ---: | --- | ---: |
+| Uart, FIFO 8 | 50673.9968 | 20.436308 | `_2653_/Q` to `_2493_/D` | 12 |
+| UartWake | 465.3824 | 6.950206 | `_15_/Q` to `_15_/D` | 3 |
+| UartBank, three FIFO-8 endpoints | 151679.5392 | 21.398275 | `_8416_/Q` to `_8428_/D` | 14 |
+
+All pass the unchanged assumed 24.96 ns limit with zero capacitance/slew
+violations. GF180 `gf180mcu_fd_sc_mcu7t5v0`, SS/125C/3.0V; Yosys
+`0.71+34 e419c4eef`, OpenSTA `3.2.0`. Mapped, pre-layout, ideal clock,
+no wire delay. HF reset is already domain-qualified; reset-tree buffering and
+recovery/removal are physical integration obligations. Bank area excludes AON
+monitors; estimated bank plus three monitors is
+`151679.5392 + 3 * 465.3824 = 153075.6864 um2`, excluding integration glue/pads.
+Historical failed timing receipts remain preserved; no timing limit changed.
+[Report](../plan/tasks/reports/T15.md).
+
 ## T11 final focused acceptance, 2026-11-15
 
 Base `a532304` plus final source/flow hashes: `python tools/env/run.py run --

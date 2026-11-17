@@ -30,6 +30,7 @@ class TierTest(unittest.TestCase):
         self.assertIn('clock-gate-formal',jobs)
         self.assertIn('local-no-f-formal',jobs)
         self.assertIn('faithful-local-no-f-formal',jobs)
+        self.assertEqual(jobs['uart'][1:],['hw/ip/uart/check.py','--output','build/tier-test/fast/uart'])
         self.assertIn(('full-legacy-00',['python3','retained-legacy.py']),full)
 
     def test_faithful_float_checks_are_separate_and_preserve_registered_checks(self):
@@ -129,6 +130,18 @@ class TierTest(unittest.TestCase):
     def test_bus_formal_zero_exit_requires_success_receipt(self):
         with self.assertRaisesRegex(ValueError,'Missing bus-formal success receipt'):
             self.run_receipt_case(None,job_name='bus-formal')
+
+    def test_uart_success_requires_explicit_valid_receipt(self):
+        with self.assertRaisesRegex(ValueError,'Missing uart success receipt'):
+            self.run_receipt_case(None,job_name='uart')
+        for detail in (dict(status='pass'),dict(task='T15',status='failed'),
+                       dict(task='T15',status='pass_with_deferrals',deferred=[dict(id='unknown',status='deferred_unproved')])):
+            with self.subTest(detail=detail),self.assertRaisesRegex(ValueError,'Invalid UART success receipt'):
+                self.run_receipt_case(detail,job_name='uart')
+        item=dict(id='T15-FRAME-CORRECT',status='deferred_unproved')
+        code,receipt,_=self.run_receipt_case(dict(task='T15',status='pass_with_deferrals',deferred=[item]),job_name='uart')
+        self.assertEqual(code,0)
+        self.assertEqual(receipt['deferred'][0]['id'],item['id'])
 
     def test_bus_formal_zero_exit_rejects_inconsistent_status_or_deferrals(self):
         ids=['T14-BUS-FAIR-M0','T14-BUS-FAIR-M1','T14-BUS-FAIR-M2','T14-BRIDGE-RETURN-DATA']

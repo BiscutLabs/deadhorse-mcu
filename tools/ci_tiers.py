@@ -35,6 +35,7 @@ def fast_commands(output):
         ('bus-block-tests',[py,'tools/sbt.py','hw/testOnly deadhorse.lib.CdcSpec deadhorse.bus.* deadhorse.bus_bridge.* deadhorse.mailbox.*']),
         ('bus-formal',[py,'tools/formal.py','--blocks','cdc,bus,bus_bridge,mailbox','--output',f'{root}/bus-formal']),
         ('bus-timing',[py,'hw/ip/bus/formal/timing.py','--output',f'{root}/bus-timing']),
+        ('uart',[py,'hw/ip/uart/check.py','--output',f'{root}/uart']),
         ('emit-leaves',emit('deadhorse.perf_core.EmitLeaves','leaves')),
         ('emit-core',emit('deadhorse.perf_core.EmitCore','core')),
         ('emit-baseline',emit('deadhorse.perf_core.EmitRegisteredCore','baseline-emit')),
@@ -132,13 +133,14 @@ def main(argv,legacy):
                 seconds=time.monotonic()-step,log=str(log.relative_to(ROOT))))
             step_receipt=receipt['commands'][-1]
             bus_formal_success=name=='bus-formal' and result.returncode==0
-            if bus_formal_success and '--output' not in command:
-                raise ValueError('Missing bus-formal output receipt path')
+            uart_success=name=='uart' and result.returncode==0
+            if (bus_formal_success or uart_success) and '--output' not in command:
+                raise ValueError('Missing '+name+' output receipt path')
             if '--output' in command:
                 child=(ROOT/command[command.index('--output')+1]/'result.json').resolve()
                 child.relative_to(ROOT)
-                if bus_formal_success and not child.is_file():
-                    raise ValueError('Missing bus-formal success receipt')
+                if (bus_formal_success or uart_success) and not child.is_file():
+                    raise ValueError('Missing '+name+' success receipt')
                 if child.exists():
                     detail=json.loads(child.read_text())
                     step_receipt['child_status']=detail.get('status','')
@@ -154,6 +156,13 @@ def main(argv,legacy):
                             {d['id'] for d in deferred}!=BUS_FORMAL_DEFERRALS or
                             any(d.get('status')!='deferred_unproved' for d in deferred)):
                         raise ValueError('Invalid bus-formal success receipt: expected exactly four approved, unproved deferrals')
+                    if uart_success:
+                        allowed={f'T15-{role}-{job}' for role in ('PHASE','FRAME','WAKE','DENIED') for job in ('CORRECT','COVER','CORRUPT')}
+                        if (detail.get('task')!='T15' or detail.get('status') not in ('pass','pass_with_deferrals') or
+                                len({d['id'] for d in deferred})!=len(deferred) or
+                                any(d['id'] not in allowed or d.get('status')!='deferred_unproved' for d in deferred) or
+                                bool(deferred)!=(detail.get('status')=='pass_with_deferrals')):
+                            raise ValueError('Invalid UART success receipt')
                     step_receipt['deferred']=deferred
                     receipt['deferred'].extend(dict(d,command=name,receipt=str(child.relative_to(ROOT))) for d in deferred)
                     limits=detail.get('qualification_limits',[])

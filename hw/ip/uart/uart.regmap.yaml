@@ -1,0 +1,63 @@
+block: uart
+description: Owner checked 8N1 UART with fractional baud and retained FIFOs
+data_width: 32
+address_width: 8
+registers:
+  - name: configuration
+    offset: 0x00
+    fields:
+      - {name: tx_enable, bits: 0, access: rw, reset: 0}
+      - {name: rx_enable, bits: 1, access: rw, reset: 0}
+      - {name: invert, bits: 2, access: rw, reset: 0}
+  - name: baud
+    offset: 0x04
+    fields:
+      - {name: increment, bits: [15, 0], access: rw, reset: 0}
+  - name: command
+    offset: 0x08
+    fields:
+      - {name: apply, bits: 0, access: w1p}
+      - {name: rx_pop, bits: 1, access: w1p}
+      - {name: tx_flush, bits: 2, access: w1p}
+      - {name: rx_flush, bits: 3, access: w1p}
+  - name: tx_data
+    offset: 0x0c
+    fields:
+      - {name: value, bits: [7, 0], access: wo}
+  - name: rx_data
+    offset: 0x10
+    fields:
+      - {name: value, bits: [7, 0], access: ro}
+  - name: status
+    offset: 0x14
+    fields:
+      - {name: tx_ready, bits: 0, access: ro}
+      - {name: rx_valid, bits: 1, access: ro}
+      - {name: tx_busy, bits: 2, access: ro}
+      - {name: rx_busy, bits: 3, access: ro}
+      - {name: idle, bits: 4, access: ro}
+      - {name: tx_count, bits: [12, 8], access: ro}
+      - {name: rx_count, bits: [20, 16], access: ro}
+  - name: events
+    offset: 0x18
+    fields:
+      - {name: tx_overflow, bits: 0, access: w1c, reset: 0}
+      - {name: rx_overflow, bits: 1, access: w1c, reset: 0}
+      - {name: rx_underflow, bits: 2, access: w1c, reset: 0}
+      - {name: framing_error, bits: 3, access: w1c, reset: 0}
+      - {name: config_error, bits: 4, access: w1c, reset: 0}
+      - {name: tx_done, bits: 5, access: w1c, reset: 0}
+  - name: irq_enable
+    offset: 0x1c
+    fields:
+      - {name: rx_valid, bits: 0, access: rw, reset: 0}
+      - {name: tx_ready, bits: 1, access: rw, reset: 0}
+      - {name: errors, bits: 2, access: rw, reset: 0}
+      - {name: tx_done, bits: 3, access: rw, reset: 0}
+  - name: active
+    offset: 0x20
+    fields:
+      - {name: tx_enable, bits: 0, access: ro}
+      - {name: rx_enable, bits: 1, access: ro}
+      - {name: invert, bits: 2, access: ro}
+      - {name: increment, bits: [31, 16], access: ro}
