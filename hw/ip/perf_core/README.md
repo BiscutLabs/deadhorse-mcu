@@ -267,7 +267,11 @@ integer-only reference profile and adopted LSU are unchanged. This follows
 the [Ibex bus protocol](https://ibex-core.readthedocs.io/en/stable/03_reference/load_store_unit.html),
 which returns responses in grant order, one or more cycles after each grant.
 
-The repaired faithful-F candidate measures 839962.5472 um2 mapped cell area
+The faithful-F operand-selection study measured 64.389893 ns and 841971.1552
+um2 against the same 9 MHz whole-core budget. Parallel ALU data selection
+preserves the baseline's cycle behavior. [Pipeline timing study](../../../docs/plan/tasks/reports/T13-pipeline-timing.md)
+
+Before that optimization, the repaired faithful-F candidate measured 839962.5472 um2 mapped cell area
 and 65.726219 ns against the 66.666667 ns 9 MHz allowance: timing passes.
 The unsolicited-response regression passes; genuine memory errors remain
 precise. Original integration assertions pass diagnostic depths 40 and 80,

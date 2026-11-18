@@ -1,5 +1,16 @@
 # Per-block GF180 timing ledger
 
+## T13 faithful-F pipeline timing study, 2026-11-17
+
+Measured on `d75ce89` plus the parallel operand select, using
+`python3 hw/ip/perf_core/check_top_timing.py --emitted build/pipeline-study/h2/emit/asic --operating-point main-9mhz --output build/pipeline-study/h2/timing`.
+GF180 7t5v0 SS/125 C/3.0 V, mapped pre-layout with ideal clocks. Baseline
+65.726219 ns and 839962.5472 um2; selected 64.389893 ns and 841971.1552 um2.
+Worst register path `_64088_/Q` to `_61821_/D`, 80 logic levels, zero
+electrical violations. Derived delay improvement 2.033%, mapped area growth
+0.239%. Fast CI reproduced both numbers. All five hypotheses and the
+higher-frequency trial are in the [study](../plan/tasks/reports/T13-pipeline-timing.md).
+
 ## T18 lite I2C recovery loader, 2026-11-17
 
 Measured on base `35738fe` plus T18 changes with the pinned T09 flow,

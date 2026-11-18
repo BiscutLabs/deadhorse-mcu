@@ -159,11 +159,34 @@ class IbexIdStage(val RV32E: Boolean = false, val RV32M: Int = 2, val RV32B: Int
   val opB=Mux(lsu_addr_incr_req_i,1.U,dec.alu_op_b_mux_sel_o)
   val immBSelect=Mux(lsu_addr_incr_req_i,6.U,dec.imm_b_mux_sel_o)
   val immA=Mux(dec.imm_a_mux_sel_o===0.U,dec.zimm_rs1_type_o,0.U)
-  alu_operand_a_ex_o:=MuxLookup(opA,pc_id_i)(Seq(0.U->rf_rdata_a_i,1.U->lsu_addr_last_i,2.U->pc_id_i,3.U->immA))
-  val immB=MuxLookup(immBSelect,4.U(32.W))(Seq(0.U->dec.imm_i_type_o,1.U->dec.imm_s_type_o,
-    2.U->dec.imm_b_type_o,3.U->dec.imm_u_type_o,4.U->dec.imm_j_type_o,
-    5.U->Mux(instr_is_compressed_i,2.U(32.W),4.U(32.W)),6.U->4.U(32.W)))
-  alu_operand_b_ex_o:=Mux(opB===1.U,immB,rf_rdata_b_i)
+  if (WithF && !RegisteredExecution) {
+    // Decode the data sources in parallel. An LSU increment selects last address + 4.
+    val increment = lsu_addr_incr_req_i
+    val a = dec.alu_op_a_mux_sel_o
+    alu_operand_a_ex_o := Mux1H(Seq(
+      (!increment && a === 0.U) -> rf_rdata_a_i,
+      (increment || a === 1.U) -> lsu_addr_last_i,
+      (!increment && a === 2.U) -> pc_id_i,
+      (!increment && a === 3.U) -> immA))
+    val useImmediate = dec.alu_op_b_mux_sel_o === 1.U
+    val useDecoded = !increment && useImmediate
+    val sel = dec.imm_b_mux_sel_o
+    alu_operand_b_ex_o := Mux1H(Seq(
+      (!increment && !useImmediate) -> rf_rdata_b_i,
+      (useDecoded && sel === 0.U) -> dec.imm_i_type_o,
+      (useDecoded && sel === 1.U) -> dec.imm_s_type_o,
+      (useDecoded && sel === 2.U) -> dec.imm_b_type_o,
+      (useDecoded && sel === 3.U) -> dec.imm_u_type_o,
+      (useDecoded && sel === 4.U) -> dec.imm_j_type_o,
+      (useDecoded && sel === 5.U && instr_is_compressed_i) -> 2.U(32.W),
+      (increment || (useDecoded && (sel > 5.U || (sel === 5.U && !instr_is_compressed_i)))) -> 4.U(32.W)))
+  } else {
+    alu_operand_a_ex_o:=MuxLookup(opA,pc_id_i)(Seq(0.U->rf_rdata_a_i,1.U->lsu_addr_last_i,2.U->pc_id_i,3.U->immA))
+    val immB=MuxLookup(immBSelect,4.U(32.W))(Seq(0.U->dec.imm_i_type_o,1.U->dec.imm_s_type_o,
+      2.U->dec.imm_b_type_o,3.U->dec.imm_u_type_o,4.U->dec.imm_j_type_o,
+      5.U->Mux(instr_is_compressed_i,2.U(32.W),4.U(32.W)),6.U->4.U(32.W)))
+    alu_operand_b_ex_o:=Mux(opB===1.U,immB,rf_rdata_b_i)
+  }
   val csr_flush_decode=WireDefault(false.B)
   when(csr_op_o===1.U || csr_op_o===2.U) {
     csr_flush_decode:=instr_rdata_i(31,20)==="h300".U || instr_rdata_i(31,20)==="h304".U ||
