@@ -1,0 +1,71 @@
+{
+  "project": "RISCay-MCU",
+  "commit": "4671317186003740ceb61360ba08c59bbdf10136",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "source": "designs/clocked/src/main/scala/riscay/clocked/ClockedI2cTarget.scala",
+      "blob": "db17c78eb8be1ca9038316f432cea937750aa44a",
+      "destinations": [
+        "src/main/scala/deadhorse/i2c_recovery_loader/ClockedI2cTarget.scala"
+      ],
+      "changes": "Adopt the clocked target state machine and serialization, replacing inline synchronizers with shared CDC."
+    },
+    {
+      "source": "soc/src/main/scala/riscay/soc/ControlSchema.scala",
+      "blob": "8f71444e7e993539d4c031c4ead6cd0f27759b69",
+      "destinations": [
+        "src/main/scala/deadhorse/i2c_recovery_loader/ClockedI2cTarget.scala",
+        "src/main/scala/deadhorse/i2c_recovery_loader/LoaderControl.scala"
+      ],
+      "changes": "Retain HostFrame wire layout and image metadata widths; isolate recovery state."
+    },
+    {
+      "source": "designs/clocked/src/main/scala/riscay/clocked/ClockedControl.scala",
+      "blob": "a3e4250c3bd4c40209dba7f2ba5888b47e033c7c",
+      "destinations": [
+        "src/main/scala/deadhorse/i2c_recovery_loader/LoaderControl.scala"
+      ],
+      "changes": "Adapt the host command path, CRC and Stored accounting; clear the programming lock only on POR/brownout."
+    },
+    {
+      "source": "designs/clocked/src/main/scala/riscay/clocked/ClockedFabric.scala",
+      "blob": "31394f25f456a2fa6244832829b7a093509471a2",
+      "destinations": [
+        "src/main/scala/deadhorse/i2c_recovery_loader/RecoveryLoader.scala",
+        "src/main/scala/deadhorse/i2c_recovery_loader/LoaderControl.scala"
+      ],
+      "changes": "Adapt frame dispatch, memory completion and coherent status snapshots to a single qualified service clock."
+    },
+    {
+      "source": "soc/src/main/scala/riscay/soc/Platform.scala",
+      "blob": "e5984209aa269faf6273e48919bc7e92dd81f14d",
+      "destinations": [
+        "src/main/scala/deadhorse/i2c_recovery_loader/RecoveryLoader.scala"
+      ],
+      "changes": "Use the clocked target address and idle timeout defaults."
+    },
+    {
+      "source": "shared/src/main/scala/riscay/HostSchema.scala",
+      "blob": "b73beb650bbc7401aeabd10d9a19b6f5fc161200",
+      "destinations": [
+        "src/main/scala/deadhorse/i2c_recovery_loader/RecoveryLoader.scala"
+      ],
+      "changes": "Retain the device and loader service field order and ABI."
+    },
+    {
+      "source": "designs/clocked/src/main/scala/riscay/clocked/ClockedSram.scala",
+      "blob": "e51caa29d5996182a7411460c9993eb91ab52056",
+      "destinations": [],
+      "changes": "Reference for memory word completion. The external program-memory backend is outside this block."
+    },
+    {
+      "source": "LICENSE",
+      "blob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+      "destinations": [
+        "LICENSE"
+      ],
+      "changes": "Copy the upstream Apache-2.0 licence."
+    }
+  ]
+}

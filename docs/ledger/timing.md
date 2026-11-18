@@ -1,5 +1,36 @@
 # Per-block GF180 timing ledger
 
+## T18 lite I2C recovery loader, 2026-11-17
+
+Measured on base `35738fe` plus T18 changes with the pinned T09 flow,
+GF180MCU 7t 5 V SS, 125 C, 3.0 V, ideal clock and no wire delay. Command:
+`python3 tools/timing/check.py --top RecoveryLoader --clock clk`, supplying
+every SystemVerilog source from the corresponding fresh production emission.
+The default assumed allowance is 60% of 41.6 ns, or 24.96 ns.
+
+| Output under build/t18 | Measured delay ns | Mapped cell area (um2) | Electrical violations |
+| --- | ---: | ---: | ---: |
+| timing-initial | 36.429199 | 96959.7888 | 198 |
+| timing-domain-reset | 25.190571 | 98513.9904 | 0 |
+| timing-range | 24.589447 | 96577.8240 | 0 |
+
+The initial input path ran from por_n through a redundant local whole-domain
+reset net with excessive load. The qualified whole-domain reset supplied by
+the reset controller already includes POR. Using that input directly removed
+the overload. The remaining BEGIN path included a 32-bit variable comparison.
+Rejecting upper bits and comparing aligned word indices over the actual
+capacity retained full-width input validation and met the budget. The worst
+path in timing-range runs from frame opcode storage to the received-byte
+counter. The measurement includes the target, shared input synchronizers,
+serializer, read snapshot, CRC, metadata, programming lock and memory-port
+logic. Program SRAM, CPU, reset distribution, wake controller and pads are
+external.
+
+The standalone acceptance and fast CI replay each reproduced the final delay,
+area and electrical count using fresh emissions. Source lists, commands and
+library hashes are in the timing receipts under `build/t18/check/timing/`
+and `build/t18/ci-fast/fast/i2c-recovery-loader/timing/`.
+
 ## T17 I2C controller, 2026-11-17
 
 Measured at base `6764ef8` plus T17 sources, pinned GF180 7t5v0 SS/125C/3.0V,

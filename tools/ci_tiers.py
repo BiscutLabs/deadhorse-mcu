@@ -38,6 +38,7 @@ def fast_commands(output):
         ('uart',[py,'hw/ip/uart/check.py','--output',f'{root}/uart']),
         ('spi-host',[py,'hw/ip/spi_host/check.py','--output',f'{root}/spi-host']),
         ('i2c-host',[py,'hw/ip/i2c_host/check.py','--output',f'{root}/i2c-host']),
+        ('i2c-recovery-loader',[py,'hw/ip/i2c_recovery_loader/check.py','--output',f'{root}/i2c-recovery-loader']),
         ('emit-leaves',emit('deadhorse.perf_core.EmitLeaves','leaves')),
         ('emit-core',emit('deadhorse.perf_core.EmitCore','core')),
         ('emit-baseline',emit('deadhorse.perf_core.EmitRegisteredCore','baseline-emit')),
@@ -138,12 +139,14 @@ def main(argv,legacy):
             uart_success=name=='uart' and result.returncode==0
             spi_success=name=='spi-host' and result.returncode==0
             i2c_success=name=='i2c-host' and result.returncode==0
-            if (bus_formal_success or uart_success or spi_success or i2c_success) and '--output' not in command:
+            loader_success=name=='i2c-recovery-loader' and result.returncode==0
+            needs_receipt=bus_formal_success or uart_success or spi_success or i2c_success or loader_success
+            if needs_receipt and '--output' not in command:
                 raise ValueError('Missing '+name+' output receipt path')
             if '--output' in command:
                 child=(ROOT/command[command.index('--output')+1]/'result.json').resolve()
                 child.relative_to(ROOT)
-                if (bus_formal_success or uart_success or spi_success or i2c_success) and not child.is_file():
+                if needs_receipt and not child.is_file():
                     raise ValueError('Missing '+name+' success receipt')
                 if child.exists():
                     detail=json.loads(child.read_text())
@@ -181,6 +184,9 @@ def main(argv,legacy):
                                 any(d['id'] not in allowed or d.get('status')!='deferred_unproved' for d in deferred) or
                                 bool(deferred)!=(detail['status']=='pass_with_deferrals')):
                             raise ValueError('Invalid I2C success receipt')
+                    if loader_success:
+                        if detail.get('task') != 'T18' or detail.get('status') != 'pass' or deferred:
+                            raise ValueError('Invalid recovery-loader success receipt')
                     step_receipt['deferred']=deferred
                     receipt['deferred'].extend(dict(d,command=name,receipt=str(child.relative_to(ROOT))) for d in deferred)
                     limits=detail.get('qualification_limits',[])
