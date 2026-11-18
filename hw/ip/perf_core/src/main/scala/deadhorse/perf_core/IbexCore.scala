@@ -88,7 +88,8 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
 
   val if_stage_i=Module(new IbexIfStage(DmHaltAddr,DmExceptionAddr,RegisteredRedirect=RegisteredExecution,WithF=WithF))
   val id_stage_i=Module(new IbexIdStage(RegisteredExecution=RegisteredExecution,WithF=WithF))
-  val ex_block_i=Module(new IbexExBlock(RegisteredExecution=RegisteredExecution))
+  private val shareIntegerMac = WithF && !RegisteredExecution
+  val ex_block_i=Module(new IbexExBlock(RegisteredExecution=RegisteredExecution, shareIntegerMac=shareIntegerMac))
   val load_store_unit_i=Module(new IbexLoadStoreUnit)
   val wb_stage_i=Module(new IbexWbStage)
   val cs_registers_i=Module(new IbexCsRegisters(DbgTriggerEn,WithF=WithF))
@@ -119,8 +120,9 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
     } else selected
   }) else None
   val floatExecution=if(WithF) Some(withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
-    Module(new FloatExecution(bankedRead = !RegisteredExecution))
+    Module(new FloatExecution(bankedRead = !RegisteredExecution, shareIntegerMac=shareIntegerMac))
   }) else None
+  if (shareIntegerMac) ex.sharedMac.get <> floatExecution.get.sharedMac.get
   val floatArithmetic=if(WithF) floatDecoded.get.legal && floatDecoded.get.arithmetic else false.B
   val floatLoad=if(WithF) floatDecoded.get.legal && floatDecoded.get.load else false.B
   val floatStore=if(WithF) floatDecoded.get.legal && floatDecoded.get.store else false.B

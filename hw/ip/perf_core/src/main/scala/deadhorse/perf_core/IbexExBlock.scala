@@ -8,7 +8,11 @@ import chisel3._
 import chisel3.util.Cat
 
 class IbexExBlock(val iterativeMultiply: Boolean = false,
-    val localDivisionArithmetic: Boolean = false, val RegisteredExecution: Boolean = false) extends RawModule {
+    val localDivisionArithmetic: Boolean = false, val RegisteredExecution: Boolean = false,
+    val shareIntegerMac: Boolean = false) extends RawModule {
+  require(!shareIntegerMac || (!RegisteredExecution && !iterativeMultiply))
+  val sharedMac = if (shareIntegerMac) Some(IO(Flipped(new deadhorse.fpu.MantissaMacPort))) else None
+
   override def desiredName = "ibex_ex_block"
   val clk_i = IO(Input(Clock())); val rst_ni = IO(Input(Bool()))
   val alu_operator_i = IO(Input(UInt(7.W)))
@@ -50,7 +54,8 @@ class IbexExBlock(val iterativeMultiply: Boolean = false,
   // Fixed pinned configuration: RV32MFast, RV32BNone, BranchTargetALU=false.
   val alu_i = Module(new IbexAlu(normalResultOnly = localDivisionArithmetic))
   val gen_multdiv_fast_multdiv_i = Module(new IbexMultdivFast(iterativeMultiply = iterativeMultiply,
-    localDivisionArithmetic = localDivisionArithmetic))
+    localDivisionArithmetic = localDivisionArithmetic, shareIntegerMac = shareIntegerMac))
+  if (shareIntegerMac) gen_multdiv_fast_multdiv_i.sharedMac.get <> sharedMac.get
   val md = gen_multdiv_fast_multdiv_i
   val multdiv_sel = mult_sel_i || div_sel_i
   alu_i.operator_i := alu_operator_i

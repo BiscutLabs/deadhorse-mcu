@@ -2,7 +2,7 @@ package deadhorse.perf_core
 
 import chisel3._
 import chisel3.util._
-import deadhorse.fpu.{Fpu,FpuOp}
+import deadhorse.fpu.{Fpu,FpuOp,MantissaMacPort}
 
 class FloatDecoded extends Bundle {
   val recognized=Bool(); val legal=Bool(); val arithmetic=Bool()
@@ -86,7 +86,9 @@ object FloatInstruction {
 }
 
 /** FP state and operand staging, within the core's single gated clock domain. */
-class FloatExecution(val bankedRead: Boolean = false) extends Module with RequireAsyncReset {
+class FloatExecution(val bankedRead: Boolean = false, val shareIntegerMac: Boolean = false) extends Module with RequireAsyncReset {
+  val sharedMac = if (shareIntegerMac) Some(IO(new MantissaMacPort)) else None
+
   val io=IO(new Bundle {
     val decoded=Input(new FloatDecoded); val integerOperand=Input(UInt(32.W))
     val request=Input(Bool()); val commitArithmetic=Input(Bool()); val commitLoad=Input(Bool())
@@ -112,7 +114,8 @@ class FloatExecution(val bankedRead: Boolean = false) extends Module with Requir
   val source1=RegNext(readRegister(d.rs1)); val source2=RegNext(readRegister(d.rs2))
   val source3=RegNext(readRegister(d.rs3)); val integerOperand=RegNext(io.integerOperand)
   val op=RegNext(d.op); val rm=RegNext(d.rm); val useInteger=RegNext(d.useInteger)
-  val fpu=Module(new Fpu)
+  val fpu=Module(new Fpu(shareIntegerMac))
+  if (shareIntegerMac) sharedMac.get <> fpu.sharedMac.get
   fpu.io.req.valid:=io.request && d.legal && d.arithmetic && !io.cancel
   fpu.io.req.bits.op:=op; fpu.io.req.bits.rm:=rm
   fpu.io.req.bits.a:=Mux(useInteger,integerOperand,source1)

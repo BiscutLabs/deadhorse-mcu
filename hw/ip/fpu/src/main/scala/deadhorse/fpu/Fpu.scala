@@ -19,8 +19,19 @@ class FpuResponse extends Bundle {
   val result = UInt(32.W); val flags = UInt(5.W)
 }
 
+/** A registered owner selects unsigned 12-bit partials for the shared integer MAC. */
+class MantissaMacPort extends Bundle {
+  val owner = Output(Bool())
+  val a = Output(UInt(12.W))
+  val b = Output(UInt(12.W))
+  val addend = Output(UInt(24.W))
+  val result = Input(UInt(25.W))
+}
+
 /** One outstanding operation, with registered transaction boundaries. */
-class Fpu extends Module with RequireAsyncReset {
+class Fpu(val shareIntegerMac: Boolean = false) extends Module with RequireAsyncReset {
+  val sharedMac = if (shareIntegerMac) Some(IO(new MantissaMacPort)) else None
+
   val io = IO(new Bundle {
     val req = Flipped(Decoupled(new FpuRequest))
     val rsp = Decoupled(new FpuResponse)
@@ -43,7 +54,11 @@ class Fpu extends Module with RequireAsyncReset {
   val pending = Reg(new FpuResponse)
   val multiplicand = Reg(UInt(24.W)); val product = Reg(UInt(48.W))
   val addend = Reg(UInt(48.W)); val sumResult = Reg(UInt(49.W))
-  val sumA = Reg(UInt(49.W)); val sumB = Reg(UInt(49.W)); val carry = Reg(Bool())
+  val sumA = Reg(UInt(49.W))
+  // The MAC partials already accumulate in sumA. Once they finish, the saved
+  // addend can shift in place during the same three addition cycles.
+  val sumB = if (shareIntegerMac) addend else Reg(UInt(49.W))
+  val carry = Reg(Bool())
   val count = RegInit(0.U(5.W))
   val metadata = Reg(new MulAddRecFN_interIo(8, 24))
 
@@ -108,20 +123,50 @@ class Fpu extends Module with RequireAsyncReset {
   when (state === prepare) {
     count := count + 1.U
     when (count === 2.U) {
-    multiplicand := pre.io.mulAddA; product := pre.io.mulAddB
+    if (shareIntegerMac) {
+      sumA := 0.U
+    } else {
+      multiplicand := pre.io.mulAddA; product := pre.io.mulAddB
+    }
     addend := pre.io.mulAddC; metadata := pre.io.toPostMul
     count := 0.U; state := multiply
     }
   }
-  // Shift/add: only a 24-bit addition per iteration; no full-width multiplier.
-  val mulSum = FpuAdd(product(47, 24), Mux(product(0), multiplicand, 0.U), 25)
-  val nextProduct = Cat(mulSum, product(23, 1))
-  when (state === multiply) {
-    product := nextProduct
-    count := count + 1.U
-    when (count === 23.U) {
-      sumA := nextProduct; sumB := addend; sumResult := 0.U; carry := false.B
-      count := 0.U; state := sum
+  if (shareIntegerMac) {
+    val mac = sharedMac.get
+    // The recoded operands are held from decode until the next request.
+    val aSig = pre.io.mulAddA
+    val bSig = pre.io.mulAddB
+    mac.owner := busy
+    mac.a := Mux(count(0), aSig(23, 12), aSig(11, 0))
+    mac.b := Mux(count(1), bSig(23, 12), bSig(11, 0))
+    mac.addend := sumA(47, 24)
+    // Bits 47:24 carry into the next MAC. Bits 23:0 hold finalized limbs.
+    // For base R=4096 the four sums are ll, hl+ll/R, lh+prev, hh+prev/R.
+    when (state === multiply && !io.cancel) {
+      count := count + 1.U
+      switch(count(1, 0)) {
+        is(0.U) { sumA := Cat(mac.result(23, 12), 0.U(12.W), mac.result(11, 0)) }
+        is(1.U) { sumA := Cat(mac.result(23, 0), sumA(23, 0)) }
+        is(2.U) { sumA := Cat(mac.result(24, 12), mac.result(11, 0), sumA(11, 0)) }
+        is(3.U) {
+          sumA := Cat(mac.result(23, 0), sumA(23, 0))
+          sumResult := 0.U; carry := false.B
+          count := 0.U; state := sum
+        }
+      }
+    }
+  } else {
+    // Shift/add: only a 24-bit addition per iteration; no full-width multiplier.
+    val mulSum = FpuAdd(product(47, 24), Mux(product(0), multiplicand, 0.U), 25)
+    val nextProduct = Cat(mulSum, product(23, 1))
+    when (state === multiply) {
+      product := nextProduct
+      count := count + 1.U
+      when (count === 23.U) {
+        sumA := nextProduct; sumB := addend; sumResult := 0.U; carry := false.B
+        count := 0.U; state := sum
+      }
     }
   }
   // A 49-bit fused addition in three 17-bit chunks; carry is never discarded.

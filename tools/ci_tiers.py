@@ -31,7 +31,7 @@ def fast_commands(output):
         ('formal-harness-units',[py,'-m','unittest','discover','-s','hw/lib/formal','-p','test_*.py']),
         ('fpu-receipt-units',[py,'-m','unittest','discover','-s','hw/ip/fpu/formal','-p','test_*.py']),
         ('regmap-units',[py,'-m','unittest','hw/regmap/test_regmap.py']),
-        ('block-smoke',[py,'tools/sbt.py','hw/testOnly deadhorse.perf_core.ClockedExecuteSpec deadhorse.perf_core.FloatCoreSpec deadhorse.perf_core.FaithfulFloatCoreSpec']),
+        ('block-smoke',[py,'tools/sbt.py','hw/testOnly deadhorse.perf_core.ClockedExecuteSpec deadhorse.perf_core.FloatCoreSpec deadhorse.perf_core.FaithfulFloatCoreSpec deadhorse.perf_core.SharedMultiplySpec']),
         ('bus-block-tests',[py,'tools/sbt.py','hw/testOnly deadhorse.lib.CdcSpec deadhorse.bus.* deadhorse.bus_bridge.* deadhorse.mailbox.*']),
         ('bus-formal',[py,'tools/formal.py','--blocks','cdc,bus,bus_bridge,mailbox','--output',f'{root}/bus-formal']),
         ('bus-timing',[py,'hw/ip/bus/formal/timing.py','--output',f'{root}/bus-timing']),

@@ -9,7 +9,10 @@ import chisel3._
 import chisel3.util.{Cat, Fill, switch, is, addAttribute}
 
 class IbexMultdivFast(val RV32M: Int = 2, val iterativeMultiply: Boolean = false,
-    val localDivisionArithmetic: Boolean = false) extends RawModule {
+    val localDivisionArithmetic: Boolean = false, val shareIntegerMac: Boolean = false) extends RawModule {
+  require(!shareIntegerMac || !iterativeMultiply)
+  val sharedMac = if (shareIntegerMac) Some(IO(Flipped(new deadhorse.fpu.MantissaMacPort))) else None
+
   require(RV32M == 2, "T11 implements the pinned RV32MFast configuration")
   override def desiredName = "ibex_multdiv_fast"
   val clk_i = IO(Input(Clock()))
@@ -163,7 +166,22 @@ class IbexMultdivFast(val RV32M: Int = 2, val iterativeMultiply: Boolean = false
           mult_hold := !multdiv_ready_id_i
         }
       }
-      val mult_en_internal = mult_en_i && !mult_hold
+      // ID holds an FP arithmetic instruction until it consumes or cancels
+      // the response. Only the FPU's registered transaction state selects
+      // the shared MAC inputs. Integer decode stays off that owner path.
+      val fpOwnsMac = if (shareIntegerMac) {
+        val mac = sharedMac.get
+        when (mac.owner) {
+          sign_a := false.B
+          sign_b := false.B
+          mult_op_a := mac.a
+          mult_op_b := mac.b
+          accum := mac.addend
+        }
+        mac.result := mac_res(24, 0)
+        mac.owner
+      } else false.B
+      val mult_en_internal = mult_en_i && !mult_hold && !fpOwnsMac
       when(mult_en_internal) { mult_state_q := mult_state_d }
       (mac_res_d, mult_valid, mult_en_internal)
     }

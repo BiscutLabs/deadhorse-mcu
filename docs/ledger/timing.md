@@ -1,5 +1,15 @@
 # Per-block GF180 timing ledger
 
+## T13 shared integer and floating-point multiplier, 2026-11-18
+
+Measured on `f4155b0` plus the shared MAC and FPU addend reuse. The standard
+faithful-F `main-9mhz` fast-tier timing command at 62,500 ps gave 814,627.7440 µm²
+and 64.831543 ns, compared with 829,781.2096 µm² and 64.258347 ns on the baseline.
+Across five matched targets, the unchanged core varied by 4,897.4912 µm² and
+3.240048 ns. The selected run measured 814,597.0112 µm² and 64.751656 ns.
+These are pre-layout standard-cell measurements at GF180 SS/125 °C/3.0 V.
+[Targets, endpoints, throughput and checks](../plan/tasks/reports/T13-round2.md)
+
 ## T13 faithful-F register-file area study, 2026-11-18
 
 Measured on `73c178e` plus eight-bank FP register reads with
