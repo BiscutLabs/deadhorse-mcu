@@ -1,5 +1,16 @@
 # Per-block GF180 timing ledger
 
+## T13 faithful-F register-file area study, 2026-11-18
+
+Measured on `73c178e` plus eight-bank FP register reads with
+`python3 hw/ip/perf_core/check_top_timing.py --emitted build/area-study/fp-read-eight-banks/emit/asic --operating-point main-9mhz --output build/area-study/fp-read-eight-banks/timing`.
+The GF180MCU 7t5v0 slow corner at 125 °C and 3.0 V gave 829781.2096 µm² and
+64.258347 ns for the complete faithful RV32IMFC core. The same flow measured
+841971.1552 µm² and 64.389893 ns on the baseline. Derived reductions were
+12189.9456 µm² (1.448%) and 0.131546 ns. Both runs were mapped pre-layout
+with ideal clocks and no wire delay. The fast tier reproduced the selected
+values. [All five hypotheses and four refinements](../plan/tasks/reports/T13-area-study.md)
+
 ## T13 faithful-F pipeline timing study, 2026-11-17
 
 Measured on `d75ce89` plus the parallel operand select, using

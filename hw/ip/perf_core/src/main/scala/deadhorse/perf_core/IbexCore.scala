@@ -119,7 +119,7 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
     } else selected
   }) else None
   val floatExecution=if(WithF) Some(withClockAndReset(clk_i,(!rst_ni).asAsyncReset) {
-    Module(new FloatExecution)
+    Module(new FloatExecution(bankedRead = !RegisteredExecution))
   }) else None
   val floatArithmetic=if(WithF) floatDecoded.get.legal && floatDecoded.get.arithmetic else false.B
   val floatLoad=if(WithF) floatDecoded.get.legal && floatDecoded.get.load else false.B

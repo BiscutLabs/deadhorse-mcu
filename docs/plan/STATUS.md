@@ -1,6 +1,6 @@
 # Status
 
-Single progress tracker. Last updated: 2026-11-17.
+Single progress tracker. Last updated: 2026-11-18.
 States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete,
 `[-]` withdrawn.
 Decision checks record the user's approvals, not implementation completion.
@@ -74,7 +74,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T10 | [Ibex reference and harness](tasks/T10-ibex-reference.md) | Codex | T07, T08 | [Report](tasks/reports/T10.md): sequential/whole-core harness, candidate suites and divide stress pass; full local gate and independent review pass; D44 limits retained |
 | [x] | T11 | [Ibex conversion](tasks/T11-ibex-conversion.md) | Codex | T10, T09 | [Report](tasks/reports/T11.md): user-approved focused verification complete; exact revision proof carries prior ISA evidence; current tests/timing/lockstep and independent review pass; repeated full CI stopped, not passed |
 | [x] | T12 | [FPU](tasks/T12-fpu.md) | Codex | T07, T09 | [Report](tasks/reports/T12.md): standalone RV32F, focused local gate, arithmetic-abstracted control proof, reference tests, GF180 timing and independent review pass; full CI intentionally not rerun |
-| [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Full non-formal run](tasks/reports/T13-nonformal.md): 54/54 jobs pass; depth-160 integration unresolved; standard full tier unrun. [Pipeline timing study](tasks/reports/T13-pipeline-timing.md). |
+| [!] | T13 | [F integration](tasks/T13-core-f-integration.md) | Codex | T11, T12 | [Full non-formal run](tasks/reports/T13-nonformal.md): 54/54 jobs pass; depth-160 integration unresolved; standard full tier unrun. [Pipeline timing study](tasks/reports/T13-pipeline-timing.md). [Area study](tasks/reports/T13-area-study.md). |
 | [ ] | S1 | [Core measurement](tasks/S-spikes.md#s1-core) | unassigned | T13, T09, T02 | Architecture selected; measurements outstanding |
 | [x] | T14 | [Bus, bridge and mailbox](tasks/T14-bus-mailbox.md) | Codex | T07, T09 | [Active checks complete with four user-approved unproved deferrals; fast 29/29 and independent review pass; full not run](tasks/reports/T14.md) |
 | [x] | T15 | [UART peripheral](tasks/T15-uart.md) | Codex | T05, T07, T09, T14 | [Report](tasks/reports/T15.md): UART acceptance, GF180 timing and independent review pass; fast 30/30 with inherited T14 deferrals, no UART deferrals; full not run |
@@ -142,6 +142,10 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-18: Completed the T13 faithful-F area study. Eight-bank FP register reads reduced mapped core area by 1.448% and shortened the worst path by 0.131546 ns. All other variants missed the timing cutoff. [Report](tasks/reports/T13-area-study.md).
+
+- 2026-11-18: T13 area study assigned. Compare five alternatives on the committed faithful RV32IMFC core. A smaller whole-core area qualifies only if its measured worst delay does not increase.
 
 - 2026-11-17: T13 timing study completed. Parallel ALU operand selection measured 64.389893 ns with 0.239% more area and exact cycle equivalence. Earlier formal acceptance and S1 throughput remain open. [Report](tasks/reports/T13-pipeline-timing.md).
 

@@ -86,7 +86,7 @@ object FloatInstruction {
 }
 
 /** FP state and operand staging, within the core's single gated clock domain. */
-class FloatExecution extends Module with RequireAsyncReset {
+class FloatExecution(val bankedRead: Boolean = false) extends Module with RequireAsyncReset {
   val io=IO(new Bundle {
     val decoded=Input(new FloatDecoded); val integerOperand=Input(UInt(32.W))
     val request=Input(Bool()); val commitArithmetic=Input(Bool()); val commitLoad=Input(Bool())
@@ -98,8 +98,19 @@ class FloatExecution extends Module with RequireAsyncReset {
   })
   val registers=Reg(Vec(32,UInt(32.W)))
   val d=io.decoded
-  val source1=RegNext(registers(d.rs1)); val source2=RegNext(registers(d.rs2))
-  val source3=RegNext(registers(d.rs3)); val integerOperand=RegNext(io.integerOperand)
+  private def readRegister(address: UInt): UInt = {
+    if (bankedRead) {
+      // The high bits select one of four words per bank on each read port.
+      val banks = (0 until 8).map { bank =>
+        Mux1H((0 until 4).map { lane =>
+          (address(4, 3) === lane.U) -> registers(8 * lane + bank)
+        })
+      }
+      VecInit(banks)(address(2, 0))
+    } else registers(address)
+  }
+  val source1=RegNext(readRegister(d.rs1)); val source2=RegNext(readRegister(d.rs2))
+  val source3=RegNext(readRegister(d.rs3)); val integerOperand=RegNext(io.integerOperand)
   val op=RegNext(d.op); val rm=RegNext(d.rm); val useInteger=RegNext(d.useInteger)
   val fpu=Module(new Fpu)
   fpu.io.req.valid:=io.request && d.legal && d.arithmetic && !io.cancel

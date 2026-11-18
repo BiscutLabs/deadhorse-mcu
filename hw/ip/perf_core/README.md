@@ -267,6 +267,10 @@ integer-only reference profile and adopted LSU are unchanged. This follows
 the [Ibex bus protocol](https://ibex-core.readthedocs.io/en/stable/03_reference/load_store_unit.html),
 which returns responses in grant order, one or more cycles after each grant.
 
+The faithful-F core uses eight interleaved banks of four floating-point registers
+for each operand read. At the 9 MHz operating point it measures 829781.2096 µm²
+and 64.258347 ns mapped pre-layout. [Area study](../../../docs/plan/tasks/reports/T13-area-study.md)
+
 The faithful-F operand-selection study measured 64.389893 ns and 841971.1552
 um2 against the same 9 MHz whole-core budget. Parallel ALU data selection
 preserves the baseline's cycle behavior. [Pipeline timing study](../../../docs/plan/tasks/reports/T13-pipeline-timing.md)
