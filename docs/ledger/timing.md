@@ -902,3 +902,154 @@ fault controls on the final snapshot. Exhaustive applied-exception coverage,
 actual over-budget faults per class, direct header/decode producer-spacing
 and retained-pipeline sampling equivalence remain unresolved. Final USB
 aggregate and fast CI fail; full CI was not run.
+
+## D48-D50 post-step-4 stop (2026-11-18)
+
+**Measured** at `15161bf897d1b4b4cba69030154daf89ee19ca12` plus receipt-bound
+working sources. Command: `python tools/env/run.py run -- python3 scratch/t19_d48_measure.py`
+(engine/wrapper, final `build/t19/d48-timing-05`); EP0 is the first invocation
+`build/t19/d48-timing-01/control`. Individual `tools/timing/check.py` commands
+are in `commands.json` and the child receipts. Pinned Yosys 0.71+34 / OpenSTA
+3.2.0, GF180 7-track SS/125 C/3.0 V; mapped pre-layout, ideal clocks.
+No routed wires, physical reset skew or board qualification is claimed.
+
+Budgets are **estimated**: CC = 0.60 × 4 × 1000/48 = 50 ns; other USB
+classes = 0.60 × 1000/48 = 12.5 ns; application/AON = 0.60 × 41.6 = 24.96 ns.
+Zero-delay IO screening remains; the pad contract was not reached after the
+explicit stop condition. No delay, electrical or hold requirement was waived.
+
+| Block | Class | Measured worst ns | Estimated budget ns | Mapped start → end | Measured block area um2 |
+| --- | --- | ---: | ---: | --- | ---: |
+| EP0 | CC | 4.986572 | 50 | `_2060_/Q` → `_2060_/D` | 42922.7456 |
+| EP0 | CF | 13.306602 | 12.5 | `_1992_/Q` → `_1814_/D` | 42922.7456 |
+| EP0 | FC | 13.370109 | 12.5 | `_1963_/Q` → `_1990_/D` | 42922.7456 |
+| EP0 | FF | 12.721625 | 12.5 | `_1963_/Q` → `_1848_/D` | 42922.7456 |
+| EP0 | IR | 11.261580 | 12.5 | `busReset` → `_1846_/D` | 42922.7456 |
+| EP0 | RO | 4.142676 | 12.5 | `_2039_/Q` → `configured` | 42922.7456 |
+| Engine | CC | 4.346316 | 50 | `_10109_/Q` → `_10109_/D` | 282348.8192 |
+| Engine | CF | 12.777115 | 12.5 | `_9811_/Q` → `_10101_/D` | 282348.8192 |
+| Engine | FC | 13.556070 | 12.5 | `_9673_/Q` → `_10111_/D` | 282348.8192 |
+| Engine | FF | 21.709534 | 12.5 | `_9906_/Q` → `_10181_/D` | 282348.8192 |
+| Engine | IR | 6.502565 | 12.5 | `rxReady` → `_8955_/D` | 282348.8192 |
+| Engine | RO | 9.062789 | 12.5 | `_10121_/Q` → `txEnable` | 282348.8192 |
+| Engine | IO | 3.674172 | 12.5 | `reset_n` → `pullup_0` | 282348.8192 |
+| Wrapper | appClock.FF | 12.017683 | 24.96 | `_11078_/Q` → `_10550_/D` | 319285.2544 |
+| Wrapper | appClock.IR | 9.074254 | 24.96 | `bus_bits_origin[1]` → `_10525_/D` | 319285.2544 |
+| Wrapper | appClock.RO | 3.929136 | 24.96 | `_11405_/Q` → `bus_gnt` | 319285.2544 |
+| Wrapper | appClock.IO | 4.683438 | 24.96 | `vbus` → `pullupEnable` | 319285.2544 |
+| Wrapper | usbClock.CC | 5.355806 | 50 | `_11279_/Q` → `_11279_/D` | 319285.2544 |
+| Wrapper | usbClock.CF | 13.388058 | 12.5 | `_10783_/Q` → `_11284_/D` | 319285.2544 |
+| Wrapper | usbClock.FC | 14.811282 | 12.5 | `_10860_/Q` → `_10745_/D` | 319285.2544 |
+| Wrapper | usbClock.FF | 22.338293 | 12.5 | `_10637_/Q` → `_10662_/D` | 319285.2544 |
+| Wrapper | usbClock.IR | 12.100127 | 12.5 | `vbus` → `_10281_/D` | 319285.2544 |
+| Wrapper | usbClock.RO | 9.848157 | 12.5 | `_11342_/Q` → `pullupEnable` | 319285.2544 |
+| Wrapper | usbClock.IO | 4.683438 | 12.5 | `vbus` → `pullupEnable` | 319285.2544 |
+| Wrapper | aonClock.FF | 2.488224 | 24.96 | `_10940_/Q` → `_10943_/D` | 319285.2544 |
+| Wrapper | aonClock.RO | 3.750224 | 24.96 | `_10943_/Q` → `usbClockRequest` | 319285.2544 |
+| Wrapper | aonClock.IO | 4.683438 | 24.96 | `vbus` → `pullupEnable` | 319285.2544 |
+
+Area is repeated per block and is not additive. Empty classes have no paths.
+There are no clock-gate paths in these tops; electrical slew/capacitance
+violations are zero. EP0 has no negative hold/reset slack; engine has two
+and wrapper six negative hold rows under the unchanged zero-delay contract.
+
+Mapped certified FF counts are **measured** from the certificate inventories:
+
+| Scope | Previous D45 | Literal D48 subset |
+| --- | ---: | ---: |
+| Standalone EP0 | 87 | 64 unreset header bits |
+| Integrated EP0 | 87 | 64 unreset header bits |
+| Retained SIE | 85 | 0 |
+| Retained PHY | 0 | 0 |
+| Engine / wrapper total | 172 each | 64 each |
+
+The old certificates proved enables/reset cones, not the new reset-inclusive
+value invariant. No resettable register is promoted without that stronger
+proof. This is a sound conservative subset, not exhaustive reachable-state
+certification. All source/mapped proofs and old/new targeted faults pass for
+the retained subset. Full exception-coverage and per-class over-budget controls
+remain unqualified, and the runner still fails closed.
+
+Requested classifications: SIE → PHY TX nrzi_q is now FF; EP0 configured →
+SIE frame[10] is FF. EP0 header → state is CF, state → header is FC and
+state → address is FF. They do not become CC under literal D48. The prior
+SIE data → out_toggle path is also FF and is the engine worst above.
+
+The authorized fanout transformation inserts eight parallel enable FFs in
+the engine and three in the wrapper, one per additional first-branch load
+group; all share the original next-state, clock and asynchronous reset.
+Actual library-FF equality proves by induction; wrong-data/reset controls fail.
+Exact substitution recovers original connections, including copied leading
+buffer/inverter prefixes. Independent review caught and resolved unused-net
+bit-allocation and JSON cell/net naming collisions before final measurement.
+
+The engine enable → PHY RX rx_eop_qq path is **measured** 13.296519 ns from
+`usb_enable_replica_1/Q` to `_10139_/D`, FF, still over 12.5 ns. The former
+14.978270 ns result is historical. Further restructuring stops here.
+The wrapper raw-reset worst input path is removed by sourcing engine reset-data
+from shared usbUp; the new worst USB IR is vbus → resume carries at
+12.100127 ns. Asynchronous assertion is retained by the shared primitive.
+Reset-data equivalence and cadence proofs/covers/faults pass at
+`build/t19/d48-formal-02`; all eleven wire/MMIO/resume tests pass at fresh
+`d48-emit-01`. Sampled digital formal is not physical reset-skew signoff.
+
+No further pipeline removal, pad delay contract, standalone SIE fixture
+change or SRAM swap followed the stop. The small-model packet attempt is
+ineligible without forbidden buffer restructuring; no solver job/time box
+was started. Frozen acceptance failures are recorded below and in the task report.
+
+### D48 final frozen confirmation
+
+**Measured** on the final frozen source inventory at base
+`15161bf897d1b4b4cba69030154daf89ee19ca12`:
+`python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d48-frozen-check-01`.
+The final EP0/engine/wrapper class delays and areas exactly match the table
+above. Local certificates and all applicable old/new fault controls pass;
+the new retained-pin fault is explicitly recorded in this frozen receipt.
+The aggregate and fast CI fail, with no source-change error. Full tier was
+not run. Other freshly measured block results follow; budgets use the same
+arithmetic and corner stated above.
+
+| Block | Class | Measured worst ns | Estimated budget ns | Mapped start → end | Measured block area um2 |
+| --- | --- | ---: | ---: | --- | ---: |
+| in | RR | 11.140153 | 12.5 | `_3172_/Q` → `_3128_/D` | 105051.2960 |
+| in | IR | 9.972349 | 12.5 | `reset_n` → `_3299_/D` | 105051.2960 |
+| in | RO | 3.984604 | 12.5 | `_3098_/Q` → `appReady` | 105051.2960 |
+| out | RR | 11.820112 | 12.5 | `_3072_/Q` → `_3039_/D` | 102331.4432 |
+| out | IR | 9.609552 | 12.5 | `reset_n` → `_3679_/D` | 102331.4432 |
+| out | RO | 4.164564 | 12.5 | `_3716_/Q` → `nak` | 102331.4432 |
+| resume | RR | 9.333540 | 12.5 | `_202_/Q` → `_201_/D` | 4361.8624 |
+| resume | IR | 8.076866 | 12.5 | `attached` → `_201_/D` | 4361.8624 |
+| resume | RO | 4.093227 | 12.5 | `_195_/Q` → `suspended` | 4361.8624 |
+| registers | RR | 11.202718 | 24.96 | `_453_/Q` → `_454_/D` | 8365.9072 |
+| registers | IR | 9.328797 | 24.96 | `bus_bits_addr[9]` → `_454_/D` | 8365.9072 |
+| registers | RO | 4.043431 | 24.96 | `_453_/Q` → `bus_gnt` | 8365.9072 |
+| sie | FF | 24.721727 | 12.5 | `_2779_/Q` → `_2916_/D` | 55049.0304 |
+| sie | IR | 18.264446 | 12.5 | `io_in_int_endps_i[14]` → `_2916_/D` | 55049.0304 |
+| sie | RO | 21.622900 | 12.5 | `_2779_/Q` → `io_in_ready_o` | 55049.0304 |
+| sie | IO | 14.955754 | 12.5 | `io_in_int_endps_i[14]` → `io_in_ready_o` | 55049.0304 |
+
+The integrated-SIE count in the table above is 85 previous D45 bits → zero
+under literal D48. The external-mask standalone fixture has 125 previous
+bits → zero, plus three enable replicas, and five negative hold/reset rows;
+it has not been tied to integrated constants because step 6 was not reached.
+No electrical slew/capacitance violation is reported in any measured block.
+
+The canonical previously certified EP0 registers were `header_0` through
+`header_7`, `descriptorLength`, `decodeValidQ`, `decodeReplyQ`, `decodeLengthQ`,
+`decodePendingQ` and `decodeValueQ`. Only the eight headers remain certified.
+Integrated SIE previously included `addr_q`, `crc16_q`, `data_q`, `delay_cnt_q`,
+`endp_q`, `frame_q`, `in_ack_pending_q`, `in_byte_q`, `in_data_ack_q`, `in_req_q`,
+`in_toggle_q`, `in_zlp_q`, `out_eop_q`, `out_err_q`, `out_toggle_q`, `phy_state_q`
+and `pid_q`; none is certified under the stronger literal-reset condition.
+PHY RX and TX were previously uncertified and remain uncertified. Receipts
+enumerate exact scalar mapped identities, aliases and optimized unused bits.
+
+The worst engine FF is `sie.data_q[1]` → `sie.out_toggle_q[0]`; the worst
+wrapper USB FF is `engine.sie.data_q[0]` → `engine.sie.pid_q[2]`. The stopped
+EP0 FC remains `state[5]` → `header_5[6]`. None is reported closed.
+
+`python tools/env/run.py run -- python3 scratch/t19_d48_reset_cone.py` finds
+zero combinational raw-usbReset_n-to-D endpoints and four asynchronous RN
+endpoints in the mapped wrapper (receipt `build/t19/d48-reset-data-cone.json`).
+These are measured structural counts, not physical reset-delay/skew results.

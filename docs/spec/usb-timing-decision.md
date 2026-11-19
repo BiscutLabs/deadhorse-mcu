@@ -1,5 +1,20 @@
 # USB SIE timing decision proposal
 
+Current status (2026-11-18): [D48-D50](../plan/10-decisions-and-risks.md)
+supersede the eligibility and stop wording in the historical proposal below.
+D48 requires that certified values change only on the common enable, including
+reset assertion and release; idempotent off-enable writes are permitted.
+D49 extends eligibility to PHY registers that satisfy that invariant. Both
+endpoints must qualify; setup 4 / hold 3, the estimated 50 ns budget and every
+other D45 condition remain unchanged. The current conservative certificate
+qualifies only unreset EP0 headers. Timing still fails after the authorized
+enable replication and synchronized reset-data change, triggering the user's
+post-step-4 stop. D50's conditional small-model packet attempt is ineligible
+because the existing buffers are not size-parametric. See the
+[T19 report](../plan/tasks/reports/T19.md) for frozen failed checks and open work.
+
+## Historical D45 proposal and follow-up
+
 Status: approved by the user 2026-11-18 as D45, with extension to Chisel
 `UsbControl`. Application remains conditional on the certificates below.
 Only paths with both launch and capture registers proved to update exclusively

@@ -14,6 +14,7 @@ from formal import validate_job
 CASES = {
     'cadence': ('UsbCadenceFormal', 2, 2, 16),
     'cadence_reset': ('UsbCadenceResetFormal', 2, 2, 16),
+    'reset_data': ('UsbResetDataFormal', 2, 2, 16),
     'resume': ('UsbResumeFormal', 2, 2, 48),
     'denied': ('UsbDeniedFormal', 8, 2, 32),
     'in': ('UsbInFormal', 6, 4, 48),
@@ -49,6 +50,8 @@ def run(output, regmap, roles=None, portfolio=False, controls_only=False):
         limitations=['Packet properties apply to the stated packet-interface harness; they are not a proof of the full wire protocol',
                      'A bit-lane result covers only that named bit; all eight lanes are required to establish byte integrity'])
     bound_sources=[ROOT/'hw/ip/usb/src/main/scala/deadhorse/usb/UsbBitEnable.scala',
+                   ROOT/'hw/ip/usb/src/main/scala/deadhorse/usb/Usb.scala',
+                   ROOT/'hw/lib/src/main/scala/deadhorse/lib/Cdc.scala',
                    ROOT/'hw/ip/usb/formal/UsbFormal.scala',Path(__file__),
                    ROOT/'hw/ip/usb/formal/UsbBufferFormal.scala',
                    ROOT/'hw/ip/usb/formal/UsbSparsePacketMemory.scala',

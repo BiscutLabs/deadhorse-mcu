@@ -43,7 +43,7 @@ This is an area comparison, not an SRAM implementation or fit claim.
 No SRAM macro was introduced; the production packet-memory emission is unchanged.
 
 
-## D46 measured block areas
+## Latest measured block areas
 
 Commands, source hashes, corner and baseline commit are recorded in the final frozen
 section of [the timing ledger](timing.md). These are **measured** mapped cell
@@ -52,13 +52,15 @@ the rows are not additive.
 
 | Block | Measured um2 |
 | --- | ---: |
-| Retained SIE plus production cadence, external endpoint inputs | 54825.1200 |
+| Retained SIE plus production cadence/replicas, external endpoint inputs | 55049.0304 |
 | Chisel EP0, final frozen certificate-preserving mapping | 42922.7456 |
 | IN packet buffer | 105051.2960 |
 | OUT packet buffer | 102331.4432 |
-| Combined engine | 281646.3552 |
-| Complete wrapper, including CDC/events/clock requests | 319452.0896 |
+| Combined engine | 282348.8192 |
+| Complete wrapper, including CDC/events/clock requests | 319285.2544 |
 
 The wrapper-minus-engine difference is **estimated** by subtraction:
-319452.0896 − 281646.3552 = 37805.7344 um2. It is not an isolated glue-area
+319285.2544 − 282348.8192 = 36936.4352 um2. It is not an isolated glue-area
 measurement because integration changes optimization and buffering.
+
+Latest block-area command: `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d48-frozen-check-01`, base `15161bf897d1b4b4cba69030154daf89ee19ca12` plus its frozen hashes. SRAM replacement estimates above are unchanged; no macro swap or buffer RTL change occurred.

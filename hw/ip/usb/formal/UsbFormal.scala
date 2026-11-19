@@ -17,6 +17,20 @@ class UsbWrongOwner(json: String) extends UsbRegisters(json) {
 class UsbUnsafePads extends UsbPadSafety {
   override protected def permitted(reset: Bool,power: Bool): Bool=power
 }
+/** Shared reset-release data substitution: preserve behavior and async assert. */
+class UsbResetDataFormal(variant: String) extends RawModule {
+  val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val demand=IO(Input(Bool()))
+  val release=Module(new deadhorse.lib.ResetRelease)
+  release.clk:=clock;release.reset_n:=reset_n
+  val enabled=Module(new deadhorse.lib.CdcSync(1))
+  enabled.clk:=clock;enabled.reset_n:=release.released;enabled.in:=demand.asUInt
+  val before=reset_n && enabled.out.asBool
+  val after=if(variant=="corrupt") reset_n && demand else release.released && enabled.out.asBool
+  withClockAndReset(clock,false.B) {
+    if(variant=="cover") {cover(after);cover(reset_n && demand && !after)}
+    else {assert(after===before);when(!reset_n){assert(!after)}}
+  }
+}
 class UsbPadsFormal(variant: String) extends RawModule {
   val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val vbus=IO(Input(Bool()))
   val drive=IO(Input(Bool()));val attach=IO(Input(Bool()))
@@ -117,6 +131,7 @@ object EmitUsbFormal {
       def design: RawModule=args(1) match {
         case "cadence"=>new UsbCadenceFormal(variant)
         case "cadence_reset"=>new UsbCadenceResetFormal(variant)
+        case "reset_data"=>new UsbResetDataFormal(variant)
         case "resume"=>new UsbResumeFormal(variant)
         case "denied"=>new UsbDeniedFormal(args(0),variant)
         case "in"=>new UsbInFormal(variant)

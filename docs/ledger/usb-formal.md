@@ -1,5 +1,49 @@
 # T19 USB formal ledger
 
+## D48/D50 preflight (2026-11-18)
+
+Decision D48's literal reset-inclusive value-change invariant has a concrete
+counterexample on production EP0. **Measured** diagnostic command at
+`15161bf897d1b4b4cba69030154daf89ee19ca12`:
+`python tools/env/run.py run -- python3 scratch/t19_value_reset_probe.py`.
+Receipt and trace: `build/t19/d48-reset-probe-02/`. The exact emitted
+`UsbControl.sv` SHA-256 is
+`c772e4c749448130391c26e51864269ce2473d29c7255a861b8c039af3fe71ab`.
+The diagnostic retains production sequential logic and adds an unreset
+previous-value/previous-enable monitor initialized only at formal startup.
+The actual emitted `UsbBitEnable` drives the common enable; packet-interface
+inputs are synthetic, as in the standalone control harness, not a full
+SIE-composed wire trace. The earlier `-01` used an enable too early after
+release and is retained only as an invalid-production-cadence diagnostic.
+Yosys `async2sync` and SAT find a bounded counterexample: an enabled SETUP
+admission changes state to setup, then reset assertion returns it to idle
+with both the preceding and current enable low. This witness changes state
+bits zero/one, not the failing timing endpoint state[5]; it refutes the vector
+invariant and does not substitute for a bitwise state[5] eligibility proof.
+The state aliases bind to
+the existing mapped scalar Q pins in the receipt. This sampled witness
+refutes the invariant; it is not a proof covering every inter-edge reset.
+No reset exclusion or additional assumption has been accepted.
+
+Independent source review also identifies EP0's synchronous bus-reset
+override as potentially non-idempotent on its first non-enable edge: the
+PHY registers bus reset on an enabled edge and EP0 observes the new value
+on the following sample edge. Repeated identical reset writes do not resolve
+that first value change. This source-derived finding is separate from the
+executed root-reset counterexample.
+
+D50 small-model preflight is **not eligible**. Production constructors take
+only proof hooks/memory injection, not size parameters. Both buffers hard-code
+wrap at 64 and seven-bit pointers; the memory hard-codes nine eight-byte banks,
+seven-bit addresses, slices `(2,0)` and `(6,3)`, and bank bound nine. The formal
+harness also fixes capacity 65, packet limit 64, pointer bounds and distance
+arithmetic. Fixed byte width eight, four-cycle cadence, three read stages and
+service bounds are additional non-scaling protocol/timing constants. These
+are source constants, not measured performance figures. Substituting a small
+memory would not shrink the control ring. Independent review confirms that
+an actual small instance requires prohibited RTL parameterization/restructuring.
+No small-model solver job was launched; its time box was not started.
+
 Checkpoint results preceding the D45 follow-up are **measured** at Git base
 `a280df4fa17516a2ac8507628a6f12e3c4128895` plus uncommitted T19 sources.
 Emitted source hashes in each receipt identify the actual checked model.
@@ -195,3 +239,26 @@ outRelease can reset buffers while engine cadence continues. Therefore
 proof must qualify warmup by actual IN-valid/OUT-RAM capture and establish
 the retained SIE consumption/reset contract. This is unmeasured, unresolved
 work outside the exhausted D47 attempt; no additional positive job was run.
+
+## D48 frozen verification
+
+Command `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output
+build/t19/d48-frozen-check-01`, base `15161bf897d1b4b4cba69030154daf89ee19ca12`
+plus frozen source hashes, runs all eight non-packet cases with unbounded
+proofs, covers and faults successfully. `reset_data` compares the shared
+ResetRelease/CdcSync cone's old raw-reset expression with its synchronized
+data expression, and checks reset assertion; its early-bypass fault fails.
+This is sampled digital evidence with asynchronous-reset lowering, not an
+exhaustive inter-edge or physical skew claim. Wire/MMIO/reset/resume tests
+pass; byte-width CDC passes. Packet controls/covers pass, but positives stay
+unresolved and no unchanged timed-out job was rerun.
+
+Local D48 source/mapped invariants prove for unreset headers with no reset
+masking. Other resettable registers are conservatively full-rate, not proved
+ineligible bit-by-bit. Value-change, early-release and retained-pin faults
+are rejected along with the original faults. Actual enable replica D/CLK/RN
+identities bind the unbounded shared-library-FF equality lemma to every copy;
+wrong-data and wrong-reset faults fail. The checker uses only those proved
+equalities in its otherwise all-Q-free mapped cut. Independent review is clear
+for this limited evidence; timing, packet and sampling/exception qualification
+remain unresolved. Aggregate and fast CI fail; full tier was not run.

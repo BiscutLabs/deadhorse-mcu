@@ -63,14 +63,17 @@ set groups [list RR [list [all_registers -clock_pins] [all_registers -data_pins]
 if {[info exists certified_q]} {
     foreach name {certified_q certified_d certified_clock full_q full_d reset_pins} {
         set raw [set $name]
+        if {![llength $raw]} {set $name {}; continue}
         set $name [get_pins $raw]
         if {[llength [set $name]] != [llength $raw]} {error "Missing D45 $name pin"}
     }
     if {[llength $certified_d]+[llength $full_d] != [llength [all_registers -data_pins]]} {
         error "Incomplete D45 register partition"
     }
-    set_multicycle_path 4 -setup -from $certified_clock -to $certified_d
-    set_multicycle_path 3 -hold -from $certified_clock -to $certified_d
+    if {[llength $certified_clock] && [llength $certified_d]} {
+        set_multicycle_path 4 -setup -from $certified_clock -to $certified_d
+        set_multicycle_path 3 -hold -from $certified_clock -to $certified_d
+    }
     set groups [list CC [list $certified_q $certified_d] CF [list $certified_q $full_d] \
                      FC [list $full_q $certified_d] FF [list $full_q $full_d] \
                      IR [list $data_inputs [all_registers -data_pins]] \

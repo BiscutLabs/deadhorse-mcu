@@ -231,6 +231,11 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
         f'write_verilog -noattr -noexpr "{output / "mapped.v"}"', '']))
     synthesis = run(['yosys', '-Q', '-T', '-s', str(synth)], output, 'synthesis')
     design = json.loads((output / 'mapped.json').read_text())
+    if usb_cadence and top in ('UsbEngine','Usb','UsbSieTiming'):
+        from tools.timing.usb_enable_fanout import replicate, prove_pair
+        design['modules'][top], replication = replicate(design['modules'][top],top)
+        replication['proof'] = prove_pair(liberty,output/'enable-replica-proof')
+        mapping['enable_replication'] = replication
     if operating_point == 'usb-48mhz':
         from tools.timing.fanout import BUFFER, buffer_module
         if BUFFER not in library_cells:

@@ -55,7 +55,7 @@ def bind_pins(module, certified):
             raise ValueError('Non-scalar certified register')
 
 
-def certify(top, sources, mapped, liberty, output, cadence_receipt=None):
+def _enable_certificate(top, sources, mapped, liberty, output, cadence_receipt=None):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
     receipt = dict(status='failed', top=top, sources={str(p): sha(p) for p in sources},
@@ -157,6 +157,13 @@ def certify(top, sources, mapped, liberty, output, cadence_receipt=None):
 
         mapped_design = json.loads(Path(mapped).read_text())
         module = mapped_design['modules'][top]
+        from tools.timing.usb_enable_fanout import identities, prove_pair, PREFIX
+        replica_bits = identities(module)
+        if replica_bits:
+            receipt['enable_replica_equivalence'] = dict(
+                identities=replica_bits, proof=prove_pair(liberty,output/'enable-replicas'),
+                scope='Actual D/CLK/RN/reset-value equality binds every physical copy to the proved common cadence; no phase shift')
+            receipt['abstraction']='All other register Q values free; physical replica Q values constrained only by their independently proved equality to the original cadence FF'
         mapped_names = aliases(module)
         # Reject synthesis recoding or lost identity rather than guessing which
         # extra state bits inherited a source register's enable certificate.
@@ -201,6 +208,13 @@ def certify(top, sources, mapped, liberty, output, cadence_receipt=None):
             del model['cells'][name]
         if not checks:
             raise ValueError('No mapped certified registers')
+        # Only the independently proved replica equalities are substituted in
+        # the all-Q-free cut. Actual mapped identities/pins remain unmodified.
+        if replica_bits:
+            for c in model['cells'].values():
+                c['connections']={p:[replica_bits.get(b,b) for b in bs] for p,bs in c['connections'].items()}
+            for name in module['cells']:
+                if name.startswith(PREFIX):del model['ports']['free_'+name]
         alias_to_bit={(n,index+net.get('offset',0)):bit for n,net in module['netnames'].items()
                       for index,bit in enumerate(net['bits'])}
         mapped_q={c['connections']['Q'][0]:n for n,c in module['cells'].items() if 'CLK' in c['connections'] and 'Q' in c['connections']}
@@ -352,3 +366,122 @@ def certify(top, sources, mapped, liberty, output, cadence_receipt=None):
     if receipt['status'] != 'pass':
         raise ValueError(receipt.get('error', 'Enable certification failed'))
     return receipt
+
+
+def _value_certificate(top, sources, mapped, liberty, output, cadence_receipt=None):
+    """D48 conservative value invariant; no implicit reset exclusion.
+
+    The local EN implication is stronger than a reachable-state value invariant
+    for unreset registers: arbitrary Q/input values hold at every disabled edge,
+    and there is no asynchronous state-changing pin. Resettable registers need
+    an additional reset-inclusive invariant; the old D45 reset-cone check is
+    not that invariant. Keep them full-rate until it exists.
+    """
+    receipt = _enable_certificate(top, sources, mapped, liberty, output, cadence_receipt)
+    output = Path(output)
+    receipt['status'] = 'pending-value-qualification'
+    (output/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    module = json.loads(Path(mapped).read_text())['modules'][top]
+    before = copy.deepcopy(receipt['certified'])
+    retained = {}
+    rejected = {}
+    for name, pins in before.items():
+        cell = module['cells'][name]
+        if cell['type'].startswith('gf180mcu_fd_sc_mcu7t5v0__dffq_'):
+            retained[name] = pins
+        else:
+            rejected[name] = 'Reset-inclusive value invariant not established; D45 enable/reset-cone proof alone is insufficient'
+    receipt['previous_d45_certified'] = before
+    receipt['certified'] = retained
+    receipt['full_rate'] = sorted(set(receipt['full_rate']) | set(rejected))
+    receipt['value_stability'] = dict(
+        decision='D48/D49', status='conservative-subset',
+        proof='All-state source EN implies common enable, mapped D equals Q when disabled, and certified cells have no asynchronous state-changing pin',
+        reset_scope='No reset assertion/release masking; unreset certified state holds even when reset inputs change',
+        rejected_previous=rejected,
+        additional_phy='Not certified: retained PHY state has asynchronous reset or genuinely sample-rate updates; no reset-inclusive invariant is established')
+    # A release-only enable on a real certified source register must fail the
+    # same implication. This models an early write on release, not a weakened
+    # monitor or an assumed reset phase. Existing negative controls still run.
+    source = json.loads((output/'source.json').read_text())['modules'][top]
+    cut = json.loads((output/'source-cut.json').read_text())
+    chosen = next((i for i, row in enumerate(receipt['source_registers'])
+                   if source['cells'][row['cell']]['type'] == '$dffe'), None)
+    if chosen is not None:
+        mutant = copy.deepcopy(cut)
+        mutant_source = copy.deepcopy(source)
+        root = 'reset_n' if top != 'Usb' else 'usbReset_n'
+        actual = mutant_source['cells'][receipt['source_registers'][chosen]['cell']]
+        actual['connections']['EN'] = source['ports'][root]['bits']
+        (output/'early-reset-release-source.json').write_text(json.dumps({'modules':{top:mutant_source}}))
+        mutant['modules'][top]['ports'][f'en_{chosen}']['bits'] = actual['connections']['EN']
+        bm=mutant['modules'][top];q=actual['connections']['Q'];width=len(q)
+        first=1+max(b for net in source['netnames'].values() for b in net['bits'] if isinstance(b,int))
+        next_q=list(range(first,first+width));held=first+width
+        bm['cells']['$release_fault_next']=dict(type='$mux',parameters={'WIDTH':format(width,'b')},attributes={},
+            port_directions={'A':'input','B':'input','S':'input','Y':'output'},
+            connections={'A':q,'B':actual['connections']['D'],'S':actual['connections']['EN'],'Y':next_q})
+        bm['cells']['$release_fault_hold']=dict(type='$eq',parameters={'A_WIDTH':format(width,'b'),'B_WIDTH':format(width,'b'),
+            'Y_WIDTH':'1','A_SIGNED':'0','B_SIGNED':'0'},attributes={},
+            port_directions={'A':'input','B':'input','Y':'output'},connections={'A':q,'B':next_q,'Y':[held]})
+        bm['ports']['release_value_hold']=dict(direction='output',bits=[held])
+        model_path = output/'early-reset-release.json'
+        model_path.write_text(json.dumps(mutant))
+        script = output/'early-reset-release.ys'
+        script.write_text('\n'.join([f'read_json {model_path}', f'hierarchy -top {top}',
+            'opt_clean', 'check -assert', 'techmap', 'opt',
+            f'sat -set-def-inputs -set certificate_enable 0 -set {root} 1 -prove release_value_hold 1 -verify'])+'\n')
+        run = subprocess.run(['yosys','-Q','-T','-s',str(script)],capture_output=True,text=True,timeout=120)
+        (output/'early-reset-release.log').write_text(run.stdout+run.stderr)
+        if run.returncode != 1 or 'proof did fail' not in run.stdout+run.stderr:
+            raise ValueError('Early reset-release enable fault escaped')
+        receipt['negative_controls'].append('early-reset-release')
+        # Value-level fault: mutate the actual prepared register to toggle
+        # without CE, then check its extracted next value against its Q.
+        bad_source = copy.deepcopy(source)
+        actual = bad_source['cells'][receipt['source_registers'][chosen]['cell']]
+        q = actual['connections']['Q'];width=len(q)
+        first = 1+max(b for net in source['netnames'].values() for b in net['bits'] if isinstance(b,int))
+        inverted=list(range(first,first+width));held=first+width
+        invert=dict(type='$not',parameters={'A_WIDTH':format(width,'b'),'Y_WIDTH':format(width,'b'),'A_SIGNED':'0'},
+            attributes={},port_directions={'A':'input','Y':'output'},connections={'A':q,'Y':inverted})
+        actual['connections']['EN']=['1'];actual['connections']['D']=inverted
+        bad_source['cells']['$fault_toggle']=invert
+        (output/'non-enable-value-change-source.json').write_text(json.dumps({'modules':{top:bad_source}}))
+        bad=copy.deepcopy(cut);bm=bad['modules'][top]
+        bm['cells']['$fault_toggle']=invert
+        bm['cells']['$fault_hold']=dict(type='$eq',parameters={'A_WIDTH':format(width,'b'),'B_WIDTH':format(width,'b'),
+            'Y_WIDTH':'1','A_SIGNED':'0','B_SIGNED':'0'},attributes={},
+            port_directions={'A':'input','B':'input','Y':'output'},connections={'A':actual['connections']['D'],'B':q,'Y':[held]})
+        bm['ports']['mutated_value_hold']=dict(direction='output',bits=[held])
+        p=output/'non-enable-value-change.json';p.write_text(json.dumps(bad))
+        script=output/'non-enable-value-change.ys'
+        script.write_text('\n'.join([f'read_json {p}',f'hierarchy -top {top}','opt_clean','check -assert','techmap','opt',
+            'sat -set-def-inputs -set certificate_enable 0 -prove mutated_value_hold 1 -verify'])+'\n')
+        run=subprocess.run(['yosys','-Q','-T','-s',str(script)],capture_output=True,text=True,timeout=120)
+        (output/'non-enable-value-change.log').write_text(run.stdout+run.stderr)
+        if run.returncode!=1 or 'proof did fail' not in run.stdout+run.stderr:
+            raise ValueError('Non-enable value-change fault escaped')
+        receipt['negative_controls'].append('non-enable-value-change')
+    bind_pins(module, retained)
+    if retained:
+        faulty=copy.deepcopy(retained);first=next(iter(faulty))
+        faulty[first]['capture']=first+'/CLK'
+        try:bind_pins(module,faulty)
+        except ValueError:receipt['value_stability']['wrong_retained_pin_rejected']=True
+        else:raise ValueError('Wrong retained D48 pin escaped')
+    receipt['status'] = 'pass'
+    (output/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    return receipt
+
+
+def certify(top, sources, mapped, liberty, output, cadence_receipt=None):
+    try:
+        return _value_certificate(top, sources, mapped, liberty, output, cadence_receipt)
+    except Exception as error:
+        path = Path(output)/'result.json'
+        if path.exists():
+            receipt = json.loads(path.read_text())
+            receipt.update(status='failed', error=str(error))
+            path.write_text(json.dumps(receipt,indent=2)+'\n')
+        raise

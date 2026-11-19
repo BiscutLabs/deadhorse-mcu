@@ -34,7 +34,9 @@ class Usb(json: String, base: BigInt = 0x40040800L, vid: Int = 0, pid: Int = 0,
     // AON sees application demand before USB edges exist, avoiding startup deadlock.
     usbClockRequest:=sync(aonClock,aonUp,registers.enabled)
     val engine=Module(new UsbEngine(vid,pid))
-    engine.clk:=usbClock;engine.reset_n:=commonReset && enabledUsb
+    // Reset used by downstream data/safety logic comes from shared release.
+    // usbUp still asserts asynchronously when either raw reset drops.
+    engine.clk:=usbClock;engine.reset_n:=usbUp && enabledUsb
     engine.vbus:=vbus;engine.dpRx:=dpRx;engine.dnRx:=dnRx
     dpTx:=engine.dpTx;dnTx:=engine.dnTx;txEnable:=engine.txEnable;pullupEnable:=engine.pullup
     val tx=Module(new CdcFifo(8));val rx=Module(new CdcFifo(8))

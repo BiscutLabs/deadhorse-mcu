@@ -1,6 +1,50 @@
 # USB CDC-ACM peripheral (T19)
 
 Status: implementation in progress; acceptance has not passed.
+
+User decisions D48-D50 (2026-11-18) extend D45 to value changes rather than
+write enables, including reset assertion/release, and allow retained PHY
+registers only when the same invariant certifies them. Both endpoints must
+qualify; setup 4 / hold 3 and the estimated 50 ns budget remain unchanged.
+Actual full-rate paths retain the estimated 12.5 ns budget. No reset event
+is implicitly excluded from the new property.
+
+The packet proof may use the original assertions at small size plus seeded
+full-size simulation only if production RTL is already cleanly size-parametric,
+with wrap/full/empty/retry/maximum-packet covers and listed non-scaling constants.
+The approved single attempt is capped at 60 minutes with existing solver caps;
+no new assumptions, assertion changes or buffer restructuring are authorized.
+Any accepted result must say "proved at small model, simulated at full size".
+
+This follow-up also authorizes equivalent enable-register replication and
+synchronized reset-as-data through the shared reset-release block. If timing
+still fails after those changes, stop before further restructuring. These
+approvals do not establish timing or proof qualification.
+
+D50 preflight found no production size parameter: the ring, pointer widths
+and bank geometry are fixed. The conditional small-model proof is therefore
+not attempted; buffers remain unchanged. D48 reset-inclusive certification
+also has a production EP0 counterexample on off-enable reset assertion.
+The stronger certificate is not accepted, and no reset exception is assumed.
+See the formal ledger for the command, source hash and diagnostic trace.
+
+The implemented conservative D48 certificate retains only unreset header
+registers: all-state source enable implication plus mapped D=Q when disabled
+establish their value invariant, including reset-input changes. Resettable
+and PHY registers stay full-rate until their reset-inclusive invariant is
+proved. Existing fault controls remain, with value-change/early-release and
+retained-pin faults added. This is not a claim of maximal certification.
+
+The mapping flow copies the cadence FF in parallel for each first-branch load
+group, preserving any leading buffer/inverter prefix. Actual next-state,
+clock and asynchronous reset pins are bound and equality proved under the
+production initial-reset contract; physical reset skew remains unqualified.
+The wrapper now derives engine reset-data from shared `usbUp`; asynchronous
+assertion is retained. Its sampled digital equivalence and wire tests pass.
+Post-step-4 timing still fails, so further restructuring, the proposed pad
+delay contract and standalone-fixture changes are stopped. Existing hold/reset
+checks remain failures, not waived physical-flow items under an unimplemented
+contract. The task report and timing ledger contain commands and paths.
 The [brief](../../../docs/plan/tasks/T19-usb.md) and
 [adoption assessment](../../../docs/spec/usb-adoption.md) define the scope.
 
@@ -111,3 +155,5 @@ does not qualify independent production transport resets or SIE consumption.
 Frozen aggregate and fast CI fail; the full tier was not run. The user
 subsequently authorized a review commit/push with these failures preserved;
 this does not qualify the implementation or authorize merging. See the T19 report.
+
+The D48-D50 frozen aggregate and fast tier both fail at USB. Local certificates, reset/replica proofs, wire/MMIO/resume and supporting controls pass; timing and packet obligations remain open. Full tier was not run. The user requested publication to `codex/t19-usb-review` with failures preserved, without merging.
