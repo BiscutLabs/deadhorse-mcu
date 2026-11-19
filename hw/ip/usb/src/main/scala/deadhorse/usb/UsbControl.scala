@@ -21,6 +21,8 @@ object UsbDescriptors {
   */
 class UsbControl(vid: Int = 0, pid: Int = 0) extends RawModule {
   protected def statusAcknowledged(ack: Bool,sent: Bool): Bool=ack && sent
+  protected def addressPresent(value: UInt): Bool=value.orR
+  protected def checkAddress(address: UInt,present: Bool): Unit={}
   require(vid >= 0 && vid <= 65535 && pid >= 0 && pid <= 65535)
   val clk = IO(Input(Clock())); val reset_n = IO(Input(Bool()))
   val bitEnable = IO(Input(Bool())); val busReset = IO(Input(Bool()))
@@ -50,6 +52,8 @@ class UsbControl(vid: Int = 0, pid: Int = 0) extends RawModule {
     val pending = RegInit(0.U(2.W)) // 0 none, 1 address, 2 configuration, 3 clear halt
     val pendingValue = RegInit(0.U(8.W))
     val addressQ = RegInit(0.U(7.W)); val configuredQ = RegInit(false.B)
+    val addressedQ = RegInit(false.B)
+    checkAddress(addressQ,addressedQ)
     val enabledQ = RegInit(false.B)
     val statusSent = RegInit(false.B); val zlpSent = RegInit(false.B)
     // The only advertised control-write payload is seven-byte line coding.
@@ -88,19 +92,15 @@ class UsbControl(vid: Int = 0, pid: Int = 0) extends RawModule {
     val requestType = header(0); val request = header(1)
     val value = Cat(header(3),header(2)); val index = Cat(header(5),header(4))
     val length = Cat(header(7),header(6))
-    // Descriptor type arrives several bytes before wLength. Split its decode
-    // from the length clamp; both stages settle before the SETUP EOP.
-    val descriptorLength = RegNext(Mux(header(3) === 1.U,18.U(7.W),67.U(7.W)),0.U)
+    // Descriptor type precedes wLength on the wire. Decode on the same
+    // protocol phase as the header; CRC/EOP provide the remaining byte gap.
+    val descriptorLength = RegEnable(Mux(header(3) === 1.U,18.U(7.W),67.U(7.W)),0.U,bitEnable)
     val recipient = requestType(1,0)
     val endpointValid = index(15,8) === 0.U && index(6,4) === 0.U &&
       (index(3,0) === 0.U || index(3,0) === 1.U || (index(7) && index(3,0) === 2.U))
-    // Capture SETUP bytes before the indexed register write. The header write
-    // then completes one sample after admission, before the next protocol edge.
-    val headerWrite=RegNext(bitEnable && !busReset && outReady && !setup && !outError &&
-      state===setupState && outValid && setupCount<8.U,false.B)
-    val headerIndex=RegNext(setupCount(2,0))
-    val headerData=RegNext(outData)
-    when(headerWrite){header(headerIndex):=headerData}
+    // Header storage and decode share the certified protocol-enable phase.
+    when(bitEnable && !busReset && outReady && !setup && !outError &&
+      state===setupState && outValid && setupCount<8.U){header(setupCount(2,0)):=outData}
     val decodedValid = WireDefault(false.B)
     val decodedReply = WireDefault(0.U(2.W))
     val decodedLength = WireDefault(0.U(7.W))
@@ -128,11 +128,11 @@ class UsbControl(vid: Int = 0, pid: Int = 0) extends RawModule {
           decodedLength := Mux(length < descriptorLength,length,descriptorLength)
         }
         is(8.U) {
-          decodedValid := requestType === 0x80.U && addressQ =/= 0.U && value === 0.U && index === 0.U && length === 1.U
+          decodedValid := requestType === 0x80.U && addressedQ && value === 0.U && index === 0.U && length === 1.U
           decodedReply := 3.U; decodedLength := 1.U
         }
         is(9.U) {
-          decodedValid := requestType === 0.U && addressQ =/= 0.U && value <= 1.U && index === 0.U && length === 0.U
+          decodedValid := requestType === 0.U && addressedQ && value <= 1.U && index === 0.U && length === 0.U
           decodedPending := 2.U
         }
         is(10.U) {
@@ -147,16 +147,17 @@ class UsbControl(vid: Int = 0, pid: Int = 0) extends RawModule {
         ((request === 0x22.U || request === 0x23.U) && !requestType(7) && length === 0.U)
       decodedLength := 7.U
     }
-    // Header bytes are stable well before EOP. Register expensive validation.
-    val decodeValidQ = RegNext(decodedValid, false.B)
-    val decodeReplyQ = RegNext(decodedReply, 0.U)
-    val decodeLengthQ = RegNext(decodedLength, 0.U)
-    val decodePendingQ = RegNext(decodedPending, 0.U)
-    val decodeValueQ = RegNext(decodedValue, 0.U)
+    // The wire's CRC and EOP leave enabled edges between the final SETUP byte
+    // and admission. Keep validation registered on the common enable phase.
+    val decodeValidQ = RegEnable(decodedValid, false.B, bitEnable)
+    val decodeReplyQ = RegEnable(decodedReply, 0.U, bitEnable)
+    val decodeLengthQ = RegEnable(decodedLength, 0.U, bitEnable)
+    val decodePendingQ = RegEnable(decodedPending, 0.U, bitEnable)
+    val decodeValueQ = RegEnable(decodedValue, 0.U, bitEnable)
 
     when(busReset) {
       state := idle; setupCount := 0.U; cursor := 0.U; committed := 0.U
-      addressQ := 0.U; configuredQ := false.B; enabledQ := true.B
+      addressQ := 0.U; addressedQ := false.B; configuredQ := false.B; enabledQ := true.B
       pending := 0.U; statusSent := false.B; zlpSent := false.B; flush := true.B
       inToggle := 0.U; outToggle := 0.U
     }.elsewhen(bitEnable) {
@@ -206,7 +207,7 @@ class UsbControl(vid: Int = 0, pid: Int = 0) extends RawModule {
               .elsewhen(statusAcknowledged(inAck,statusSent)) {
                 state := idle; pending := 0.U
                 switch(pending) {
-                  is(1.U) { addressQ := pendingValue(6,0); configuredQ := false.B; flush := true.B }
+                  is(1.U) { addressQ := pendingValue(6,0); addressedQ := addressPresent(pendingValue(6,0)); configuredQ := false.B; flush := true.B }
                   is(2.U) { configuredQ := pendingValue(0); flush := true.B; inToggle := 65535.U; outToggle := 65535.U }
                   is(3.U) {
                     when(pendingValue(7)) { inToggle := (1.U(16.W) << pendingValue(3,0))(15,0) }

@@ -78,4 +78,43 @@ same enable extraction and requires a counterexample.
 This is only an enable implication certificate. It does not authorize a
 multicycle exception or establish reset recovery, mapped pin classification,
 hold timing, PHY timing or valid destination sampling by itself. See the
-[pending timing proposal](../../../../docs/spec/usb-timing-decision.md).
+[approved timing decision and remaining obligations](../../../../docs/spec/usb-timing-decision.md).
+
+`enable_certificate.py` additionally binds eligible production registers to
+scalar mapped GF180 Q/D/CLK identities, rejects ambiguous or recoded aliases,
+and proves mapped D holds Q when enable is low. It checks the mapped cadence
+transition, root clock/reset, and every certified asynchronous reset cone;
+SIE's bus-reset source must share the root clock and hold when enable is low.
+Targeted wrong-pin, always-enable, cadence-transition/reset, endpoint-reset and
+bus-reset-update mutations must fail. Temporal reset-safe cadence is separately
+proved and bound by emitted/source hashes. Exhaustive applied exception
+coverage, per-class path faults and protocol sampling equivalence still block
+acceptance. `UsbSieTiming` measures the retained production SIE parameters with
+that cadence, leaving its other inputs external and full-rate.
+
+## Sparse packet-memory proof attempt (D47)
+
+`UsbSparsePacketMemory.scala` retains one selected physical slot and a current
+read-address cache. Forgotten bytes are unconstrained inputs; control remains
+the production buffer. `memory_refinement.py` binds witness values to muxes
+over the actual production RAM registers, without input assumptions, and proves
+cache/tracked-word consistency and output equivalence after read-pipeline
+warmup. Duplicate/missing RAM identities are rejected. A shifted output stage
+must fail. Covers retain and observe the real RAM.
+
+The helper cases assert pointer bounds, occupancy/offset correspondence,
+selected-slot ownership and reset warmup. Original public-interface assertions
+remain unchanged. The original oracles do not read DUT state; only the added
+strengthening assertions inspect optional proof outputs, absent in production
+emission. IN data is observed at protocol enables; OUT samples RAM only at
+those enables, and resets its data/valid pair. The harness resets the
+consumer and cadence together, so its asserted warmup guarantee covers only
+that common-reset model. Production inRelease/outRelease may reset buffers
+independently of engine cadence. Qualified-read warmup and SIE consumption
+across these independent transport resets remain an OPEN composition proof;
+the unconditional enable-implies-warmup helper is not a production guarantee.
+
+Sparse results cannot be accepted without all original/helper assertions,
+real-model covers/faults, matching source-bound refinement and independent
+review. The runner labels sparse jobs unresolved pending that qualification;
+it does not substitute an abstracted pass for production acceptance.

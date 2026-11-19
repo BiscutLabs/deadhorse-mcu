@@ -625,7 +625,280 @@ also failed: control 12.740618 ns and engine 20.556009 ns. Its 9375 ps ABC
 optimization target did not change the 12.5 ns acceptance budget; production
 mapping remains unchanged. Prior failed measurements remain preserved.
 
-The [SIE timing proposal](../spec/usb-timing-decision.md) is pending user
-approval and is not an applied constraint. EP0 full-rate closure, packet
+The [SIE timing proposal](../spec/usb-timing-decision.md) was subsequently
+approved as D45 for eligible SIE and EP0 pairs. Later diagnostic runs below
+apply draft 4/3 constraints, without accepted qualification. EP0 full-rate closure, packet
 sampling-equivalence proof, full wrapper-domain timing and complete T19
 acceptance remain open. [Task report](../plan/tasks/reports/T19.md).
+
+### D45 eligibility stop (2026-11-18)
+
+Fresh **measured** EP0 result at `38e0bddb691288eeba92cb257d30935a40c15fb6`
+plus documentation/unrelated working changes, using the same pinned tools,
+library and corner: **13.042828 ns**, **42297.1136 um2**, zero reported
+slew/capacitance violations. Command (after `python tools/env/run.py run --`):
+`python3 hw/ip/usb/timing.py --emitted build/t19/d45-emit-01 --output build/t19/d45-timing-01 --block control`.
+Fresh emission command is in the T19 report. Full-rate budget remains
+**estimated** 0.60 × 1000/48 = **12.5 ns**. Start `_1925_/Q` = `header_6[5]`;
+end `_2046_/D` = `decodedValid` captured unconditionally by `decodeValidQ`.
+The header writes on delayed `headerWrite`, not the common protocol-enable
+phase. This path is not eligible for D45. Independent review confirmed the
+classification and the user's explicit stop condition. No exception, pipeline
+removal or further restructuring was applied. All additional qualification
+remains open; receipt `build/t19/d45-timing-01/control/result.json`.
+
+### Approved EP0 header/decode restructuring (2026-11-18)
+
+**Measured** after direct enable-qualified header writes and enable-qualified
+descriptor/decode registers, at `38e0bddb691288eeba92cb257d30935a40c15fb6`
+plus working changes. Same pinned tools, GF180 SS/125 C/3.0 V library, ideal
+clocks and pre-layout scope. Command (after `python tools/env/run.py run --`):
+`python3 tools/timing/check.py --top UsbControl --source build/t19/d45-emit-02/control/UsbControl.sv --clock clk --operating-point usb-48mhz --usb-cadence build/t19/d45-cadence-05/result.json --output build/t19/d45-class-control-05`.
+Cell area **measured** 42161.0112 um2 for the whole EP0 block, not per path.
+
+| Class | Measured worst ns | Estimated budget ns | Start / end | Numerical result |
+| --- | ---: | ---: | --- | --- |
+| Certified → certified | 12.774849 | 50 | `_1939_/Q` header_1[6] → `_1993_/D` decodeValueQ[7] | Within budget |
+| Certified → full-rate | 9.604959 | 12.5 | `_1902_/Q` header_6[6] → `_1777_/D` state[3] | Within budget |
+| Full-rate → certified | 12.649599 | 12.5 | `_1793_/Q` address[4] → `_1797_/D` decodeValidQ | FAIL |
+| Full-rate → full-rate | 12.244377 | 12.5 | `_1776_/Q` state[4] → `_1751_/D` writeCount[3] | Within budget |
+| Input → register | 10.738379 | 12.5 | outReady → `_1971_/D` committed[6] | Within budget |
+| Register → output | 4.053404 | 12.5 | `_1964_/Q` configured → configured | Within budget |
+| Input → output / clock gates | none | Existing limits | No such paths/cells in this EP0 top | Not applicable |
+
+Budgets are **estimated** 0.60 × 1000/48 = 12.5 ns and 4 × 12.5 = 50 ns.
+Source/mapped enable proofs and reset-spanning cadence pass, with their fault
+controls. Zero measured maximum-slew/capacitance violations; hold and reset
+recovery/removal report has no negative slack. Independent review reran STA
+on the identical `class-control-03` netlist and **measured** a representative
+certified pair's setup capture edge at 83.333336 ns and hold edge at 0 ns.
+This validates the repaired selectors for that pair, not exhaustive coverage.
+
+Earlier `class-control-02` used rejected Q-pin multicycle starts; it is an
+invalid-constraint diagnostic, not accepted timing. Current commands use
+certificate-generated CLK pins and reject invalid-start/end warnings.
+The current runner keeps D45 numerical passes blocked pending sampling,
+measured-cadence binding, exception coverage and per-class negative controls.
+Address/reset behavior remains unchanged; the failing full-rate path triggers
+the user's stop rule. No SIE/combined-engine/wrapper measurement is claimed
+for the changed EP0. All additional qualification remains open.
+
+### D46 address predecode and integrated measurements (2026-11-18)
+
+All delays, areas and path identities below are **measured** at base
+`38e0bddb691288eeba92cb257d30935a40c15fb6` plus source hashes in each receipt.
+Same pinned GF180 SS/125 C/3.0 V corner, ideal clocks and pre-layout scope.
+For each directory below, the measurement commands are
+`python tools/env/run.py run -- yosys -Q -T -s build/t19/<directory>/buffer.ys`
+(mapped area) and
+`python tools/env/run.py run -- sta -no_init -exit build/t19/<directory>/timing.tcl`
+(paths). The complete preceding synthesis commands and tool versions are in
+that directory's `commands.jsonl` and `result.json`.
+
+Budgets are **estimated**: USB full rate = 0.60 × 1000/48 = 12.5 ns;
+certified pairs = 4 × 12.5 = 50 ns; application/AON screening =
+0.60 × 41.6 = 24.96 ns. Wrapper application/AON clocks use the conservative
+41.6 ns screening assumption. Domain crossings are asynchronous clock groups;
+physical crossing skew/MTBF is not qualified. Every non-clock input/output
+has zero delay against every clock, a conservative boundary screen rather
+than a domain-specific external timing contract.
+
+| Block / receipt directory | Measured area um2 | Numerical result |
+| --- | ---: | --- |
+| EP0, `d46-control-01` | 42865.6704 | pass |
+| IN buffer, `d46-components-01/in` | 105051.2960 | pass |
+| OUT buffer, `d46-components-01/out` | 102331.4432 | pass |
+| Resume, `d46-components-01/resume` | 4361.8624 | pass |
+| Registers, `d46-components-01/registers` | 8365.9072 | pass |
+| Combined engine, `d46-engine-05` | 281646.3552 | fail |
+| Complete wrapper, `d46-wrapper-03` | 319452.0896 | fail |
+
+Area is the whole named block, not an additive per-path attribution. The
+wrapper includes CDC, events and clock-request glue. Standalone SIE results
+follow below. See [SRAM estimates](usb-area.md).
+
+| Block | Path class | Measured worst ns | Estimated budget ns | Mapped start → end |
+| --- | --- | ---: | ---: | --- |
+| EP0 | CC | 12.202253 | 50 | `_1810_/Q` → `_1894_/D` |
+| EP0 | CF | 10.110165 | 12.5 | `_1978_/Q` → `_1859_/D` |
+| EP0 | FC | 11.774527 | 12.5 | `_2031_/Q` → `_2063_/D` |
+| EP0 | FF | 11.947232 | 12.5 | `_1859_/Q` → `_1811_/D` |
+| EP0 | IR | 11.765710 | 12.5 | `inRequest` → `_1811_/D` |
+| EP0 | RO | 4.126209 | 12.5 | `_2039_/Q` → `configured` |
+| IN buffer | RR | 11.140153 | 12.5 | `_3172_/Q` → `_3128_/D` |
+| IN buffer | IR | 9.972349 | 12.5 | `reset_n` → `_3299_/D` |
+| IN buffer | RO | 3.984604 | 12.5 | `_3098_/Q` → `appReady` |
+| OUT buffer | RR | 11.820112 | 12.5 | `_3072_/Q` → `_3039_/D` |
+| OUT buffer | IR | 9.609552 | 12.5 | `reset_n` → `_3679_/D` |
+| OUT buffer | RO | 4.164564 | 12.5 | `_3716_/Q` → `nak` |
+| Resume | RR | 9.333540 | 12.5 | `_202_/Q` → `_201_/D` |
+| Resume | IR | 8.076866 | 12.5 | `attached` → `_201_/D` |
+| Resume | RO | 4.093227 | 12.5 | `_195_/Q` → `suspended` |
+| Registers | RR | 11.202718 | 24.96 | `_453_/Q` → `_454_/D` |
+| Registers | IR | 9.328797 | 24.96 | `bus_bits_addr[9]` → `_454_/D` |
+| Registers | RO | 4.043431 | 24.96 | `_453_/Q` → `bus_gnt` |
+| Combined engine | CC | 21.709534 | 50 | `_9906_/Q` → `_10181_/D` |
+| Combined engine | CF | 15.341034 | 12.5 | `_9878_/Q` → `_10183_/D` |
+| Combined engine | FC | 20.658268 | 12.5 | `_9208_/Q` → `_10175_/D` |
+| Combined engine | FF | 14.978270 | 12.5 | `_9221_/Q` → `_10139_/D` |
+| Combined engine | IR | 6.502565 | 12.5 | `rxReady` → `_8955_/D` |
+| Combined engine | RO | 9.062789 | 12.5 | `_10121_/Q` → `txEnable` |
+| Combined engine | IO | 3.674172 | 12.5 | `reset_n` → `pullup_0` |
+| Complete wrapper | appClock.FF | 12.017683 | 24.96 | `_11086_/Q` → `_10558_/D` |
+| Complete wrapper | appClock.IR | 9.074254 | 24.96 | `bus_bits_origin[1]` → `_10533_/D` |
+| Complete wrapper | appClock.RO | 3.929136 | 24.96 | `_11413_/Q` → `bus_gnt` |
+| Complete wrapper | appClock.IO | 6.090249 | 24.96 | `appReset_n` → `pullupEnable` |
+| Complete wrapper | usbClock.CC | 20.763855 | 50 | `_10645_/Q` → `_9876_/D` |
+| Complete wrapper | usbClock.CF | 16.435688 | 12.5 | `_10663_/Q` → `_10971_/D` |
+| Complete wrapper | usbClock.FC | 18.105883 | 12.5 | `_10981_/Q` → `_10673_/D` |
+| Complete wrapper | usbClock.FF | 16.435089 | 12.5 | `_10981_/Q` → `_10289_/D` |
+| Complete wrapper | usbClock.IR | 13.414976 | 12.5 | `usbReset_n` → `_10289_/D` |
+| Complete wrapper | usbClock.RO | 8.632684 | 12.5 | `_10981_/Q` → `txEnable` |
+| Complete wrapper | usbClock.IO | 6.090249 | 12.5 | `appReset_n` → `pullupEnable` |
+| Complete wrapper | aonClock.FF | 2.488224 | 24.96 | `_10948_/Q` → `_10951_/D` |
+| Complete wrapper | aonClock.RO | 3.750224 | 24.96 | `_10951_/Q` → `usbClockRequest` |
+| Complete wrapper | aonClock.IO | 6.090249 | 24.96 | `appReset_n` → `pullupEnable` |
+
+CC/CF/FC/FF mean certified/full-rate launch and capture. IR/RO/IO are input,
+output and combinational boundary paths. No clock-gate cells/paths exist in
+these USB tops; gate checks remain implemented in the shared runner.
+EP0 has no negative hold/reset slack and zero reported electrical violations.
+All measured blocks have zero maximum-slew/capacitance violations.
+
+The engine's worst CC path is `sie.data_q[1]` → `sie.out_toggle_q[0]`, within
+50 ns. Its failing CF path ends in PHY TX `nrzi_q`; FC runs from `configured`
+to `frame[10]`; FF runs from cadence enable to PHY RX `rx_eop_qq`.
+Those paths retain 12.5 ns. The complete wrapper's FC path is PHY TX state
+to SIE PHY state. D46's small EP0 allowance does not waive these failures.
+
+Engine raw `dpRx`/`dnRx` hold slack is **measured** −0.102503 ns with zero
+input delay. The wrapper has six reported negative hold rows. These remain
+failures; no PHY input false path or external timing assumption was added.
+Wrapper receipt `d46-wrapper-03` contains a stale single-clock boundary label
+although its clock constraints and domain table use all three clocks; the
+runner metadata has since been corrected. The receipt is retained as issued.
+
+Source/mapped enable, cadence-step and reset-cone checks now pass, including
+targeted reset/cadence/bus-reset faults (`d46-reset-cert-03`). This later
+certificate reuses the exact engine05 mapped identities. Exhaustive applied
+exception coverage, per-class over-budget faults and protocol sampling
+equivalence remain unresolved; numerical EP0 success is not qualification.
+
+### Standalone retained SIE with production cadence
+
+**Measured** at the same base commit and pinned corner, from the exact
+production `UsbSie` BlackBox parameters plus `UsbBitEnable`. The fixture
+exposes other vendor inputs at full rate; integrated constant endpoint masks
+are not imposed. Unused cloned clock/reset/enable interface fields have no
+connection to sequential cells. Actual sequential clocks use `clk` and the
+certificate binds the internal cadence/reset. Commands:
+
+```sh
+python tools/env/run.py run -- python3 tools/sbt.py "runMain deadhorse.usb.EmitUsbSieTiming build/t19/d46-sie-emit-01"
+python tools/env/run.py run -- python3 tools/timing/check.py --top UsbSieTiming --source build/t19/d46-sie-emit-01/UsbSieTiming.sv --source build/t19/d46-sie-emit-01/UsbBitEnable.sv --source build/vendor/usb/rtl/sie.v --source build/vendor/usb/rtl/phy_rx.v --source build/vendor/usb/rtl/phy_tx.v --clock clk --operating-point usb-48mhz --usb-cadence build/t19/d46-cadence-final-01/result.json --output build/t19/d46-sie-01
+```
+
+Measured mapped area: **54825.1200 um2**, including cadence. Zero electrical
+violations. PHY input hold slack is measured −0.102503 ns; reset-removal
+slack reaches measured −0.256078 ns under the zero-delay input contract.
+Numerical status FAIL. No clock-gate cells/paths occur.
+
+| Class | Measured worst ns | Estimated budget ns | Start → end |
+| --- | ---: | ---: | --- |
+| CC | 24.721727 | 50 | `_2779_/Q` → `_2916_/D` |
+| CF | 24.098761 | 12.5 | `_2779_/Q` → `_2838_/D` |
+| FC | 16.159996 | 12.5 | `_2715_/Q` → `_2916_/D` |
+| FF | 18.411098 | 12.5 | `_2829_/Q` → `_2714_/D` |
+| IR | 18.264446 | 12.5 | `io_in_int_endps_i[14]` → `_2916_/D` |
+| RO | 21.622900 | 12.5 | `_2779_/Q` → `io_in_ready_o` |
+| IO | 14.955754 | 12.5 | `io_in_int_endps_i[14]` → `io_in_ready_o` |
+
+All source/mapped enable, cadence-step and reset-cone certificates and their
+listed faults pass. This does not waive measured full-rate/IO/hold/reset
+failures or the remaining global exception/sampling qualification.
+
+## T19 final frozen measurements (2026-11-18)
+These final **measured** results supersede the earlier EP0 numerical pass.
+Command: `python tools/env/run.py run -- python3 hw/ip/usb/check.py --packet-triage build/t19/d46-sparse-06/result.json --output build/t19/d46-frozen-check-02`.
+Baseline `38e0bddb691288eeba92cb257d30935a40c15fb6` plus the frozen source
+SHA-256 inventory in that result. Individual timing commands are recorded
+in its `commands` array and each timing directory. Yosys 0.71+34 / OpenSTA
+3.2.0, pinned GF180 7-track SS/125 C/3.0 V, mapped pre-layout, ideal clocks,
+no routed wire delay. All electrical slew/capacitance violation counts are zero.
+Budgets are **estimated**: CC = 0.60 × 4 × 1000/48 = 50 ns; other USB
+paths = 0.60 × 1000/48 = 12.5 ns; application/AON = 0.60 × 41.6 = 24.96 ns.
+Wrapper clocks and conservative IO/CDC screening assumptions remain as above.
+
+| Block | Class | Measured worst ns | Estimated budget ns | Start → end | Measured block area um2 |
+| --- | --- | ---: | ---: | --- | ---: |
+| control | CC | 13.306602 | 50 | `_1992_/Q` → `_1814_/D` | 42922.7456 |
+| control | CF | 12.580610 | 12.5 | `_1985_/Q` → `_1964_/D` | 42922.7456 |
+| control | FC | 13.370109 | 12.5 | `_1963_/Q` → `_1990_/D` | 42922.7456 |
+| control | FF | 12.721625 | 12.5 | `_1963_/Q` → `_1848_/D` | 42922.7456 |
+| control | IR | 11.261580 | 12.5 | `busReset` → `_1846_/D` | 42922.7456 |
+| control | RO | 4.142676 | 12.5 | `_2039_/Q` → `configured` | 42922.7456 |
+| in | RR | 11.140153 | 12.5 | `_3172_/Q` → `_3128_/D` | 105051.2960 |
+| in | IR | 9.972349 | 12.5 | `reset_n` → `_3299_/D` | 105051.2960 |
+| in | RO | 3.984604 | 12.5 | `_3098_/Q` → `appReady` | 105051.2960 |
+| out | RR | 11.820112 | 12.5 | `_3072_/Q` → `_3039_/D` | 102331.4432 |
+| out | IR | 9.609552 | 12.5 | `reset_n` → `_3679_/D` | 102331.4432 |
+| out | RO | 4.164564 | 12.5 | `_3716_/Q` → `nak` | 102331.4432 |
+| resume | RR | 9.333540 | 12.5 | `_202_/Q` → `_201_/D` | 4361.8624 |
+| resume | IR | 8.076866 | 12.5 | `attached` → `_201_/D` | 4361.8624 |
+| resume | RO | 4.093227 | 12.5 | `_195_/Q` → `suspended` | 4361.8624 |
+| registers | RR | 11.202718 | 24.96 | `_453_/Q` → `_454_/D` | 8365.9072 |
+| registers | IR | 9.328797 | 24.96 | `bus_bits_addr[9]` → `_454_/D` | 8365.9072 |
+| registers | RO | 4.043431 | 24.96 | `_453_/Q` → `bus_gnt` | 8365.9072 |
+| engine | CC | 21.709534 | 50 | `_9906_/Q` → `_10181_/D` | 281646.3552 |
+| engine | CF | 15.341034 | 12.5 | `_9878_/Q` → `_10183_/D` | 281646.3552 |
+| engine | FC | 20.658268 | 12.5 | `_9208_/Q` → `_10175_/D` | 281646.3552 |
+| engine | FF | 14.978270 | 12.5 | `_9221_/Q` → `_10139_/D` | 281646.3552 |
+| engine | IR | 6.502565 | 12.5 | `rxReady` → `_8955_/D` | 281646.3552 |
+| engine | RO | 9.062789 | 12.5 | `_10121_/Q` → `txEnable` | 281646.3552 |
+| engine | IO | 3.674172 | 12.5 | `reset_n` → `pullup_0` | 281646.3552 |
+| usb | appClock.FF | 12.017683 | 24.96 | `_11086_/Q` → `_10558_/D` | 319452.0896 |
+| usb | appClock.IR | 9.074254 | 24.96 | `bus_bits_origin[1]` → `_10533_/D` | 319452.0896 |
+| usb | appClock.RO | 3.929136 | 24.96 | `_11413_/Q` → `bus_gnt` | 319452.0896 |
+| usb | appClock.IO | 6.090249 | 24.96 | `appReset_n` → `pullupEnable` | 319452.0896 |
+| usb | usbClock.CC | 20.763855 | 50 | `_10645_/Q` → `_9876_/D` | 319452.0896 |
+| usb | usbClock.CF | 16.435688 | 12.5 | `_10663_/Q` → `_10971_/D` | 319452.0896 |
+| usb | usbClock.FC | 18.105883 | 12.5 | `_10981_/Q` → `_10673_/D` | 319452.0896 |
+| usb | usbClock.FF | 16.435089 | 12.5 | `_10981_/Q` → `_10289_/D` | 319452.0896 |
+| usb | usbClock.IR | 13.414976 | 12.5 | `usbReset_n` → `_10289_/D` | 319452.0896 |
+| usb | usbClock.RO | 8.632684 | 12.5 | `_10981_/Q` → `txEnable` | 319452.0896 |
+| usb | usbClock.IO | 6.090249 | 12.5 | `appReset_n` → `pullupEnable` | 319452.0896 |
+| usb | aonClock.FF | 2.488224 | 24.96 | `_10948_/Q` → `_10951_/D` | 319452.0896 |
+| usb | aonClock.RO | 3.750224 | 24.96 | `_10951_/Q` → `usbClockRequest` | 319452.0896 |
+| usb | aonClock.IO | 6.090249 | 24.96 | `appReset_n` → `pullupEnable` | 319452.0896 |
+| sie | CC | 24.721727 | 50 | `_2779_/Q` → `_2916_/D` | 54825.1200 |
+| sie | CF | 24.098761 | 12.5 | `_2779_/Q` → `_2838_/D` | 54825.1200 |
+| sie | FC | 16.159996 | 12.5 | `_2715_/Q` → `_2916_/D` | 54825.1200 |
+| sie | FF | 18.411098 | 12.5 | `_2829_/Q` → `_2714_/D` | 54825.1200 |
+| sie | IR | 18.264446 | 12.5 | `io_in_int_endps_i[14]` → `_2916_/D` | 54825.1200 |
+| sie | RO | 21.622900 | 12.5 | `_2779_/Q` → `io_in_ready_o` | 54825.1200 |
+| sie | IO | 14.955754 | 12.5 | `io_in_int_endps_i[14]` → `io_in_ready_o` | 54825.1200 |
+
+A block area is repeated for traceability; rows are not additive. Empty
+classes have no paths. No clock-gate paths occur in these tops; RG/IG checks
+remain enabled. Hold/reset-removal checks are retained: engine raw-PHY hold
+slack is measured −0.102503 ns; wrapper has six negative rows; standalone
+SIE reaches measured −0.256078 ns reset-removal slack and −0.102503 ns hold
+slack. EP0 has no negative hold/reset slack.
+
+Final EP0 FC path is `_1963_/Q` state[5] → `_1990_/D` header_5[6].
+State has a synchronous busReset override outside the protocol enable, so
+this is correctly full-rate-to-certified and cannot receive 4/3. Final
+EP0 mapping uses `synth -nofsm` to preserve certificate identities; the
+earlier `d46-control-01` did not. Independent review verified identical
+emitted source SHA-256
+`c772e4c749448130391c26e51864269ce2473d29c7255a861b8c039af3fe71ab`
+and otherwise matching mapping targets. The earlier 11.947232 ns full-rate
+pass and 42865.6704 um2 area are historical, not final qualification.
+The explicit user stop applies; no further RTL or mapping restructuring
+was performed. D46's prior address-path allowance does not waive this path.
+
+Source/mapped enable and reset/cadence certificates pass their targeted
+fault controls on the final snapshot. Exhaustive applied-exception coverage,
+actual over-budget faults per class, direct header/decode producer-spacing
+and retained-pipeline sampling equivalence remain unresolved. Final USB
+aggregate and fast CI fail; full CI was not run.

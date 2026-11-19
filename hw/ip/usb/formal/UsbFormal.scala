@@ -45,6 +45,27 @@ class UsbCadenceFormal(variant: String) extends RawModule {
     else {assert(d.enable === (up && schedule(0)));assert(!d.enable || !history.orR)}
   }
 }
+/** Monitor history deliberately survives DUT reset. Its initial zero is set
+  * only in the formal job, so a reset cannot hide two closely spaced pulses.
+  */
+class UsbCadenceResetFormal(variant: String) extends RawModule {
+  val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
+  val d=Module(if(variant=="corrupt") new UsbEarlyEnable else new UsbBitEnable)
+  d.clk:=clock;d.reset_n:=reset_n
+  withClockAndReset(clock,false.B) {
+    val history=Reg(UInt(3.W));dontTouch(history)
+    val releaseHistory=Reg(UInt(4.W));dontTouch(releaseHistory)
+    history:=Cat(history(1,0),d.enable)
+    releaseHistory:=Cat(releaseHistory(2,0),reset_n)
+    if(variant=="cover") {
+      cover(d.enable && history===0.U && releaseHistory.andR)
+      cover(!reset_n && history.orR)
+    } else {
+      assert(!d.enable || !history.orR)
+      assert(!d.enable || (reset_n && releaseHistory.andR))
+    }
+  }
+}
 class UsbResumeFormal(variant: String) extends RawModule {
   val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
   val dp=IO(Input(Bool()));val dn=IO(Input(Bool()));val attached=IO(Input(Bool()))
@@ -91,16 +112,22 @@ object EmitUsbFormal {
     require(args.length==3)
     val root=Paths.get(args(2)).toAbsolutePath.normalize
     require(root.startsWith(Paths.get("build").toAbsolutePath.normalize))
-    for(variant<-(if(args(1)=="in" || args(1).startsWith("in_bit")) Seq("correct","corrupt","cover","withheld") else Seq("correct","corrupt","cover"))) {
+    for(variant<-(if(args(1)=="in" || args(1)=="in_helpers" || args(1)=="in_sparse" || args(1).startsWith("in_bit")) Seq("correct","corrupt","cover","withheld") else Seq("correct","corrupt","cover"))) {
       val dir=root.resolve(variant);Files.createDirectories(dir)
       def design: RawModule=args(1) match {
         case "cadence"=>new UsbCadenceFormal(variant)
+        case "cadence_reset"=>new UsbCadenceResetFormal(variant)
         case "resume"=>new UsbResumeFormal(variant)
         case "denied"=>new UsbDeniedFormal(args(0),variant)
         case "in"=>new UsbInFormal(variant)
         case "out"=>new UsbOutFormal(variant)
+        case "in_helpers"=>new UsbInFormal(variant,None,true)
+        case "out_helpers"=>new UsbOutFormal(variant,None,true)
+        case "in_sparse"=>new UsbInFormal(variant,None,true,variant=="correct")
+        case "out_sparse"=>new UsbOutFormal(variant,None,true,variant=="correct")
         case "pads"=>new UsbPadsFormal(variant)
         case "control"=>new UsbControlFormal(variant)
+        case "address"=>new UsbControlFormal(variant,true)
         case n if n.startsWith("in_bit")=>new UsbInFormal(variant,Some(n.stripPrefix("in_bit").toInt))
         case n if n.startsWith("out_bit")=>new UsbOutFormal(variant,Some(n.stripPrefix("out_bit").toInt))
       }

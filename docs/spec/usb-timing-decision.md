@@ -1,6 +1,23 @@
 # USB SIE timing decision proposal
 
-Status: proposed, not approved or applied. Existing acceptance remains 12.5 ns.
+Status: approved by the user 2026-11-18 as D45, with extension to Chisel
+`UsbControl`. Application remains conditional on the certificates below.
+Only paths with both launch and capture registers proved to update exclusively
+on the common protocol enable qualify for setup 4 / hold 3 and the estimated
+50 ns budget. All other paths retain their existing limits. Draft 4/3
+constraints are applied only in unaccepted diagnostic runs; qualification
+remains unresolved. The proposal and measurements below are historical;
+D45 supersedes their pending-approval wording, not their proof obligations.
+
+The user requires a stop before further restructuring if a certified path
+exceeds 50 ns or EP0's failing path is not enable-gated.
+
+Follow-up approval on 2026-11-18 authorizes EP0 SETUP-header/decode
+restructuring onto the common enable phase, preserving behavior and every
+verification requirement. It does not authorize changing address/reset
+semantics or classifying full-rate paths as protocol paths. The resulting
+address-to-decode full-rate failure is recorded in the T19 report; current
+certificate/constraint work is a draft and is not accepted qualification.
 
 The selective Chisel conversion retains the supplied SIE/PHY. The production
 engine measurement under `build/t19/timing-08/engine/result.json` reports

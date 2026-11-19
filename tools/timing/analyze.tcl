@@ -7,7 +7,17 @@ set_units -time ns -capacitance pF
 if {![info exists combinational]} {set combinational 0}
 if {![info exists gate_path_report]} {set gate_path_report [file join [file dirname $path_report] gate_checks.tsv]}
 set clocks {}
-if {$combinational} {
+set clock_names {block_clock}
+if {[info exists domain_periods]} {
+    set clock_names [dict keys $domain_periods]
+    foreach {name domain_period} $domain_periods {
+        set port [get_ports $name]
+        if {[llength $port]!=1} {error "Missing wrapper clock"}
+        lappend clocks {*}$port
+        create_clock -name $name -period $domain_period $port
+    }
+    set_clock_groups -asynchronous -group appClock -group usbClock -group aonClock
+} elseif {$combinational} {
     create_clock -name block_clock -period $period
 } else {
     set clocks [get_ports $clock_port]
@@ -16,15 +26,15 @@ if {$combinational} {
 }
 set data_inputs [get_ports -filter "direction == input" *]
 if {!$combinational} {
-    set data_inputs [lsearch -all -inline -not -exact $data_inputs [lindex $clocks 0]]
+    foreach clock $clocks {set data_inputs [lsearch -all -inline -not -exact $data_inputs $clock]}
 }
 if {[llength $data_inputs]} {
-    set_input_delay 0 -clock block_clock $data_inputs
+    foreach name $clock_names {set_input_delay 0 -clock $name -add_delay $data_inputs}
     set_input_transition $input_transition $data_inputs
 }
 set outputs [get_ports -filter "direction == output" *]
 if {[llength $outputs]} {
-    set_output_delay 0 -clock block_clock $outputs
+    foreach name $clock_names {set_output_delay 0 -clock $name -add_delay $outputs}
     set_load $output_load $outputs
 }
 set regs [all_registers]
@@ -36,11 +46,13 @@ foreach pin [all_registers -clock_pins] {
     if {[llength $pin_clocks] != 1} {
         error "Missing clock: [get_full_name $pin]"
     }
-    if {[get_full_name [lindex $pin_clocks 0]] != "block_clock"} {
+    if {[get_full_name [lindex $pin_clocks 0]] ni $clock_names} {
         error "Unexpected clock: [get_full_name $pin]"
     }
 }
-if {[llength [all_registers -rise_clock block_clock]] != [llength $regs]} {
+set rising_regs {}
+foreach name $clock_names {lappend rising_regs {*}[all_registers -rise_clock $name]}
+if {[llength $rising_regs] != [llength $regs]} {
     error "Unsupported falling-edge or generated clock timing"
 }
 check_setup -verbose
@@ -48,6 +60,58 @@ set groups [list RR [list [all_registers -clock_pins] [all_registers -data_pins]
                  IR [list $data_inputs [all_registers -data_pins]] \
                  RO [list [all_registers -clock_pins] $outputs] \
                  IO [list $data_inputs $outputs]]
+if {[info exists certified_q]} {
+    foreach name {certified_q certified_d certified_clock full_q full_d reset_pins} {
+        set raw [set $name]
+        set $name [get_pins $raw]
+        if {[llength [set $name]] != [llength $raw]} {error "Missing D45 $name pin"}
+    }
+    if {[llength $certified_d]+[llength $full_d] != [llength [all_registers -data_pins]]} {
+        error "Incomplete D45 register partition"
+    }
+    set_multicycle_path 4 -setup -from $certified_clock -to $certified_d
+    set_multicycle_path 3 -hold -from $certified_clock -to $certified_d
+    set groups [list CC [list $certified_q $certified_d] CF [list $certified_q $full_d] \
+                     FC [list $full_q $certified_d] FF [list $full_q $full_d] \
+                     IR [list $data_inputs [all_registers -data_pins]] \
+                     RO [list [all_registers -clock_pins] $outputs] IO [list $data_inputs $outputs]]
+    set safety [open [file join [file dirname $path_report] short_reset_checks.tsv] w]
+    puts $safety "check\tstart\tend\tslack_ns"
+    foreach {kind targets modes} [list hold [all_registers -data_pins] {min_rise min_fall} \
+        reset $reset_pins {min_rise min_fall max_rise max_fall}] {
+        if {![llength $targets]} {continue}
+        foreach mode $modes {
+            foreach path [find_timing_paths -to $targets -path_delay $mode -group_path_count [expr {2*[llength $targets]}] -endpoint_path_count 1] {
+                set slack [get_property $path slack]
+                puts $safety "$kind/$mode\t[get_full_name [get_property $path startpoint]]\t[get_full_name [get_property $path endpoint]]\t$slack"
+                # Keep all violations in the receipt instead of stopping before
+                # the remaining classes are measured. Python rejects negatives.
+            }
+        }
+    }
+    close $safety
+}
+if {[info exists domain_periods]} {
+    # Enumerate every destination domain separately; cross-domain physical skew
+    # belongs to shared CDC qualification, not synchronous setup/hold STA.
+    set groups {}
+    foreach name $clock_names {
+        set dq {};set dd {};set cq {};set cd {};set fq {};set fd {}
+        foreach cell [all_registers -rise_clock $name] {
+            set base [get_full_name $cell]
+            set q [get_pins $base/Q];set d [get_pins $base/D]
+            if {[llength $q]!=1 || [llength $d]!=1} {error "Unsupported wrapper register pins"}
+            lappend dq {*}$q;lappend dd {*}$d
+            if {[lindex $d 0] in $certified_d} {
+                if {$name!="usbClock"} {error "Certified register outside USB domain"}
+                lappend cq {*}$q;lappend cd {*}$d
+            } else {lappend fq {*}$q;lappend fd {*}$d}
+        }
+        lappend groups $name.CC [list $cq $cd] $name.CF [list $cq $fd] \
+            $name.FC [list $fq $cd] $name.FF [list $fq $fd] \
+            $name.IR [list $data_inputs $dd] $name.RO [list $dq $outputs] $name.IO [list $data_inputs $outputs]
+    }
+}
 if {[info exists clock_gate_pins] && [llength $clock_gate_pins]} {
     set gate_enables [get_pins $clock_gate_pins]
     if {[llength $gate_enables] != [llength $clock_gate_pins]} {error "Missing clock-gate enable pin"}

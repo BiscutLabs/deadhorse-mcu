@@ -11,13 +11,13 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 def inputs():
-    paths = [ROOT/'build.sbt', ROOT/'tools/env/lock.json']
+    paths = [ROOT/'build.sbt', ROOT/'tools/env/lock.json', ROOT/'tools/sbt.py']
     for name in ('hw/ip/usb','hw/vendor/usb','hw/top/stubs','hw/lib/src/main/scala','hw/regmap','tools/timing'):
         paths.extend(p for p in (ROOT/name).rglob('*') if p.is_file() and '__pycache__' not in p.parts)
     return {p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(set(paths))}
 
 
-def run(output):
+def run(output,packet_triage=None):
     output = Path(output).resolve(); output.relative_to(ROOT/'build')
     if output.exists() and any(output.iterdir()): raise ValueError('Use fresh output; preserve earlier failures')
     output.mkdir(parents=True)
@@ -48,16 +48,39 @@ def run(output):
         command('test-regmap',[py,'hw/regmap/regmap.py','hw/ip/usb/usb.regmap.yaml','--out','build/t19/regmap'])
         command('simulation',[py,'tools/sbt.py','testOnly deadhorse.usb.*'])
         command('emit',[py,'tools/sbt.py',f'runMain deadhorse.usb.EmitUsb {output}/emit {output}/regmap/usb_regs.json'])
-        command('formal',[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json',
-            '--output',output/'formal'],output/'formal/result.json')
+        command('emit-sie',[py,'tools/sbt.py',f'runMain deadhorse.usb.EmitUsbSieTiming {output}/emit/sie'])
+        # The user requires a triage-budget stop, never an unchanged timeout
+        # retry. Positive packet acceptance remains required and unresolved.
+        # Preserve exact-source evidence if supplied; it is never a deferral.
+        packet_status=dict(status='unresolved',rerun=False,
+            reason='Packet proof triage exhausted; no unchanged positive proof retry; original acceptance remains required')
+        if packet_triage:
+            prior=Path(packet_triage).resolve();prior.relative_to(ROOT/'build')
+            detail=json.loads(prior.read_text())
+            bound=detail.get('production_source_sha256',{})
+            required={'hw/ip/usb/formal/UsbBufferFormal.scala','hw/ip/usb/formal/UsbSparsePacketMemory.scala',
+                      'hw/ip/usb/src/main/scala/deadhorse/usb/UsbPacketBuffer.scala'}
+            if not required<=set(bound) or any(hashlib.sha256((ROOT/p).read_bytes()).hexdigest()!=h for p,h in bound.items()):
+                raise ValueError('Missing/stale packet triage source binding')
+            if not {'in_sparse','out_sparse'}<=set(detail.get('cases',{})):
+                raise ValueError('Incomplete packet triage evidence')
+            packet_status.update(receipt=str(prior.relative_to(ROOT)),sha256=hashlib.sha256(prior.read_bytes()).hexdigest(),cases=detail['cases'])
+        receipt['packet_proofs']=packet_status
+        formal_args=[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json','--output',output/'formal']
+        for role in ('cadence','cadence_reset','resume','denied','pads','control','address'):
+            formal_args+=['--case',role]
+        command('formal',formal_args,output/'formal/result.json')
+        command('packet-controls',[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json',
+            '--case','in','--case','out','--controls-only','--output',output/'packet-controls'],output/'packet-controls/result.json')
         command('byte-cdc',[py,'hw/lib/formal/cdc_proof.py','--width','8','--depth','2','--output',output/'cdc'],output/'cdc/result.json')
         for name,top in [('control','UsbControl'),('in','UsbInBuffer'),('out','UsbOutBuffer'),
-                         ('resume','UsbResume'),('engine','UsbEngine'),('registers','UsbRegisters')]:
+                         ('resume','UsbResume'),('engine','UsbEngine'),('registers','UsbRegisters'),('usb','Usb'),('sie','UsbSieTiming')]:
             sources=sorted((output/'emit'/name).glob('*.sv'))
-            if name=='engine': sources += [ROOT/'build/vendor/usb/rtl'/p for p in ('sie.v','phy_rx.v','phy_tx.v')]
+            if name in ('engine','usb','sie'): sources += [ROOT/'build/vendor/usb/rtl'/p for p in ('sie.v','phy_rx.v','phy_tx.v')]
             if not sources: raise ValueError('Missing emission '+name)
-            argv=[py,'tools/timing/check.py','--top',top,'--clock','clk','--output',output/'timing'/name]
+            argv=[py,'tools/timing/check.py','--top',top,'--clock','usbClock' if name=='usb' else 'clk','--output',output/'timing'/name]
             if name!='registers': argv+=['--operating-point','usb-48mhz']
+            if name in ('control','engine','usb','sie'):argv+=['--usb-cadence',output/'formal/result.json']
             for source in sources: argv+=['--source',source]
             receipt['timing'][name]=command('timing-'+name,argv,output/'timing'/name/'result.json')
         if inputs()!=before: raise RuntimeError('Source inputs changed during acceptance')
@@ -73,4 +96,5 @@ def run(output):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',required=True)
-    args=parser.parse_args();sys.exit(0 if run(ROOT/args.output)['status']=='pass' else 1)
+    parser.add_argument('--packet-triage',help='Exact-source unresolved packet evidence; preserves failure without repeating exhausted positive jobs')
+    args=parser.parse_args();sys.exit(0 if run(ROOT/args.output,args.packet_triage)['status']=='pass' else 1)

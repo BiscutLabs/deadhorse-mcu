@@ -3,10 +3,10 @@ package deadhorse.usb
 import chisel3._
 import chisel3.util._
 
-class UsbMissingCommit extends UsbInBuffer {
+class UsbMissingCommit(proofView: Boolean=false) extends UsbInBuffer(proofView) {
   override protected def commit(head: UInt,speculative: UInt): UInt=head
 }
-class UsbWithheldValid extends UsbInBuffer {
+class UsbWithheldValid(proofView: Boolean=false) extends UsbInBuffer(proofView) {
   override protected def offer(value: Bool): Bool=false.B
 }
 
@@ -14,13 +14,16 @@ class UsbWithheldValid extends UsbInBuffer {
   * position through speculative reads, replay and ACK; never inspect DUT RAM
   * or pointers. Arbitrary selection proves integrity at every queue position.
   */
-class UsbInFormal(variant: String,lane: Option[Int]=None) extends RawModule {
+class UsbInFormal(variant: String,lane: Option[Int]=None,helpers: Boolean=false,sparse: Boolean=false) extends RawModule {
   def same(a: UInt,b: UInt): Bool=lane.map(i=>a(i)===b(i)).getOrElse(a===b)
   val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
   val data=IO(Input(UInt(8.W)));val push=IO(Input(Bool()));val choose=IO(Input(Bool()))
   val operation=IO(Input(UInt(2.W))) // idle, read byte, new IN request, qualified ACK
   val cadence=Module(new UsbBitEnable);cadence.clk:=clock;cadence.reset_n:=reset_n
-  val d=Module(if(variant=="corrupt") new UsbMissingCommit else if(variant=="withheld") new UsbWithheldValid else new UsbInBuffer)
+  require(!sparse || (helpers && variant=="correct"))
+  val forgotten=if(sparse) Some(IO(Input(UInt(8.W)))) else None
+  val d=Module(if(variant=="corrupt") new UsbMissingCommit(helpers) else if(variant=="withheld") new UsbWithheldValid(helpers) else new UsbInBuffer(helpers,()=>if(sparse) new UsbSparsePacketMemory else new UsbPacketMemory))
+  d.proofMemory.foreach(_:=0.U.asTypeOf(new UsbMemoryProofInputs))
   d.clk:=clock;d.reset_n:=reset_n;d.bitEnable:=cadence.enable;d.appData:=data;d.appValid:=push
   withClockAndReset(clock,(!reset_n).asAsyncReset) {
     val queued=RegInit(0.U(7.W));val offset=RegInit(0.U(7.W))
@@ -44,6 +47,11 @@ class UsbInFormal(variant: String,lane: Option[Int]=None) extends RawModule {
     when(put && choose && !selected) {
       selected:=true.B;watching:=true.B;watched:=data;position:=queued-removed
     }
+    val slot=if(helpers) Some(Reg(UInt(7.W))) else None
+    slot.foreach(s=>when(put && choose && !selected){s:=d.proof.get.tail})
+    if(sparse) {
+      d.proofMemory.get.track:=selected;d.proofMemory.get.trackAddress:=slot.get;d.proofMemory.get.forgotten:=forgotten.get
+    }
     val matchPosition=take && watching && position===offset
     when(matchPosition) {seen:=true.B}
     val priorValid=RegInit(false.B);val priorData=Reg(UInt(8.W));val priorIdle=RegInit(false.B)
@@ -63,6 +71,41 @@ class UsbInFormal(variant: String,lane: Option[Int]=None) extends RawModule {
       cover(commit && watching && position<offset)
       cover(service===1.U && d.valid)
     } else {
+      if(helpers) {
+        val memoryAge=RegInit(0.U(2.W));when(memoryAge=/=3.U){memoryAge:=memoryAge+1.U}
+        assert(!cadence.enable || memoryAge===3.U)
+        val p=d.proof.get
+        def distance(a:UInt,b:UInt):UInt=Mux(b>=a,b-a,65.U(8.W)+b-a)
+        assert(p.head<=64.U && p.tail<=64.U && p.speculative<=64.U && p.visibleTail<=64.U)
+        assert(!p.stagingVisible || p.stagingValid)
+        assert(!d.appReady || !p.stagingValid)
+        assert(queued===distance(p.head,p.tail)+p.stagingValid.asUInt)
+        assert(offset===distance(p.head,p.speculative))
+        assert(distance(p.head,p.speculative)<=distance(p.head,p.visibleTail))
+        assert(distance(p.head,p.visibleTail)<=distance(p.head,p.tail))
+        assert(!watching || position<queued)
+        assert(!watching || position===distance(p.head,slot.get))
+        assert(!watching || selected)
+        when(selected){assert(slot.get<=64.U)}
+        if(sparse) {
+          val ram=d.proofRam.get
+          when(watching && p.stagingValid && p.tail===slot.get){assert(p.stagingData===watched)}
+          when(watching && ram.pendingWrite && ram.pendingAddress===slot.get){assert(ram.pendingData===watched)}
+          when(watching && ram.trackedValid){assert(ram.trackedValue===watched)}
+          when(watching && position<distance(p.head,p.tail)) {
+            assert((ram.pendingWrite && ram.pendingAddress===slot.get) || ram.trackedValid)
+          }
+          when(cadence.enable && watching && position<distance(p.head,p.tail)) {
+            assert(ram.trackedValid && ram.trackedValue===watched)
+          }
+          val tag=RegNext(RegNext(RegNext(p.speculative)))
+          when(cadence.enable){assert(tag===p.speculative)}
+          val stageSeen=RegNext(watching && ram.trackedValid && ram.query===slot.get,false.B)
+          val outputSeen=RegNext(stageSeen,false.B)
+          when(stageSeen){assert(ram.stage===watched)}
+          when(outputSeen){assert(ram.output===watched)}
+        }
+      }
       assert(queued<=65.U)
       when(take){assert(offset<queued)}
       when(matchPosition){assert(same(d.data,watched))}
@@ -72,20 +115,23 @@ class UsbInFormal(variant: String,lane: Option[Int]=None) extends RawModule {
   }
 }
 
-class UsbMissingPublish extends UsbOutBuffer {
+class UsbMissingPublish(proofView: Boolean=false) extends UsbOutBuffer(proofView) {
   override protected def publish(committed: UInt,speculative: UInt): UInt=committed
 }
 
 /** OUT oracle tracks packet commit/rollback and one symbolic byte selected at
   * the packet input. A packet is at most the public 64-byte bulk MPS.
   */
-class UsbOutFormal(variant: String,lane: Option[Int]=None) extends RawModule {
+class UsbOutFormal(variant: String,lane: Option[Int]=None,helpers: Boolean=false,sparse: Boolean=false) extends RawModule {
   def same(a: UInt,b: UInt): Bool=lane.map(i=>a(i)===b(i)).getOrElse(a===b)
   val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
   val data=IO(Input(UInt(8.W)));val operation=IO(Input(UInt(2.W)))
   val choose=IO(Input(Bool()));val ready=IO(Input(Bool()))
   val cadence=Module(new UsbBitEnable);cadence.clk:=clock;cadence.reset_n:=reset_n
-  val d=Module(if(variant=="corrupt") new UsbMissingPublish else new UsbOutBuffer)
+  require(!sparse || (helpers && variant=="correct"))
+  val forgotten=if(sparse) Some(IO(Input(UInt(8.W)))) else None
+  val d=Module(if(variant=="corrupt") new UsbMissingPublish(helpers) else new UsbOutBuffer(helpers,()=>if(sparse) new UsbSparsePacketMemory else new UsbPacketMemory))
+  d.proofMemory.foreach(_:=0.U.asTypeOf(new UsbMemoryProofInputs))
   d.clk:=clock;d.reset_n:=reset_n;d.bitEnable:=cadence.enable;d.received:=data;d.appReady:=ready
   withClockAndReset(clock,(!reset_n).asAsyncReset) {
     val queued=RegInit(0.U(7.W));val packet=RegInit(0.U(7.W))
@@ -106,6 +152,11 @@ class UsbOutFormal(variant: String,lane: Option[Int]=None) extends RawModule {
       selected:=true.B;watching:=true.B;inPacket:=true.B;watched:=data
       position:=queued+&packet-take.asUInt
     }
+    val slot=if(helpers) Some(Reg(UInt(7.W))) else None
+    slot.foreach(s=>when(put && choose && !selected){s:=d.proof.get.speculative})
+    if(sparse) {
+      d.proofMemory.get.track:=selected;d.proofMemory.get.trackAddress:=slot.get;d.proofMemory.get.forgotten:=forgotten.get
+    }
     val held=RegNext(d.appValid && !ready,false.B);val oldData=RegNext(d.appData)
     // Bounded progress in running application edges: after a committed byte,
     // the next four-edge read opportunity plus three RAM stages fit in eight.
@@ -116,6 +167,37 @@ class UsbOutFormal(variant: String,lane: Option[Int]=None) extends RawModule {
       cover(end && d.receiveError && watching && inPacket)
       cover(held && take)
     } else {
+      if(helpers) {
+        val memoryAge=RegInit(0.U(2.W));when(memoryAge=/=3.U){memoryAge:=memoryAge+1.U}
+        assert(!cadence.enable || memoryAge===3.U)
+        val p=d.proof.get
+        def distance(a:UInt,b:UInt):UInt=Mux(b>=a,b-a,65.U(8.W)+b-a)
+        assert(p.head<=64.U && p.tail<=64.U && p.speculative<=64.U)
+        assert(queued===distance(p.head,p.tail)+d.appValid.asUInt)
+        assert(p.reject || packet===distance(p.tail,p.speculative))
+        assert(!watching || inPacket || position<queued)
+        when(watching && (!inPacket || !p.reject) && (inPacket || position=/=0.U || !d.appValid)) {
+          assert(position===distance(p.head,slot.get)+d.appValid.asUInt)
+        }
+        assert(!watching || selected)
+        when(selected){assert(slot.get<=64.U)}
+        if(sparse) {
+          val ram=d.proofRam.get
+          val owned=watching && (!inPacket || !p.reject) && !(position===0.U && d.appValid)
+          when(owned && ram.pendingWrite && ram.pendingAddress===slot.get){assert(ram.pendingData===watched)}
+          when(owned && ram.trackedValid){assert(ram.trackedValue===watched)}
+          when(owned){assert((ram.pendingWrite && ram.pendingAddress===slot.get) || ram.trackedValid)}
+          when(cadence.enable && watching && (!inPacket || !p.reject) && !(position===0.U && d.appValid)) {
+            assert(ram.trackedValid && ram.trackedValue===watched)
+          }
+          val tag=RegNext(RegNext(RegNext(p.head)))
+          when(cadence.enable){assert(tag===p.head)}
+          val stageSeen=RegNext(watching && ram.trackedValid && ram.query===slot.get,false.B)
+          val outputSeen=RegNext(stageSeen,false.B)
+          when(stageSeen){assert(ram.stage===watched)}
+          when(outputSeen){assert(ram.output===watched)}
+        }
+      }
       assert(queued<=65.U)
       when(d.appValid){assert(queued=/=0.U)}
       when(d.appValid && watching && position===0.U){assert(same(d.appData,watched))}

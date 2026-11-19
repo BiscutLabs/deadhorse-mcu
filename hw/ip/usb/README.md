@@ -59,15 +59,55 @@ vendor/endpoint pipeline still needs its explicit sampling-equivalence proof.
 No asynchronous
 circuits or new handwritten Verilog are introduced.
 
-Area is unqualified. The historical diagnostic in the adoption assessment
-measured only the old engine and cannot establish this implementation's fit.
+Mapped areas are recorded for SIE, EP0, buffers, engine and the complete wrapper
+in the [area ledger](../../../docs/ledger/usb-area.md). These measurements and
+the report-only SRAM estimate do not establish routed die fit.
 Formal assumptions/proof results, behavioral negative controls and production
 GF180 timing must be recorded before T19 can be complete. Pad/ESD, VBUS
 conditioning, clock tolerance and host/board electrical compliance remain
 physical integration obligations.
 
 The retained SIE path `sie.data_q` to `sie.out_toggle_q` exceeds the existing
-sample-clock budget. Both registers use the protocol enable. The
-[timing decision proposal](../../../docs/spec/usb-timing-decision.md) describes
-the measured path, preliminary enable proofs and narrowly scoped multicycle
-qualification requested. No timing exception is currently applied.
+sample-clock budget. Both registers use the protocol enable. User decision
+[D45](../../../docs/plan/10-decisions-and-risks.md) (2026-11-18) approves setup 4 /
+hold 3 only between launch and capture registers proved to update exclusively
+on the common protocol enable, in SIE and Chisel `UsbControl`. The estimated
+budget is 0.60 × 4 × 1000/48 = 50 ns; all other paths retain their existing
+limits. The [timing decision](../../../docs/spec/usb-timing-decision.md) retains
+mandatory production-source/mapped-pin certificates, reset-safe cadence,
+classification, negative controls and independent review. Draft 4/3 constraints
+are applied only in unaccepted diagnostic runs; qualification remains unresolved.
+Approval does not qualify a full-rate
+decode or a pipeline at another enable phase. The user requires a stop before
+further restructuring if EP0's failing path is not enable-gated or any
+certified path exceeds 50 ns.
+
+The user subsequently authorized moving EP0 SETUP-header/decode work onto
+the common enable phase. Header staging is removed; descriptor/decode
+registers now use that enable. This is not yet qualified: proof that the
+retained SIE leaves sufficient CRC/EOP spacing for decode consumption is
+pending. Output and packet-boundary stages remain because their capture
+registers update at full sample rate. Under D46, an address-nonzero flag now
+shares the address register's reset/update priority; its equivalence invariant
+and fault control pass. Final frozen EP0 mapping fails: measured FC delay
+13.370109 ns from state[5] to header_5[6], against the estimated 12.5 ns
+budget. The earlier numerical pass used a different FSM mapping; final
+certificate-preserving mapping uses `-nofsm` on identical emitted RTL. State
+has a full-rate bus-reset override and cannot enter the certified class.
+The explicit stop condition applies; no further restructuring was performed.
+Standalone SIE, engine and wrapper also fail full-rate and hold/reset checks.
+Commands, paths and provenance are in the timing ledger.
+The draft class runner fails closed on incomplete qualification and does
+not establish an accepted multicycle exception. See the T19 report.
+
+D47 authorizes one packet-proof attempt of at most 45 minutes using a proved
+sparse-memory refinement and pointer/ownership invariants. All original
+assertions, assumptions and solver caps remain. Refinement alone does not
+establish the original buffer contracts; unresolved jobs remain required.
+
+D47 stopped within its time box: the sparse-memory refinement lemma passes,
+while both packet proofs remain unresolved. Common-reset warmup evidence
+does not qualify independent production transport resets or SIE consumption.
+Frozen aggregate and fast CI fail; the full tier was not run. The user
+subsequently authorized a review commit/push with these failures preserved;
+this does not qualify the implementation or authorize merging. See the T19 report.

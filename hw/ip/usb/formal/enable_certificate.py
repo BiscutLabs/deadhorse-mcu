@@ -1,0 +1,354 @@
+"""D45 source/mapped enable, cadence-step and reset-cone certificate.
+
+All sequential Q values are independent inputs for local implication proofs.
+Reset-safe temporal cadence is composed with the source-bound external receipt.
+"""
+import copy
+import hashlib
+import json
+from pathlib import Path
+import re
+import subprocess
+
+
+def sha(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def aliases(module):
+    result = {}
+    for name, net in module['netnames'].items():
+        if '$' in name:
+            continue
+        for index, bit in enumerate(net['bits']):
+            if isinstance(bit, int):
+                result.setdefault(bit, set()).add((name, index + net.get('offset', 0)))
+    return result
+
+
+def eligible_name(top, name):
+    if top=='Usb':
+        if not name.startswith('engine.'):return False
+        return eligible_name('UsbEngine',name[len('engine.'):])
+    if top == 'UsbControl':
+        local = name
+    elif top in ('UsbEngine','UsbSieTiming'):
+        if name.startswith('sie.') and name.count('.') == 1:
+            return name.endswith('_q')
+        if not name.startswith('control.'):
+            return False
+        local = name[len('control.'):]
+    else:
+        raise ValueError('D45 unsupported top')
+    return bool(re.fullmatch(r'header_[0-7]|descriptorLength|decode(?:Valid|Reply|Length|Pending|Value)Q', local))
+
+
+def bind_pins(module, certified):
+    """Only the exact scalar Q/D pins of the enumerated mapped FF qualify."""
+    for name, pins in certified.items():
+        cell = module['cells'].get(name)
+        if not cell or not re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__dff(?:rn|sn)?q_[124]', cell['type']):
+            raise ValueError('Unrecognized certified mapped register')
+        if pins != {'launch': name + '/Q', 'capture': name + '/D'}:
+            raise ValueError('Wrongly classified register pin')
+        if any(len(cell['connections'].get(p, [])) != 1 for p in ('Q', 'D', 'CLK')):
+            raise ValueError('Non-scalar certified register')
+
+
+def certify(top, sources, mapped, liberty, output, cadence_receipt=None):
+    output = Path(output)
+    output.mkdir(parents=True, exist_ok=False)
+    receipt = dict(status='failed', top=top, sources={str(p): sha(p) for p in sources},
+                   mapped_sha256=sha(mapped), library_sha256=sha(liberty),
+                   abstraction='All register Q values free; asynchronous reset not a data-path exception',
+                   certified={}, full_rate=[], source_registers=[])
+
+    def yosys(name, script, negative=False):
+        path = output / (name + '.ys')
+        path.write_text(script + '\n')
+        run = subprocess.run(['yosys', '-Q', '-T', '-s', str(path)], text=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
+        (output / (name + '.log')).write_text(run.stdout)
+        if negative:
+            if run.returncode != 1 or 'proof did fail' not in run.stdout:
+                raise ValueError('Negative enable control did not fail')
+        elif run.returncode or ('sat ' in script and 'SUCCESS!' not in run.stdout):
+            raise ValueError('Certificate failed: ' + name)
+
+    def pin_fault(name, cell_name, pin, monitor, value, extra=''):
+        # Rewire an actual mapped FF pin, then extract that mutated pin into
+        # the same cutpoint monitor used by the positive certificate.
+        faulty_module=copy.deepcopy(module)
+        faulty_module['cells'][cell_name]['connections'][pin]=value
+        (output/(name+'-mapped.json')).write_text(json.dumps({'modules':{top:faulty_module}}))
+        faulty_model=copy.deepcopy(model)
+        faulty_model['cells']['$'+monitor]['connections']['A']=faulty_module['cells'][cell_name]['connections'][pin]
+        (output/(name+'-cut.json')).write_text(json.dumps({'modules':{top:faulty_model}}))
+        yosys(name,'\n'.join([f'read_liberty -ignore_miss_func {liberty}',
+            f'read_json {output}/{name}-cut.json',f'hierarchy -check -top {top}',
+            'flatten','proc','opt_clean','check -assert','techmap','opt',
+            f'sat -set-def-inputs {extra} -prove {monitor} 1 -verify']),negative=True)
+
+    try:
+        yosys('prepare', '\n'.join([
+            f'read_slang --keep-hierarchy --top {top} -DSYNTHESIS ' + ' '.join(map(str, sources)),
+            f'hierarchy -check -top {top}', 'proc', 'flatten', 'opt',
+            f'write_json {output}/source.json']))
+        source = json.loads((output / 'source.json').read_text())['modules'][top]
+        names = aliases(source)
+        model = copy.deepcopy(source)
+        good_aliases = set()
+        other_aliases = set()
+        source_bits=[]
+        source_sie_group={}
+        assertions = []
+        enable_name = 'bitEnable' if top == 'UsbControl' else ('engine.' if top=='Usb' else '')+'cadence.enable'
+        enable = source['netnames'][enable_name]['bits']
+        if len(enable)!=1 or enable[0] not in names:
+            raise ValueError('Missing scalar protocol enable aliases')
+        enable_aliases=names[enable[0]]
+        model['ports']['certificate_enable'] = dict(direction='output', bits=enable)
+        register_count = 0
+        for name, cell in source['cells'].items():
+            if 'latch' in cell['type']:
+                raise ValueError('Latch in certificate source')
+            if 'dff' not in cell['type']:
+                continue
+            pins = cell['connections']
+            labels = set().union(*(names.get(q, set()) for q in pins['Q']))
+            selected = any(eligible_name(top, n) for n, _ in labels)
+            if selected:
+                if cell['type'] not in ('$adffe', '$dffe') or int(cell['parameters']['EN_POLARITY'], 2) != 1:
+                    raise ValueError('Candidate is not a positive-enabled register: ' + str(labels))
+                port = f'en_{len(assertions)}'
+                model['ports'][port] = dict(direction='output', bits=pins['EN'])
+                assertions.append(port)
+                good_aliases.update(labels)
+                sie_prefix='engine.sie.' if top=='Usb' else 'sie.'
+                is_sie=any(n.startswith(sie_prefix) and n.count('.')==sie_prefix.count('.') for n,_ in labels)
+                for label in labels:source_sie_group[label]=is_sie
+                source_bits.extend(names.get(q,set()) for q in pins['Q'])
+                receipt['source_registers'].append(dict(cell=name, aliases=sorted(labels)))
+            else:
+                other_aliases.update(labels)
+            model['ports'][f'q_{register_count}'] = dict(direction='input', bits=pins['Q'])
+            register_count += 1
+            del model['cells'][name]
+        if not assertions or good_aliases & other_aliases:
+            raise ValueError('Missing or mixed source register aliases')
+        source_model = output / 'source-cut.json'
+        source_model.write_text(json.dumps({'modules': {top: model}}))
+        proof = ' '.join('-prove ' + p + ' 0' for p in assertions)
+        yosys('source-proof', '\n'.join([f'read_json {source_model}', f'hierarchy -top {top}',
+              'opt_clean', 'check -assert', 'techmap', 'opt',
+              f'sat -set-def-inputs -set certificate_enable 0 {proof} -verify']))
+        # Mutate the real prepared register, then extract its enable exactly as
+        # in the positive case. Do not plant a failure in an assertion instead.
+        mutant = copy.deepcopy(model)
+        mutant_source = copy.deepcopy(source)
+        first_cell=receipt['source_registers'][0]['cell']
+        mutant_source['cells'][first_cell]['connections']['EN']=['1']
+        (output/'always-enabled-source.json').write_text(json.dumps({'modules':{top:mutant_source}}))
+        mutant['ports'][assertions[0]]['bits'] = mutant_source['cells'][first_cell]['connections']['EN']
+        (output / 'always-enabled.json').write_text(json.dumps({'modules': {top: mutant}}))
+        yosys('always-enabled', '\n'.join([f'read_json {output}/always-enabled.json',
+              f'hierarchy -top {top}', 'opt_clean', 'techmap', 'opt',
+              f'sat -set-def-inputs -set certificate_enable 0 {proof} -verify']), negative=True)
+
+        mapped_design = json.loads(Path(mapped).read_text())
+        module = mapped_design['modules'][top]
+        mapped_names = aliases(module)
+        # Reject synthesis recoding or lost identity rather than guessing which
+        # extra state bits inherited a source register's enable certificate.
+        source_eligible_names={n for n,_ in good_aliases if eligible_name(top,n)}
+        for bit,labels in mapped_names.items():
+            unexpected={label for label in labels if label[0] in source_eligible_names and label not in good_aliases}
+            if unexpected:
+                raise ValueError('Recoded or ambiguous certified aliases: '+str(sorted(unexpected)))
+        model = copy.deepcopy(module)
+        enable_bits={bit for bit,labels in mapped_names.items() if labels & enable_aliases}
+        if len(enable_bits)!=1:
+            raise ValueError('Missing or ambiguous mapped protocol enable aliases')
+        enable = list(enable_bits)
+        model['ports']['certificate_enable'] = dict(direction='output', bits=enable)
+        checks = []
+        next_bit = 1 + max(b for net in module['netnames'].values() for b in net['bits'] if isinstance(b, int))
+        for name, cell in module['cells'].items():
+            pins = cell['connections']
+            if 'CLK' not in pins:
+                continue
+            if 'dff' not in cell['type'] or len(pins.get('Q', [])) != 1:
+                raise ValueError('Unsupported mapped sequential cell')
+            labels = mapped_names.get(pins['Q'][0], set())
+            matched = labels & good_aliases
+            if matched:
+                if labels & other_aliases:
+                    raise ValueError('Mixed mapped register aliases: ' + name)
+                receipt['certified'][name] = {'launch': name + '/Q', 'capture': name + '/D'}
+                # Functional mapped hold proof. Liberty combinational cells stay
+                # real, while every FF's Q is freed independently.
+                port = f'hold_{len(checks)}'
+                model['ports'][port] = dict(direction='output', bits=[next_bit])
+                model['cells']['$certificate_' + port] = dict(type='$eq', parameters={'A_WIDTH':'1', 'B_WIDTH':'1',
+                    'Y_WIDTH':'1', 'A_SIGNED':'0', 'B_SIGNED':'0'}, attributes={},
+                    port_directions={'A':'input','B':'input','Y':'output'},
+                    connections={'A':pins['D'], 'B':pins['Q'], 'Y':[next_bit]})
+                next_bit += 1
+                checks.append(port)
+            else:
+                receipt['full_rate'].append(name)
+            model['ports']['free_' + name] = dict(direction='input', bits=pins['Q'])
+            del model['cells'][name]
+        if not checks:
+            raise ValueError('No mapped certified registers')
+        alias_to_bit={(n,index+net.get('offset',0)):bit for n,net in module['netnames'].items()
+                      for index,bit in enumerate(net['bits'])}
+        mapped_q={c['connections']['Q'][0]:n for n,c in module['cells'].items() if 'CLK' in c['connections'] and 'Q' in c['connections']}
+        connected_bits={b for c in module['cells'].values() for bits in c['connections'].values() for b in bits}
+        connected_bits.update(b for port in module['ports'].values() for b in port['bits'])
+        receipt['eliminated_unused_source_bits']=[]
+        for labels in source_bits:
+            targets={alias_to_bit[label] for label in labels if label in alias_to_bit}
+            if len(targets)!=1:
+                raise ValueError('Missing or ambiguous source-to-mapped bit identity: '+str(sorted(labels)))
+            target=next(iter(targets))
+            if isinstance(target,int) and target not in connected_bits:
+                receipt['eliminated_unused_source_bits'].append(sorted(labels))
+                continue
+            if isinstance(target,int) and mapped_q.get(target) not in receipt['certified']:
+                raise ValueError('Certified source bit became an unclassified mapped register')
+        # Every source-certified alias still present in mapped sequential state
+        # must bind to a certified register; optimized constants need no timing.
+        bind_pins(module, receipt['certified'])
+        faulty = copy.deepcopy(receipt['certified'])
+        first = next(iter(faulty))
+        faulty[first]['capture'] = first + '/CLK'
+        try:
+            bind_pins(module, faulty)
+        except ValueError:
+            receipt['wrong_pin_rejected'] = True
+        else:
+            raise ValueError('Wrong pin escaped certificate')
+        (output / 'mapped-cut.json').write_text(json.dumps({'modules': {top: model}}))
+        yosys('mapped-proof', '\n'.join([f'read_liberty -ignore_miss_func {liberty}',
+              f'read_json {output}/mapped-cut.json', f'hierarchy -check -top {top}',
+              'flatten', 'proc', 'opt_clean', 'check -assert', 'techmap', 'opt',
+              'sat -set-def-inputs -set certificate_enable 0 ' +
+              ' '.join('-prove ' + p + ' 1' for p in checks) + ' -verify']))
+        if top in ('UsbEngine','Usb','UsbSieTiming'):
+            prefix=('engine.' if top=='Usb' else '')+'cadence.'
+            proven=cadence_receipt['cases']['cadence_reset']['jobs']
+            expected=next(j['source_sha256']['UsbBitEnable.sv'] for j in proven if j['variant']=='correct')
+            actual=[p for p in sources if Path(p).name=='UsbBitEnable.sv']
+            if len(actual)!=1 or sha(actual[0])!=expected:
+                raise ValueError('Measured cadence differs from the proved production emission')
+            def translated(net):
+                result=[]
+                for bit in source['netnames'][net]['bits']:
+                    targets={alias_to_bit[label] for label in names[bit] if label in alias_to_bit}
+                    if len(targets)!=1:raise ValueError('Ambiguous cadence bit identity: '+net)
+                    result.append(next(iter(targets)))
+                return result
+            count=translated(prefix+'count');ce=translated(prefix+'enable');reset=translated(prefix+'reset_n')
+            if len(count)!=2 or len(ce)!=1 or len(reset)!=1:
+                raise ValueError('Unexpected cadence width')
+            clock=module['ports']['usbClock' if top=='Usb' else 'clk']['bits']
+            cadence_checks=[]
+            def equation(label,a,b):
+                nonlocal next_bit
+                port='cadence_'+label
+                model['ports'][port]=dict(direction='output',bits=[next_bit])
+                model['cells']['$'+port]=dict(type='$eq',parameters={'A_WIDTH':format(len(a),'b'),'B_WIDTH':format(len(b),'b'),
+                    'Y_WIDTH':'1','A_SIGNED':'0','B_SIGNED':'0'},attributes={},
+                    port_directions={'A':'input','B':'input','Y':'output'},connections={'A':a,'B':b,'Y':[next_bit]})
+                next_bit+=1;cadence_checks.append(port)
+            next_count=[next_bit,next_bit+1];next_bit+=2
+            model['cells']['$cadence_next_count']=dict(type='$add',parameters={'A_WIDTH':'10','B_WIDTH':'10','Y_WIDTH':'10','A_SIGNED':'0','B_SIGNED':'0'},
+                attributes={},port_directions={'A':'input','B':'input','Y':'output'},connections={'A':count,'B':['1','0'],'Y':next_count})
+            next_enable=[next_bit];next_bit+=1
+            model['cells']['$cadence_next_enable']=dict(type='$eq',parameters={'A_WIDTH':'10','B_WIDTH':'10','Y_WIDTH':'1','A_SIGNED':'0','B_SIGNED':'0'},
+                attributes={},port_directions={'A':'input','B':'input','Y':'output'},connections={'A':count,'B':['1','1'],'Y':next_enable})
+            for index,(q,want) in enumerate(zip(count+ce,next_count+next_enable)):
+                cell=module['cells'][mapped_q[q]]
+                if not re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__dffrnq_[124]',cell['type']) or cell['connections']['CLK']!=clock:
+                    raise ValueError('Cadence clock/reset polarity mismatch')
+                equation('step'+str(index),cell['connections']['D'],[want])
+                equation('reset'+str(index),cell['connections']['RN'],reset)
+            (output/'cadence-cut.json').write_text(json.dumps({'modules':{top:model}}))
+            yosys('cadence-mapped-step','\n'.join([f'read_liberty -ignore_miss_func {liberty}',
+                f'read_json {output}/cadence-cut.json',f'hierarchy -check -top {top}','flatten','proc','opt_clean','check -assert','techmap','opt',
+                'sat -set-def-inputs '+' '.join('-prove '+p+' 1' for p in cadence_checks)+' -verify']))
+            pin_fault('wrong-cadence-step',mapped_q[ce[0]],'D','cadence_step2',['0'])
+            pin_fault('wrong-cadence-reset',mapped_q[ce[0]],'RN','cadence_reset2',['1'])
+            receipt['cadence_binding']=dict(status='pass',emitted_sha256=expected,
+                mapped_registers=[mapped_q[q] for q in count+ce],clock=clock,reset=reset,
+                proof='Mapped count increments modulo four and enable captures count==3; all three RN pins equal production reset; zero reset values')
+        else:
+            receipt['cadence_binding']=dict(status='external-contract',port='bitEnable',
+                scope='Standalone EP0 timing is conditional on its production engine cadence certificate')
+        # Certify the reset cone of every actual destination as well as its CE.
+        # PHY bus_reset is still full-rate for timing; only its phase stability
+        # is used to justify the retained SIE's asynchronous reset boundary.
+        def reset_translate(net):
+            targets={alias_to_bit[label] for bit in source['netnames'][net]['bits'] for label in names[bit] if label in alias_to_bit}
+            if len(targets)!=1:raise ValueError('Missing/ambiguous reset identity: '+net)
+            return [next(iter(targets))]
+        base='engine.' if top=='Usb' else ''
+        root_reset=reset_translate('reset_n' if top=='UsbControl' else base+'cadence.reset_n')
+        sie_reset=None;reset_checks=[];bus_hold=[]
+        def reset_equal(label,a,b):
+            nonlocal next_bit
+            port='reset_check_'+str(label)
+            model['ports'][port]=dict(direction='output',bits=[next_bit])
+            model['cells']['$'+port]=dict(type='$eq',parameters={'A_WIDTH':'1','B_WIDTH':'1','Y_WIDTH':'1','A_SIGNED':'0','B_SIGNED':'0'},
+                attributes={},port_directions={'A':'input','B':'input','Y':'output'},connections={'A':a,'B':b,'Y':[next_bit]})
+            next_bit+=1;return port
+        if top!='UsbControl':
+            bus_reset=reset_translate(base+'sie.bus_reset_o')
+            bus_cell=module['cells'].get(mapped_q.get(bus_reset[0]))
+            if not bus_cell or not re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__dffrnq_[124]',bus_cell['type']):
+                raise ValueError('Bus reset is not an identifiable registered zero-reset level')
+            if bus_cell['connections']['CLK']!=clock:
+                raise ValueError('Bus reset register clock differs from protocol cadence')
+            bus_hold.append(reset_equal('bus_hold',bus_cell['connections']['D'],bus_cell['connections']['Q']))
+            reset_checks.append(reset_equal('bus_root',bus_cell['connections']['RN'],root_reset))
+            inverted=[next_bit];next_bit+=1;sie_reset=[next_bit];next_bit+=1
+            model['cells']['$bus_reset_not']=dict(type='$not',parameters={'A_WIDTH':'1','Y_WIDTH':'1','A_SIGNED':'0'},attributes={},
+                port_directions={'A':'input','Y':'output'},connections={'A':bus_reset,'Y':inverted})
+            model['cells']['$sie_reset_and']=dict(type='$and',parameters={'A_WIDTH':'1','B_WIDTH':'1','Y_WIDTH':'1','A_SIGNED':'0','B_SIGNED':'0'},attributes={},
+                port_directions={'A':'input','B':'input','Y':'output'},connections={'A':root_reset,'B':inverted,'Y':sie_reset})
+        receipt['reset_groups']={}
+        reset_fault_target=None
+        for name in receipt['certified']:
+            cell=module['cells'][name];pins=cell['connections']
+            if 'RN' not in pins:
+                if not re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__dffq_[124]',cell['type']):
+                    raise ValueError('Unsupported certified reset semantics')
+                receipt['reset_groups'][name]='no async reset; writes only on enable'
+                continue
+            labels=mapped_names[pins['Q'][0]]
+            origins={source_sie_group[label] for label in labels if label in source_sie_group}
+            if len(origins)!=1:raise ValueError('Mixed reset ownership aliases')
+            is_sie=next(iter(origins))
+            expected=sie_reset if is_sie else root_reset
+            if expected is None:raise ValueError('Unexpected SIE reset group')
+            reset_checks.append(reset_equal(len(reset_checks),pins['RN'],expected))
+            reset_fault_target=(name,reset_checks[-1])
+            receipt['reset_groups'][name]='root & !registered_bus_reset' if is_sie else 'root'
+        (output/'reset-cut.json').write_text(json.dumps({'modules':{top:model}}))
+        prepare_reset=[f'read_liberty -ignore_miss_func {liberty}',f'read_json {output}/reset-cut.json',
+            f'hierarchy -check -top {top}','flatten','proc','opt_clean','check -assert','techmap','opt']
+        yosys('reset-cones','\n'.join(prepare_reset+['sat -set-def-inputs '+' '.join('-prove '+p+' 1' for p in reset_checks)+' -verify']))
+        if reset_fault_target:
+            pin_fault('wrong-certified-reset',reset_fault_target[0],'RN',reset_fault_target[1],['1'])
+        if bus_hold:
+            yosys('bus-reset-phase','\n'.join(prepare_reset+['sat -set-def-inputs -set certificate_enable 0 '+' '.join('-prove '+p+' 1' for p in bus_hold)+' -verify']))
+            pin_fault('non-enabled-bus-reset',mapped_q[bus_reset[0]],'D',bus_hold[0],['1'],'-set certificate_enable 0')
+        receipt.update(status='pass', negative_controls=['always-enabled', 'wrong-pin','wrong-certified-reset']+
+            (['wrong-cadence-step','wrong-cadence-reset','non-enabled-bus-reset'] if top!='UsbControl' else []))
+    except Exception as error:
+        receipt['error'] = str(error)
+    (output / 'result.json').write_text(json.dumps(receipt, indent=2) + '\n')
+    if receipt['status'] != 'pass':
+        raise ValueError(receipt.get('error', 'Enable certification failed'))
+    return receipt

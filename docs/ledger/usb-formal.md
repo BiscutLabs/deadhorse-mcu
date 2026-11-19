@@ -1,6 +1,6 @@
 # T19 USB formal ledger
 
-All results below are **measured**, using the pinned environment at Git base
+Checkpoint results preceding the D45 follow-up are **measured** at Git base
 `a280df4fa17516a2ac8507628a6f12e3c4128895` plus uncommitted T19 sources.
 Emitted source hashes in each receipt identify the actual checked model.
 They do not certify later source changes. T19 remains incomplete.
@@ -55,3 +55,143 @@ See [the harness contract](../../hw/ip/usb/formal/README.md) for every input
 restriction and abstraction. Digital proofs do not establish analog CDC,
 physical reset recovery, USB electrical compliance or whole-system wake.
 The SIE certificate alone does not authorize multicycle timing.
+## D45 follow-up: reset cadence and packet-proof triage (2026-11-18)
+
+At baseline `38e0bddb691288eeba92cb257d30935a40c15fb6` plus working changes,
+`python tools/env/run.py run -- python3 hw/ip/usb/formal/check.py --json build/t19/regmap/usb_regs.json --case cadence_reset --output build/t19/d45-cadence-05`
+**measured** PASS for covers, two-cycle-enable fault rejection and both
+unbounded ABC PDR assertions. The monitor history survives DUT reset and is
+initialized only in the initial formal state. Reset is initially low and
+then arbitrary. Assertions establish no enabled captures less than four
+sample edges apart and four prior reset-released edges before a capture.
+This is not yet a binding of the cadence to a measured combined engine.
+
+Independent reviewer step-0 command:
+`python tools/env/run.py run -- python3 scratch/t19_packet_step0_review.py`.
+Prepared-model statistics were corrected using `--stats-only`, without
+repeating solver jobs. Evidence: `build/t19/packet-step0-review-01/result.json`.
+The table's counts, times and solver results are **measured** diagnostics.
+
+| Step-0 measurement | IN lane zero | OUT lane zero |
+| --- | ---: | ---: |
+| Prepared cells | 340 | 319 |
+| Sequential state bits, including `$anyinit` | 261 | 244 |
+| Memories / storage bits | 9 / 576 | 9 / 576 |
+| Quarter-depth BMC (12) | PASS, 0.6167 s | PASS, 0.4662 s |
+| Half-depth BMC (24) | PASS, 5.9731 s | PASS, 4.6210 s |
+| Preserved depth-48 portfolio | TIMEOUT, 121.3632 s | TIMEOUT, 121.1839 s |
+| Preserved earliest cover bounds (zero-based) | 14, 22, 18, 22 | 15, 10, 16 |
+
+These bounded passes do not close any unbounded acceptance requirement.
+The original solver cap remains 120 s; measured wall time includes shutdown.
+Full-byte Z3 reached step 35, lane-zero step 36 before timeout. Queue control,
+service and symbolic-data integrity remain coupled to the storage model.
+All original assertions and reset/input assumptions were retained.
+
+Baseline ABC is followed by rung 1 (portfolio) and rung 4 (exact lane split),
+both unresolved. One of the three permitted rungs remains. The proposed
+remaining rung 3 is arbitrary-entry memory abstraction with real control and
+an exact tracked-entry read/write contract; equality-relevant data must not
+be freed or valid assumed. It was not attempted before the new timing stop.
+If unresolved, stop: the smallest expected next approach is proved
+pointer-distance/occupancy and read-pipeline invariants (rung 6, requiring
+approval). No unchanged timed-out job was rerun, no acceptance label changed,
+and no new unbounded packet proof is claimed.
+
+## D47 scoped sparse-memory and ownership attempt
+
+User approval: up to 45 minutes, unchanged assertions, assumptions, bounds,
+solver caps and acceptance. The attempt ran from 2026-11-19 02:12:29 UTC to
+02:54:54 UTC (local date 2026-11-18), **measured** by the session clock;
+elapsed time is **estimated** by subtraction as 42 minutes 25 seconds.
+No further positive packet-proof jobs were launched after this stop.
+
+The step-0 table above is retained. D47 extends the prior portfolio/lane split
+with a sound sparse-memory refinement and asserted helper invariants. This
+was one time-boxed proof-engineering attempt with changed model iterations,
+not permission for unchanged retries. All original six assertions per buffer
+and their input restrictions remain unchanged. Helpers inspect proof-only
+state, add no assumptions, and are themselves required to prove.
+
+The table is **measured** from source-bound job receipts at baseline
+`38e0bddb691288eeba92cb257d30935a40c15fb6` plus their recorded working models.
+Each command is `python tools/env/run.py run -- python3 hw/ip/usb/formal/check.py
+--json build/t19/regmap/usb_regs.json --case <case> --output build/t19/<run>`,
+combining the listed cases for that run. Sparse03 through Sparse06 also use
+`--portfolio` (ABC PDR plus Z3); other rows use ABC PDR. Every solver cap stays
+120 seconds, prove depth setting 48; elapsed wall time includes preparation
+and shutdown. TIMEOUT is unresolved, not a design failure or a bounded pass.
+
+| Run | Case | Positive result | Measured wall s |
+| --- | --- | --- | ---: |
+| `d46-helper-01` | `out_helpers` | TIMEOUT | 121.329 |
+| `d46-helper-02` | `in_helpers` | TIMEOUT | 121.275 |
+| `d46-sparse-01` | `in_sparse` | FAIL | 0.671 |
+| `d46-sparse-01` | `out_sparse` | TIMEOUT | 121.875 |
+| `d46-sparse-02` | `in_sparse` | TIMEOUT | 121.718 |
+| `d46-sparse-02` | `out_sparse` | TIMEOUT | 121.180 |
+| `d46-sparse-03` | `in_sparse` | TIMEOUT | 121.465 |
+| `d46-sparse-03` | `out_sparse` | TIMEOUT | 121.106 |
+| `d46-sparse-04` | `in_sparse` | TIMEOUT | 121.612 |
+| `d46-sparse-04` | `out_sparse` | TIMEOUT | 121.192 |
+| `d46-sparse-05` | `in_sparse` | TIMEOUT | 121.362 |
+| `d46-sparse-05` | `out_sparse` | TIMEOUT | 121.351 |
+| `d46-sparse-06` | `in_sparse` | TIMEOUT | 121.116 |
+| `d46-sparse-06` | `out_sparse` | TIMEOUT | 121.961 |
+
+Initial sparse-model failures were spurious: the IN trace replay on the real
+production memory passed (`python tools/env/run.py run -- python3
+scratch/t19_replay_sparse.py`, `build/t19/d46-replay-01`). The model was corrected
+to reproduce registered-address/current-array read semantics followed by two
+data stages. The first refinement cover erased unused real RAM; corrected
+covers explicitly observe both real and sparse outputs. These failed drafts
+remain preserved. Helper01 also contains an emitter/source-change failure;
+its aggregate receipt is not accepted. Sparse03's OUT helper omitted the
+rejected-packet guard; it was corrected before later attempts, without changing
+any original assertion.
+
+Final memory refinement command:
+
+```sh
+python tools/env/run.py run -- python3 tools/sbt.py "runMain deadhorse.usb.EmitUsbMemoryRefinement build/t19/d46-memory-refine-06/emit"
+python tools/env/run.py run -- python3 hw/ip/usb/formal/memory_refinement.py --emit build/t19/d46-memory-refine-06/emit --output build/t19/d46-memory-refine-06/proof
+# cover PASS; corrupt FAIL; correct PASS (unbounded ABC PDR)
+```
+
+The binding selects actual production RAM words through muxes, removes only
+the three witness-input drivers, rejects missing/aliased words, and adds no
+assumptions. The read-phase mutant adds a sample edge. Independent review
+reran the earlier identical functional refinement and verified its binding
+and the common-reset harness warmup scope. Later receipts also bind Scala/script/emission hashes
+before and after execution. This proves the memory simulation relation, not
+the unresolved packet-buffer contracts.
+
+Final Sparse06 real-model covers and missing-commit/publish/withheld-valid
+fault controls pass; both positive jobs time out. Induction-only traces expose
+unreachable helper states, not demonstrated production counterexamples.
+Independent review confirms the original assertions/guards/bounds are intact.
+Fresh default production emission (`EmitUsb build/t19/d46-production-hook-review-01`)
+is byte-identical for every IN/OUT RTL file to both `d46-emit-02` and `emit-13`.
+
+Smallest remaining candidate change: prove the OUT oracle lifecycle bound
+`watching && inPacket => position < queued +& packet`. The final induction
+trace starts with queued=4, packet=37, position=46, then publishes a watched
+position beyond committed occupancy. This is an unreachable-start diagnostic.
+IN has no new counterexample; Z3 was still working at induction step 38.
+The next expected approach is to prove oracle/control helpers independently
+with the irrelevant RAM cone removed, then compose data ownership while
+retaining every original assertion in the proof union. This is proposed,
+unmeasured work, not a guaranteed closure or an approved further attempt.
+
+The aggregate retains packet proofs as blocking unresolved obligations. It
+refreshes real-model covers/faults through `--controls-only`, which explicitly
+returns nonzero/unresolved and cannot grant acceptance. Positive timed-out jobs
+are not silently repeated, skipped into a pass, or accepted as deferrals.
+
+Independent final review identifies a remaining reset-composition gap: the
+proof harness resets cadence and buffers together; production inRelease and
+outRelease can reset buffers while engine cadence continues. Therefore
+`CE => memoryAge == 3` is only common-reset harness evidence. A proposed next
+proof must qualify warmup by actual IN-valid/OUT-RAM capture and establish
+the retained SIE consumption/reset contract. This is unmeasured, unresolved
+work outside the exhausted D47 attempt; no additional positive job was run.
