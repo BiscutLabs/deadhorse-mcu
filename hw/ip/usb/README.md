@@ -2,10 +2,11 @@
 
 Status: implementation in progress; acceptance has not passed.
 
-Current D52 status: equivalent resume factoring and same-function cell sizing
-leave two integrated CF setup failures. Local independent-reset buffer warmup
-is proved; complete packet, sampling/exception and pad qualification remain
-open. See [D52 below](#d52-full-rate-closure-pass) and the
+Current D53 status: the 16-byte candidate exceeds 1 Mbit/s per direction under
+the measured MMIO service contract and reduces mapped area. An inherited
+short-packet replay defect, integrated timing failures and packet/qualification
+obligations block acceptance. Frozen aggregate and fast CI fail; full tier is
+unrun. See [D53 below](#d53-conditional-16-byte-packets) and the
 [T19 report](../../../docs/plan/tasks/reports/T19.md).
 
 ## Historical D48-D50 baseline
@@ -61,7 +62,8 @@ The [brief](../../../docs/plan/tasks/T19-usb.md) and
 The USB engine is entirely in the required 48 MHz sample-clock domain.
 It retains the pinned MIT SIE/PHY, with Chisel control endpoint, packet buffers
 and composition. Endpoint zero has an eight-byte maximum packet; bulk IN/OUT
-endpoint one has a 64-byte maximum packet. Descriptor bytes retain the supplied
+endpoint one uses the conditional D53 16-byte maximum packet candidate (the
+previous D52 baseline used 64 bytes). Descriptor bytes retain the supplied
 single-channel CDC configuration. VID/PID are product parameters; zero defaults
 are simulation-only and are not assigned shipping identifiers.
 
@@ -213,3 +215,64 @@ faults. Complete packet integrity, SIE consumption, sampling equivalence,
 exception qualification and the pad/board contract remain open. Existing
 zero-delay IO hold/removal screens remain visible; no pre-CTS hold RTL is added.
 The scoped ownership and all four assertion-partition jobs timed out under existing caps; no unchanged retry follows. Frozen USB aggregate and fast CI fail at USB; full tier was not run. Eleven simulations, eleven focused formal cases, resume equivalence and supporting controls pass. Independent review confirms the limited claims; T19 remains incomplete.
+
+
+## D53 conditional 16-byte packets
+
+The user approved a 16-byte bulk-packet candidate on 2026-11-19 if throughput
+is acceptable, giving a 1 Mbit/s target. The assessment uses 1,000,000 payload
+bits/s (125,000 bytes/s) in each direction through the complete MMIO/CDC wrapper.
+These are acceptance targets, not measured throughput. The candidate coordinates
+SIE maximum packet size and both bulk descriptors with derived FIFO geometry:
+17 logical slots, five-bit pointers, three eight-byte banks (24 physical bytes).
+The reserved ring slot and staging/prefetch byte remain; public capacity is 17.
+EP0/interrupt packet sizes, four-sample cadence, RAM latency, service deadlines
+and timing/solver limits stay unchanged. Measured full-packet throughput meets
+the target below; adoption remains blocked by replay correctness, timing and
+the unresolved proof/qualification requirements.
+
+
+Measured by `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output
+build/t19/d53-frozen-check-01`, base commit
+d45e50f457f3576949b8fdbfd6e1bb69652aaa53 plus frozen source hashes.
+Full public MMIO/CDC wrapper, assumed USB 48 MHz and application/AON 12 MHz,
+continuous fair polling, seed 5715/5716. Host schedule offers 128 payload bytes
+per 1 ms frame per active direction for 10 frames; CRC/stuffing, SOFs, retries,
+refill/drain and final transport overhead are included. Unique ACK-committed IN
+bytes and OUT bytes actually read/popped through MMIO form the numerator.
+These are digital simulation rates under this service contract, not host/board
+qualification or a maximum-throughput estimate.
+
+| Traffic | Measured samples | Measured IN bytes | Measured OUT bytes | Measured IN bit/s | Measured OUT bit/s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| IN only | 480712 | 1280 | 0 | 1022483.316 | 0.000 |
+| OUT only | 480000 | 0 | 1280 | 0.000 | 1024000.000 |
+| Simultaneous | 480712 | 1280 | 1280 | 1022483.316 | 1022483.316 |
+
+Each active IN run delivered 80 full 16-byte packets, seven deliberate lost-ACK
+retries and one final ZLP; no short IN packets occurred in the positive schedule.
+The target is the user-approved 1 Mbit/s, conservatively required in each direction.
+
+The throttled-service negative control **fails on a real protocol defect before
+the rate oracle is reached**: DATA1 payload `[126]` replays as `[126,214]` after
+another application write and a lost ACK. The exact retry assertion is retained.
+Independent review confirms the same visible-tail refresh logic in the 64-byte
+D52 baseline: this is an inherited replay-boundary bug, not a size-induced data
+corruption claim. A host may discard the longer duplicate then ACK, losing the
+added byte when the DUT commits it. No successful rate-negative-control result
+or complete packet correctness is claimed.
+
+Measured D53 mapped areas are IN 39542.1376 um², OUT 38339.1680 um²,
+engine 156976.5568 um² and complete wrapper 197043.3472 um². Estimated reduction
+versus the measured D52 areas is 63.601/63.810/46.770/40.715 percent respectively
+(100×(old−new)/old); exact figures are in the area ledger. Engine CF/FC/FF and
+wrapper CF setup paths still fail; all limits remain. Actual-RAM refinement,
+eleven focused formal cases and their controls pass, while full packet proof
+is unresolved. D50/C remains ineligible at depth 48: even the 8-byte model has an
+estimated 56-edge minimum IN fill interval after its first RAM write.
+
+Independent review clears these limited claims for an incomplete checkpoint.
+Repairing replay requires separately approved packet-boundary ownership; that
+approval is pending. No such state change or SRAM swap is included. Functional
+sources stayed frozen through aggregate and fast CI; only reporting changed
+after the matching source-inventory audit. Full tier was not run.

@@ -8,61 +8,66 @@ import chisel3.util._
 /** Registered banked packet RAM. All three read stages complete between bit-enable
   * edges; no combinationally addressed storage larger than eight words.
   */
-class UsbMemoryProofInputs extends Bundle {
-  val track=Bool();val trackAddress=UInt(7.W);val forgotten=UInt(8.W)
+class UsbMemoryProofInputs(packetBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends Bundle {
+  val track=Bool();val trackAddress=UInt(UsbPacketGeometry(packetBytes).pointerBits.W);val forgotten=UInt(8.W)
 }
-class UsbMemoryProofState extends Bundle {
-  val trackedValid=Bool();val trackedValue=UInt(8.W);val query=UInt(7.W)
+class UsbMemoryProofState(packetBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends Bundle {
+  private val bits=UsbPacketGeometry(packetBytes).pointerBits
+  val trackedValid=Bool();val trackedValue=UInt(8.W);val query=UInt(bits.W)
   val stage=UInt(8.W);val output=UInt(8.W)
-  val pendingWrite=Bool();val pendingAddress=UInt(7.W);val pendingData=UInt(8.W)
+  val pendingWrite=Bool();val pendingAddress=UInt(bits.W);val pendingData=UInt(8.W)
 }
-abstract class UsbPacketMemoryPort(sparseInterface: Boolean=false) extends RawModule {
-  val proof=if(sparseInterface) Some(IO(Input(new UsbMemoryProofInputs))) else None
-  val observed=if(sparseInterface) Some(IO(Output(new UsbMemoryProofState))) else None
+abstract class UsbPacketMemoryPort(packetBytes: Int = UsbPacketSizing.bulkMaxPacketBytes, sparseInterface: Boolean=false) extends RawModule {
+  val geometry=UsbPacketGeometry(packetBytes)
+  val proof=if(sparseInterface) Some(IO(Input(new UsbMemoryProofInputs(packetBytes)))) else None
+  val observed=if(sparseInterface) Some(IO(Output(new UsbMemoryProofState(packetBytes)))) else None
   val clk = IO(Input(Clock())); val reset_n = IO(Input(Bool()))
-  val write = IO(Input(Bool())); val writeAddress = IO(Input(UInt(7.W)))
-  val writeData = IO(Input(UInt(8.W))); val readAddress = IO(Input(UInt(7.W)))
+  val write = IO(Input(Bool())); val writeAddress = IO(Input(UInt(geometry.pointerBits.W)))
+  val writeData = IO(Input(UInt(8.W))); val readAddress = IO(Input(UInt(geometry.pointerBits.W)))
   val readData = IO(Output(UInt(8.W)))
 }
-class UsbPacketMemory extends UsbPacketMemoryPort {
+class UsbPacketMemory(packetBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends UsbPacketMemoryPort(packetBytes) {
   withClockAndReset(clk,(!reset_n).asAsyncReset) {
-    val banks = Seq.fill(9)(SyncReadMem(8, UInt(8.W)))
-    val wordAddress = RegNext(writeAddress(2,0))
+    val banks = Seq.fill(geometry.banks)(SyncReadMem(geometry.bankWords, UInt(8.W)))
+    val wordAddress = RegNext(writeAddress(geometry.wordBits-1,0))
     val wordData = RegNext(writeData)
     val words = banks.zipWithIndex.map { case (memory, bank) =>
-      val writeBank = RegNext(write && writeAddress(6,3) === bank.U,false.B)
+      val writeBank = RegNext(write && writeAddress(geometry.pointerBits-1,geometry.wordBits) === bank.U,false.B)
       when(writeBank && reset_n) { memory.write(wordAddress,wordData) }
-      RegNext(memory.read(readAddress(2,0), true.B))
+      RegNext(memory.read(readAddress(geometry.wordBits-1,0), true.B))
     }
-    val selection = RegNext(RegNext(readAddress(6,3)))
-    readData := RegNext(Mux(selection < 9.U, VecInit(words)(selection), 0.U))
+    val selection = RegNext(RegNext(readAddress(geometry.pointerBits-1,geometry.wordBits)))
+    readData := RegNext(Mux(selection < geometry.banks.U, VecInit(words)(selection), 0.U))
   }
 }
 
 /** USB IN queue: ACK commits consumption; a new IN token replays unacked data. */
-class UsbInProofState extends Bundle {
-  val head=UInt(7.W);val tail=UInt(7.W);val speculative=UInt(7.W);val visibleTail=UInt(7.W)
+class UsbInProofState(packetBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends Bundle {
+  private val bits=UsbPacketGeometry(packetBytes).pointerBits
+  val head=UInt(bits.W);val tail=UInt(bits.W);val speculative=UInt(bits.W);val visibleTail=UInt(bits.W)
   val stagingValid=Bool();val stagingVisible=Bool()
   val stagingData=UInt(8.W)
 }
-class UsbInBuffer(proofView: Boolean=false, memoryFactory: ()=>UsbPacketMemoryPort=()=>new UsbPacketMemory) extends RawModule {
-  val proof=if(proofView) Some(IO(Output(new UsbInProofState))) else None
-  val proofMemory=if(proofView) Some(IO(Input(new UsbMemoryProofInputs))) else None
-  val proofRam=if(proofView) Some(IO(Output(new UsbMemoryProofState))) else None
+class UsbInBuffer(proofView: Boolean=false, memoryFactory: Int=>UsbPacketMemoryPort=n=>new UsbPacketMemory(n),
+                  packetBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends RawModule {
+  private val geometry=UsbPacketGeometry(packetBytes)
+  val proof=if(proofView) Some(IO(Output(new UsbInProofState(packetBytes)))) else None
+  val proofMemory=if(proofView) Some(IO(Input(new UsbMemoryProofInputs(packetBytes)))) else None
+  val proofRam=if(proofView) Some(IO(Output(new UsbMemoryProofState(packetBytes)))) else None
   val clk = IO(Input(Clock())); val reset_n = IO(Input(Bool())); val bitEnable = IO(Input(Bool()))
   val appData = IO(Input(UInt(8.W))); val appValid = IO(Input(Bool())); val appReady = IO(Output(Bool()))
   val request = IO(Input(Bool())); val acknowledge = IO(Input(Bool())); val consume = IO(Input(Bool()))
   val data = IO(Output(UInt(8.W))); val valid = IO(Output(Bool())); val empty = IO(Output(Bool()))
   protected def commit(head: UInt, speculative: UInt): UInt = speculative
   protected def offer(value: Bool): Bool = value
-  val memory = Module(memoryFactory()); memory.clk := clk; memory.reset_n := reset_n
+  val memory = Module(memoryFactory(packetBytes)); memory.clk := clk; memory.reset_n := reset_n
   memory.proof.foreach(_:=proofMemory.get)
-  proofRam.foreach(_:=0.U.asTypeOf(new UsbMemoryProofState))
+  proofRam.foreach(_:=0.U.asTypeOf(new UsbMemoryProofState(packetBytes)))
   memory.observed.foreach(s=>proofRam.get:=s)
   withClockAndReset(clk,(!reset_n).asAsyncReset) {
-    def advance(pointer: UInt): UInt = Mux(pointer === 64.U,0.U,pointer + 1.U)
-    val head = RegInit(0.U(7.W)); val speculative = RegInit(0.U(7.W))
-    val tail = RegInit(0.U(7.W)); val visibleTail = RegInit(0.U(7.W))
+    def advance(pointer: UInt): UInt = Mux(pointer === packetBytes.U,0.U,pointer + 1.U)
+    val head = RegInit(0.U(geometry.pointerBits.W)); val speculative = RegInit(0.U(geometry.pointerBits.W))
+    val tail = RegInit(0.U(geometry.pointerBits.W)); val visibleTail = RegInit(0.U(geometry.pointerBits.W))
     val stagingData = RegInit(0.U(8.W)); val stagingValid = RegInit(false.B)
     val stagingVisible = RegInit(false.B); val ready = RegInit(false.B)
     proof.foreach { p=>p.head:=head;p.tail:=tail;p.speculative:=speculative;p.visibleTail:=visibleTail
@@ -98,27 +103,30 @@ class UsbInBuffer(proofView: Boolean=false, memoryFactory: ()=>UsbPacketMemoryPo
 }
 
 /** USB OUT queue: bad CRC/overflow rolls back all speculative packet bytes. */
-class UsbOutProofState extends Bundle {
-  val head=UInt(7.W);val tail=UInt(7.W);val speculative=UInt(7.W);val reject=Bool()
+class UsbOutProofState(packetBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends Bundle {
+  private val bits=UsbPacketGeometry(packetBytes).pointerBits
+  val head=UInt(bits.W);val tail=UInt(bits.W);val speculative=UInt(bits.W);val reject=Bool()
   val capture=Bool()
 }
-class UsbOutBuffer(proofView: Boolean=false, memoryFactory: ()=>UsbPacketMemoryPort=()=>new UsbPacketMemory) extends RawModule {
-  val proof=if(proofView) Some(IO(Output(new UsbOutProofState))) else None
-  val proofMemory=if(proofView) Some(IO(Input(new UsbMemoryProofInputs))) else None
-  val proofRam=if(proofView) Some(IO(Output(new UsbMemoryProofState))) else None
+class UsbOutBuffer(proofView: Boolean=false, memoryFactory: Int=>UsbPacketMemoryPort=n=>new UsbPacketMemory(n),
+                   packetBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends RawModule {
+  private val geometry=UsbPacketGeometry(packetBytes)
+  val proof=if(proofView) Some(IO(Output(new UsbOutProofState(packetBytes)))) else None
+  val proofMemory=if(proofView) Some(IO(Input(new UsbMemoryProofInputs(packetBytes)))) else None
+  val proofRam=if(proofView) Some(IO(Output(new UsbMemoryProofState(packetBytes)))) else None
   val clk = IO(Input(Clock())); val reset_n = IO(Input(Bool())); val bitEnable = IO(Input(Bool()))
   val received = IO(Input(UInt(8.W))); val receiveValid = IO(Input(Bool()))
   val receiveError = IO(Input(Bool())); val receiveReady = IO(Input(Bool()))
   val nak = IO(Output(Bool())); val appReady = IO(Input(Bool()))
   val appData = IO(Output(UInt(8.W))); val appValid = IO(Output(Bool())); val empty = IO(Output(Bool()))
   protected def publish(committed: UInt, speculative: UInt): UInt = speculative
-  val memory = Module(memoryFactory()); memory.clk := clk; memory.reset_n := reset_n
+  val memory = Module(memoryFactory(packetBytes)); memory.clk := clk; memory.reset_n := reset_n
   memory.proof.foreach(_:=proofMemory.get)
-  proofRam.foreach(_:=0.U.asTypeOf(new UsbMemoryProofState))
+  proofRam.foreach(_:=0.U.asTypeOf(new UsbMemoryProofState(packetBytes)))
   memory.observed.foreach(s=>proofRam.get:=s)
   withClockAndReset(clk,(!reset_n).asAsyncReset) {
-    def advance(pointer: UInt): UInt = Mux(pointer === 64.U,0.U,pointer + 1.U)
-    val head = RegInit(0.U(7.W)); val tail = RegInit(0.U(7.W)); val speculative = RegInit(0.U(7.W))
+    def advance(pointer: UInt): UInt = Mux(pointer === packetBytes.U,0.U,pointer + 1.U)
+    val head = RegInit(0.U(geometry.pointerBits.W)); val tail = RegInit(0.U(geometry.pointerBits.W)); val speculative = RegInit(0.U(geometry.pointerBits.W))
     val reject = RegInit(false.B); val valid = RegInit(false.B); val value = RegInit(0.U(8.W))
     proof.foreach { p=>p.head:=head;p.tail:=tail;p.speculative:=speculative;p.reject:=reject }
     val nextSpeculative = RegNext(advance(speculative),1.U)

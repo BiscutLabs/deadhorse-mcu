@@ -6,8 +6,9 @@ import deadhorse.lib.ResetRelease
 import java.nio.file.Paths
 
 /** Only the locked SIE/PHY enters production as vendor RTL. */
-class UsbSie extends BlackBox(Map("IN_CTRL_MAXPACKETSIZE" -> 8,
-  "IN_BULK_MAXPACKETSIZE" -> 64, "BIT_SAMPLES" -> 4)) with HasBlackBoxPath {
+class UsbSie(bulkPacketBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends BlackBox(Map("IN_CTRL_MAXPACKETSIZE" -> 8,
+  "IN_BULK_MAXPACKETSIZE" -> bulkPacketBytes, "BIT_SAMPLES" -> 4)) with HasBlackBoxPath {
+  UsbPacketGeometry(bulkPacketBytes)
   override def desiredName = "sie"
   val io = IO(new Bundle {
     val clk_i = Input(Clock()); val rstn_i = Input(Bool()); val clk_gate_i = Input(Bool())
@@ -30,7 +31,7 @@ class UsbSie extends BlackBox(Map("IN_CTRL_MAXPACKETSIZE" -> 8,
     addPath(Paths.get("build/vendor/usb/rtl",file).toAbsolutePath.toString)
 }
 
-class UsbEngine(vid: Int = 0, pid: Int = 0) extends RawModule {
+class UsbEngine(vid: Int = 0, pid: Int = 0, bulkPacketBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends RawModule {
   val clk = IO(Input(Clock())); val reset_n = IO(Input(Bool())); val vbus = IO(Input(Bool()))
   val dpRx = IO(Input(Bool())); val dnRx = IO(Input(Bool()))
   val dpTx = IO(Output(Bool())); val dnTx = IO(Output(Bool())); val txEnable = IO(Output(Bool()))
@@ -45,9 +46,9 @@ class UsbEngine(vid: Int = 0, pid: Int = 0) extends RawModule {
   val release = Module(new ResetRelease)
   release.clk := clk; release.reset_n := reset_n && vbus
   val engineReset = release.released
-  val sie = Module(new UsbSie)
-  val control = Module(new UsbControl(vid,pid))
-  val in = Module(new UsbInBuffer); val out = Module(new UsbOutBuffer)
+  val sie = Module(new UsbSie(bulkPacketBytes))
+  val control = Module(new UsbControl(vid,pid,bulkPacketBytes))
+  val in = Module(new UsbInBuffer(packetBytes=bulkPacketBytes)); val out = Module(new UsbOutBuffer(packetBytes=bulkPacketBytes))
   control.clk := clk; control.reset_n := engineReset
   in.clk := clk; out.clk := clk
   sie.io.clk_i := clk; sie.io.rstn_i := engineReset

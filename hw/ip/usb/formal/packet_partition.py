@@ -19,6 +19,7 @@ def run(output, regmap):
     output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
     bound = [Path(__file__),Path('hw/ip/usb/formal/UsbBufferFormal.scala'),
+        Path('hw/ip/usb/src/main/scala/deadhorse/usb/UsbPacketSizing.scala'),
         Path('hw/ip/usb/formal/UsbFormal.scala'),Path('hw/ip/usb/src/main/scala/deadhorse/usb/UsbPacketBuffer.scala'),
         Path('hw/ip/usb/src/main/scala/deadhorse/usb/UsbBitEnable.scala')]
     hashes = lambda: {str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in bound}

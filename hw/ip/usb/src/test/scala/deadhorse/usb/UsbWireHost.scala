@@ -33,7 +33,9 @@ class UsbWireBench(corrupt: Boolean = false) extends Module with UsbWirePorts {
 class UsbWireHost(d: Module with UsbWirePorts, checkConfiguredReset: Boolean=true) extends chisel3.simulator.PeekPokeAPI {
   val ACK=2; val NAK=10; val STALL=14; val DATA0=3; val DATA1=11; val IN=9; val OUT=1; val SETUP=13
   def bool(x: Bool): Boolean=x.peek().litValue==1
-  def step(n: Int=1): Unit=d.clock.step(n)
+  private var samples=0L
+  def elapsedSamples: Long=samples
+  def step(n: Int=1): Unit={if(n>0){d.clock.step(n);samples+=n}}
   def idle(bits: Int=4): Unit={d.hostDrive.poke(false.B); step(bits*4)}
   def initialize(afterReset: ()=>Unit=()=>()): Unit={
     d.hostDrive.poke(false.B); d.hostDp.poke(true.B); d.hostDn.poke(false.B)

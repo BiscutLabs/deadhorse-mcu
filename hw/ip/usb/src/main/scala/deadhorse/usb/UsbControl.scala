@@ -9,17 +9,18 @@ import chisel3.util._
 object UsbDescriptors {
   def device(vid: Int, pid: Int): Seq[Int] = Seq(18,1,0,2,2,0,0,8,
     vid & 255,vid >> 8,pid & 255,pid >> 8,0x10,1,0,0,0,1)
-  val configuration: Seq[Int] = Seq(9,2,67,0,2,1,0,0x80,0x32,
+  def configuration(bulkPacketBytes: Int): Seq[Int] = Seq(9,2,67,0,2,1,0,0x80,0x32,
     9,4,0,0,1,2,2,1,0,5,0x24,0,0x10,1,5,0x24,1,0,1,
     4,0x24,2,0,5,0x24,6,0,1,7,5,0x82,3,8,0,255,
-    9,4,1,0,2,0x0a,0,0,0,7,5,1,2,64,0,0,7,5,0x81,2,64,0,0)
+    9,4,1,0,2,0x0a,0,0,0,7,5,1,2,bulkPacketBytes,0,0,7,5,0x81,2,bulkPacketBytes,0,0)
 }
 
 /** Packet-level control endpoint. Inputs are sampled only on bitEnable.
   * Registered decode has three sample-clock edges to settle before the next
   * enabled edge. Address/configuration changes commit only on status ACK.
   */
-class UsbControl(vid: Int = 0, pid: Int = 0) extends RawModule {
+class UsbControl(vid: Int = 0, pid: Int = 0, bulkPacketBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends RawModule {
+  UsbPacketGeometry(bulkPacketBytes)
   protected def statusAcknowledged(ack: Bool,sent: Bool): Bool=ack && sent
   protected def addressPresent(value: UInt): Bool=value.orR
   protected def checkAddress(address: UInt,present: Bool): Unit={}
@@ -76,7 +77,7 @@ class UsbControl(vid: Int = 0, pid: Int = 0) extends RawModule {
       RegNext(Mux(bankIndex < groups.size.U,VecInit(bankBytes)(bankIndex),0.U),0.U)
     }
     val deviceByte = readDescriptor(UsbDescriptors.device(vid,pid))
-    val configurationByte = readDescriptor(UsbDescriptors.configuration)
+    val configurationByte = readDescriptor(UsbDescriptors.configuration(bulkPacketBytes))
     val replyByte = Mux(response === 1.U,deviceByte,Mux(response === 2.U,configurationByte,
       Mux(response === 3.U, configuredQ.asUInt, 0.U))
     )

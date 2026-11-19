@@ -19,7 +19,7 @@ class UsbWireSpec extends AnyFunSuite with ChiselSim {
       host.write(0,5,5)
       val configuration=Seq(9,2,67,0,2,1,0,0x80,0x32,9,4,0,0,1,2,2,1,0,
         5,0x24,0,0x10,1,5,0x24,1,0,1,4,0x24,2,0,5,0x24,6,0,1,
-        7,5,0x82,3,8,0,255,9,4,1,0,2,0x0a,0,0,0,7,5,1,2,64,0,0,7,5,0x81,2,64,0,0)
+        7,5,0x82,3,8,0,255,9,4,1,0,2,0x0a,0,0,0,7,5,1,2,16,0,0,7,5,0x81,2,16,0,0)
       assert(host.read(5,6,0x200,255,retryFirst=true)==configuration)
       host.setup(5,host.setupBytes(0,9,1,0,0));host.statusWrite(5,ack=false)
       assert(!host.bool(d.configured),"configuration committed before ACK")
@@ -34,25 +34,30 @@ class UsbWireSpec extends AnyFunSuite with ChiselSim {
     simulate(new UsbWireBench) { d=>
       val host=new UsbWireHost(d);host.initialize();host.write(0,5,5);host.write(5,9,1)
       val incoming=(0 until 64).map(i=>if(i%3==0)255 else (i*73)&255)
-      host.token(host.OUT,5,1);host.idle(2);host.data(host.DATA0,incoming,badCrc=true)
-      host.silence(500);assert(!host.bool(d.rxValid),"bad CRC published bytes")
-      host.token(host.OUT,5,1);host.idle(2);host.data(host.DATA0,incoming)
-      assert(host.receive()._1==host.ACK);host.idle(30)
-      assert(host.drain(64)==incoming,"OUT packet corrupted or reordered")
+      val received=incoming.grouped(16).zipWithIndex.flatMap { case(bytes,index)=>
+        val pid=if(index%2==0)host.DATA0 else host.DATA1
+        host.token(host.OUT,5,1);host.idle(2);host.data(pid,bytes,badCrc=true)
+        host.silence(500);assert(!host.bool(d.rxValid),"bad CRC published bytes")
+        host.token(host.OUT,5,1);host.idle(2);host.data(pid,bytes)
+        assert(host.receive()._1==host.ACK);host.idle(30)
+        host.drain(bytes.size)
+      }.toSeq
+      assert(received==incoming,"OUT stream corrupted or reordered")
       host.idle(50);assert(!host.bool(d.rxValid),"OUT duplicated bytes")
       val outgoing=(0 until 64).map(i=>(i*117+31)&255)
-      host.enqueue(outgoing)
-      host.token(host.IN,5,1);val first=host.receive()
-      assert(first==(host.DATA0,outgoing),s"IN packet mismatch $first")
-      host.idle(4);host.token(host.IN,5,1)
-      assert(host.receive()==first,"bulk lost-ACK replay changed")
-      host.idle(2);host.packet(host.ACK);host.idle(30)
-      // This retained byte-stream SIE terminates an exact-MPS transfer with a
-      // data-toggle ZLP. Require no extra payload, then ACK and require NAK.
-      host.token(host.IN,5,1);assert(host.receive()==(host.DATA1,Seq.empty),"missing exact-MPS terminal ZLP")
-      host.idle(2);host.packet(host.ACK);host.idle(30)
-      host.token(host.IN,5,1);assert(host.receive()._1==host.NAK,"ACK did not reclaim IN packet")
-      host.token(host.OUT,5,1);host.idle(2);host.data(host.DATA1,Seq(3,1,4,1,5))
+      for(bytes<-outgoing.grouped(16)) {
+        host.enqueue(bytes)
+        host.token(host.IN,5,1);val first=host.receive()
+        assert(first==(host.DATA0,bytes),s"IN packet mismatch $first")
+        host.idle(4);host.token(host.IN,5,1)
+        assert(host.receive()==first,"bulk lost-ACK replay changed")
+        host.idle(2);host.packet(host.ACK);host.idle(30)
+        // Each drained exact-MPS transfer still requires its terminal ZLP.
+        host.token(host.IN,5,1);assert(host.receive()==(host.DATA1,Seq.empty),"missing exact-MPS terminal ZLP")
+        host.idle(2);host.packet(host.ACK);host.idle(30)
+        host.token(host.IN,5,1);assert(host.receive()._1==host.NAK,"ACK did not reclaim IN packet")
+      }
+      host.token(host.OUT,5,1);host.idle(2);host.data(host.DATA0,Seq(3,1,4,1,5))
       assert(host.receive()._1==host.ACK);host.enqueue(Seq(9,2,6,5))
       host.write(5,9,1);host.idle(30)
       assert(!host.bool(d.rxValid),"repeated configuration retained RX bytes")
@@ -76,13 +81,13 @@ class UsbWireSpec extends AnyFunSuite with ChiselSim {
   test("bulk packet buffers wrap, reject full packets, retry and flush on USB reset") {
     simulate(new UsbWireBench) { d=>
       val h=new UsbWireHost(d);h.initialize();h.write(0,5,5);h.write(5,9,1)
-      for(round<-0 until 4) {
-        val bytes=(0 until 64).map(i=>(i+round*47)&255)
+      val stream=(0 until 4).flatMap(round=>(0 until 64).map(i=>(i+round*47)&255))
+      for((bytes,round)<-stream.grouped(16).zipWithIndex) {
         val pid=if(round%2==0)h.DATA0 else h.DATA1
         h.token(h.OUT,5,1);h.idle(2);h.data(pid,bytes);assert(h.receive()._1==h.ACK);h.idle(20)
         val nextPid=if(pid==h.DATA0)h.DATA1 else h.DATA0
         h.token(h.OUT,5,1);h.idle(2);h.data(nextPid,Seq.fill(8)(0xee));assert(h.receive()._1==h.NAK)
-        assert(h.drain(64)==bytes,"full packet overwrite or ring wrap")
+        assert(h.drain(bytes.size)==bytes,"full packet overwrite or ring wrap")
         h.idle(20);assert(!h.bool(d.rxValid))
       }
       h.enqueue(Seq(7,8,9));h.busReset();assert(!h.bool(d.rxValid) && !h.bool(d.configured))

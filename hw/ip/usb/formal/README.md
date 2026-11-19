@@ -5,7 +5,7 @@ Run through the pinned environment:
 ```sh
 python3 hw/ip/usb/formal/check.py --json build/t19/regmap/usb_regs.json --output build/t19/formal
 python3 hw/lib/formal/cdc_proof.py --width 8 --depth 2 --output build/t19/cdc
-python3 hw/ip/usb/formal/sie_enable.py --output build/t19/sie-enable
+python3 hw/ip/usb/formal/sie_enable.py --packet-bytes 16 --output build/t19/sie-enable
 ```
 
 Use fresh output directories. A timeout is unresolved, never an accepted
@@ -52,7 +52,7 @@ conjunction. Full-byte covers and fault controls remain required.
   Service is required by the next protocol edge after a request when queued
   data has remained settled for twelve sample edges, covering staging and RAM
   latency. An early token can legitimately receive NAK and require retry.
-- The OUT harness generates packets up to the public 64-byte bulk MPS, with
+- The OUT harness generates packets up to the configured bulk MPS (D53 candidate: 16 bytes), with
   arbitrary payload, stalls, termination/error and application readiness.
 - Resume proof uses a reduced idle threshold of seventeen samples; production
   timing and simulation use the required 144000-sample threshold. The reduced
@@ -142,3 +142,37 @@ packet acceptance: every partition, real-model controls, memory composition and
 production consumption contract remain required. `out_ownership` strengthens
 the existing sparse case with a watched-position occupancy invariant; its
 helpers remain assertions. Exhausted jobs are not automatically rerun by CI.
+
+## D53 size parameter
+
+`UsbPacketSizing.bulkMaxPacketBytes` supplies the default for the wrapper,
+engine, SIE, both bulk descriptors, packet buffers and formal harnesses.
+`UsbPacketGeometry` derives a maximum-packet-plus-one ring, pointer width and
+eight-word bank count. For the 16-byte candidate these are 17 slots, five-bit
+pointers and three banks (24 physical words); one ring slot is reserved.
+The staging/prefetched register adds one public byte of capacity. Padding
+addresses 17–23 remain real RAM words; addresses 24–31 read zero and ignore writes.
+
+Non-scaling constants are eight-bit bytes, eight-word banks, three RAM read
+stages, four sample clocks per protocol enable, and the existing 12/4/8-cycle
+service checks. EP0 and interrupt packet sizes remain eight bytes; USB address
+and EP0 descriptor/cursor widths are unchanged. There is no packet-size-specific
+buffer branch. Maximum packets and repeated pointer wraps are exercised by
+the wire suite; the existing depth-48 formal covers are not relabelled as
+maximum-packet covers or silently extended.
+
+Memory refinement requires an explicit `--packet-bytes 16` matching the fresh
+emission. It checks every mapped RAM identity and rejects a different supported
+size as a negative control. A receipt for an earlier size is not current proof.
+
+The OUT oracle uses one extra occupancy bit so an erroneous capacity-plus-packet
+commit cannot wrap below the unchanged capacity assertion. This repairs an
+existing monitor blind spot; no DUT behavior, assumption or assertion is relaxed.
+
+D50/C is still not eligible under the unchanged depth-48 cover cap, even at
+the minimum supported eight-byte model. Estimated lower bound: consecutive IN
+RAM writes require two four-cycle enables because staging cannot refill on its
+drain edge, so filling eight RAM entries takes at least `7 * 8 = 56` sample edges
+after the first write, excluding startup. Full and wrap witnesses take longer.
+Independent review confirmed this source-derived argument; no small-model job
+was launched and no cover bound was raised.

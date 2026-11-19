@@ -21,12 +21,14 @@ def enable_port(cell):
     return dict(direction='output',bits=cell['connections']['EN'])
 
 
-def run(output):
+def run(output,packet_bytes):
     output=Path(output).resolve();output.relative_to(ROOT/'build')
     if output.exists() and any(output.iterdir()):raise ValueError('Use fresh output')
     output.mkdir(parents=True)
     sources=[ROOT/'build/vendor/usb/rtl'/n for n in ('sie.v','phy_rx.v','phy_tx.v')]
     receipt=dict(status='running',source_sha256={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sources},
+        bulk_packet_bytes=packet_bytes,
+        sizing_source_sha256=hashlib.sha256((ROOT/'hw/ip/usb/src/main/scala/deadhorse/usb/UsbPacketSizing.scala').read_bytes()).hexdigest(),
         scope='SIE protocol register CE implication only; not mapped pin membership, hold timing, reset recovery or multicycle authorization',
         abstraction='All SIE sequential Q values and PHY outputs are independent arbitrary inputs',registers=[])
     def command(name,script,expected=0):
@@ -37,7 +39,7 @@ def run(output):
         return result.stdout
     try:
         command('prepare','\n'.join([
-            'read_slang --keep-hierarchy --top sie -GIN_CTRL_MAXPACKETSIZE=8 -GIN_BULK_MAXPACKETSIZE=64 -GBIT_SAMPLES=4 '+' '.join(map(str,sources)),
+            f'read_slang --keep-hierarchy --top sie -GIN_CTRL_MAXPACKETSIZE=8 -GIN_BULK_MAXPACKETSIZE={packet_bytes} -GBIT_SAMPLES=4 '+' '.join(map(str,sources)),
             'proc','opt',f'write_json {output}/prepared.json']))
         design=json.loads((output/'prepared.json').read_text());module=design['modules']['sie']
         model=copy.deepcopy(module);enables=[];cut=0;common_reset=None
@@ -90,4 +92,5 @@ def run(output):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',required=True)
-    args=parser.parse_args();sys.exit(0 if run(ROOT/args.output)['status']=='pass' else 1)
+    parser.add_argument('--packet-bytes',type=int,choices=(8,16,32,64),required=True)
+    args=parser.parse_args();sys.exit(0 if run(ROOT/args.output,args.packet_bytes)['status']=='pass' else 1)

@@ -43,7 +43,7 @@ This is an area comparison, not an SRAM implementation or fit claim.
 No SRAM macro was introduced; the production packet-memory emission is unchanged.
 
 
-## Latest measured block areas
+## Historical D51 measured block areas
 
 Commands, source hashes, corner and baseline commit are recorded in the final frozen
 section of [the timing ledger](timing.md). These are **measured** mapped cell
@@ -63,9 +63,9 @@ The wrapper-minus-engine difference is **estimated** by subtraction:
 319390.6240 − 282454.1888 = 36936.4352 um2. It is not an isolated glue-area
 measurement because integration changes optimization and buffering.
 
-Latest block-area command: `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d48-frozen-check-01`, base `15161bf897d1b4b4cba69030154daf89ee19ca12` plus its frozen hashes. SRAM replacement estimates above are unchanged; no macro swap or buffer RTL change occurred.
+Historical D48 block-area command: `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d48-frozen-check-01`, base `15161bf897d1b4b4cba69030154daf89ee19ca12` plus its frozen hashes. SRAM replacement estimates above are unchanged; no macro swap or buffer RTL change occurred.
 
-D51 latest measured areas use `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d51-frozen-check-01`, baseline `269fa0f7fe1b0560d58dd62c44ef01340e84b06b` plus frozen hashes. Only mapped enable-buffer sizing changes these areas; SRAM estimates remain unchanged.
+The historical D51 table above uses `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d51-frozen-check-01`, baseline `269fa0f7fe1b0560d58dd62c44ef01340e84b06b` plus frozen hashes. Only mapped enable-buffer sizing changes these areas; SRAM estimates remain unchanged.
 
 
 ## D52 fresh mapped block areas, 2026-11-19
@@ -94,3 +94,47 @@ Estimated comparison to the previously locked 1024×8 macro footprint: IN macro/
 Estimated comparison to the previously locked 1024×8 macro footprint: OUT macro/buffer = 155413.553/105938.1568 = 1.4670; excess 155413.553 − 105938.1568 = 49475.3962 um².
 
 This only compares the macro in the pinned local inventory, not a proved global minimum across all GF180 macros. Macro peripheral logic, placement and routing would add costs. No SRAM swap is performed.
+
+
+## D53 measured candidate, 2026-11-19
+
+Measured by the D53 frozen USB aggregate command and base/hashes/corner in the
+timing ledger. Mapped pre-layout cell areas; no placement or whole-chip fit claim.
+D52 comparison uses its preserved frozen receipt. Percent reduction is estimated
+as 100×(D52−D53)/D52 from the measured areas; a negative value is an increase.
+
+| Block | D52 measured um² | D53 measured um² | Estimated reduction % |
+| --- | ---: | ---: | ---: |
+| control | 45539.4240 | 46165.0560 | -1.374 |
+| in | 108636.0576 | 39542.1376 | 63.601 |
+| out | 105938.1568 | 38339.1680 | 63.810 |
+| resume | 4783.3408 | 4783.3408 | 0.000 |
+| engine | 294903.1680 | 156976.5568 | 46.770 |
+| registers | 8365.9072 | 8365.9072 | 0.000 |
+| usb | 332364.2560 | 197043.3472 | 40.715 |
+| sie | 58611.8400 | 58260.6080 | 0.599 |
+
+Estimated wrapper-minus-engine difference is 197043.3472−156976.5568=
+40066.7904 um². Integration changes optimization, so this is not an isolated
+measurement of CDC/event/clock-request glue.
+
+The 16-byte candidate materially reduces storage area but does not close timing,
+packet proofs or protocol qualification. No SRAM macro swap is performed.
+
+Fresh local catalog command: `python tools/env/run.py run -- python3
+scratch/t19_d53_sram_area.py`, receipt `build/t19/d53-sram-area-01/result.json`.
+Both preserved SRAM archives were checked against the pinned SHA-256 values
+above and the bootstrap's release commit; all 28 LEF views were rescanned.
+The smallest footprint is still `gf180mcu_ocd_ip_sram__sram256x8m8wm1`:
+measured LEF dimensions 301.30×224.93 um, estimated footprint
+301.30×224.93=67771.409 um². It accommodates the 17-address candidate ring.
+This supersedes D52's limited 1024×8 comparison; the complete pinned catalog
+was already documented at the top of this ledger.
+
+Even this smallest macro alone exceeds the whole measured candidate buffer:
+estimated excess is 67771.409−39542.1376=28229.2714 um² for IN and
+67771.409−38339.1680=29432.2410 um² for OUT. Separate per-buffer macros cannot
+reduce area at this size before adaptation/scheduling overhead. Sharing a macro
+is a different architecture and is not assessed or implemented here. Macro
+footprints and mapped standard-cell sums are pre-layout comparisons, not a
+physical integration or timing qualification.

@@ -5,7 +5,7 @@ import chisel3.util._
 import deadhorse.lib._
 
 class Usb(json: String, base: BigInt = 0x40040800L, vid: Int = 0, pid: Int = 0,
-          included: Boolean = true) extends RawModule {
+          included: Boolean = true, bulkPacketBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends RawModule {
   val appClock=IO(Input(Clock()));val usbClock=IO(Input(Clock()));val aonClock=IO(Input(Clock()))
   val appReset_n=IO(Input(Bool()));val usbReset_n=IO(Input(Bool()));val aonReset_n=IO(Input(Bool()))
   val bus=IO(new LocalBus);val owner=IO(Input(UInt(3.W)))
@@ -33,7 +33,7 @@ class Usb(json: String, base: BigInt = 0x40040800L, vid: Int = 0, pid: Int = 0,
     val enabledUsb=sync(usbClock,usbUp,registers.enabled)
     // AON sees application demand before USB edges exist, avoiding startup deadlock.
     usbClockRequest:=sync(aonClock,aonUp,registers.enabled)
-    val engine=Module(new UsbEngine(vid,pid))
+    val engine=Module(new UsbEngine(vid,pid,bulkPacketBytes))
     // Reset used by downstream data/safety logic comes from shared release.
     // usbUp still asserts asynchronously when either raw reset drops.
     engine.clk:=usbClock;engine.reset_n:=usbUp && enabledUsb

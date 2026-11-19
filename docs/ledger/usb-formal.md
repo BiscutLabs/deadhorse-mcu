@@ -366,3 +366,103 @@ the original outstanding obligations retained; full tier is unrun. All frozen
 input hashes match before reporting-only edits. Independent reviews clear
 certificate-preserving sizing, equivalence/fault extraction, reset warmup and
 the assertion partition for an incomplete review checkpoint only.
+
+
+## D53 measured candidate, 2026-11-19
+
+D53 current checks (same base commit plus exact hashes in receipts):
+
+```sh
+python tools/env/run.py run -- python3 tools/sbt.py hw/compile
+# success
+python tools/env/run.py run -- python3 hw/ip/usb/formal/check.py --json build/t19/regmap/usb_regs.json --case in --case out --case buffer_reset --output build/t19/d53-packet-01
+# FAILED USB focused formal: IN/OUT TIMEOUT; reset emitter hit SBT-lock wait cap
+python tools/env/run.py run -- python3 scratch/t19_d53_refinement.py
+# emit 0, proof 0: actual-RAM refinement and mis-phased/wrong-size controls pass
+python tools/env/run.py run -- python3 hw/ip/usb/formal/sie_enable.py --packet-bytes 16 --output build/t19/d53-sie-enable-01
+# PASS SIE enable implication; no timing exception applied
+python tools/env/run.py run -- python3 scratch/t19_d53_sram_area.py
+# PASS pinned SRAM catalog: 28 LEF views, verified archive hashes; area estimate only
+python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d53-frozen-check-01
+# FAILED T19 USB; inspect result.json for every unresolved obligation
+python tools/env/run.py run -- python3 tools/ci.py --tier fast --output build/t19/d53-frozen-fast-01
+# FAILED T19 USB; inspect result.json for every unresolved obligation
+```
+
+The refinement helper runs the reproducible component commands
+`python3 tools/sbt.py "runMain deadhorse.usb.EmitUsbMemoryRefinement build/t19/d53-refinement-01/emit"`
+and `python3 hw/ip/usb/formal/memory_refinement.py --emit build/t19/d53-refinement-01/emit --packet-bytes 16 --output build/t19/d53-refinement-01/proof`.
+The initial `testOnly deadhorse.usb.UsbThroughputSpec` compile failed on a test
+method/Boolean name collision; after that local fix the diagnostic simulation
+passed its positive rate test and exposed the same replay failure. Frozen
+simulation repeats it with the reviewed clock scheduler and recurring tail SOFs.
+
+Frozen USB simulation: 12 passed, 1 failed (all 11 prior tests and the positive
+throughput test pass; throttled replay fails). Eleven focused formal cases,
+real-buffer covers/faults, byte CDC, resume equivalence, mapping/certificate
+controls and actual-RAM refinement pass. The reset-emission infrastructure
+failure is recovered by fresh `buffer_reset` proof in the aggregate. No timed-out
+positive packet job is retried. Earlier IN/OUT timeout receipts predate the OUT
+oracle-width correction and are historical diagnostics, not current proof.
+
+Standalone buffers/resume/register timing passes. EP0 numerically passes but is
+qualification-blocked. Engine, wrapper and standalone SIE fail. Both frozen
+commands exit 1; fast CI stops at USB, with preceding checks and existing explicitly
+unproved deferrals retained. **Full tier: not run.** All source inventories match
+before reporting-only edits; repeated timing classes/areas match exactly.
+This is an incomplete review checkpoint, not adoption or T19 completion.
+
+
+Measured by `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output
+build/t19/d53-frozen-check-01`, base commit
+d45e50f457f3576949b8fdbfd6e1bb69652aaa53 plus frozen source hashes.
+Full public MMIO/CDC wrapper, assumed USB 48 MHz and application/AON 12 MHz,
+continuous fair polling, seed 5715/5716. Host schedule offers 128 payload bytes
+per 1 ms frame per active direction for 10 frames; CRC/stuffing, SOFs, retries,
+refill/drain and final transport overhead are included. Unique ACK-committed IN
+bytes and OUT bytes actually read/popped through MMIO form the numerator.
+These are digital simulation rates under this service contract, not host/board
+qualification or a maximum-throughput estimate.
+
+| Traffic | Measured samples | Measured IN bytes | Measured OUT bytes | Measured IN bit/s | Measured OUT bit/s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| IN only | 480712 | 1280 | 0 | 1022483.316 | 0.000 |
+| OUT only | 480000 | 0 | 1280 | 0.000 | 1024000.000 |
+| Simultaneous | 480712 | 1280 | 1280 | 1022483.316 | 1022483.316 |
+
+Each active IN run delivered 80 full 16-byte packets, seven deliberate lost-ACK
+retries and one final ZLP; no short IN packets occurred in the positive schedule.
+The target is the user-approved 1 Mbit/s, conservatively required in each direction.
+
+The throttled-service negative control **fails on a real protocol defect before
+the rate oracle is reached**: DATA1 payload `[126]` replays as `[126,214]` after
+another application write and a lost ACK. The exact retry assertion is retained.
+Independent review confirms the same visible-tail refresh logic in the 64-byte
+D52 baseline: this is an inherited replay-boundary bug, not a size-induced data
+corruption claim. A host may discard the longer duplicate then ACK, losing the
+added byte when the DUT commits it. No successful rate-negative-control result
+or complete packet correctness is claimed.
+
+Step 0 evidence for the changed production 16-byte diagnostic, measured by the
+formal command above and `python tools/env/run.py run -- python3 scratch/t19_d53_model_stats.py`
+on its preserved prepared models (Yosys `stat`; no solver retry):
+
+| Property | Prepared cells | Sequential bits excluding RAM | RAM bits | Requested depth / last printed PDR frame | Result |
+| --- | ---: | ---: | ---: | --- | --- |
+| IN original assertions |256|161|192|48 /83|TIMEOUT,122.080 s measured wall time;120 s solver cap|
+| OUT original assertions, before oracle-width fix |235|153|192|48 /27|TIMEOUT,121.183 s measured wall time;120 s solver cap|
+
+Measured cover traces have 15/19/23/23 time steps for IN and 11/16/17 for OUT.
+These are the existing public-behavior covers, not full/wrap/max-packet covers.
+Quarter/half-depth growth sweeps are not rerun: ABC PDR is unbounded, the prior
+triage portfolio/lane/sparse/partition budget is exhausted, and no unchanged
+timeout retry is justified. Memory is still the dominant state component;
+complete packet lifecycle/control remains relevant to the original properties.
+
+No small-model attempt starts. Estimated minimum IN fill spacing at the smallest
+supported 8-byte model is 7 intervals×8 sample edges=56 edges after the first RAM
+write, excluding startup; full/wrap take longer than the fixed 48 cover bound.
+Independent review confirms the parametric source and this lower bound. The
+smallest proof-path change would require an explicit cover-budget decision and
+separate proved lifecycle/occupancy/service invariants, not more unchanged PDR
+time. Fixing the observed replay defect is a prerequisite for full protocol claims.
