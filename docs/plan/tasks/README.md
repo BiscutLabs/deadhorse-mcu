@@ -26,6 +26,7 @@ PLAN01 is documentation only; no other task is started by this revision.
 | T16 | [SPI host](T16-spi-host.md) | T05, T07, T09, T14, T15 | User assigned standalone SPI controller; core optimization deferred |
 | T17 | [I2C controller](T17-i2c-host.md) | T05, T07, T09, T14, T16 | User assigned next serial peripheral; controller only, retained loader separate |
 | T18 | [Lite I2C recovery loader](T18-i2c-recovery-loader.md) | T06, T07, T09, T14 | Pinned clocked adoption and end-to-end recovery test brief ready |
+| T19 | [USB CDC-ACM](T19-usb.md) | T05, T07, T08, T09, T14 | User assigned adoption; source assessment must resolve vendor timing/CDC exceptions before production integration |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |
@@ -48,8 +49,9 @@ RISCay source adoption/restructuring; shared CDC; analog macro layout and
 threshold controls; physical-flow/pad-ring import; peripheral/DMA/pin-mux and
 SoC integration; final actuator ABI after policy tests; production test and
 board/silicon integration. Prepare these from the approved contracts before
-assigning implementation. USB implementer deliverables and shuttle qualification
-remain external evidence dependencies. D18 and chip-to-chip work are deferred.
+assigning implementation. T19 owns the supplied USB digital implementation and
+its adoption assessment; USB electrical and shuttle qualification remain open.
+D18 and chip-to-chip work are deferred.
 
 ## Writing a new brief
 

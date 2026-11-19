@@ -1,0 +1,64 @@
+{
+  "upstream_url": "https://github.com/ulixxe/usb_cdc",
+  "commit": "6798bf42d43be81368d4e5e2c26b262b41e9fb6a",
+  "license": "MIT",
+  "license_sha256": "b6dd98b04b8dc268cb47a9e4b48bb7067f88dc5be1b7846f5e66ee90124b3b52",
+  "import_date": "2026-11-18",
+  "snapshot": "User-supplied peripherals-ip/USB_FS_CDC vendor subtree; line endings normalized only for patch application",
+  "files": {
+    "rtl/bulk_endp.v": {
+      "upstream_path": "usb_cdc/bulk_endp.v",
+      "sha256": "c77dbafabd2e6ffc6b93cc62f261a35f4358f34cc813391a2dec8ab68f3cbaf5",
+      "snapshot_sha256": "d89e779025b4a0197f3f4e0fdf878ee4848324a3545f602caf8ca4abde94dfaf",
+      "applied_sha256": "c77dbafabd2e6ffc6b93cc62f261a35f4358f34cc813391a2dec8ab68f3cbaf5"
+    },
+    "rtl/ctrl_endp.v": {
+      "upstream_path": "usb_cdc/ctrl_endp.v",
+      "sha256": "d5bbe671d3867f7552e774236771bfcac3332ce2e11ee4761d2c4eef1c28ef4b",
+      "snapshot_sha256": "dbaed52218867d15388d00fb2b4a42682c02232f1a06009f71294d36451bc732",
+      "applied_sha256": "d5bbe671d3867f7552e774236771bfcac3332ce2e11ee4761d2c4eef1c28ef4b"
+    },
+    "rtl/in_fifo.v": {
+      "upstream_path": "usb_cdc/in_fifo.v",
+      "sha256": "b728d83edf019f59b4452d0a3f8f5b9c120b8ce41fcc0af82904393ad821d2aa",
+      "snapshot_sha256": "35b8c7f460541949a74e5dd8a0dc7ed99a04979a5542811beb01f8f95b0b14a8",
+      "applied_sha256": "b728d83edf019f59b4452d0a3f8f5b9c120b8ce41fcc0af82904393ad821d2aa"
+    },
+    "rtl/out_fifo.v": {
+      "upstream_path": "usb_cdc/out_fifo.v",
+      "sha256": "73306179003907152408927bb9600921b5d87725b38266b3abb4e1bd05885fdc",
+      "snapshot_sha256": "f9c7b074cd4f838bb67c622e4d3c9fbe1f0f3ee9c45d1194a254e5ac3c6214bb",
+      "applied_sha256": "73306179003907152408927bb9600921b5d87725b38266b3abb4e1bd05885fdc"
+    },
+    "rtl/phy_rx.v": {
+      "upstream_path": "usb_cdc/phy_rx.v",
+      "sha256": "b66b10de18a297388c0d0e9a34a8d49d3bd62b85f85f44b1bdfe256c2bf4365d",
+      "snapshot_sha256": "3077a06565d11d6f70a2c51dca329e7c6883f39904b8f0c2dd2077e0550e42fe",
+      "applied_sha256": "b66b10de18a297388c0d0e9a34a8d49d3bd62b85f85f44b1bdfe256c2bf4365d"
+    },
+    "rtl/phy_tx.v": {
+      "upstream_path": "usb_cdc/phy_tx.v",
+      "sha256": "7dc0592f0705156107732350f11cf125d3b07cf1e1d99f30ed0a3b313670a8d6",
+      "snapshot_sha256": "d76db337191fc1100b55b3d9f89c544a3dc0bcdecdb1f6a65a5b1d389661af4d",
+      "applied_sha256": "7dc0592f0705156107732350f11cf125d3b07cf1e1d99f30ed0a3b313670a8d6"
+    },
+    "rtl/sie.v": {
+      "upstream_path": "usb_cdc/sie.v",
+      "sha256": "c20323f3509e9cbe9825f2874a27f81c62721c758cbf43a922beb00932cd8a5b",
+      "snapshot_sha256": "d865d56240abb9317f2435d72e59cc9a9ee9893249c46db441c2acb21740670e",
+      "applied_sha256": "558f1b47ced6b69d80ae78de634b6d8a18f6ffd80dc572807ab1342ced113dd5"
+    },
+    "rtl/usb_cdc.v": {
+      "upstream_path": "usb_cdc/usb_cdc.v",
+      "sha256": "be75e191a852468d9226a59e3fda78552d68178457e9e89d243cc4efa13cc970",
+      "snapshot_sha256": "9357cc844d1d59d25e07e6a78615cf81a9acabbeb4ba3f4203a8d7e52fbbad90",
+      "applied_sha256": "be75e191a852468d9226a59e3fda78552d68178457e9e89d243cc4efa13cc970"
+    }
+  },
+  "patches": [
+    {
+      "path": "patches/sie.patch",
+      "sha256": "c2517d3f1ee07efc46af908632933ce7a860594b586218a1bae69976d8bb6d75"
+    }
+  ]
+}

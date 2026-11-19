@@ -7,6 +7,19 @@ from tools.timing.check import CONFIG, timing_config, mapping_target_ps, validat
 
 
 class OperatingPointTests(unittest.TestCase):
+    def test_usb_sample_clock_keeps_stricter_budget_and_electrical_checks(self):
+        original = timing_config()
+        usb = timing_config('usb-48mhz')
+        self.assertAlmostEqual(usb['period_ns'], 1000 / 48)
+        budget = usb['period_ns'] * usb['budget_fraction']
+        self.assertAlmostEqual(budget, 12.5)
+        self.assertAlmostEqual(mapping_target_ps(usb, 'usb-48mhz'), 12500)
+        for key in original.keys() - {'period_ns', 'provenance'}:
+            self.assertEqual(usb[key], original[key])
+        self.assertEqual(result_status(12.49, budget, {'max_capacitance_and_slew_violations': 0}), 'pass')
+        self.assertEqual(result_status(12.51, budget, {'max_capacitance_and_slew_violations': 0}), 'fail')
+        self.assertEqual(result_status(12.49, budget, {'max_capacitance_and_slew_violations': 1}), 'fail')
+
     def test_mapping_target_is_separate_from_unchanged_sta_acceptance(self):
         for point, expected in (('default', 24960), ('main-12mhz', 50000),
                                 ('main-9p6mhz', 62500), ('main-9mhz', 62500)):

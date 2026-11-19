@@ -581,3 +581,51 @@ bits and response qualification; mapping changes prevent attributing the entire
 area/delay delta to those bits. Earlier failed receipts remain historical.
 Fast tier **PASS**, all 26 commands, measured 824.220 s (13m 44s), including 14 RTL tests. **Full tier not run.**
 [Repair report](../plan/tasks/reports/T13-bus-error.md).
+
+## T19 USB selective conversion (2026-11-18)
+
+**Measured**, baseline `a280df4fa17516a2ac8507628a6f12e3c4128895` plus
+receipt-bound uncommitted T19 sources. Pinned Yosys 0.71+34/OpenSTA 3.2.0,
+GF180 7t5v0 SS/125 C/3.0 V, mapped pre-layout with ideal clocks. These are
+component measurements, not integrated wrapper or physical USB signoff.
+
+| Component | Delay ns | Budget ns | Cell area um2 | Result | Receipt under `build/t19/` |
+| --- | ---: | ---: | ---: | --- | --- |
+| EP0 control | 13.042828 | 12.5 | 42297.1136 | FAIL | `timing-13/control/result.json` |
+| IN packet buffer | 11.140153 | 12.5 | 105051.2960 | PASS | `timing-08/in/result.json` |
+| OUT packet buffer | 11.820112 | 12.5 | 102331.4432 | PASS | `timing-10/out/result.json` |
+| Host resume | 9.333540 | 12.5 | 4361.8624 | PASS | `timing-10/resume/result.json` |
+| Combined USB engine | 20.556009 | 12.5 | 283246.6560 | FAIL | `timing-13/engine/result.json` |
+| Application registers | 11.202718 | 24.96 | 8365.9072 | PASS | `check-01/timing/registers/result.json` |
+
+Every listed measurement reports zero maximum-slew/capacitance violations.
+All passing component emissions were compared by SHA-256 with `emit-13` and
+are identical. Engine area includes endpoint buffers/control; do not add those
+rows to the engine area. No whole-chip fit is claimed.
+
+Latest control/engine command after `python tools/env/run.py run --`:
+
+```sh
+python3 hw/ip/usb/timing.py --emitted build/t19/emit-13 --output build/t19/timing-13 --block control --block engine
+```
+
+Earlier passing rows were measured by `scratch/t19_timing08.py`,
+`hw/ip/usb/timing.py --emitted build/t19/emit-10 --output build/t19/timing-10
+--block control --block out --block resume --block engine`, and
+`hw/ip/usb/check.py --output build/t19/check-01`, respectively. Their receipts
+record every numerical tool invocation and input hash. The aggregate itself
+failed and is not an acceptance pass.
+
+The USB budget is **estimated** as 0.60 × (1000/48 ns) = 12.5 ns, retaining
+plan 14's **assumed** margin. USB-only fanout insertion adds actual GF180
+buffers, verifies unchanged original pin connectivity and clock nets, and
+includes inserted-cell area/delay/electrical loading in STA. No path is waived.
+A separate tighter mapper-target diagnostic (`scratch/t19_tighter_map.py`)
+also failed: control 12.740618 ns and engine 20.556009 ns. Its 9375 ps ABC
+optimization target did not change the 12.5 ns acceptance budget; production
+mapping remains unchanged. Prior failed measurements remain preserved.
+
+The [SIE timing proposal](../spec/usb-timing-decision.md) is pending user
+approval and is not an applied constraint. EP0 full-rate closure, packet
+sampling-equivalence proof, full wrapper-domain timing and complete T19
+acceptance remain open. [Task report](../plan/tasks/reports/T19.md).

@@ -49,6 +49,10 @@ at the control-loop rate merely because commands are computed at that rate.
 
 ### USB contract and cutoff
 
+Implementation is assigned in [T19](tasks/T19-usb.md), using the supplied
+`peripherals-ip/USB_FS_CDC` source snapshot. Its adoption assessment must resolve
+vendor timing/CDC rule conflicts; source availability is not qualification.
+
 USB protocol handling stays in its subsystem. Boundary: TX/RX byte FIFOs,
 status/control, interrupts and wake, through the reviewed CDC implementation
 into its separate clock/reset domain. Keep an identical-port stub until delivery.

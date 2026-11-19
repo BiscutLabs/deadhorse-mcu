@@ -10,8 +10,9 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 CONFIG = ROOT / 'phys/gf180-ws-1x1/block-timing.json'
-OPERATING_POINTS = ('default', 'main-12mhz', 'main-9p6mhz', 'main-9mhz')
+OPERATING_POINTS = ('default', 'main-12mhz', 'main-9p6mhz', 'main-9mhz', 'usb-48mhz')
 
 # Reference adapters and primitives are verification-only.
 sys.path.insert(0, str(ROOT / 'dv/core'))
@@ -98,11 +99,14 @@ def timing_config(operating_point='default'):
         raise ValueError('Unsupported timing operating point')
     cfg = json.loads(CONFIG.read_text())
     if operating_point != 'default':
-        frequency_mhz = {'main-12mhz': 12.0, 'main-9p6mhz': 9.6, 'main-9mhz': 9.0}[operating_point]
+        frequency_mhz = {'main-12mhz': 12.0, 'main-9p6mhz': 9.6, 'main-9mhz': 9.0, 'usb-48mhz': 48.0}[operating_point]
         cfg['period_ns'] = 1000.0 / frequency_mhz
         cfg['provenance'] = (f'User-authorized T13 {frequency_mhz:g} MHz trial: only the period changes; '
                              'the budget fraction and other constraints are unchanged. '
                              'Default configuration provenance: ' + cfg['provenance'])
+        if operating_point == 'usb-48mhz':
+            cfg['provenance'] = cfg['provenance'].replace('User-authorized T13 48 MHz trial',
+                'T19 required USB 48 MHz sample-clock operating point')
         if operating_point == 'main-9mhz':
             cfg['provenance'] = cfg['provenance'].replace(
                 'only the period changes;',
@@ -215,6 +219,22 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
         f'write_verilog -noattr -noexpr "{output / "mapped.v"}"', '']))
     synthesis = run(['yosys', '-Q', '-T', '-s', str(synth)], output, 'synthesis')
     design = json.loads((output / 'mapped.json').read_text())
+    if operating_point == 'usb-48mhz':
+        from tools.timing.fanout import BUFFER, buffer_module
+        if BUFFER not in library_cells:
+            raise ValueError('USB fanout buffer absent from pinned library')
+        (output / 'unbuffered.json').write_text(json.dumps(design))
+        design['modules'][top], inserted = buffer_module(design['modules'][top], clock)
+        mapping['fanout_tree'] = dict(cell=BUFFER,limit=8,inserted=len(inserted),
+                                    verification='all original pins resolve identically; clocks unchanged')
+        (output / 'buffered.json').write_text(json.dumps(design))
+        buffer_script = output / 'buffer.ys'
+        buffer_script.write_text('\n'.join([
+            f'read_json "{output / "buffered.json"}"', 'check -assert',
+            f'stat -liberty "{liberty}"', f'write_json "{output / "mapped.json"}"',
+            f'write_verilog -noattr -noexpr "{output / "mapped.v"}"', '']))
+        synthesis = run(['yosys','-Q','-T','-s',str(buffer_script)],output,'buffer')
+        design = json.loads((output / 'mapped.json').read_text())
     module = design['modules'][top]
     post_multiplicity, post_aliases = output_aliases(module)
     if post_multiplicity > multiplicity:
@@ -267,7 +287,7 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     worst = max(paths, key=lambda p: p['delay_ns'])
     report = dict(status=result_status(worst['delay_ns'], budget, electrical), top=top,
                   role=('reference-benchmark-only' if reference_options is not None else
-                        'operating-point-trial' if operating_point != 'default' else 'production'),
+                        'operating-point-trial' if operating_point not in ('default','usb-48mhz') else 'production'),
                   operating_point=operating_point,
                   mapping=mapping, electrical=electrical,
                   boundary='combinational' if combinational else 'root-clock-with-icg' if gate_pins else 'single-clock',

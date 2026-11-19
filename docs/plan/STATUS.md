@@ -81,6 +81,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T16 | [SPI host](tasks/T16-spi-host.md) | Codex | T05, T07, T09, T14, T15 | [Report](tasks/reports/T16.md): SPI acceptance, GF180 timing and independent review pass; fast 31/31 with inherited T14 deferrals, no SPI deferrals; full not run |
 | [x] | T17 | [I2C controller](tasks/T17-i2c-host.md) | Codex | T05, T07, T09, T14, T16 | [Report](tasks/reports/T17.md); 19 simulations, GF180 timing and fast CI active checks pass; eight I2C formal jobs remain deferred/unproved |
 | [x] | T18 | [Lite I2C recovery loader](tasks/T18-i2c-recovery-loader.md) | Codex | T06, T07, T09, T14 | [Report](tasks/reports/T18.md). Wire-to-memory recovery and warm-reset lock retention verified. |
+| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): conversion/integration implemented; full-rate timing and packet proofs unresolved; SIE timing decision pending |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -142,6 +143,14 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-18: T19 user explicitly requested commit/push of the incomplete implementation for further review. Publish a review checkpoint with known failures preserved; T19 remains blocked and the SIE timing proposal remains unapproved. Unrelated core/S1 changes are excluded.
+- 2026-11-18: T19 conversion/integration checkpoint blocked. Independent wire/MMIO tests and selected formal properties pass; EP0/engine timing, packet-buffer proofs, sampling-equivalence and wrapper qualification remain open. Prepared narrow SIE multicycle proposal for user decision; no exception applied, no gate checked, no commit/push. See T19 report and USB ledgers.
+- 2026-11-18: T19 resumed at the user's instruction to perform the suggested conversions and tackle T19. Approval covers selective Chisel buffer/control conversion and retaining the vendor PHY sampler/decoded outputs under the proposed narrow exception. Timing/electrical limits, shared MCU-domain CDC, protocol verification and physical qualification remain required.
+
+- 2026-11-18: T19 source assessment complete; production integration blocked pending scoped vendor-PHY sampling/output exception decision. GF180 diagnostic fails timing and electrical checks; independent review confirms EP0 worst path. Selective Chisel adaptation proposed, no requirement waived, no gate checked, no commit/push.
+
+- 2026-11-18: T19 assigned and in progress. User supplied peripherals-ip and requested USB adoption alongside the serial peripherals. D11/D40 already cover USB; added implementation brief. Assess source provenance, shared CDC boundary and GF180 feasibility before production import; no gate checked.
 
 - 2026-11-18: Completed the T13 five-target study. The faithful core now shares the integer multiplier with the FPU and reuses the FPU addend register. Fast CI passed. [Round 2 measurements](tasks/reports/T13-round2.md).
 

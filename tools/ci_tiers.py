@@ -39,6 +39,7 @@ def fast_commands(output):
         ('spi-host',[py,'hw/ip/spi_host/check.py','--output',f'{root}/spi-host']),
         ('i2c-host',[py,'hw/ip/i2c_host/check.py','--output',f'{root}/i2c-host']),
         ('i2c-recovery-loader',[py,'hw/ip/i2c_recovery_loader/check.py','--output',f'{root}/i2c-recovery-loader']),
+        ('usb',[py,'hw/ip/usb/check.py','--output',f'{root}/usb']),
         ('emit-leaves',emit('deadhorse.perf_core.EmitLeaves','leaves')),
         ('emit-core',emit('deadhorse.perf_core.EmitCore','core')),
         ('emit-baseline',emit('deadhorse.perf_core.EmitRegisteredCore','baseline-emit')),
@@ -140,7 +141,8 @@ def main(argv,legacy):
             spi_success=name=='spi-host' and result.returncode==0
             i2c_success=name=='i2c-host' and result.returncode==0
             loader_success=name=='i2c-recovery-loader' and result.returncode==0
-            needs_receipt=bus_formal_success or uart_success or spi_success or i2c_success or loader_success
+            usb_success=name=='usb' and result.returncode==0
+            needs_receipt=bus_formal_success or uart_success or spi_success or i2c_success or loader_success or usb_success
             if needs_receipt and '--output' not in command:
                 raise ValueError('Missing '+name+' output receipt path')
             if '--output' in command:
@@ -187,6 +189,9 @@ def main(argv,legacy):
                     if loader_success:
                         if detail.get('task') != 'T18' or detail.get('status') != 'pass' or deferred:
                             raise ValueError('Invalid recovery-loader success receipt')
+                    if usb_success:
+                        if detail.get('task') != 'T19' or detail.get('status') != 'pass' or deferred or detail.get('unresolved') != []:
+                            raise ValueError('Invalid USB success receipt')
                     step_receipt['deferred']=deferred
                     receipt['deferred'].extend(dict(d,command=name,receipt=str(child.relative_to(ROOT))) for d in deferred)
                     limits=detail.get('qualification_limits',[])

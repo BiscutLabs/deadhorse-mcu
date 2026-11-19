@@ -1,0 +1,19 @@
+CAPI=2:
+name: deadhorse:vendor:usb:0.1
+description: Pristine pinned USB reference; production applies the locked SIE patch under build.
+filesets:
+  reference:
+    files:
+      - rtl/phy_rx.v
+      - rtl/phy_tx.v
+      - rtl/sie.v
+      - rtl/ctrl_endp.v
+      - rtl/in_fifo.v
+      - rtl/out_fifo.v
+      - rtl/bulk_endp.v
+      - rtl/usb_cdc.v
+    file_type: verilogSource
+targets:
+  default:
+    filesets: [reference]
+    toplevel: usb_cdc
