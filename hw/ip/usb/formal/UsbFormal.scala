@@ -169,6 +169,7 @@ object EmitUsbFormal {
         case "in"=>new UsbInFormal(variant)
         case "out"=>new UsbOutFormal(variant)
         case "buffer_reset"=>new UsbBufferResetFormal(variant)
+        case "retry_boundary"=>new UsbRetryBoundaryFormal(variant)
         case "in_helpers"=>new UsbInFormal(variant,None,true)
         case "out_helpers"=>new UsbOutFormal(variant,None,true)
         case "in_sparse"=>new UsbInFormal(variant,None,true,variant=="correct")

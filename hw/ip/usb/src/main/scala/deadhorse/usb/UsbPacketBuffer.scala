@@ -45,7 +45,7 @@ class UsbPacketMemory(packetBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) ext
 class UsbInProofState(packetBytes: Int = UsbPacketSizing.bulkMaxPacketBytes) extends Bundle {
   private val bits=UsbPacketGeometry(packetBytes).pointerBits
   val head=UInt(bits.W);val tail=UInt(bits.W);val speculative=UInt(bits.W);val visibleTail=UInt(bits.W)
-  val stagingValid=Bool();val stagingVisible=Bool()
+  val stagingValid=Bool();val stagingVisible=Bool();val pending=Bool()
   val stagingData=UInt(8.W)
 }
 class UsbInBuffer(proofView: Boolean=false, memoryFactory: Int=>UsbPacketMemoryPort=n=>new UsbPacketMemory(n),
@@ -60,6 +60,7 @@ class UsbInBuffer(proofView: Boolean=false, memoryFactory: Int=>UsbPacketMemoryP
   val data = IO(Output(UInt(8.W))); val valid = IO(Output(Bool())); val empty = IO(Output(Bool()))
   protected def commit(head: UInt, speculative: UInt): UInt = speculative
   protected def offer(value: Bool): Bool = value
+  protected def retainPacket(pending: Bool): Bool = pending
   val memory = Module(memoryFactory(packetBytes)); memory.clk := clk; memory.reset_n := reset_n
   memory.proof.foreach(_:=proofMemory.get)
   proofRam.foreach(_:=0.U.asTypeOf(new UsbMemoryProofState(packetBytes)))
@@ -68,10 +69,11 @@ class UsbInBuffer(proofView: Boolean=false, memoryFactory: Int=>UsbPacketMemoryP
     def advance(pointer: UInt): UInt = Mux(pointer === packetBytes.U,0.U,pointer + 1.U)
     val head = RegInit(0.U(geometry.pointerBits.W)); val speculative = RegInit(0.U(geometry.pointerBits.W))
     val tail = RegInit(0.U(geometry.pointerBits.W)); val visibleTail = RegInit(0.U(geometry.pointerBits.W))
+    val pending = RegInit(false.B)
     val stagingData = RegInit(0.U(8.W)); val stagingValid = RegInit(false.B)
     val stagingVisible = RegInit(false.B); val ready = RegInit(false.B)
     proof.foreach { p=>p.head:=head;p.tail:=tail;p.speculative:=speculative;p.visibleTail:=visibleTail
-      p.stagingValid:=stagingValid;p.stagingVisible:=stagingVisible;p.stagingData:=stagingData }
+      p.stagingValid:=stagingValid;p.stagingVisible:=stagingVisible;p.stagingData:=stagingData;p.pending:=pending }
     val nextTail = RegNext(advance(tail),1.U)
     val nextSpeculative = RegNext(advance(speculative),1.U)
     val full = RegNext(head === nextTail,false.B)
@@ -83,15 +85,22 @@ class UsbInBuffer(proofView: Boolean=false, memoryFactory: Int=>UsbPacketMemoryP
     empty := RegNext(head === tail && !stagingVisible && !stagingValid,true.B)
     when(bitEnable) {
       when(consume) {
-        when(request) { speculative := head }
-          .elsewhen(acknowledge) { head := commit(head,speculative) }
+        when(request) {
+          speculative := head
+          when(!retainPacket(pending)) {
+            // Include a same-edge RAM write in the first offer, then keep
+            // that packet immutable across retries and later app writes.
+            val boundary = Mux(!full && stagingVisible,nextTail,tail)
+            visibleTail := boundary
+            pending := boundary =/= head
+          }
+        }
+          .elsewhen(acknowledge) { head := commit(head,speculative); pending := false.B }
           .otherwise { speculative := nextSpeculative }
-        visibleTail := tail
       }
       stagingVisible := stagingValid
       when(!full && stagingVisible) {
         tail := nextTail; stagingValid := false.B; stagingVisible := false.B; ready := true.B
-        when(consume) { visibleTail := nextTail }
       }
     }
     when(!stagingValid) { ready := true.B }

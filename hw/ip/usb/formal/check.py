@@ -22,6 +22,7 @@ CASES = {
     'in': ('UsbInFormal', 6, 4, 48),
     'out': ('UsbOutFormal', 6, 3, 48),
     'buffer_reset': ('UsbBufferResetFormal', 3, 7, 48),
+    'retry_boundary': ('UsbRetryBoundaryFormal', 6, 4, 48),
     'pads': ('UsbPadsFormal', 4, 2, 8),
     'control': ('UsbControlFormal', 2, 3, 128),
     'address': ('UsbControlFormal', 1, 2, 128),
@@ -51,6 +52,7 @@ def run(output, regmap, roles=None, portfolio=False, controls_only=False):
         'IN packet harness issues byte consumes only when valid and ACK only after consumed data; request/retry choices and application data/push are arbitrary',
         'OUT packet harness generates packets at most the configured bulk MPS (production16 bytes), with arbitrary bytes, finish/error, stalls and application ready',
         'buffer_reset instead allows arbitrary ACKs and unrestricted OUT packet length; transport reset is independent of cadence reset; local warmup only, not SIE consumption/ACK composition',
+        'retry_boundary allows arbitrary operations including ACKs, requests and writes; it proves ownership stability, not byte integrity or SIE/ZLP composition',
         'Digital synchronizers exclude analog metastability and electrical USB qualification'],
         limitations=['Packet properties apply to the stated packet-interface harness; they are not a proof of the full wire protocol',
                      'A bit-lane result covers only that named bit; all eight lanes are required to establish byte integrity'])

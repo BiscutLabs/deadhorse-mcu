@@ -466,3 +466,31 @@ Independent review confirms the parametric source and this lower bound. The
 smallest proof-path change would require an explicit cover-budget decision and
 separate proved lifecycle/occupancy/service invariants, not more unchanged PDR
 time. Fixing the observed replay defect is a prerequisite for full protocol claims.
+
+
+## D54 retry lifecycle, 2026-11-19
+
+The D54 production buffer holds its offered boundary until qualified ACK/reset, and the reproducibly patched SIE retains offered bulk ZLPs separately from full-packet termination eligibility. No packet RAM, pipeline phase, original assertion, assumption, service deadline or proof cap changes.
+
+`python tools/env/run.py run -- python3 hw/ip/usb/formal/check.py --json build/t19/regmap/usb_regs.json --case retry_boundary --output build/t19/d54-retry-formal-03` proves six ownership assertions unbounded with ABC PDR, covers four real control scenarios at unchanged depth 48, and rejects the actual moving-boundary DUT fault. Initial reset is the only model restriction; subsequent reset and operations are arbitrary. Production buffer RTL is instantiated unchanged; unused RAM/data logic is optimized out of this control-only cone. The partial-ACK cover requires a strict interior pointer and no invalid reads since reset; independent review confirms two genuinely queued bytes, one consumed, then ACK. Earlier cover receipts 01/02 are superseded; their safety assertions were unchanged. Frozen aggregate/fast repeat the exact final source proof.
+
+This is ownership-only, not a packet-data or SIE/ZLP composition proof. After the actual lifecycle RTL change, one fresh attempt of the six original IN assertions (`--case in --output build/t19/d54-in-original-01`) remains TIMEOUT under the unchanged 120-second solver / 180-second subprocess caps: measured wall time 122.000742 seconds, last printed PDR frame 71. Real covers and both planted faults pass. No unchanged timeout retry or additional ladder rung follows; OUT RTL is unchanged and its positive proof is not rerun. Existing real covers/faults remain in the aggregate. The small-model cover-depth obstacle documented under D53 is unchanged.
+
+Step 0 measurement command `python tools/env/run.py run -- python3 scratch/t19_d54_model_stats.py` reads the preserved prepared model without another solver run: measured 267 cells, 162 sequential bits excluding RAM, three RAM cells / 192 RAM bits. Requested cover/fault depth remains 48; positive ABC PDR is unbounded, so quarter/half-depth growth sweeps do not measure this job and are not rerun. The RAM/data-tracking cone remains beyond the new control-only ownership proof. The next substantive proof change would be reviewed composition with queue-occupancy and selected-byte memory invariants; this is an expectation, not an established proof or authorization for further ladder work.
+
+Directed `testOnly deadhorse.usb.UsbRetrySpec` baseline reproduces short retry [126]→[126,214] and terminal ZLP→NAK. The final same command (log d54-retry-final.log) passes all five tests, including the scheduled 383 one-sample write offsets (121 initial-request + 121 retry + 141 ACK offsets); reset, reconfiguration and clear-halt; full packet/wrap; ZLP/SOF/queued-data replay. The fixed DUT is checked by public wire/byte ports. Frozen all-USB simulation passes all 18 tests and existing negative controls.
+
+`python tools/env/run.py run -- python3 hw/ip/usb/formal/sie_enable.py --packet-bytes 16 --output build/t19/d54-sie-enable-01` also passes with the new source-bound state and actual always-enabled fault. Fresh mapped certificate/fanout controls run in the frozen timing flow; no old receipt is reused for the changed SIE.
+
+Measured by `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d54-frozen-check-03`, base commit `c20e625ea44baaf65c9a523f7a9e12fb070dee22` plus the receipt's exact frozen source hashes. Fast CI independently repeats the same measurements. GF180 7-track SS/125 C/3.0 V, Yosys 0.71+34/OpenSTA 3.2.0, mapped pre-layout cell area/delay and ideal clocks; no routed or board signoff. Budgets remain estimated 0.60×1000/48=12.5 ns full-rate and 0.60×4×1000/48=50 ns for certified compatible pairs; other domains retain existing limits.
+
+Assumed USB 48 MHz and application/AON 12 MHz; full public MMIO/CDC wrapper, deterministic seeds and unchanged host/service schedule. Measured rates count unique ACK-committed IN bytes and OUT bytes actually read/popped through MMIO, including SOFs, CRC/stuffing, retries and final drain. This is simulated payload throughput under that contract, not board qualification.
+
+| Traffic | Service gap | Measured samples | Measured IN bytes | Measured OUT bytes | Measured IN bit/s | Measured OUT bit/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| IN | 0 | 480548 | 1280 | 0 | 1022832.266 | 0.000 |
+| OUT | 0 | 480000 | 0 | 1280 | 0.000 | 1024000.000 |
+| Simultaneous | 0 | 480712 | 1280 | 1280 | 1022483.316 | 1022483.316 |
+| Throttled negative control | 64 | 343040 | 256 | 256 | 286567.164 | 286567.164 |
+
+The slow-service case now completes with bytes intact and reaches the intended `USB_PAYLOAD_RATE` rejection. Its replay/data assertions remain unchanged.

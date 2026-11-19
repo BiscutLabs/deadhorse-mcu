@@ -1492,3 +1492,130 @@ engine/wrapper failures independently block acceptance. Setup/hold exception
 coverage, per-class over-budget controls and retained pipeline sampling proof
 remain required. The new streaming test additionally exposes an inherited IN
 replay defect. Frozen aggregate and fast CI fail; full tier is unrun.
+
+
+## D54 retry lifecycle, 2026-11-19
+
+Measured by `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d54-frozen-check-03`, base commit `c20e625ea44baaf65c9a523f7a9e12fb070dee22` plus the receipt's exact frozen source hashes. Fast CI independently repeats the same measurements. GF180 7-track SS/125 C/3.0 V, Yosys 0.71+34/OpenSTA 3.2.0, mapped pre-layout cell area/delay and ideal clocks; no routed or board signoff. Budgets remain estimated 0.60×1000/48=12.5 ns full-rate and 0.60×4×1000/48=50 ns for certified compatible pairs; other domains retain existing limits.
+
+Fresh source/mapped certificate counts (measured physical certified cells): EP0 196→196, engine 292→294, wrapper 292→293, standalone SIE 166→182. Read command: `python tools/env/run.py run -- python3 -m scratch.t19_d54_cert_delta`. The new live bulk `in_zlp_pending_q[1]` is B-certified in the engine (`_6255_`) and wrapper (`_7640_`); the standalone fixture retains all sixteen pending bits. Mapping also retains the existing engine eligibility `in_zlp_q[2]` FF (`_6133_`). Unused eligibility bits `[3..15]` merge with an existing compatible disabled-endpoint toggle FF (engine `_6211_`, wrapper `_7603_`); these aliases do not each add a register. Independent review confirms common B reset metadata and fresh mapped hold/reset checks, not a mixed-class alias waiver. New buffer `in.pending` remains full-rate (engine `_6206_`, wrapper `_7703_`). All existing certificate/fanout faults remain; no eligibility rule changes.
+
+| Block | Class | Measured worst ns | Estimated budget ns | Start | End | Measured area um² |
+| --- | --- | ---: | ---: | --- | --- | ---: |
+| control | CC | 13.395742 | 50.00 | _2031_/Q | _1833_/D | 46165.0560 |
+| control | CC_reset | 10.447189 | 12.50 | _1976_/Q | _1924_/D | 46165.0560 |
+| control | CF | 11.734216 | 12.50 | _1972_/Q | _1842_/D | 46165.0560 |
+| control | FC | 8.128351 | 12.50 | _1832_/Q | _1967_/D | 46165.0560 |
+| control | FF | 8.865483 | 12.50 | _1870_/Q | _1811_/D | 46165.0560 |
+| control | IR | 10.367253 | 12.50 | busReset | _2016_/D | 46165.0560 |
+| control | RO | 4.170210 | 12.50 | _2052_/Q | configured | 46165.0560 |
+| control | IO | — | 12.50 | — | — | 46165.0560 |
+| control | RG | — | 12.50 | — | — | 46165.0560 |
+| control | IG | — | 12.50 | — | — | 46165.0560 |
+| in | RR | 9.347021 | 12.50 | _1346_/Q | _1337_/D | 39875.8080 |
+| in | IR | 5.141446 | 12.50 | reset_n | _1203_/D | 39875.8080 |
+| in | RO | 4.111012 | 12.50 | _1356_/Q | appReady | 39875.8080 |
+| in | IO | — | 12.50 | — | — | 39875.8080 |
+| in | RG | — | 12.50 | — | — | 39875.8080 |
+| in | IG | — | 12.50 | — | — | 39875.8080 |
+| out | RR | 9.012933 | 12.50 | _1267_/Q | _1243_/D | 38339.1680 |
+| out | IR | 5.085909 | 12.50 | reset_n | _1114_/D | 38339.1680 |
+| out | RO | 4.282614 | 12.50 | _1212_/Q | nak | 38339.1680 |
+| out | IO | — | 12.50 | — | — | 38339.1680 |
+| out | RG | — | 12.50 | — | — | 38339.1680 |
+| out | IG | — | 12.50 | — | — | 38339.1680 |
+| resume | RR | 8.028501 | 12.50 | _202_/Q | _207_/D | 4783.3408 |
+| resume | IR | 5.062730 | 12.50 | attached | _190_/D | 4783.3408 |
+| resume | RO | 4.080467 | 12.50 | _205_/Q | suspended | 4783.3408 |
+| resume | IO | — | 12.50 | — | — | 4783.3408 |
+| resume | RG | — | 12.50 | — | — | 4783.3408 |
+| resume | IG | — | 12.50 | — | — | 4783.3408 |
+| engine | CC | 18.291136 | 50.00 | _5982_/Q | _5987_/D | 160743.5200 |
+| engine | CC_reset | 12.094826 | 12.50 | _6040_/Q | _6318_/D | 160743.5200 |
+| engine | CF | 15.562494 | 12.50 | _5982_/Q | _6306_/D | 160743.5200 |
+| engine | FC | 13.729841 | 12.50 | usb_enable_replica_0/Q | _5852_/D | 160743.5200 |
+| engine | FF | 12.067788 | 12.50 | _6120_/Q | _5455_/D | 160743.5200 |
+| engine | IR | 4.680038 | 12.50 | rxReady | _5385_/D | 160743.5200 |
+| engine | RO | 7.577746 | 12.50 | _6336_/Q | txEnable | 160743.5200 |
+| engine | IO | 3.987964 | 12.50 | reset_n | pullup_0 | 160743.5200 |
+| engine | RG | — | 12.50 | — | — | 160743.5200 |
+| engine | IG | — | 12.50 | — | — | 160743.5200 |
+| registers | RR | 11.202718 | 24.96 | _453_/Q | _454_/D | 8365.9072 |
+| registers | IR | 9.328797 | 24.96 | bus_bits_addr[9] | _454_/D | 8365.9072 |
+| registers | RO | 4.043431 | 24.96 | _453_/Q | bus_gnt | 8365.9072 |
+| registers | IO | — | 24.96 | — | — | 8365.9072 |
+| registers | RG | — | 24.96 | — | — | 8365.9072 |
+| registers | IG | — | 24.96 | — | — | 8365.9072 |
+| usb | appClock.CC | — | 99.84 | — | — | 198496.5696 |
+| usb | appClock.CC_reset | — | 24.96 | — | — | 198496.5696 |
+| usb | appClock.CF | — | 24.96 | — | — | 198496.5696 |
+| usb | appClock.FC | — | 24.96 | — | — | 198496.5696 |
+| usb | appClock.FF | 10.028626 | 24.96 | _7750_/Q | _7750_/D | 198496.5696 |
+| usb | appClock.IR | 8.064628 | 24.96 | bus_bits_origin[1] | _6421_/D | 198496.5696 |
+| usb | appClock.RO | 3.964705 | 24.96 | _7765_/Q | bus_gnt | 198496.5696 |
+| usb | appClock.IO | 4.400927 | 24.96 | vbus | pullupEnable | 198496.5696 |
+| usb | appClock.RG | — | 24.96 | — | — | 198496.5696 |
+| usb | appClock.IG | — | 24.96 | — | — | 198496.5696 |
+| usb | usbClock.CC | 20.704672 | 50.00 | _7113_/Q | _6507_/D | 198496.5696 |
+| usb | usbClock.CC_reset | 11.327496 | 12.50 | _7385_/Q | _7279_/D | 198496.5696 |
+| usb | usbClock.CF | 13.100976 | 12.50 | _7126_/Q | _7503_/D | 198496.5696 |
+| usb | usbClock.FC | 11.849917 | 12.50 | _7276_/Q | _7244_/D | 198496.5696 |
+| usb | usbClock.FF | 11.898813 | 12.50 | _6472_/Q | _6640_/D | 198496.5696 |
+| usb | usbClock.IR | 6.658974 | 12.50 | vbus | _6642_/D | 198496.5696 |
+| usb | usbClock.RO | 9.581448 | 12.50 | _7771_/Q | pullupEnable | 198496.5696 |
+| usb | usbClock.IO | 4.400927 | 12.50 | vbus | pullupEnable | 198496.5696 |
+| usb | usbClock.RG | — | 12.50 | — | — | 198496.5696 |
+| usb | usbClock.IG | — | 12.50 | — | — | 198496.5696 |
+| usb | aonClock.CC | — | 99.84 | — | — | 198496.5696 |
+| usb | aonClock.CC_reset | — | 24.96 | — | — | 198496.5696 |
+| usb | aonClock.CF | — | 24.96 | — | — | 198496.5696 |
+| usb | aonClock.FC | — | 24.96 | — | — | 198496.5696 |
+| usb | aonClock.FF | 2.488224 | 24.96 | _7305_/Q | _7309_/D | 198496.5696 |
+| usb | aonClock.IR | — | 24.96 | — | — | 198496.5696 |
+| usb | aonClock.RO | 3.750224 | 24.96 | _7309_/Q | usbClockRequest | 198496.5696 |
+| usb | aonClock.IO | 4.400927 | 24.96 | vbus | pullupEnable | 198496.5696 |
+| usb | aonClock.RG | — | 24.96 | — | — | 198496.5696 |
+| usb | aonClock.IG | — | 24.96 | — | — | 198496.5696 |
+| sie | CC | 26.335587 | 50.00 | _3167_/Q | _3237_/D | 66591.3920 |
+| sie | CC_reset | — | 12.50 | — | — | 66591.3920 |
+| sie | CF | 8.284876 | 12.50 | _3199_/Q | _3306_/D | 66591.3920 |
+| sie | FC | 10.208137 | 12.50 | usb_enable_replica_0/Q | _3133_/D | 66591.3920 |
+| sie | FF | 14.152512 | 12.50 | _3112_/Q | _3189_/D | 66591.3920 |
+| sie | IR | 17.250689 | 12.50 | io_in_int_endps_i[6] | _3237_/D | 66591.3920 |
+| sie | RO | 22.479979 | 12.50 | _3167_/Q | io_in_ready_o | 66591.3920 |
+| sie | IO | 13.395082 | 12.50 | io_in_int_endps_i[6] | io_in_ready_o | 66591.3920 |
+| sie | RG | — | 12.50 | — | — | 66591.3920 |
+| sie | IG | — | 12.50 | — | — | 66591.3920 |
+
+Remaining over-budget paths:
+
+- engine CF: measured 15.562494 ns, budget 12.50 ns, `_5982_/Q` (_sie_endp_o[2]) → `_6306_/D` (in.consume[0]).
+- engine FC: measured 13.729841 ns, budget 12.50 ns, `usb_enable_replica_0/Q` (usb_enable_replica_0_q[0]) → `_5852_/D` (control.header_1[6]).
+- usb usbClock.CF: measured 13.100976 ns, budget 12.50 ns, `_7126_/Q` (engine._sie_endp_o[1]) → `_7503_/D` (engine.in.consume[0]).
+- sie FF: measured 14.152512 ns, budget 12.50 ns, `_3112_/Q` (sie.u_phy_rx.nrzi_q[3]) → `_3189_/D` (sie.u_phy_rx.shift_register_q[7]).
+- sie IR: measured 17.250689 ns, budget 12.50 ns, `io_in_int_endps_i[6]` (io_in_int_endps_i[6]) → `_3237_/D` (sie.in_byte_q[1]).
+- sie RO: measured 22.479979 ns, budget 12.50 ns, `_3167_/Q` (io_endp_o[1]) → `io_in_ready_o` (io_in_ready_o).
+- sie IO: measured 13.395082 ns, budget 12.50 ns, `io_in_int_endps_i[6]` (io_in_int_endps_i[6]) → `io_in_ready_o` (io_in_ready_o).
+
+| Block | Check | Start | End | Measured slack ns |
+| --- | --- | --- | --- | ---: |
+| engine | hold/min_fall | dnRx | _6087_/D | -0.102503 |
+| engine | hold/min_fall | dpRx | _6317_/D | -0.102503 |
+| usb | hold/min_fall | dpRx | _6515_/D | -0.102503 |
+| usb | hold/min_fall | dnRx | _6619_/D | -0.102503 |
+| usb | hold/min_fall | dpRx | _6620_/D | -0.102503 |
+| usb | hold/min_fall | dnRx | _7711_/D | -0.102503 |
+| usb | reset/min_rise | aonReset_n | _7697_/RN | -0.975158 |
+| usb | reset/min_rise | aonReset_n | _7701_/RN | -0.975158 |
+| sie | hold/min_fall | io_dp_rx_i | _3313_/D | -0.102503 |
+| sie | hold/min_fall | io_dn_rx_i | _3340_/D | -0.102503 |
+| sie | reset/min_rise | reset_n | _3307_/RN | -0.223424 |
+| sie | reset/min_rise | reset_n | _3308_/RN | -0.223424 |
+| sie | reset/min_rise | reset_n | _3309_/RN | -0.223424 |
+| sie | reset/min_rise | reset_n | _3311_/RN | -0.223424 |
+| sie | reset/min_rise | reset_n | _3312_/RN | -0.223424 |
+| sie | reset/min_rise | reset_n | _3313_/RN | -0.223424 |
+| sie | reset/min_rise | reset_n | _3340_/RN | -0.223424 |
+| sie | reset/min_rise | reset_n | usb_enable_replica_0/RN | -0.223424 |
+
+No maximum slew/capacitance violation is reported. Hold/reset rows retain the existing zero-delay boundary screen; the pad/board contract remains open. Negative hold is a physical-flow item, not an RTL fix. No unrelated timing restructuring or pipeline removal follows these failures. Standalone SIE fixture, complete multicycle qualification, retained pipeline sampling proofs and original packet proofs remain open. Full tier not run; no acceptance or merge.

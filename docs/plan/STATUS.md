@@ -65,6 +65,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D51 | USB reset-aware timing closure | Approved 2026-11-18; proved reset/capture contract and focused enable fanout work, limits unchanged |
 | [x] | D52 | USB full-rate timing and qualification | Approved 2026-11-19; sizing/equivalent factoring and scoped verification, limits unchanged |
 | [x] | D53 | Conditional 16-byte USB bulk packets | Approved 2026-11-19; 1 Mbit/s target, measure per direction before adoption |
+| [x] | D54 | Test USB retry ownership repair | Approved 2026-11-19; immutable pending payload/ZLP, preserve queued data and all acceptance limits |
 
 ## Tasks
 
@@ -90,7 +91,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T16 | [SPI host](tasks/T16-spi-host.md) | Codex | T05, T07, T09, T14, T15 | [Report](tasks/reports/T16.md): SPI acceptance, GF180 timing and independent review pass; fast 31/31 with inherited T14 deferrals, no SPI deferrals; full not run |
 | [x] | T17 | [I2C controller](tasks/T17-i2c-host.md) | Codex | T05, T07, T09, T14, T16 | [Report](tasks/reports/T17.md); 19 simulations, GF180 timing and fast CI active checks pass; eight I2C formal jobs remain deferred/unproved |
 | [x] | T18 | [Lite I2C recovery loader](tasks/T18-i2c-recovery-loader.md) | Codex | T06, T07, T09, T14 | [Report](tasks/reports/T18.md). Wire-to-memory recovery and warm-reset lock retention verified. |
-| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): D53 candidate exceeds 1 Mbit/s each direction and saves area; inherited replay defect, timing and proof/qualification block; frozen USB/fast fail, full tier unrun |
+| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): D54 tested retry repair passes 18 simulations and ownership proof; timing/original packet qualification block; frozen USB/fast fail, full tier unrun |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -152,6 +153,10 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-19: D54 confirms short/ZLP retry defects and repairs offered ownership. Final five directed tests (383 phase cases), all 18 frozen USB tests, and unbounded boundary proof/covers/fault pass; unchanged slow-service regression now reaches the intended rate rejection with bytes intact. Independent review is clear for this scoped result. Timing and original packet/qualification obligations remain; frozen USB/fast fail, full tier unrun. No merge.
+
+- 2026-11-19: D54 resumes T19 to test the approved retry-lifecycle hypothesis: reproduce appended short-packet payload and terminal-ZLP lost-ACK behavior, then test immutable offered ownership until ACK/reset. No timing, proof or qualification limit changes; no merge.
 
 - 2026-11-19: D53 frozen candidate measured 1.022483 Mbit/s simultaneously each direction under the documented MMIO/clock schedule; mapped wrapper area 197043.3472 um² versus D52 measured 332364.2560 um² (estimated 40.715% reduction). New slow-service test exposes an inherited lost-ACK short-packet replay defect. Integrated CF/FC/FF failures and packet/qualification obligations remain. Aggregate and fast CI fail with source hashes unchanged; full tier unrun. Independent review clears only an incomplete checkpoint. Separate packet-lifecycle repair approval is pending; no merge.
 

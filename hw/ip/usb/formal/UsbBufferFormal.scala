@@ -63,6 +63,62 @@ class UsbWithheldValid(proofView: Boolean=false, packetBytes: Int=UsbPacketSizin
   override protected def offer(value: Bool): Bool=false.B
 }
 
+class UsbMovingRetryBoundary extends UsbInBuffer(true) {
+  override protected def retainPacket(pending: Bool): Bool=false.B
+}
+
+/** Ownership safety, separate from the original six byte-queue assertions.
+  * No added assumptions: requests, ACKs, writes and reset are arbitrary.
+  * The production buffer is instantiated without substitution; unused RAM
+  * data logic is optimized away from this control-only property cone.
+  */
+class UsbRetryBoundaryFormal(variant: String) extends RawModule {
+  val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
+  val data=IO(Input(UInt(8.W)));val push=IO(Input(Bool()))
+  val operation=IO(Input(UInt(2.W)))
+  val cadence=Module(new UsbBitEnable);cadence.clk:=clock;cadence.reset_n:=reset_n
+  val d=Module(if(variant=="corrupt") new UsbMovingRetryBoundary else new UsbInBuffer(true))
+  d.clk:=clock;d.reset_n:=reset_n;d.bitEnable:=cadence.enable
+  d.appData:=data;d.appValid:=push;d.proofMemory.get:=0.U.asTypeOf(new UsbMemoryProofInputs)
+  d.request:=operation===2.U;d.acknowledge:=operation===3.U
+  d.consume:=operation=/=0.U
+  withClockAndReset(clock,(!reset_n).asAsyncReset) {
+    val p=d.proof.get
+    val ack=cadence.enable && d.consume && !d.request && d.acknowledge
+    val wasOwned=RegNext(p.pending && !ack,false.B)
+    val boundary=RegNext(p.visibleTail,0.U)
+    val head=RegNext(p.head,0.U)
+    val wasAck=RegNext(ack,false.B)
+    val wasRequest=RegNext(cadence.enable && d.consume && d.request,false.B)
+    val queuedAfterOffer=RegInit(false.B)
+    val retried=RegInit(false.B)
+    val emptyRequest=RegInit(false.B)
+    val invalidRead=RegInit(false.B)
+    when(!p.pending || ack){queuedAfterOffer:=false.B}
+      .elsewhen(push && d.appReady){queuedAfterOffer:=true.B}
+    when(!p.pending || ack){retried:=false.B}
+      .elsewhen(cadence.enable && d.request && queuedAfterOffer){retried:=true.B}
+    when(cadence.enable && d.request && p.head===p.tail && !p.stagingValid){emptyRequest:=true.B}
+    // A legal partial-packet witness must have no earlier invalid consume,
+    // including before a retry/request; assertions still allow all operations.
+    when(cadence.enable && operation===1.U && !d.valid){invalidRead:=true.B}
+    def distance(a: UInt,b: UInt): UInt =
+      Mux(b>=a,b-a,UsbPacketGeometry().slots.U((UsbPacketGeometry().pointerBits+1).W)+b-a)
+    if(variant=="cover") {
+      cover(p.pending && queuedAfterOffer && p.tail=/=p.visibleTail && cadence.enable && d.request)
+      cover(p.pending && queuedAfterOffer && retried && p.tail=/=p.visibleTail && p.speculative===p.visibleTail && ack)
+      cover(p.pending && !invalidRead && distance(p.head,p.speculative)>0.U &&
+        distance(p.head,p.speculative)<distance(p.head,p.visibleTail) && ack)
+      cover(emptyRequest && p.pending && d.valid)
+    } else {
+      when(wasOwned){assert(p.pending);assert(p.visibleTail===boundary);assert(p.head===head)}
+      when(p.pending){assert(p.head=/=p.visibleTail)}
+      when(wasAck){assert(!p.pending)}
+      when(wasRequest){assert(p.speculative===head)}
+    }
+  }
+}
+
 /** Symbolically select one accepted application byte. Track its logical queue
   * position through speculative reads, replay and ACK; never inspect DUT RAM
   * or pointers. Arbitrary selection proves integrity at every queue position.

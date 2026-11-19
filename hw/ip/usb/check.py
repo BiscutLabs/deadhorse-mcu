@@ -69,7 +69,7 @@ def run(output,packet_triage=None):
             packet_status.update(receipt=str(prior.relative_to(ROOT)),sha256=hashlib.sha256(prior.read_bytes()).hexdigest(),cases=detail['cases'])
         receipt['packet_proofs']=packet_status
         formal_args=[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json','--output',output/'formal']
-        for role in ('cadence','cadence_reset','reset_data','reset_aware','reset_aware_early','buffer_reset','resume','denied','pads','control','address'):
+        for role in ('cadence','cadence_reset','reset_data','reset_aware','reset_aware_early','buffer_reset','retry_boundary','resume','denied','pads','control','address'):
             formal_args+=['--case',role]
         command('formal',formal_args,output/'formal/result.json')
         command('packet-controls',[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json',

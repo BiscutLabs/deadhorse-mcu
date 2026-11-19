@@ -2,12 +2,35 @@
 
 Status: implementation in progress; acceptance has not passed.
 
-Current D53 status: the 16-byte candidate exceeds 1 Mbit/s per direction under
+D54 (user approval 2026-11-19) authorizes testing immutable offered IN packet
+ownership until qualified ACK or reset, including terminal-ZLP retries. Later
+application writes must remain queued for the next packet; empty NAK requests
+must not lock future data. The scoped repair keeps packet RAM, protocol cadence,
+service deadlines and all timing/formal acceptance limits unchanged. Diagnostic
+results and independent review are required before accepting the hypothesis.
+
+Historical D53 status: the 16-byte candidate exceeds 1 Mbit/s per direction under
 the measured MMIO service contract and reduces mapped area. An inherited
 short-packet replay defect, integrated timing failures and packet/qualification
 obligations block acceptance. Frozen aggregate and fast CI fail; full tier is
 unrun. See [D53 below](#d53-conditional-16-byte-packets) and the
 [T19 report](../../../docs/plan/tasks/reports/T19.md).
+
+The D54 candidate stores one pending bit beside the existing IN boundary;
+reset clears it. Fresh nonempty requests snapshot the boundary, including a
+same-edge RAM write. Retries preserve it; qualified ACK commits only consumed
+bytes and releases ownership. No packet RAM or pipeline stage is added.
+The retained SIE patch separately remembers an offered bulk ZLP until ACK;
+reset, endpoint disable and directional clear-halt clear that state. Existing
+full-packet termination eligibility remains separate; EP0 selection is unchanged.
+
+`retry_boundary` proves pending boundary/head stability, nonempty ownership,
+ACK release and request rewind on the production buffer. Inputs/operations and
+subsequent reset are arbitrary, with the existing initial-reset model and
+production cadence. Real covers exercise queued suffix/retry/ACK, partial ACK
+and empty-request recovery; disabling boundary retention must fail. This is
+an ownership proof, not the unresolved packet-byte proof or a proof of SIE/ZLP
+composition. See the report for exact commands and fresh wire/timing results.
 
 ## Historical D48-D50 baseline
 

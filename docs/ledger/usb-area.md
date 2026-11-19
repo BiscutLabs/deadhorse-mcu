@@ -138,3 +138,21 @@ reduce area at this size before adaptation/scheduling overhead. Sharing a macro
 is a different architecture and is not assessed or implemented here. Macro
 footprints and mapped standard-cell sums are pre-layout comparisons, not a
 physical integration or timing qualification.
+
+
+## D54 retry lifecycle, 2026-11-19
+
+Measured by `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d54-frozen-check-03`, base commit `c20e625ea44baaf65c9a523f7a9e12fb070dee22` plus the receipt's exact frozen source hashes. Fast CI independently repeats the same measurements. GF180 7-track SS/125 C/3.0 V, Yosys 0.71+34/OpenSTA 3.2.0, mapped pre-layout cell area/delay and ideal clocks; no routed or board signoff. Budgets remain estimated 0.60×1000/48=12.5 ns full-rate and 0.60×4×1000/48=50 ns for certified compatible pairs; other domains retain existing limits.
+
+| Block | D53 measured um² | D54 measured um² | Estimated change % |
+| --- | ---: | ---: | ---: |
+| control | 46165.0560 | 46165.0560 | 0.000 |
+| in | 39542.1376 | 39875.8080 | 0.844 |
+| out | 38339.1680 | 38339.1680 | 0.000 |
+| resume | 4783.3408 | 4783.3408 | 0.000 |
+| engine | 156976.5568 | 160743.5200 | 2.400 |
+| registers | 8365.9072 | 8365.9072 | 0.000 |
+| usb | 197043.3472 | 198496.5696 | 0.738 |
+| sie | 58260.6080 | 66591.3920 | 14.299 |
+
+Estimated percentage is 100×(D54−D53)/D53 using measured areas. The repair adds ownership state without new packet RAM. SRAM macros are unchanged; the D53 pinned-catalog footprint comparison remains historical evidence, not a new measurement.
