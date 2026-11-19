@@ -55,9 +55,10 @@ class UsbEngine(vid: Int = 0, pid: Int = 0, bulkPacketBytes: Int = UsbPacketSizi
   val cadence=Module(new UsbBitEnable);cadence.clk:=clk;cadence.reset_n:=engineReset
   control.bitEnable:=cadence.enable;in.bitEnable:=cadence.enable;out.bitEnable:=cadence.enable
   sie.io.clk_gate_i:=cadence.enable
-  // Cut the vendor combinational packet decode from endpoint admission. These
-  // sample-clock stages settle before the following protocol-enable edge.
-  def packetFlag(value: Bool): Bool=withClockAndReset(clk,(!engineReset).asAsyncReset){RegNext(value,false.B)}
+  // Cut the vendor combinational packet decode from endpoint admission.
+  // Flags capture on the sample immediately preceding the protocol-enable edge.
+  def packetFlag(value: Bool): Bool=withClockAndReset(clk,(!engineReset).asAsyncReset){RegEnable(value,false.B,cadence.preEnable)}
+  // The memory's wordData register samples every cycle; preserve its exact state.
   val packetData=withClockAndReset(clk,(!engineReset).asAsyncReset){RegNext(sie.io.out_data_o,0.U)}
   control.busReset := sie.io.bus_reset_o
   control.inRequest := packetFlag(sie.io.in_req_o && sie.io.endp_o === 0.U)

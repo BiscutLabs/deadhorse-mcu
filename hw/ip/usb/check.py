@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import subprocess
 import sys
@@ -15,6 +16,45 @@ def inputs():
     for name in ('hw/ip/usb','hw/vendor/usb','hw/top/stubs','hw/lib/src/main/scala','hw/regmap','tools/timing'):
         paths.extend(p for p in (ROOT/name).rglob('*') if p.is_file() and '__pycache__' not in p.parts)
     return {p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(set(paths))}
+
+
+def command_accepted(row):
+    status=row.get('child_status','pass')
+    if row['name']=='timing-sie' and row.get('acceptance_required') is False:
+        return (row.get('diagnostic_complete') is True and
+                row['returncode']==(0 if status in ('pass','warning') else 1) and
+                status in ('pass','warning','fail','blocked'))
+    return row['returncode']==0 and (status=='pass' or
+        (status=='warning' and row['name'] in {'timing-'+n for n in ('control','in','out','resume','engine','usb','sie')}))
+
+
+def sie_diagnostic_complete(detail, sources):
+    """Only a complete, freshly bound standalone measurement is optional."""
+    expected={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
+    certificate=detail.get('protocol_certificate',{})
+    certified_sources={str(p):expected[p.relative_to(ROOT).as_posix()] for p in sources}
+    classes=detail.get('classes',{})
+    def finite(value):
+        return type(value) in (int,float) and math.isfinite(value)
+    def path(row,number):
+        return (isinstance(row,dict) and finite(row.get(number)) and
+                all(isinstance(row.get(k),str) and row[k] for k in ('start','end')))
+    def checks(rows):
+        return isinstance(rows,list) and all(path(r,'slack_ns') and isinstance(r.get('check'),str) and r['check'] for r in rows)
+    electrical=detail.get('electrical')
+    physical=(isinstance(electrical,dict) and
+        type(electrical.get('max_capacitance_and_slew_violations')) is int and
+        electrical['max_capacitance_and_slew_violations']>=0 and
+        bool(detail.get('hold_reset_checks')) and checks(detail.get('hold_reset_checks')) and
+        checks(detail.get('hold_reset_violations')) and checks(detail.get('clock_gate_checks')) and
+        finite(detail.get('area_um2')) and detail['area_um2']>0)
+    if not isinstance(classes,dict) or not isinstance(certificate,dict):return False
+    return bool(expected and detail.get('top')=='UsbSieTiming' and detail.get('role')=='production' and
+        detail.get('operating_point')=='usb-48mhz' and detail.get('source_sha256')==expected and
+        certificate.get('status')=='pass' and certificate.get('top')=='UsbSieTiming' and
+        certificate.get('sources')==certified_sources and
+        {'CC','CC_reset','CF','FC','FF','CP','FP','IR','RO','IO','RG','IG'}<=classes.keys() and
+        all(path(classes[k],'delay_ns') for k in ('CC','CF','FC','FF','IR','RO','IO')) and physical)
 
 
 def run(output,packet_triage=None):
@@ -51,6 +91,9 @@ def run(output,packet_triage=None):
         command('emit-sie',[py,'tools/sbt.py',f'runMain deadhorse.usb.EmitUsbSieTiming {output}/emit/sie'])
         command('resume-equivalence',[py,'hw/ip/usb/formal/resume_equivalence.py',
             '--after',output/'emit/resume','--output',output/'resume-equivalence'],output/'resume-equivalence/result.json')
+        command('preenable-equivalence',[py,'hw/ip/usb/formal/preenable_equivalence.py',
+            '--after',output/'emit','--regmap',output/'regmap/usb_regs.json',
+            '--output',output/'preenable-equivalence'],output/'preenable-equivalence/result.json')
         # The user requires a triage-budget stop, never an unchanged timeout
         # retry. Positive packet acceptance remains required and unresolved.
         # Preserve exact-source evidence if supplied; it is never a deferral.
@@ -69,7 +112,7 @@ def run(output,packet_triage=None):
             packet_status.update(receipt=str(prior.relative_to(ROOT)),sha256=hashlib.sha256(prior.read_bytes()).hexdigest(),cases=detail['cases'])
         receipt['packet_proofs']=packet_status
         formal_args=[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json','--output',output/'formal']
-        for role in ('cadence','cadence_reset','reset_data','reset_aware','reset_aware_early','buffer_reset','retry_boundary','resume','denied','pads','control','address'):
+        for role in ('cadence','cadence_reset','preenable_early','preenable_late','preenable_reset','preenable_write','reset_data','reset_aware','reset_aware_early','buffer_reset','retry_boundary','resume','denied','pads','control','address'):
             formal_args+=['--case',role]
         command('formal',formal_args,output/'formal/result.json')
         command('packet-controls',[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json',
@@ -78,15 +121,20 @@ def run(output,packet_triage=None):
         for name,top in [('control','UsbControl'),('in','UsbInBuffer'),('out','UsbOutBuffer'),
                          ('resume','UsbResume'),('engine','UsbEngine'),('registers','UsbRegisters'),('usb','Usb'),('sie','UsbSieTiming')]:
             sources=sorted((output/'emit'/name).glob('*.sv'))
-            if name in ('engine','usb','sie'): sources += [ROOT/'build/vendor/usb/rtl'/p for p in ('sie.v','phy_rx.v','phy_tx.v')]
+            if name in ('engine','usb','sie'): sources += sorted((output/'emit'/name).glob('*.v'))
             if not sources: raise ValueError('Missing emission '+name)
             argv=[py,'tools/timing/check.py','--top',top,'--clock','usbClock' if name=='usb' else 'clk','--output',output/'timing'/name]
             if name!='registers': argv+=['--operating-point','usb-48mhz']
             if name in ('control','engine','usb','sie'):argv+=['--usb-cadence',output/'formal/result.json']
+            if name in ('engine','usb'):argv+=['--usb-equivalence',output/'preenable-equivalence/result.json']
             for source in sources: argv+=['--source',source]
             receipt['timing'][name]=command('timing-'+name,argv,output/'timing'/name/'result.json')
+            if name=='sie':
+                receipt['commands'][-1].update(acceptance_required=False,
+                    disposition='diagnostic-only; integrated engine and wrapper are acceptance targets',
+                    diagnostic_complete=sie_diagnostic_complete(receipt['timing'][name],sources))
         if inputs()!=before: raise RuntimeError('Source inputs changed during acceptance')
-        passed=not receipt['unresolved'] and all(r['returncode']==0 and r.get('child_status','pass')=='pass' for r in receipt['commands'])
+        passed=not receipt['unresolved'] and all(command_accepted(r) for r in receipt['commands'])
         receipt['status']='pass' if passed else 'failed'
     except Exception as error:
         receipt.update(status='failed',error=str(error))

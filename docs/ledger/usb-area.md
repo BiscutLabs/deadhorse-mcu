@@ -156,3 +156,17 @@ Measured by `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output 
 | sie | 58260.6080 | 66591.3920 | 14.299 |
 
 Estimated percentage is 100×(D54−D53)/D53 using measured areas. The repair adds ownership state without new packet RAM. SRAM macros are unchanged; the D53 pinned-catalog footprint comparison remains historical evidence, not a new measurement.
+
+
+## T19 D58/D59 pre-enable flags — 2026-11-19
+
+Measured with `python tools/env/run.py run -- python3 scratch/t19_d58_measure.py engine`
+and `usb`, base099c27f plus exact hashes in `build/t19/d59-timing-01`, GF1807-track
+SS/125C/3.0V, mapped pre-layout. Engine160743.5200→160227.6480µm²; wrapper
+198496.5696→197379.2128µm² versus historical D54. Calculated differences:
+−515.8720µm² (−0.3209%) and −1117.3568µm² (−0.5629%). Ten physical P capture FFs
+per block represent thirteen source flag identities after legal merging; the
+added cadence strobe is separate. packetData remains full-rate. No SRAM change,
+gated bank, physical area estimate or power measurement is claimed.
+
+The frozen fast02 USB aggregate (`python3 hw/ip/usb/check.py --output build/t19/d59-frozen-fast-02/fast/usb`, invoked by the pinned fast tier) reproduces these measured engine/wrapper areas exactly. Full fresh per-block areas and path classes are listed in the T19 report. No physical layout or SRAM substitution was performed.

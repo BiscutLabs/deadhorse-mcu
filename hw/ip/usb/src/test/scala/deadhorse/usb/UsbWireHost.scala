@@ -10,14 +10,14 @@ trait UsbWirePorts { this: Module =>
   val rxData: UInt;val rxValid: Bool;val rxReady: Bool
   val dp: Bool;val dn: Bool;val oe: Bool;val pullupEnable: Bool;val configured: Bool
 }
-class UsbWireBench(corrupt: Boolean = false) extends Module with UsbWirePorts {
+class UsbWireBench(corrupt: Boolean = false, engineFactory: ()=>UsbEngine = ()=>new UsbEngine) extends Module with UsbWirePorts {
   val hostDrive=IO(Input(Bool())); val hostDp=IO(Input(Bool())); val hostDn=IO(Input(Bool()))
   val vbus=IO(Input(Bool()))
   val txData=IO(Input(UInt(8.W))); val txValid=IO(Input(Bool())); val txReady=IO(Output(Bool()))
   val rxData=IO(Output(UInt(8.W))); val rxValid=IO(Output(Bool())); val rxReady=IO(Input(Bool()))
   val dp=IO(Output(Bool())); val dn=IO(Output(Bool())); val oe=IO(Output(Bool()))
   val pullupEnable=IO(Output(Bool())); val configured=IO(Output(Bool())); val sessionReset=IO(Output(Bool()))
-  val engine=Module(new UsbEngine)
+  val engine=Module(engineFactory())
   engine.clk:=clock; engine.reset_n := !reset.asBool; engine.vbus:=vbus
   engine.dpRx:=Mux(engine.txEnable,engine.dpTx,Mux(hostDrive,hostDp,engine.pullup))
   engine.dnRx:=Mux(engine.txEnable,engine.dnTx,Mux(hostDrive,hostDn,false.B))

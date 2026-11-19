@@ -17,7 +17,7 @@ corner (SS, 125 C, 3.0 V) in CI, on every change.
 | Item | Rule |
 | --- | --- |
 | Clock period | The `clk_main` period fixed at gate G1; until then, 41.6 ns (24 MHz) for main-domain blocks |
-| Budget | A block fails if its worst register-to-register, input-to-register or register-to-output path exceeds **60 percent** of the period. The rest is reserved for wires, clock uncertainty and the SRAM's own timing |
+| Budget | The default failure limit is **60 percent** of the period. D57/D59 give USB sample-clock single-cycle paths a warning band above 60% through 15 ns; above 15 ns still fails. Other blocks/domains and D45's 50 ns certified four-edge budget are unchanged |
 | Scope | Each block alone, then each clock domain's top level |
 | Record | Worst path per block (delay, start and end points, logic depth) in `docs/ledger/timing.md`, one row per block per change that moves it |
 | Exceptions | A path over budget needs a written entry in the block README naming the path and why, and approval. A multi-cycle path is declared in the constraints and proved by a property that the destination is only sampled when valid |
@@ -25,6 +25,19 @@ corner (SS, 125 C, 3.0 V) in CI, on every change.
 These are pre-layout numbers without wire delay. They catch long logic early;
 they are not signoff. Signoff timing is gate 1 in
 [08-physical-verification.md](08-physical-verification.md).
+
+D57 (user approval 2026-11-19) requires a new USB timing check after placement
+using real interconnect delays before final qualification. At 48 MHz the
+estimated target remains 0.60×1000/48=12.5 ns; D59 replaces the original 70% ceiling with the user-approved 15 ns warning ceiling. Warnings must name the path and retain
+the placement obligation in the timing receipt and ledger. This does not waive
+electrical, clock-gate, hold/reset, cadence, certificate or formal checks.
+
+D58 additionally permits setup 3 / hold 2 only from a value-certified launch
+to a proved pre-enable capture, with estimated budget 0.60×3×1000/48=37.5 ns.
+Full-rate launches into these captures retain a strict 12.5 ns limit; D57's
+warning band does not apply to them. Reset-safe strobe cadence, exact mapped
+identities and whole-engine/wrapper equivalence are prerequisites, not assumed
+from a register's name. Other classes remain unchanged.
 
 The 60 percent figure and the period are assumptions until spike S1 has timed
 a real core. S1 uses this same flow.

@@ -8,6 +8,55 @@ import java.nio.file.{Files,Paths}
 class UsbEarlyEnable extends UsbBitEnable {
   override protected def pulse(count: UInt): Bool=count(0)
 }
+class UsbWrongPreEnable(early: Boolean) extends UsbBitEnable {
+  override protected def prePulse(count: UInt): Bool=count===(if(early) 1.U else 3.U)
+}
+/** D58: actual cadence, arbitrary reset reassertion, and independently checked
+  * reset-compatible producer classes. History survives DUT reset.
+  */
+class UsbPreEnableFormal(variant: String, fault: String) extends RawModule {
+  val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
+  val nextBusReset=IO(Input(Bool()));val nextValue=IO(Input(UInt(2.W)))
+  val broken=variant=="corrupt"
+  val d=Module(if(broken && (fault=="early" || fault=="late")) new UsbWrongPreEnable(fault=="early") else new UsbBitEnable)
+  d.clk:=clock;d.reset_n:=reset_n
+  val bus=withClockAndReset(clock,(!reset_n).asAsyncReset){RegEnable(nextBusReset,false.B,d.enable)}
+  val delayedBus=withClockAndReset(clock,(!reset_n).asAsyncReset){RegNext(bus,false.B)}
+  val busReset=if(broken && fault=="reset") delayedBus else bus
+  val r=withClockAndReset(clock,(!reset_n).asAsyncReset){
+    RegEnable(nextValue,0.U,if(broken && fault=="write") true.B else d.enable)
+  }
+  val b=withClockAndReset(clock,(!(reset_n && !busReset)).asAsyncReset){RegEnable(nextValue,0.U,d.enable)}
+  val h=withClockAndReset(clock,false.B){RegEnable(nextValue,d.enable && !busReset)}
+  withClockAndReset(clock,false.B) {
+    val history=Reg(UInt(3.W));dontTouch(history)
+    val preHistory=Reg(UInt(3.W));dontTouch(preHistory)
+    val releaseHistory=Reg(UInt(4.W));dontTouch(releaseHistory)
+    history:=Cat(history(1,0),d.enable)
+    preHistory:=Cat(preHistory(1,0),d.preEnable)
+    releaseHistory:=Cat(releaseHistory(2,0),reset_n)
+    val r1=RegNext(r);val r2=RegNext(r1)
+    val b1=RegNext(b);val b2=RegNext(b1)
+    val h1=RegNext(h);val h2=RegNext(h1)
+    if(variant=="cover") {
+      cover(d.preEnable && r=/=0.U && !busReset && history(2) && releaseHistory.andR)
+      cover(d.preEnable && busReset)
+      cover(!reset_n && preHistory.orR)
+      cover(d.enable && preHistory(0))
+    } else {
+      assert(!d.preEnable || (reset_n && releaseHistory(2,0).andR))
+      assert(!d.preEnable || !preHistory.orR)
+      assert(!d.preEnable || (!d.enable && !history(1,0).orR))
+      assert(!d.enable || (reset_n && releaseHistory.andR && preHistory(0)))
+      assert(!preHistory(0) || !reset_n || d.enable)
+      when(d.preEnable) {
+        assert(r===r1);assert(r===r2)
+        assert(b===b1);assert(b===b2)
+        assert(h===h1);assert(h===h2)
+      }
+    }
+  }
+}
 class UsbLostWake extends UsbResume(17) {
   override protected def retain(value: Bool): Bool=false.B
 }
@@ -161,6 +210,7 @@ object EmitUsbFormal {
       def design: RawModule=args(1) match {
         case "cadence"=>new UsbCadenceFormal(variant)
         case "cadence_reset"=>new UsbCadenceResetFormal(variant)
+        case n if n.startsWith("preenable_")=>new UsbPreEnableFormal(variant,n.stripPrefix("preenable_"))
         case "reset_data"=>new UsbResetDataFormal(variant)
         case "reset_aware"=>new UsbResetAwareFormal(variant)
         case "reset_aware_early"=>new UsbResetAwareFormal(variant,true)

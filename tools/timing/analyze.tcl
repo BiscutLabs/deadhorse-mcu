@@ -61,13 +61,13 @@ set groups [list RR [list [all_registers -clock_pins] [all_registers -data_pins]
                  RO [list [all_registers -clock_pins] $outputs] \
                  IO [list $data_inputs $outputs]]
 if {[info exists certified_q]} {
-    foreach name {certified_q certified_d certified_clock full_q full_d reset_pins} {
+    foreach name {certified_q certified_d certified_clock full_q full_d reset_pins pre_d pre_certified_q pre_certified_clock pre_full_q} {
         set raw [set $name]
         if {![llength $raw]} {set $name {}; continue}
         set $name [get_pins $raw]
         if {[llength [set $name]] != [llength $raw]} {error "Missing D45 $name pin"}
     }
-    if {[llength $certified_d]+[llength $full_d] != [llength [all_registers -data_pins]]} {
+    if {[llength $certified_d]+[llength $full_d]+[llength $pre_d] != [llength [all_registers -data_pins]]} {
         error "Incomplete D45 register partition"
     }
     if {[info exists reset_groups]} {
@@ -98,8 +98,18 @@ if {[info exists certified_q]} {
         set_multicycle_path 4 -setup -from $certified_clock -to $certified_d
         set_multicycle_path 3 -hold -from $certified_clock -to $certified_d
     }
+    if {[llength $pre_d]} {
+        set expected [lsort [all_registers -data_pins]]
+        set assigned [concat $certified_d $full_d $pre_d]
+        if {[lsort -unique $assigned] ne $expected || [llength $assigned] != [llength $expected]} {error "Overlapping/missing D58 captures"}
+        if {[llength $pre_certified_clock]} {
+            set_multicycle_path 3 -setup -from $pre_certified_clock -to $pre_d
+            set_multicycle_path 2 -hold -from $pre_certified_clock -to $pre_d
+        }
+    }
     set groups [list CC [list $certified_q $certified_d] CF [list $certified_q $full_d] \
                      FC [list $full_q $certified_d] FF [list $full_q $full_d] \
+                     CP [list $pre_certified_q $pre_d] FP [list $pre_full_q $pre_d] \
                      IR [list $data_inputs [all_registers -data_pins]] \
                      RO [list [all_registers -clock_pins] $outputs] IO [list $data_inputs $outputs]]
     set safety [open [file join [file dirname $path_report] short_reset_checks.tsv] w]
@@ -123,7 +133,7 @@ if {[info exists domain_periods]} {
     # belongs to shared CDC qualification, not synchronous setup/hold STA.
     set groups {}
     foreach name $clock_names {
-        set dq {};set dd {};set cq {};set cd {};set fq {};set fd {}
+        set dq {};set dd {};set cq {};set cd {};set fq {};set fd {};set pd {}
         foreach cell [all_registers -rise_clock $name] {
             set base [get_full_name $cell]
             set q [get_pins $base/Q];set d [get_pins $base/D]
@@ -132,8 +142,12 @@ if {[info exists domain_periods]} {
             if {[lindex $d 0] in $certified_d} {
                 if {$name!="usbClock"} {error "Certified register outside USB domain"}
                 lappend cq {*}$q;lappend cd {*}$d
-            } else {lappend fq {*}$q;lappend fd {*}$d}
+            } else {
+                lappend fq {*}$q
+                if {[lindex $d 0] in $pre_d} {lappend pd {*}$d} else {lappend fd {*}$d}
+            }
         }
+        if {$name eq "usbClock"} {lappend groups $name.CP [list $pre_certified_q $pd] $name.FP [list $pre_full_q $pd]}
         lappend groups $name.CC [list $cq $cd] $name.CF [list $cq $fd] \
             $name.FC [list $fq $cd] $name.FF [list $fq $fd] \
             $name.IR [list $data_inputs $dd] $name.RO [list $dq $outputs] $name.IO [list $data_inputs $outputs]
@@ -216,6 +230,15 @@ foreach {kind ends} $groups {
     }
 }
 close $f
+if {[info exists pre_d] && [llength $pre_d]} {
+    foreach {kind from} [list CP $pre_certified_q FP $pre_full_q] {
+        foreach mode {max min} {
+            puts "PRE_ENABLE_EDGE_BEGIN $kind $mode"
+            report_checks -from $from -to $pre_d -path_delay $mode -group_path_count 1 -format full_clock_expanded -digits 6
+            puts "PRE_ENABLE_EDGE_END $kind $mode"
+        }
+    }
+}
 report_checks -path_delay max -group_path_count 4 -format full_clock_expanded -digits 6
 report_checks -path_delay min -group_path_count 4 -format full_clock_expanded -digits 6
 puts "ELECTRICAL_BEGIN"

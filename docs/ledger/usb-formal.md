@@ -494,3 +494,54 @@ Assumed USB 48 MHz and application/AON 12 MHz; full public MMIO/CDC wrapper, det
 | Throttled negative control | 64 | 343040 | 256 | 256 | 286567.164 | 286567.164 |
 
 The slow-service case now completes with bytes intact and reaches the intended `USB_PAYLOAD_RATE` rejection. Its replay/data assertions remain unchanged.
+
+
+## D58 flags-only follow-up — 2026-11-19 (historical timeout)
+
+User approved leaving packetData full-rate; all packet flags use the registered
+preEnable strobe. Independent source review found no other off-enable flag
+consumer. Fresh engine/wrapper emissions pass; baseline HDL hashes reproduce
+D54 exactly. Base `099c27f` plus candidate source, not a committed result.
+
+`python tools/env/run.py run -- python3 hw/ip/usb/formal/preenable_equivalence.py --before build/t19/d58-equivalence-01/before --after build/t19/d58-equivalence-01/after --output build/t19/d58-equivalence-proof-02`
+hit the existing 120-second cap on engine induction: **unresolved**, not a
+counterexample. The diagnostic checker is preserved under that result directory
+as `checker.py`; it was not adopted as an acceptance tool. Relational model
+couples arbitrary unchanged Q values, retains real flags/cadence, and compares
+all other state-transition/control functions and outputs. No producer-stability
+or consumer-sampling assumption was introduced. Initial unreset state is shared.
+
+Measured via `yosys -Q -T -s build/t19/d58-equivalence-proof-02/step0.ys`
+in the pinned environment: original miter 48,053 cells / 33 sequential bits;
+exact diagnostic `opt -full` 5,717 cells / 30 sequential bits, no RAM cells.
+No second proof after optimization was run. Buffered solver progress was not
+available after timeout; growth/cover runs stop with the explicit user rule.
+Independent review requires fail-closed strobe clock/reset/type guards,
+initialization and sequential-state guards, robust bit allocation, source
+binding and concrete fault validation before acceptance. Wrapper proof and
+faults were not reached; no cadence or constraint qualification, frozen aggregate,
+fast CI or full-tier result is claimed. See the T19 report for commands and
+remaining work. No commit/push/merge.
+
+
+## D58 closure of flags-only equivalence — 2026-11-19
+
+The earlier timeout is superseded by `build/t19/d58-equivalence-proof-06/result.json`:
+engine and wrapper both prove by induction at step 2, comparing 1,175/1,661
+unchanged bits with exactly 13 excluded flag identities each. Source/HDL hashes
+and pinned baseline 099c27f are authenticated. Early/late phase and off-enable
+consumer mutations fail in the relational model; real EP1 traffic independently
+rejects the full-rate consumer (phase 10) while preserving enable-edge samples
+and payload. `build/t19/d58-cadence-03/result.json` proves all eight cadence/reset
+cases, with covers/faults. Exact commands and initialization relation are in the
+T19 report. No new producer-stability assumption or packet-proof attempt.
+
+D59 only changes the eligible USB single-cycle warning ceiling to 15 ns. D58
+mapped P certification and negative controls pass for 10 physical captures per
+block in `build/t19/d59-timing-01`; S-to-P remains strict FP. The full measured
+cadence hash is bound to the pre-enable proofs; the CE-only projected cadence
+hash remains separately bound to the original reset lemmas. Applied STA edges
+are audited. Independent review clears this digital result; complete T19
+acceptance and physical qualification are not claimed.
+
+Final frozen confirmation: `python tools/env/run.py run -- python3 tools/ci.py --tier fast --output build/t19/d59-frozen-fast-02` runs a fresh USB aggregate under `fast/usb`. Both equivalence proofs, every focused formal case, CDC, all 19 simulations and real packet/phase/consumer controls pass. Original positive packet proofs remain unresolved and are not rerun. The USB aggregate and fast tier fail existing qualification; full tier is not run. Exact source inventories match before reporting-only updates.

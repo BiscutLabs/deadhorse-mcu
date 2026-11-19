@@ -1619,3 +1619,34 @@ Remaining over-budget paths:
 | sie | reset/min_rise | reset_n | usb_enable_replica_0/RN | -0.223424 |
 
 No maximum slew/capacitance violation is reported. Hold/reset rows retain the existing zero-delay boundary screen; the pad/board contract remains open. Negative hold is a physical-flow item, not an RTL fix. No unrelated timing restructuring or pipeline removal follows these failures. Standalone SIE fixture, complete multicycle qualification, retained pipeline sampling proofs and original packet proofs remain open. Full tier not run; no acceptance or merge.
+
+
+## T19 D58/D59 pre-enable capture — 2026-11-19
+
+Measured with `python tools/env/run.py run -- python3 scratch/t19_d58_measure.py engine`
+and the same command with `usb`, base099c27f plus exact receipt source/flow hashes,
+receipts `build/t19/d59-timing-01/{engine,usb}/result.json`. GF1807-track SS/125C/3.0V,
+mapped pre-layout, ideal clocks. D59 approved15ns warning ceiling for eligible USB
+single-cycle classes; estimated CP37.5ns/CC50ns and strict FP12.5ns stay unchanged.
+Post-placement real-wire recheck remains mandatory. The full per-class/start/end
+and area table is in the T19 report.
+
+| Block | Incoming launch class | Before ns | Before target/limit ns | Before start | Before end | After ns | After budget ns | After start | After end |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| engine | CP | 15.562494 | 12.500000 (D54 original target) | _5982_/Q (_sie_endp_o[2]) | _6306_/D (in.consume) | 14.305089 | 37.500000 | _6069_/Q (_sie_endp_o[1]) | _6431_/D (in.consume) |
+| engine | FP | 13.824021 | 12.500000 (D54 original target) | _6279_/Q (configured) | _6306_/D (in.consume) | 12.361530 | 12.500000 | _6387_/Q (configured) | _6431_/D (in.consume) |
+| usb | CP | 13.100976 | 12.500000 (D54 original target) | _7126_/Q (engine._sie_endp_o[1]) | _7503_/D (engine.in.consume) | 12.811203 | 37.500000 | _7057_/Q (engine._sie_endp_o[1]) | _7683_/D (engine.in.consume) |
+| usb | FP | 7.958107 | 12.500000 (D54 original target) | _6592_/Q (engine._control_inValid) | _7503_/D (engine.in.consume) | 9.182744 | 12.500000 | _7583_/Q (_engine_configured) | _7683_/D (engine.in.consume) |
+
+All engine/wrapper setup classes pass or warn. Engine FF14.726458ns
+(`_6206_/Q`, rx_state_q[1] → `_6197_/D`, shift_register_q[7]) warns under D59;
+wrapper FF13.485458ns warns. P endpoints receive setup3/hold2 only from certified
+R/B/H launches. Actual CP setup capture62.5ns/hold0 and FP20.833334ns/hold0 are
+recorded and checked. Every S launch remains in strict FP.
+
+Both overall timing statuses remain failed: engine2/wrapper6 hold/reset negatives
+persist (pad hold−0.102503ns; wrapper AON removal−0.975158ns), together with prior
+qualification obligations. Boundary/physical work is not hidden by the setup
+warning policy. No additional RTL restructuring, clock gating or SRAM swap.
+
+The final frozen fast02 USB command (`python3 hw/ip/usb/check.py --output build/t19/d59-frozen-fast-02/fast/usb`, invoked by the pinned fast tier) reproduces every engine/wrapper class and area above exactly. Source inventories match; the complete fresh block/class and hold/reset identities are in the T19 report. The standalone SIE fixture preserves the exact full cadence emission and has a passing source/mapped certificate, but remains numeric-failed diagnostic-only under the approved step 1b option: IR 16.586666 ns and RO 22.734825 ns. No binding/tool error remains. Overall USB/fast acceptance still fails original packet and physical/prior qualification obligations; full tier and post-placement recheck unrun.

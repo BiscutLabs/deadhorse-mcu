@@ -13,6 +13,8 @@ class UsbSieTiming extends RawModule {
   val io=IO(chiselTypeOf(sie.io))
   sie.io<>io
   val cadence=Module(new UsbBitEnable)
+  // Keep the exact full cadence module used by the source-bound phase proof.
+  dontTouch(cadence.preEnable)
   cadence.clk:=clk;cadence.reset_n:=reset_n
   sie.io.clk_i:=clk;sie.io.rstn_i:=reset_n;sie.io.clk_gate_i:=cadence.enable
 }

@@ -54,6 +54,49 @@ def result_status(delay, budget, electrical):
     return 'pass' if delay <= budget and electrical['max_capacitance_and_slew_violations'] == 0 else 'fail'
 
 
+def protocol_cycles(kind):
+    return 4 if kind=='CC' else 3 if kind=='CP' else 1
+
+
+def pre_enable_edges(log, period):
+    """Audit the applied STA edges, including that FP did not inherit 3/2."""
+    result={}
+    for kind in ('CP','FP'):
+        for mode in ('max','min'):
+            blocks=re.findall(rf'PRE_ENABLE_EDGE_BEGIN {kind} {mode}\n(.*?)PRE_ENABLE_EDGE_END {kind} {mode}',log,re.S)
+            if len(blocks)!=1:raise ValueError('Missing/duplicate pre-enable edge audit')
+            edges=[float(n) for n in re.findall(r'^\s*[-\d.]+\s+([-\d.]+)\s+clock \S+ \(rise edge\)',blocks[0],re.M)]
+            expected=[0.0,period*protocol_cycles(kind) if mode=='max' else 0.0]
+            # Only allow printing/STA float precision, never a path-budget margin.
+            if len(edges)!=2 or any(abs(a-b)>0.000002 for a,b in zip(edges,expected)):
+                raise ValueError('Incorrect pre-enable setup/hold edges: '+kind+'/'+mode)
+            result[kind+'/'+mode]=edges
+    return result
+
+
+def screening_limit(top, kind, target, period, operating_point):
+    """D57/D59: USB sample-clock single-cycle warning ceiling is 15 ns."""
+    usb_tops={'UsbControl','UsbEngine','Usb','UsbInBuffer','UsbOutBuffer','UsbResume','UsbSieTiming'}
+    domain,base=kind.split('.',1) if '.' in kind else (None,kind)
+    singles={'RR','CC_reset','CF','FC','FF','IR','RO','IO','RG','IG'}
+    if top in usb_tops and operating_point=='usb-48mhz' and domain in (None,'usbClock') and base in singles:
+        return 15.0
+    return target
+
+
+def classify_screening(paths, targets, limits, electrical, hold_reset_violations, pending):
+    if not paths or any(p['class'] not in targets or p['class'] not in limits for p in paths):
+        raise ValueError('Missing/unknown timing path class')
+    if any(not math.isfinite(p['delay_ns']) or p['delay_ns']<0 for p in paths):
+        raise ValueError('Invalid timing path delay')
+    warnings=[dict(p,target_ns=targets[p['class']],failure_limit_ns=limits[p['class']])
+              for p in paths if targets[p['class']]<p['delay_ns']<=limits[p['class']]]
+    setup='fail' if any(p['delay_ns']>limits[p['class']] for p in paths) else 'warning' if warnings else 'pass'
+    passed=setup!='fail' and electrical['max_capacitance_and_slew_violations']==0 and not hold_reset_violations
+    return dict(status=('blocked' if pending else setup) if passed else 'fail',
+                numerical_status=setup if passed else 'fail',setup_status=setup,timing_warnings=warnings)
+
+
 def run(command, output, name, allowed=(0,)):
     result = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
@@ -126,12 +169,12 @@ def mapping_target_ps(cfg, operating_point):
     return min(budget_ps, 62500.0) if operating_point == 'main-9mhz' else budget_ps
 
 
-def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default', usb_cadence=None):
-    return _measure(top,sources,clock,output,liberty,combinational,operating_point=operating_point,usb_cadence=usb_cadence)
+def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default', usb_cadence=None, usb_equivalence=None):
+    return _measure(top,sources,clock,output,liberty,combinational,operating_point=operating_point,usb_cadence=usb_cadence,usb_equivalence=usb_equivalence)
 
 
 def _measure(top, sources, clock, output, liberty=None, combinational=False,
-             reference_options=None, *, operating_point='default', usb_cadence=None):
+             reference_options=None, *, operating_point='default', usb_cadence=None, usb_equivalence=None):
     # Shared numerical flow. The production entry above always checks isolation.
     # Only dv/core/reference_timing.py supplies authenticated reference options;
     # such receipts are explicitly benchmarks, never production acceptance.
@@ -293,13 +336,20 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
             if digest(local(name))!=expected:raise ValueError('Stale cadence source')
         if 'hw/ip/usb/src/main/scala/deadhorse/usb/UsbBitEnable.scala' not in cadence.get('production_source_sha256',{}):
             raise ValueError('Unbound production cadence')
-        certificate=certify(top,sources,output/'mapped.json',liberty,output/'certificate',cadence)
+        equivalence=json.loads(local(usb_equivalence).read_text()) if usb_equivalence else None
+        certificate=certify(top,sources,output/'mapped.json',liberty,output/'certificate',cadence,equivalence)
         certificate['cadence_receipt_sha256']=digest(local(usb_cadence))
-        sets={'certified_q':[], 'certified_d':[], 'certified_clock':[], 'full_q':[], 'full_d':[], 'reset_pins':[]}
+        sets={'certified_q':[], 'certified_d':[], 'certified_clock':[], 'full_q':[], 'full_d':[], 'reset_pins':[], 'pre_d':[], 'pre_certified_q':[], 'pre_certified_clock':[], 'pre_full_q':[]}
+        pre=certificate.get('pre_enable',{})
+        pre_names=set(pre.get('capture_pins',{}))
+        pre_launch=set(n for g in pre.get('allowed_launch_groups',[]) for n in certificate['reset_aware']['groups'][g])
         for name,cell in module['cells'].items():
             if 'CLK' not in cell['connections']:continue
             prefix='certified' if name in certificate['certified'] else 'full'
-            sets[prefix+'_q'].append(name+'/Q');sets[prefix+'_d'].append(name+'/D')
+            sets[prefix+'_q'].append(name+'/Q')
+            sets['pre_d' if name in pre_names else prefix+'_d'].append(name+'/D')
+            sets['pre_certified_q' if name in pre_launch else 'pre_full_q'].append(name+'/Q')
+            if name in pre_launch:sets['pre_certified_clock'].append(name+'/CLK')
             if prefix=='certified':sets['certified_clock'].append(name+'/CLK')
             sets['reset_pins'].extend(name+'/'+p for p in ('RN','SETN') if p in cell['connections'])
         if any(re.search(r'[{}\s]',p) for values in sets.values() for p in values):
@@ -326,6 +376,7 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     if 'TIMING_COMPLETE' not in timing or re.search(r'(?im)^Error:|not a valid (?:start|end) point', timing):
         raise ValueError('Incomplete STA analysis; see sta.log')
     electrical = electrical_checks(timing)
+    pre_edges=pre_enable_edges(timing,cfg['period_ns']) if certificate and certificate.get('pre_enable') else None
     short_reset_checks=[]
     if certificate:
         with (output/'short_reset_checks.tsv').open() as stream:
@@ -360,17 +411,24 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     def class_budget(kind):
         domain,base=kind.split('.',1) if '.' in kind else (None,kind)
         period=domain_clocks[domain] if domain else cfg['period_ns']
-        return period*cfg['budget_fraction']*(4 if base=='CC' else 1)
-    class_names=(tuple(f'{domain}.{kind}' for domain in domain_clocks for kind in ('CC','CC_reset','CF','FC','FF','IR','RO','IO','RG','IG')) if domain_clocks else
-                 ('CC','CC_reset','CF','FC','FF','IR','RO','IO','RG','IG') if certificate else ('RR','IR','RO','IO','RG','IG'))
-    passed=all(p['delay_ns']<=class_budget(p['class']) for p in paths) and electrical['max_capacitance_and_slew_violations']==0 and not short_reset_violations
+        return period*cfg['budget_fraction']*protocol_cycles(base)
+    def class_limit(kind):
+        domain=kind.split('.',1)[0] if '.' in kind else None
+        period=domain_clocks[domain] if domain else cfg['period_ns']
+        return screening_limit(top,kind,class_budget(kind),period,operating_point)
+    class_names=(tuple(f'{domain}.{kind}' for domain in domain_clocks for kind in ('CC','CC_reset','CF','FC','FF','CP','FP','IR','RO','IO','RG','IG')) if domain_clocks else
+                 ('CC','CC_reset','CF','FC','FF','CP','FP','IR','RO','IO','RG','IG') if certificate else ('RR','IR','RO','IO','RG','IG'))
+    classes={kind:max((p for p in paths if p['class']==kind),key=lambda p:p['delay_ns'],default=None) for kind in class_names}
     # D45 implementation is under qualification. A numeric pass alone cannot
     # discharge sampling equivalence, exception coverage and planted path faults.
     pending=(['Protocol sampling equivalence is not yet proved',
               'Applied setup/hold exception coverage and per-class over-budget faults remain unqualified']
              if certificate else [])
-    report = dict(status=('blocked' if pending else 'pass') if passed else 'fail', top=top,
-                  numerical_status='pass' if passed else 'fail', unresolved=pending,
+    screening=classify_screening(paths,{k:class_budget(k) for k in class_names},
+                                {k:class_limit(k) for k in class_names},electrical,short_reset_violations,pending)
+    report = dict(**screening,top=top,unresolved=pending,
+                  post_placement_recheck=dict(required=operating_point=='usb-48mhz',status='not run',
+                      scope='D57 requires a fresh post-placement timing check with real interconnect delays before final USB timing qualification; pre-layout warning acceptance is provisional'),
                   role=('reference-benchmark-only' if reference_options is not None else
                         'operating-point-trial' if operating_point not in ('default','usb-48mhz') else 'production'),
                   operating_point=operating_point,
@@ -380,12 +438,11 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
                   boundary='usb-three-clock-domains' if domain_clocks else 'combinational' if combinational else 'root-clock-with-icg' if gate_pins else 'single-clock',
                   clock_gate_checks=gate_checks,
                   budget_ns=budget, worst=worst,
-                  protocol_certificate=certificate,
+                  protocol_certificate=certificate,pre_enable_edge_audit=pre_edges,
                   hold_reset_checks=short_reset_checks,hold_reset_violations=short_reset_violations,
                   class_budgets_ns={kind:class_budget(kind) for kind in class_names},
-                  classes={kind: max((p for p in paths if p['class'] == kind),
-                                    key=lambda p: p['delay_ns'], default=None)
-                           for kind in class_names},
+                  class_failure_limits_ns={kind:class_limit(kind) for kind in class_names},
+                  classes=classes,
                   area_um2=float(areas[-1]), assumptions=cfg, tools=versions,
                   flow_sha256={str(p.relative_to(ROOT)): digest(p) for p in
                                [CONFIG, *sorted((ROOT / 'tools/timing').glob('*.py')),
@@ -397,9 +454,9 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     (output / 'ledger-row.md').write_text(
         f'| {top} | {worst["delay_ns"]:.6f} ns | {worst["start"]} | {worst["end"]} | '
         f'{worst["logic_depth"]} | {report["area_um2"]:.4f} um2 | {report["status"]} |\n')
-    limiting=max(paths,key=lambda p:p['delay_ns']/class_budget(p['class']))
-    limit=class_budget(limiting['class'])
-    print(f'{report["status"].upper()} {top}: {limiting["class"]} {limiting["delay_ns"]:.6f} ns, budget {limit:.6f} ns; '
+    limiting=max(paths,key=lambda p:p['delay_ns']/class_limit(p['class']))
+    limit=class_limit(limiting['class'])
+    print(f'{report["status"].upper()} {top}: {limiting["class"]} {limiting["delay_ns"]:.6f} ns, target {class_budget(limiting["class"]):.6f} ns, failure limit {limit:.6f} ns; '
           f'electrical violations {electrical["max_capacitance_and_slew_violations"]}', flush=True)
     return report
 
@@ -552,6 +609,7 @@ def main():
     parser.add_argument('--clock')
     parser.add_argument('--combinational', action='store_true')
     parser.add_argument('--liberty')
+    parser.add_argument('--usb-equivalence', help='D58 source-bound engine/wrapper equivalence receipt')
     parser.add_argument('--usb-cadence', help='D45 reset-safe production cadence receipt; mapped enable certificate is generated, never supplied')
     parser.add_argument('--operating-point', choices=OPERATING_POINTS, default='default',
                         help='Named trial; default production acceptance remains unchanged')
@@ -565,7 +623,7 @@ def main():
         if not args.top or (not args.clock and not args.combinational):
             parser.error('--top and either --clock or --combinational are required')
         return int(measure(args.top, args.source, args.clock, args.output,
-                           args.liberty, args.combinational, operating_point=args.operating_point, usb_cadence=args.usb_cadence)['status'] != 'pass')
+                           args.liberty, args.combinational, operating_point=args.operating_point, usb_cadence=args.usb_cadence, usb_equivalence=args.usb_equivalence)['status'] not in ('pass','warning'))
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f'BLOCKED timing: {exc}', file=sys.stderr)
         return 2

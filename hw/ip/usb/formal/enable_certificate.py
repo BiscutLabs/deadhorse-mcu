@@ -251,11 +251,20 @@ def _enable_certificate(top, sources, mapped, liberty, output, cadence_receipt=N
               ' '.join('-prove ' + p + ' 1' for p in checks) + ' -verify']))
         if top in ('UsbEngine','Usb','UsbSieTiming'):
             prefix=('engine.' if top=='Usb' else '')+'cadence.'
-            proven=cadence_receipt['cases']['cadence_reset']['jobs']
-            expected=next(j['source_sha256']['UsbBitEnable.sv'] for j in proven if j['variant']=='correct')
             actual=[p for p in sources if Path(p).name=='UsbBitEnable.sv']
-            if len(actual)!=1 or sha(actual[0])!=expected:
-                raise ValueError('Measured cadence differs from the proved production emission')
+            if len(actual)!=1:raise ValueError('Missing measured cadence emission')
+            expected=sha(actual[0])
+            matched=[]
+            # Unused P is removed in the enable-only harness/standalone fixture.
+            # Require the exact measured projection in a completed source-bound
+            # proof; the actual mapped count/enable/reset equations are checked below.
+            for role in ('cadence_reset','preenable_early'):
+                case=cadence_receipt['cases'].get(role,{})
+                if case.get('status')!='pass':continue
+                if {j.get('result') for j in case.get('jobs',[])}!={'proved','covered','fault_rejected'}:continue
+                if any(j['variant']=='correct' and j['source_sha256'].get('UsbBitEnable.sv')==expected for j in case['jobs']):matched.append(role)
+            if not matched:raise ValueError('Measured cadence differs from proved production emissions')
+            receipt['cadence_emission_proof_roles']=matched
             def translated(net):
                 result=[]
                 for bit in source['netnames'][net]['bits']:
@@ -475,13 +484,14 @@ def _value_certificate(top, sources, mapped, liberty, output, cadence_receipt=No
     return receipt
 
 
-def certify(top, sources, mapped, liberty, output, cadence_receipt=None):
+def certify(top, sources, mapped, liberty, output, cadence_receipt=None, equivalence=None):
     try:
         receipt = _value_certificate(top, sources, mapped, liberty, output, cadence_receipt)
         receipt['status']='pending-reset-aware-qualification'
         (Path(output)/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
         from hw.ip.usb.formal.reset_certificate import extend
-        return extend(top,mapped,liberty,output,receipt,cadence_receipt)
+        receipt=extend(top,mapped,liberty,output,receipt,cadence_receipt)
+        return pre_enable_certificate(top,sources,mapped,liberty,output,receipt,cadence_receipt,equivalence)
     except Exception as error:
         path = Path(output)/'result.json'
         if path.exists():
@@ -489,3 +499,120 @@ def certify(top, sources, mapped, liberty, output, cadence_receipt=None):
             receipt.update(status='failed', error=str(error))
             path.write_text(json.dumps(receipt,indent=2)+'\n')
         raise
+
+
+def pre_enable_certificate(top,sources,mapped,liberty,output,receipt,cadence,equivalence):
+    """D58 P captures; D51 S launches remain single-cycle, including into P."""
+    if top not in ('UsbEngine','Usb'):return receipt
+    from hw.ip.usb.formal.preenable_equivalence import FLAGS
+    from hw.ip.usb.formal.reset_certificate import Cut
+    output=Path(output);prefix='engine.' if top=='Usb' else ''
+    source=json.loads((output/'source.json').read_text())['modules'][top]
+    if prefix+'cadence.preEnable' not in source['netnames']:return receipt
+    if not equivalence or equivalence.get('status')!='pass' or equivalence.get('real_consumer_control')!='fault_rejected':raise ValueError('Missing D58 equivalence')
+    role='usb' if top=='Usb' else 'engine'
+    if equivalence['blocks'][role]['emission_sha256']['after']!={Path(p).name:sha(p) for p in sources}:
+        raise ValueError('D58 equivalence emission mismatch')
+    for name,expected in equivalence['production_source_sha256'].items():
+        if sha(name)!=expected:raise ValueError('Stale equivalence source '+name)
+    measured_cadence=[p for p in sources if Path(p).name=='UsbBitEnable.sv']
+    if len(measured_cadence)!=1:raise ValueError('Missing full P cadence emission')
+    expected_cadence=sha(measured_cadence[0])
+    for role in ('preenable_early','preenable_late','preenable_reset','preenable_write'):
+        c=cadence.get('cases',{}).get(role,{})
+        if c.get('status')!='pass' or {j.get('result') for j in c.get('jobs',[])}!={'proved','covered','fault_rejected'}:
+            raise ValueError('Missing D58 phase/reset proof '+role)
+        if any(j['source_sha256'].get('UsbBitEnable.sv')!=expected_cadence for j in c['jobs'] if j['variant']!='corrupt'):
+            raise ValueError('D58 phase proof uses a different cadence')
+    mapped_module=json.loads(Path(mapped).read_text())['modules'][top]
+    snames=aliases(source);mnames=aliases(mapped_module)
+    flags={prefix+n for n in FLAGS};good=set();other=set();source_bits=[];selected=[]
+    for name,c in source['cells'].items():
+        if 'dff' not in c['type']:continue
+        labels=set().union(*(snames.get(b,set()) for b in c['connections']['Q']))
+        if any(n in flags for n,_ in labels):
+            good.update(labels);source_bits.extend(c['connections']['Q']);selected.append(name)
+        else:other.update(labels)
+    if {n for n,_ in good}&flags!=flags or good&other:raise ValueError('Missing/mixed P source aliases')
+    alias_bits={}
+    for bit,labels in mnames.items():
+        for label in labels:alias_bits.setdefault(label,set()).add(bit)
+    def identity(name):
+        values=[]
+        for bit in source['netnames'][name]['bits']:
+            candidates=set().union(*(alias_bits.get(a,set()) for a in snames[bit]))
+            if len(candidates)!=1:raise ValueError('Missing/ambiguous P identity '+name)
+            values.extend(candidates)
+        return values
+    found=set();mapped_selected=[]
+    for name,c in mapped_module['cells'].items():
+        if 'CLK' not in c['connections']:continue
+        labels=mnames.get(c['connections']['Q'][0],set())
+        if labels&good:
+            if labels&other:raise ValueError('Mixed P mapped aliases')
+            found.update(labels&good);mapped_selected.append(name)
+    for bit in source_bits:
+        if not snames[bit]&found:raise ValueError('Missing P source/mapped register binding')
+    pins={n:dict(launch=n+'/Q',capture=n+'/D') for n in mapped_selected}
+    bind_pins(mapped_module,pins)
+    def prepare(mod,names,mapped_view):
+        cut=Cut(mod)
+        ident=identity if mapped_view else lambda n:source['netnames'][n]['bits']
+        pre=ident(prefix+'cadence.preEnable');root=ident(prefix+'cadence.reset_n')
+        count=ident(prefix+'cadence.count');clk=mod['ports']['usbClock' if top=='Usb' else 'clk']['bits']
+        if len(pre)!=1 or len(count)!=2 or len(root)!=1:raise ValueError('Bad P cadence geometry')
+        cut.m['ports']['p_enable']=dict(direction='output',bits=pre)
+        strobe=[n for n,c in mod['cells'].items() if c['connections'].get('Q')==pre]
+        if len(strobe)!=1:raise ValueError('Missing physical P strobe register')
+        for n,c in list(mod['cells'].items()):
+            is_ff=('CLK' in c['connections']) if mapped_view else ('dff' in c['type'])
+            if not is_ff:continue
+            q=c['connections']['Q'];cp=c['connections']
+            if n in names or n==strobe[0]:
+                if mapped_view:
+                    bind_pins(mod,{n:dict(launch=n+'/Q',capture=n+'/D')})
+                    if 'RN' not in cp or 'SETN' in cp:raise ValueError('P requires zero-reset FF')
+                    cut.equal('reset',cp['RN'],root)
+                    nxt=cp['D']
+                else:
+                    if c['type'] not in ('$adffe','$adff') or int(c['parameters']['ARST_VALUE'],2)!=0 or int(c['parameters']['CLK_POLARITY'],2)!=1:
+                        raise ValueError('Unsupported P source state')
+                    expected=root if int(c['parameters']['ARST_POLARITY'],2)==0 else cut.gate('$not',{'A':root})
+                    cut.equal('reset',cp['ARST'],expected)
+                    nxt=cp['D']
+                    if 'EN' in cp:
+                        if int(c['parameters']['EN_POLARITY'],2)!=1:raise ValueError('Inverted P enable')
+                        nxt=cut.gate('$mux',{'A':q,'B':nxt,'S':cp['EN']},len(q))
+                cut.equal('reset',cp['CLK'],clk)
+                if n in names:cut.equal('normal',nxt,q)
+                else:cut.equal('reset',nxt,cut.gate('$eq',{'A':count,'B':['0','1']}))
+            cut.free(n,c)
+        return cut
+    def prove(name,cut,mapped_view=False,negative=False):
+        path=output/(name+'.json');path.write_text(json.dumps({'modules':{top:cut.m}}))
+        commands=([f'read_liberty -ignore_miss_func {liberty}'] if mapped_view else [])+[f'read_json {path}',f'hierarchy -check -top {top}','flatten','proc','check -assert','techmap','opt']
+        for group in ('normal','reset'):
+            if cut.checks[group]:commands.append('sat -set-def-inputs '+('-set p_enable 0 ' if group=='normal' else '')+' '.join('-prove '+p+' 1' for p in cut.checks[group])+' -verify')
+        script=output/(name+'.ys');script.write_text('\n'.join(commands)+'\n')
+        r=subprocess.run(['yosys','-Q','-T','-s',str(script)],capture_output=True,text=True,timeout=120)
+        (output/(name+'.log')).write_text(r.stdout+r.stderr)
+        if (r.returncode!=1 or 'proof did fail' not in r.stdout+r.stderr) if negative else r.returncode!=0:
+            raise ValueError('D58 source/mapped proof failed '+name)
+    prove('pre-source',prepare(source,selected,False))
+    prove('pre-mapped',prepare(mapped_module,mapped_selected,True),True)
+    mutant=copy.deepcopy(source);mutant['cells'][selected[0]]['connections']['EN']=['1']
+    prove('pre-always-write',prepare(mutant,selected,False),negative=True)
+    wrong_bits=set(identity(prefix+'control.outData'))
+    wrong_register=next(n for n,c in mapped_module['cells'].items() if 'CLK' in c['connections'] and c['connections']['Q'][0] in wrong_bits)
+    prove('pre-wrong-register',prepare(mapped_module,mapped_selected+[wrong_register],True),True,True)
+    wrong=copy.deepcopy(pins);first=next(iter(wrong));wrong[first]['capture']=first+'/CLK'
+    try:bind_pins(mapped_module,wrong)
+    except ValueError:pass
+    else:raise ValueError('Wrong P mapped pin accepted')
+    receipt['pre_enable']=dict(status='pass',capture_pins=pins,source_registers=selected,
+        allowed_launch_groups=['R','B','H'],single_cycle_launch_groups=['S'],
+        setup=3,hold=2,budget_ns=37.5,
+        proof='Actual source/mapped hold when P low, common reset and clock, P D=count==2; reset-safe R/B/H three-edge spacing composed with source-bound temporal proof and whole engine/wrapper equivalence',
+        negative_controls=['always-write','wrong-capture-pin','wrong-register'],equivalence_sha256=hashlib.sha256(json.dumps(equivalence,sort_keys=True).encode()).hexdigest())
+    (output/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    return receipt

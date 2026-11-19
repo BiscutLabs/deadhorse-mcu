@@ -1,6 +1,71 @@
 # USB CDC-ACM peripheral (T19)
 
-Status: implementation in progress; acceptance has not passed.
+Status: consume-path change verified; complete T19 acceptance remains blocked.
+
+D59 (2026-11-19) sets the active USB sample-clock single-cycle warning ceiling
+to 15 ns. The target remains estimated 12.5 ns, and post-placement timing with
+real wire delays is mandatory. D58 FP remains strict 12.5 ns; CP stays 37.5 ns,
+CC stays 50 ns, and electrical/reset/hold/formal obligations are unchanged.
+
+D58 (2026-11-19) replaces the aligned-enable candidate with pre-enable capture
+of every packet flag. The approved amendment keeps packetData full-rate.
+Certified launch to proved pre-enable capture would use setup 3 / hold 2 and estimated 0.60×3×1000/48=37.5 ns.
+Full-rate launches into that class retain strict 12.5 ns, overriding D57's
+warning band there. No new constraint is applied before cadence, mapped-pin
+and whole-engine/wrapper equivalence qualification.
+
+The original preflight found `packetData → out.received → memory.writeData →
+wordData=RegNext(writeData)`, an unconditional downstream capture. The user
+explicitly approved keeping packetData full-rate on 2026-11-19. Only flags
+now use pre-enable capture; all other register states and outputs must match
+every cycle. No consumer or state-match obligation is relaxed.
+Engine and wrapper equivalence now prove by unbounded induction, including
+reset and every non-exempt state/output; phase and real-wire consumer controls
+reject their faults. Reset-safe P proofs and exact source/mapped certificates
+pass. CP is 3/2 only for reset-compatible R/B/H launches; S and other full-rate
+launches into P retain strict FP timing. The final frozen run passes all 19 simulations, equivalence, focused formal
+and CDC. USB acceptance and fast CI still fail on original packet proofs,
+hold/reset and prior qualification obligations. Full tier and post-placement
+real-wire timing are not run; no merge. See the T19 report for exact commands.
+
+The standalone SIE fixture remains a measured diagnostic under the user-approved
+step 1b option: its unconstrained endpoint-mask and boundary IO paths differ from
+the integrated engine/wrapper acceptance targets. Its numerical failures remain
+in the receipt. A missing measurement or invalid source/certificate binding still
+fails the aggregate; this does not waive any engine/wrapper check.
+
+Historical D57 candidate and policy (D59 supersedes its 70% ceiling):
+
+D55 approved comparison of enable-captured IN consume and Chisel endpoint
+predecode. D56 approved shared-gate use for enable-only banks. The later D57
+instruction (2026-11-19) narrows active work to the identified 15.56 ns consume
+path; gating, boundary-contract, packet-proof and higher-load experiments are
+deferred. The broader unaccepted candidate and cancelled checks are preserved
+under `build/t19/d56-superseded-checkpoint`; they are not the active RTL.
+
+The superseded D57 candidate captured request, consume and ACK together on the existing
+protocol enable. This keeps their ordering while adding one protocol edge of
+latency. Capturing consume alone failed all five unchanged retry tests; cached
+endpoint predecode failed four because it was stale at the first request.
+Aligned capture passed all five, including the application-write phase sweep
+(measured `testOnly deadhorse.usb.UsbRetrySpec`, base `099c27f`, receipts
+`build/t19/d55-option1-retry.log`, `d55-option2-retry.log`,
+`d55-option1b-retry.log`). Fresh source/mapped certificates are required for the
+three root-reset flags. No vendor or packet-buffer RTL changes are included.
+
+D57 originally kept the 60% USB sample-clock target and accepted a **warning** above it
+through 70% of the period. Estimated thresholds at 48 MHz are 12.5 ns and
+0.70×1000/48=14.583333 ns (about 14.6 ns). D59 now replaces that ceiling with 15 ns.
+Certified compatible four-edge paths retain the 50 ns budget; app/AON domains,
+other blocks, electrical, clock-gate, hold/reset and formal checks are unchanged.
+Every warned path must be reported. A post-placement timing recheck with real
+wire delays is mandatory before final USB timing qualification; it has not run.
+That candidate's warning families were SIE endpoint to EP0 `control.inReady`,
+reset-incompatible control state to `in.consume`, and PHY RX NRZI-to-shift
+state. They retain single-cycle treatment; all measured endpoints/polarities
+are listed in its diagnostic timing receipt. Its SIE-to-consume pair
+used the four-edge class; that candidate is no longer active. Packet composition,
+hold/reset and broader qualification obligations remain open.
 
 D54 (user approval 2026-11-19) authorizes testing immutable offered IN packet
 ownership until qualified ACK or reset, including terminal-ZLP retries. Later

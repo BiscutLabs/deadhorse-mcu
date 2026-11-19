@@ -66,6 +66,11 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D52 | USB full-rate timing and qualification | Approved 2026-11-19; sizing/equivalent factoring and scoped verification, limits unchanged |
 | [x] | D53 | Conditional 16-byte USB bulk packets | Approved 2026-11-19; 1 Mbit/s target, measure per direction before adoption |
 | [x] | D54 | Test USB retry ownership repair | Approved 2026-11-19; immutable pending payload/ZLP, preserve queued data and all acceptance limits |
+| [x] | D55 | USB consume timing repair | Approved 2026-11-19; compare enable capture and endpoint predecode, unchanged wire acceptance |
+| [x] | D56 | USB protocol bank clock gating | Approved 2026-11-19; shared GF180 gate, identical update edges and retained timing checks |
+| [x] | D57 | USB timing warning band and scope | Approved 2026-11-19; fix only consume now, 60–70% warning, mandatory real-wire post-placement recheck |
+| [x] | D58 | USB pre-enable capture class | Approved 2026-11-19; conditional 3/2 certified-launch capture class, proof required; strict full-rate 12.5 ns; packetData full-rate amendment and consumer stop rule |
+| [x] | D59 | USB 15 ns warning ceiling | Approved 2026-11-19; D58 FP stays strict 12.5 ns; real-wire post-placement recheck mandatory |
 
 ## Tasks
 
@@ -91,7 +96,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T16 | [SPI host](tasks/T16-spi-host.md) | Codex | T05, T07, T09, T14, T15 | [Report](tasks/reports/T16.md): SPI acceptance, GF180 timing and independent review pass; fast 31/31 with inherited T14 deferrals, no SPI deferrals; full not run |
 | [x] | T17 | [I2C controller](tasks/T17-i2c-host.md) | Codex | T05, T07, T09, T14, T16 | [Report](tasks/reports/T17.md); 19 simulations, GF180 timing and fast CI active checks pass; eight I2C formal jobs remain deferred/unproved |
 | [x] | T18 | [Lite I2C recovery loader](tasks/T18-i2c-recovery-loader.md) | Codex | T06, T07, T09, T14 | [Report](tasks/reports/T18.md). Wire-to-memory recovery and warm-reset lock retention verified. |
-| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): D54 tested retry repair passes 18 simulations and ownership proof; timing/original packet qualification block; frozen USB/fast fail, full tier unrun |
+| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): D58/D59 consume fix verified; 19 simulations and focused proofs pass; frozen USB/fast fail packet/physical/prior qualification; full tier unrun |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -153,6 +158,14 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-19: D58 supersedes the aligned-enable consume candidate. Stopped both D57 frozen jobs and preserved that candidate under build; original RegNext flags/data and certificate are restored. Independent review confirms packetData feeds OUT memory wordData=RegNext(writeData) outside bitEnable, triggering the explicit consumer stop rule before implementation/proof. No consumer or assertion changed. Decision needed: keep packetData full-rate, or explicitly permit/prove a valid-qualified downstream state mismatch. No D58 equivalence/CI pass or commit/push.
+
+- 2026-11-19: User stopped the broader T19 run and approved D57. Both D56 frozen jobs were cancelled; the complete unaccepted candidate is preserved under build. Active source retains only aligned IN flag capture/certification plus the new USB warning policy. No gating, boundary, packet-proof or offered-load change is retained. New focused/frozen verification is required; prior candidate results are not acceptance for this snapshot.
+
+- 2026-11-19: D55/D56 post-step-3 timing triggers the explicit stop: engine CF endpoint→control.inReady and FF PHY nrzi→shift remain over 12.5 ns; wrapper also fails CF/FF. No further RTL, packet-proof attempt or increased-load throughput test. Digital EP0 bank equivalence/shared-gate proof and faults pass; freeze/check/review checkpoint preparation continues without claiming acceptance.
+
+- 2026-11-19: T19 resumed from 099c27f under D55/D56. Finish pad/reset contract and SIE fixture, compare consume options and measure shared-clock-gated EP0 banks. Stop if timing still fails after these steps; only then attempt the separately authorized re-posed packet proof and throughput-margin measurement. No limits or qualification claims changed.
 
 - 2026-11-19: D54 confirms short/ZLP retry defects and repairs offered ownership. Final five directed tests (383 phase cases), all 18 frozen USB tests, and unbounded boundary proof/covers/fault pass; unchanged slow-service regression now reaches the intended rate rejection with bytes intact. Independent review is clear for this scoped result. Timing and original packet/qualification obligations remain; frozen USB/fast fail, full tier unrun. No merge.
 
@@ -463,3 +476,17 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - 2026-11-13: User decisions D1-D42 reconciled; superseded/deferred items explicitly identified. No gate checked.
 - 2026-11-13: T07 brief rewrite removes its stale async blocker; task remains unstarted. T03/T04/S2 record sanitized-source blockers. T08/T09/T10 briefs added, unstarted.
 - 2026-11-13: Original tracker created; no implementation task started.
+
+- 2026-11-19: User approved keeping packetData full-rate while applying D58 pre-enable capture to all packet flags. Resumed implementation and strict engine/wrapper equivalence; no consumer or state-match obligation relaxed.
+
+- 2026-11-19: D58 engine relational equivalence is unresolved at the existing 120-second cap. Recorded model statistics and independent proof-tool findings; no unchanged retry. Wrapper proof, cadence/constraints, timing and frozen checks not reached under the explicit stop rule. Candidate remains uncommitted; full tier and post-placement recheck unrun.
+
+- 2026-11-19: User requested continuation after D58 timeout. Resuming proof-guard hardening and exact model simplification under unchanged assertions, assumptions and solver cap; timing remains gated on equivalence.
+
+- 2026-11-19: D59 approved a 15 ns USB single-cycle warning ceiling and continuation. D58 equivalence, cadence/reset proofs and mapped capture certificates pass; measured consume paths close. The 14.726458 ns RX path is now a warning. Continuing unchanged regressions and frozen acceptance; all other obligations remain.
+
+- 2026-11-19: Froze D58/D59 implementation after independent proof/constraint review. Starting unchanged USB aggregate followed by fast CI; existing packet and physical qualification failures remain explicit. Full tier is not run.
+
+- 2026-11-19: First D59 frozen USB run passes all 19 simulations and focused proofs; packet/physical qualification remains failed. Fixed standalone fixture cadence emission binding and re-proved exact engine/wrapper equivalence. Applying the already-approved diagnostic-only standalone SIE option, preserving its failed measurements; final frozen fast tier will repeat the USB aggregate. Full tier unrun.
+
+- 2026-11-19: D58/D59 final frozen fast02 repeats all 19 USB simulations, exact equivalence, focused formal, CDC and timing. No engine/wrapper setup class exceeds its approved failure limit; packet proofs, hold/reset and prior sampling/exception qualification retain failed USB/fast status. Source inventories match; standalone SIE remains a complete failed diagnostic under the approved option. Reporting-only updates follow; full tier/post-placement timing unrun. T19 blocked, no merge.
