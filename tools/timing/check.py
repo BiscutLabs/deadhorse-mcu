@@ -176,6 +176,14 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     run(['yosys', '-Q', '-T', '-s', str(elaborate)], output, 'elaboration')
     library_cells = set(re.findall(r'\bcell\s*\(\s*"?([^\s"()]+)"?\s*\)', liberty.read_text()))
     elaborated = json.loads((output / 'elaborated.json').read_text())
+    resume_modules = [name for name in elaborated['modules'] if name.split('$')[0]=='UsbResume']
+    if operating_point == 'usb-48mhz' and resume_modules:
+        # Preserve the count-decode boundaries requested by production Chisel
+        # dontTouch: emission retains names, but no Verilog keep for ABC.
+        predicates = ' '.join(f'{name}/w:{pattern}' for name in resume_modules
+                              for pattern in ('terminalMatch','carries_countMatch*'))
+        frontend += [f'select -assert-count {5*len(resume_modules)} {predicates}',
+                     f'setattr -set keep 1 {predicates}']
     # Detect uncharacterized macros before flattening/optimization can erase an
     # empty synthesis stub (notably the T06 SRAM model's SYNTHESIS branch).
     for name, mod in elaborated['modules'].items():
@@ -248,6 +256,9 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
                 design['modules'][top],liberty,output/'enable-buffer-sizing')
         mapping['fanout_tree'] = dict(cell=BUFFER,limit=8,inserted=len(inserted),
                                     verification='all original pins resolve identically; clocks unchanged')
+        from tools.timing.usb_buffer_sizing import size as size_usb_buffers
+        design['modules'][top], mapping['usb_buffer_sizing'] = size_usb_buffers(
+            design['modules'][top],liberty,output/'usb-buffer-sizing')
         (output / 'buffered.json').write_text(json.dumps(design))
         buffer_script = output / 'buffer.ys'
         buffer_script.write_text('\n'.join([

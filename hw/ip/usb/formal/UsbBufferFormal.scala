@@ -2,6 +2,59 @@ package deadhorse.usb
 
 import chisel3._
 import chisel3.util._
+import deadhorse.lib.ResetRelease
+
+class UsbEarlyBufferValid extends UsbInBuffer(true) {
+  override protected def offer(value: Bool): Bool=true.B
+}
+
+/** Independent transport-reset release while the production cadence runs.
+  * Only qualified observations require initialized RAM read stages. The
+  * original common-reset packet assertions below remain unchanged.
+  */
+class UsbBufferResetFormal(variant: String) extends RawModule {
+  val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
+  val transportReset_n=IO(Input(Bool()));val data=IO(Input(UInt(8.W)))
+  val push=IO(Input(Bool()));val ready=IO(Input(Bool()))
+  val operation=IO(Input(UInt(2.W)));val receiveOperation=IO(Input(UInt(2.W)))
+  val cadence=Module(new UsbBitEnable);cadence.clk:=clock;cadence.reset_n:=reset_n
+  val release=Module(new ResetRelease);release.clk:=clock
+  release.reset_n:=reset_n && transportReset_n
+  val in=Module(if(variant=="corrupt") new UsbEarlyBufferValid else new UsbInBuffer(true))
+  val out=Module(new UsbOutBuffer(true))
+  in.proofMemory.get:=0.U.asTypeOf(new UsbMemoryProofInputs)
+  out.proofMemory.get:=0.U.asTypeOf(new UsbMemoryProofInputs)
+  in.clk:=clock;out.clk:=clock;in.reset_n:=release.released;out.reset_n:=release.released
+  in.bitEnable:=cadence.enable;out.bitEnable:=cadence.enable
+  in.appData:=data;in.appValid:=push;out.appReady:=ready;out.received:=data
+  in.request:=operation===2.U;in.acknowledge:=operation===3.U
+  in.consume:=(operation===1.U && in.valid) || operation===2.U || operation===3.U
+  out.receiveReady:=receiveOperation=/=0.U
+  out.receiveValid:=receiveOperation===1.U;out.receiveError:=receiveOperation===3.U
+  withClockAndReset(clock,(!release.released).asAsyncReset) {
+    val age=RegInit(0.U(2.W));when(age=/=3.U){age:=age+1.U}
+    val previousHead=RegNext(out.proof.get.head,0.U)
+    val previousCapture=RegNext(out.proof.get.capture,false.B)
+    if(variant!="cover") {
+      when(release.released && cadence.enable && in.valid){assert(age===3.U)}
+      when(release.released && out.proof.get.capture){assert(age===3.U)}
+      when(release.released){assert(previousCapture===(out.proof.get.head=/=previousHead))}
+    }
+  }
+  withClockAndReset(clock,(!reset_n).asAsyncReset) {
+    val phase=RegInit(0.U(2.W));phase:=phase+1.U
+    val priorReleased=RegNext(release.released,false.B)
+    val seenRelease=RegInit(false.B);when(release.released){seenRelease:=true.B}
+    val seenResetAgain=RegInit(false.B)
+    when(seenRelease && !release.released){seenResetAgain:=true.B}
+    if(variant=="cover") {
+      for(p<-0 until 4){cover(release.released && !priorReleased && phase===p.U)}
+      cover(seenRelease && !release.released)
+      cover(seenResetAgain && release.released && cadence.enable && in.valid)
+      cover(seenResetAgain && release.released && out.proof.get.capture)
+    }
+  }
+}
 
 class UsbMissingCommit(proofView: Boolean=false) extends UsbInBuffer(proofView) {
   override protected def commit(head: UInt,speculative: UInt): UInt=head
@@ -122,7 +175,7 @@ class UsbMissingPublish(proofView: Boolean=false) extends UsbOutBuffer(proofView
 /** OUT oracle tracks packet commit/rollback and one symbolic byte selected at
   * the packet input. A packet is at most the public 64-byte bulk MPS.
   */
-class UsbOutFormal(variant: String,lane: Option[Int]=None,helpers: Boolean=false,sparse: Boolean=false) extends RawModule {
+class UsbOutFormal(variant: String,lane: Option[Int]=None,helpers: Boolean=false,sparse: Boolean=false,ownership: Boolean=false) extends RawModule {
   def same(a: UInt,b: UInt): Bool=lane.map(i=>a(i)===b(i)).getOrElse(a===b)
   val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
   val data=IO(Input(UInt(8.W)));val operation=IO(Input(UInt(2.W)))
@@ -176,6 +229,7 @@ class UsbOutFormal(variant: String,lane: Option[Int]=None,helpers: Boolean=false
         assert(queued===distance(p.head,p.tail)+d.appValid.asUInt)
         assert(p.reject || packet===distance(p.tail,p.speculative))
         assert(!watching || inPacket || position<queued)
+        if(ownership){assert(!(watching && inPacket) || position<(queued+&packet))}
         when(watching && (!inPacket || !p.reject) && (inPacket || position=/=0.U || !d.appValid)) {
           assert(position===distance(p.head,slot.get)+d.appValid.asUInt)
         }

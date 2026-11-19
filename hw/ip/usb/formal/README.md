@@ -118,3 +118,27 @@ Sparse results cannot be accepted without all original/helper assertions,
 real-model covers/faults, matching source-bound refinement and independent
 review. The runner labels sparse jobs unresolved pending that qualification;
 it does not substitute an abstracted pass for production acceptance.
+
+## D52 proof refinements
+
+`resume_equivalence.py` compares every next-state, clock/reset input function
+and output with all register values and inputs free. It checks the exact state
+bijection and register/reset parameters, reproduces the pinned D51 reference
+from Git when needed, and rejects a mutation to the actual prepared carry D pin.
+The USB aggregate runs this proof against its freshly emitted candidate.
+
+`buffer_reset` uses production cadence and ResetRelease with arbitrary independent
+transport reset. It proves IN qualified-read warmup, OUT actual-capture warmup,
+and the delayed capture/head-change correspondence. Real-buffer covers observe
+all release phases, repeated reset, and both read predicates after another reset.
+The IN-valid fault must fail. This is a local sampled-digital proof; the full
+SIE consumption/ACK contract remains open. No minimum packet length or ACK
+qualification is assumed in this reset harness.
+
+`packet_partition.py` partitions the original six assertions into four
+control/service assertions and two data equalities, with exact inventory and
+union checks. No assumptions are added. A partition result is not complete
+packet acceptance: every partition, real-model controls, memory composition and
+production consumption contract remain required. `out_ownership` strengthens
+the existing sparse case with a watched-position occupancy invariant; its
+helpers remain assertions. Exhausted jobs are not automatically rerun by CI.

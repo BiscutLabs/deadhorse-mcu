@@ -2,11 +2,11 @@
 
 Status: implementation in progress; acceptance has not passed.
 
-Current D51 status: reset-compatible register pairs are certified, and enable
-buffer sizing closes the enable-to-PHY path numerically. Integrated full-rate
-packet-boundary, reset-data and resume paths still fail. Packet proofs and
-sampling/exception qualification remain open. See [D51 below](#d51-reset-aware-follow-up)
-and the [T19 report](../../../docs/plan/tasks/reports/T19.md).
+Current D52 status: equivalent resume factoring and same-function cell sizing
+leave two integrated CF setup failures. Local independent-reset buffer warmup
+is proved; complete packet, sampling/exception and pad qualification remain
+open. See [D52 below](#d52-full-rate-closure-pass) and the
+[T19 report](../../../docs/plan/tasks/reports/T19.md).
 
 ## Historical D48-D50 baseline
 
@@ -188,3 +188,28 @@ same-function replacement; no production RTL or enable phase changes.
 Targeted measurements close the enable path but retain integrated full-rate
 failures, so no further restructuring follows. Boundary contract, fixture and
 sampling/exception qualification remain open. Frozen aggregate and fast CI fail at USB; full tier was not run. Eleven simulations, ten non-packet formal cases and supporting controls pass, while timing/packet/qualification failures remain blocking.
+
+## D52 full-rate closure pass
+
+The user approved cell sizing and latency-preserving combinational factoring
+on 2026-11-19. Protocol phase, reset/ACK priority, interfaces and all limits
+remain unchanged. Compare old/new transition behavior and retain every fault
+control. Follow with pad/hold reporting, sampling/exception qualification and
+a separately scoped control/ownership-memory packet proof attempt under the
+existing caps/triage limits. No buffer restructuring or SRAM swap is authorized.
+
+D52 diagnostic measurements (command `python tools/env/run.py run -- python3
+scratch/t19_d52_measure.py d52-timing-05`, base acf8edb090f9ec9cda0c413d3bbbd54da4c6dccf
+plus receipt hashes) leave two full-rate CF failures: engine configured to
+IN consume, 13.703803 ns; wrapper endpoint decode to EP0 IN ready, 12.707026 ns.
+The budget remains 12.5 ns. Resume count-only decode boundaries preserve all
+state/latency and are proved equivalent to D51. Mapped buffer/gate sizing proves
+actual library functions equal and preserves every connection; clocks are
+excluded. All other measured engine/wrapper register classes pass numerically.
+Further restructuring stops at the remaining CF paths. No pipeline is removed.
+
+Independent-reset qualified-read warmup is proved with real-model covers and
+faults. Complete packet integrity, SIE consumption, sampling equivalence,
+exception qualification and the pad/board contract remain open. Existing
+zero-delay IO hold/removal screens remain visible; no pre-CTS hold RTL is added.
+The scoped ownership and all four assertion-partition jobs timed out under existing caps; no unchanged retry follows. Frozen USB aggregate and fast CI fail at USB; full tier was not run. Eleven simulations, eleven focused formal cases, resume equivalence and supporting controls pass. Independent review confirms the limited claims; T19 remains incomplete.

@@ -100,6 +100,7 @@ class UsbInBuffer(proofView: Boolean=false, memoryFactory: ()=>UsbPacketMemoryPo
 /** USB OUT queue: bad CRC/overflow rolls back all speculative packet bytes. */
 class UsbOutProofState extends Bundle {
   val head=UInt(7.W);val tail=UInt(7.W);val speculative=UInt(7.W);val reject=Bool()
+  val capture=Bool()
 }
 class UsbOutBuffer(proofView: Boolean=false, memoryFactory: ()=>UsbPacketMemoryPort=()=>new UsbPacketMemory) extends RawModule {
   val proof=if(proofView) Some(IO(Output(new UsbOutProofState))) else None
@@ -124,6 +125,7 @@ class UsbOutBuffer(proofView: Boolean=false, memoryFactory: ()=>UsbPacketMemoryP
     val nextHead = RegNext(advance(head),1.U)
     val full = RegNext(head === nextSpeculative,false.B)
     val available = RegNext(head =/= tail,false.B)
+    proof.foreach(_.capture:=bitEnable && available && (!valid || appReady))
     memory.readAddress := head; memory.writeAddress := speculative; memory.writeData := received
     memory.write := bitEnable && receiveReady && receiveValid && !receiveError && !full && !reject && reset_n
     nak := reject; appData := value; appValid := valid

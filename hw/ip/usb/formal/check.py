@@ -21,6 +21,7 @@ CASES = {
     'denied': ('UsbDeniedFormal', 8, 2, 32),
     'in': ('UsbInFormal', 6, 4, 48),
     'out': ('UsbOutFormal', 6, 3, 48),
+    'buffer_reset': ('UsbBufferResetFormal', 3, 7, 48),
     'pads': ('UsbPadsFormal', 4, 2, 8),
     'control': ('UsbControlFormal', 2, 3, 128),
     'address': ('UsbControlFormal', 1, 2, 128),
@@ -30,6 +31,7 @@ CASES['in_helpers']=('UsbInFormal',18,4,48)
 CASES['out_helpers']=('UsbOutFormal',14,3,48)
 CASES['in_sparse']=('UsbInFormal',26,4,48)
 CASES['out_sparse']=('UsbOutFormal',21,3,48)
+CASES['out_ownership']=('UsbOutFormal',22,3,48)
 for lane in range(8):
     CASES[f'in_bit{lane}']=CASES['in']
     CASES[f'out_bit{lane}']=CASES['out']
@@ -46,8 +48,9 @@ def run(output, regmap, roles=None, portfolio=False, controls_only=False):
         'reset_n initially low, subsequently arbitrary; single digital sample clock',
         'Denied harness fixes owner0 and maps tag0 to1, covering all non-owner origins',
         'Resume proof uses threshold17; production threshold144000 is separately simulated',
-        'IN harness issues byte consumes only when valid and ACK only after consumed data; request/retry choices and application data/push are arbitrary',
-        'OUT harness generates packets at most64 bytes, with arbitrary bytes, finish/error, stalls and application ready',
+        'IN packet harness issues byte consumes only when valid and ACK only after consumed data; request/retry choices and application data/push are arbitrary',
+        'OUT packet harness generates packets at most64 bytes, with arbitrary bytes, finish/error, stalls and application ready',
+        'buffer_reset instead allows arbitrary ACKs and unrestricted OUT packet length; transport reset is independent of cadence reset; local warmup only, not SIE consumption/ACK composition',
         'Digital synchronizers exclude analog metastability and electrical USB qualification'],
         limitations=['Packet properties apply to the stated packet-interface harness; they are not a proof of the full wire protocol',
                      'A bit-lane result covers only that named bit; all eight lanes are required to establish byte integrity'])
@@ -85,6 +88,7 @@ def run(output, regmap, roles=None, portfolio=False, controls_only=False):
                 # obligation remain, and the latter must yield a counterexample.
                 expected_assertions=(14 if role in ('in_helpers','in_sparse') else 2) if variant=='withheld' else assertions
                 if role.endswith('_sparse') and variant=='corrupt':expected_assertions=CASES[role.replace('_sparse','_helpers')][1]
+                if role=='out_ownership' and variant=='corrupt':expected_assertions=CASES['out_helpers'][1]
                 job = directory / (variant + '.sby')
                 job.write_text('\n'.join(['[options]', f'mode {mode}', f'depth {depth}', 'timeout 120',
                     '', '[engines]', engine, '', '[script]',
@@ -109,8 +113,8 @@ def run(output, regmap, roles=None, portfolio=False, controls_only=False):
                     process.returncode, status)
                 row['result'] = 'covered' if mode == 'cover' else 'proved' if variant == 'correct' else 'fault_rejected'
                 print(f'PASS USB {role}/{variant}: {row["result"]}', flush=True)
-            entry['status'] = 'unresolved' if role.endswith('_sparse') or controls_only else 'pass'
-            if role.endswith('_sparse'):
+            entry['status'] = 'unresolved' if role.endswith('_sparse') or role=='out_ownership' or controls_only else 'pass'
+            if role.endswith('_sparse') or role=='out_ownership':
                 entry['qualification']='Abstracted proof only; requires independently reviewed exact-source memory refinement and reset-warmup composition before production acceptance'
         except Exception as error:
             entry.update(status='unresolved' if any(j.get('solver_status')=='TIMEOUT' for j in entry['jobs']) else 'failed', error=str(error))

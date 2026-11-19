@@ -66,3 +66,31 @@ measurement because integration changes optimization and buffering.
 Latest block-area command: `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d48-frozen-check-01`, base `15161bf897d1b4b4cba69030154daf89ee19ca12` plus its frozen hashes. SRAM replacement estimates above are unchanged; no macro swap or buffer RTL change occurred.
 
 D51 latest measured areas use `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d51-frozen-check-01`, baseline `269fa0f7fe1b0560d58dd62c44ef01340e84b06b` plus frozen hashes. Only mapped enable-buffer sizing changes these areas; SRAM estimates remain unchanged.
+
+
+## D52 fresh mapped block areas, 2026-11-19
+
+**Measured** with `python tools/env/run.py run -- python3 hw/ip/usb/check.py
+--output build/t19/d52-frozen-check-01`, baseline
+acf8edb090f9ec9cda0c413d3bbbd54da4c6dccf plus frozen source/flow hashes.
+Pinned GF180 7-track SS/125 C/3.0 V, Yosys0.71+34/OpenSTA3.2.0;
+mapped pre-layout cell area, no placement/parasitic or whole-chip fit claim.
+
+| Block | Measured um² |
+| --- | ---: |
+| Standalone SIE/PHY fixture | 58611.8400 |
+| EP0 | 45539.4240 |
+| IN buffer | 108636.0576 |
+| OUT buffer | 105938.1568 |
+| Resume | 4783.3408 |
+| Registers | 8365.9072 |
+| Combined engine | 294903.1680 |
+| Complete wrapper | 332364.2560 |
+
+Estimated wrapper-minus-engine difference: 332364.2560 − 294903.1680 = 37461.0880 um². Integration changes optimization; this is not an isolated glue measurement.
+
+Estimated comparison to the previously locked 1024×8 macro footprint: IN macro/buffer = 155413.553/108636.0576 = 1.4306; excess 155413.553 − 108636.0576 = 46777.4954 um².
+
+Estimated comparison to the previously locked 1024×8 macro footprint: OUT macro/buffer = 155413.553/105938.1568 = 1.4670; excess 155413.553 − 105938.1568 = 49475.3962 um².
+
+This only compares the macro in the pinned local inventory, not a proved global minimum across all GF180 macros. Macro peripheral logic, placement and routing would add costs. No SRAM swap is performed.

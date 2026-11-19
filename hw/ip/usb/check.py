@@ -49,6 +49,8 @@ def run(output,packet_triage=None):
         command('simulation',[py,'tools/sbt.py','testOnly deadhorse.usb.*'])
         command('emit',[py,'tools/sbt.py',f'runMain deadhorse.usb.EmitUsb {output}/emit {output}/regmap/usb_regs.json'])
         command('emit-sie',[py,'tools/sbt.py',f'runMain deadhorse.usb.EmitUsbSieTiming {output}/emit/sie'])
+        command('resume-equivalence',[py,'hw/ip/usb/formal/resume_equivalence.py',
+            '--after',output/'emit/resume','--output',output/'resume-equivalence'],output/'resume-equivalence/result.json')
         # The user requires a triage-budget stop, never an unchanged timeout
         # retry. Positive packet acceptance remains required and unresolved.
         # Preserve exact-source evidence if supplied; it is never a deferral.
@@ -67,7 +69,7 @@ def run(output,packet_triage=None):
             packet_status.update(receipt=str(prior.relative_to(ROOT)),sha256=hashlib.sha256(prior.read_bytes()).hexdigest(),cases=detail['cases'])
         receipt['packet_proofs']=packet_status
         formal_args=[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json','--output',output/'formal']
-        for role in ('cadence','cadence_reset','reset_data','reset_aware','reset_aware_early','resume','denied','pads','control','address'):
+        for role in ('cadence','cadence_reset','reset_data','reset_aware','reset_aware_early','buffer_reset','resume','denied','pads','control','address'):
             formal_args+=['--case',role]
         command('formal',formal_args,output/'formal/result.json')
         command('packet-controls',[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json',

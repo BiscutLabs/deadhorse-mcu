@@ -22,9 +22,15 @@ class UsbResume(idleSamples: Int = 144000) extends RawModule {
     // Predict carries one running sample ahead. Clearing the timer also clears
     // every carry, so interrupted idle periods cannot borrow time from a prior one.
     val running=attached && !driving && j
-    val terminal=RegNext(running && count === (idleSamples-2).U,false.B)
+    // Keep the count-only decode separate from the late, high-fanout running
+    // qualification. These are wires: the predicted carries retain their edge.
+    val terminalMatch=WireDefault(count === (idleSamples-2).U)
+    dontTouch(terminalMatch)
+    val terminal=RegNext(running && terminalMatch,false.B)
     val carries=(1 until 5).map {lane=>
-      RegNext(running && count(lane*4-1,0) === ((BigInt(1) << (lane*4))-2).U,false.B)
+      val countMatch=WireDefault(count(lane*4-1,0) === ((BigInt(1) << (lane*4))-2).U)
+      dontTouch(countMatch)
+      RegNext(running && countMatch,false.B)
     }
     val next=Cat((0 until 5).reverse.map { lane=>
       val nibble=count(lane*4+3,lane*4)

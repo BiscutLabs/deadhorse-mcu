@@ -302,3 +302,67 @@ ineligible. Sampling equivalence and exhaustive applied-exception/per-class
 over-budget qualification remain open. Independent review checked the group
 composition, reset-as-data exclusion, aliases, controls, enable sizing and
 constraint partition. Fresh frozen aggregate and fast CI fail at USB. All ten non-packet cases, their covers/faults and supporting controls pass; packet positives and sampling/exception qualification remain open. Full tier was not run.
+
+## D52 scoped packet attempt, 2026-11-19
+
+Baseline acf8edb090f9ec9cda0c413d3bbbd54da4c6dccf plus receipts' source hashes.
+The approved attempt retains the existing depth 48 and 120-second solver cap,
+with a 45-minute wall-clock ceiling and at most three distinct rungs. No
+unchanged timed-out positive job is restarted. Production buffers are unchanged.
+
+Step 0 reuses preserved measured diagnostics, not new acceptance results:
+`python tools/env/run.py run -- python3 scratch/t19_packet_step0_review.py`
+and its `--split-stat` run; receipts `build/t19/packet-step0-review-01` and
+`build/t19/packet-partition-stat-review-01`.
+
+| Historical measured model | Cells / state bits / RAM bits | Depth 12 / 24 seconds | Control-only cells / bits / RAM |
+| --- | --- | --- | --- |
+| IN lane | 340 / 261 / 576 | 0.617 / 5.973 | 158 / 81 / 0 |
+| OUT lane | 319 / 244 / 576 | 0.466 / 4.621 | 126 / 69 / 0 |
+
+The earlier depth-48 positives timed out; shallow bounded passes are not proofs.
+The control partition removes data equalities only in that partition; its
+complement retains them, and the union must equal all six original assertions.
+Existing real-model covers and faults remain required. Sparse memory requires
+its separate actual-word refinement, and all helper invariants stay assertions.
+
+Rungs: independent-reset qualified-read composition; exhaustive assertion
+partition; one OUT ownership strengthening motivated by the preserved trace.
+The unconditional common-reset memory-age/tag premises cannot establish
+independent-reset warmup. The new harness uses production cadence and shared
+ResetRelease, with arbitrary independent transport reset. It proves qualified
+IN reads and actual OUT head-advance/capture occur after RAM warmup. This local
+result does not prove the retained SIE consumption/ACK contract.
+
+D52 results (measured commands on the baseline/hash inventories above):
+
+- `python tools/env/run.py run -- python3 hw/ip/usb/formal/check.py --json build/t19/regmap/usb_regs.json --case buffer_reset --case cadence_reset --case reset_aware --case reset_aware_early --output build/t19/d52-cadence-02`: all proofs, covers and faults pass. The revised local reset harness directly observes the proof-only production OUT capture condition, proves its delayed head-change correspondence, and covers IN and OUT reads after another reset. No default production buffer state or behavior changes.
+- `python tools/env/run.py run -- python3 hw/ip/usb/formal/check.py --json build/t19/regmap/usb_regs.json --case cadence_reset --case reset_aware --case reset_aware_early --case out_ownership --output build/t19/d52-formal-01`: OUT strengthened sparse proof TIMEOUT, measured 121.638 seconds including orchestration at the unchanged 120-second solver cap; real-model cover/fault pass. No retry.
+- `python tools/env/run.py run -- python3 hw/ip/usb/formal/packet_partition.py --json build/t19/regmap/usb_regs.json --output build/t19/d52-packet-partition-01`: all four partitions TIMEOUT. Measured elapsed seconds: IN control 121.726, IN data 121.186, OUT control 121.133, OUT data 121.136; total runner 507.834 seconds including emission/preparation. Configured depth 48, unbounded ABC PDR, unchanged solver cap. No positive acceptance result.
+
+The third distinct rung exhausts this scoped attempt before its wall-clock
+ceiling. The smallest next proposed work is separate proved pointer/occupancy
+and service-lifecycle invariants, then data ownership composition; RAM removal
+alone did not close even the control partitions. That is unmeasured future
+proof engineering, not an assumption or accepted deferral. No unchanged job
+is rerun and no buffer restructuring or parameterization occurs.
+
+Independent review corrected initially vacuous reset covers and an inferred
+capture witness; the final reset proof has actual observation covers and a
+proved witness relation. It also requested build-only output containment and
+nonzero exit for unresolved partition results. Those CLI-only safeguards were
+added after preserving the solver receipts, without rerunning exhausted jobs.
+The historical partition command exited zero while its receipt explicitly
+said unresolved; the maintained runner now fails closed. Complete packet/SIE
+composition remains unresolved.
+
+
+D52 frozen confirmation: `python tools/env/run.py run -- python3
+hw/ip/usb/check.py --output build/t19/d52-frozen-check-01` passes all eleven
+focused cases, covers/faults, byte CDC and reproduced-reference resume
+equivalence. Both IN/OUT default production emissions match D51 byte for byte.
+No exhausted positive packet proof is rerun. Aggregate and fast CI fail with
+the original outstanding obligations retained; full tier is unrun. All frozen
+input hashes match before reporting-only edits. Independent reviews clear
+certificate-preserving sizing, equivalence/fault extraction, reset warmup and
+the assertion partition for an incomplete review checkpoint only.
