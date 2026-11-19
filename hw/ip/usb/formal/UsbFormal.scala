@@ -80,6 +80,36 @@ class UsbCadenceResetFormal(variant: String) extends RawModule {
     }
   }
 }
+/** D51 timing lemma. Bus reset is over-approximated by arbitrary CE-qualified
+  * updates; the certificate separately proves that production source/mapped
+  * bus-reset state has precisely that restriction. Monitor history survives reset.
+  */
+class UsbResetAwareFormal(variant: String, early: Boolean = false) extends RawModule {
+  val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val nextBusReset=IO(Input(Bool()))
+  val cadence=Module(if(early && variant=="corrupt") new UsbEarlyEnable else new UsbBitEnable)
+  cadence.clk:=clock;cadence.reset_n:=reset_n
+  val busReset=withClockAndReset(clock,(!reset_n).asAsyncReset){RegEnable(nextBusReset,false.B,cadence.enable)}
+  withClockAndReset(clock,false.B) {
+    val previousBusReset=Reg(Bool());dontTouch(previousBusReset)
+    val history=Reg(UInt(3.W));dontTouch(history)
+    val releaseHistory=Reg(UInt(4.W));dontTouch(releaseHistory)
+    previousBusReset:=busReset
+    // Synchronous EP0 reset values are written on the first edge observing B.
+    val lateResetWrite=busReset && !previousBusReset
+    history:=Cat(history(1,0),lateResetWrite)
+    releaseHistory:=Cat(releaseHistory(2,0),reset_n)
+    val capture=reset_n && cadence.enable &&
+      (if(!early && variant=="corrupt") true.B else !busReset)
+    if(variant=="cover") {
+      cover(lateResetWrite && !cadence.enable)
+      cover(capture && releaseHistory.andR)
+      cover(!reset_n && history.orR)
+    } else {
+      when(cadence.enable){assert(reset_n && releaseHistory.andR)}
+      when(capture){assert(!history.orR)}
+    }
+  }
+}
 class UsbResumeFormal(variant: String) extends RawModule {
   val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
   val dp=IO(Input(Bool()));val dn=IO(Input(Bool()));val attached=IO(Input(Bool()))
@@ -132,6 +162,8 @@ object EmitUsbFormal {
         case "cadence"=>new UsbCadenceFormal(variant)
         case "cadence_reset"=>new UsbCadenceResetFormal(variant)
         case "reset_data"=>new UsbResetDataFormal(variant)
+        case "reset_aware"=>new UsbResetAwareFormal(variant)
+        case "reset_aware_early"=>new UsbResetAwareFormal(variant,true)
         case "resume"=>new UsbResumeFormal(variant)
         case "denied"=>new UsbDeniedFormal(args(0),variant)
         case "in"=>new UsbInFormal(variant)

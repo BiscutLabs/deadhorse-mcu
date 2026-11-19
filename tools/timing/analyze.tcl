@@ -70,7 +70,31 @@ if {[info exists certified_q]} {
     if {[llength $certified_d]+[llength $full_d] != [llength [all_registers -data_pins]]} {
         error "Incomplete D45 register partition"
     }
-    if {[llength $certified_clock] && [llength $certified_d]} {
+    if {[info exists reset_groups]} {
+        set grouped {}
+        foreach {group names} $reset_groups {lappend grouped {*}$names}
+        set expected {}
+        foreach pin $certified_d {lappend expected [file dirname [get_full_name $pin]]}
+        if {[llength $grouped] != [llength [lsort -unique $grouped]] || [lsort $grouped] ne [lsort $expected]} {
+            error "Incomplete/overlapping reset groups"
+        }
+        foreach n $grouped {
+            foreach suffix {CLK D Q} {
+                set pin [get_pins $n/$suffix]
+                if {[llength $pin]!=1 || [get_full_name $pin] ne "$n/$suffix"} {error "Missing reset-group pin"}
+            }
+        }
+        foreach pair $reset_pairs {
+            lassign $pair a b
+            set from {};set to {}
+            foreach n [dict get $reset_groups $a] {lappend from [get_pins $n/CLK]}
+            foreach n [dict get $reset_groups $b] {lappend to [get_pins $n/D]}
+            if {[llength $from] && [llength $to]} {
+                set_multicycle_path 4 -setup -from $from -to $to
+                set_multicycle_path 3 -hold -from $from -to $to
+            }
+        }
+    } elseif {[llength $certified_clock] && [llength $certified_d]} {
         set_multicycle_path 4 -setup -from $certified_clock -to $certified_d
         set_multicycle_path 3 -hold -from $certified_clock -to $certified_d
     }
@@ -134,6 +158,26 @@ if {[info exists clock_gate_pins] && [llength $clock_gate_pins]} {
     }
     close $gate_report
     lappend groups RG [list [all_registers -clock_pins] $gate_enables] IG [list $data_inputs $gate_enables]
+}
+if {[info exists reset_groups]} {
+    # Replace broad CC reporting with every compatible/incompatible pair.
+    # S -> R is retained at the single-cycle budget as CC_reset.
+    set filtered {}
+    foreach {kind ends} $groups {
+        if {$kind eq "CC" || [string match "*.CC" $kind]} {continue}
+        lappend filtered $kind $ends
+    }
+    set groups $filtered
+    set prefix [expr {[info exists domain_periods] ? "usbClock." : ""}]
+    foreach {a anames} $reset_groups {
+        foreach {b bnames} $reset_groups {
+            set from {};set to {}
+            foreach n $anames {lappend from [get_pins $n/Q]}
+            foreach n $bnames {lappend to [get_pins $n/D]}
+            set kind [expr {[list $a $b] in $reset_pairs ? "CC" : "CC_reset"}]
+            lappend groups ${prefix}$kind [list $from $to]
+        }
+    }
 }
 set f [open $path_report w]
 puts $f "class\tdelay_ns\tstart\tend\tcell_depth\tlogic_depth\tpoints"

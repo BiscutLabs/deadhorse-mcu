@@ -477,7 +477,11 @@ def _value_certificate(top, sources, mapped, liberty, output, cadence_receipt=No
 
 def certify(top, sources, mapped, liberty, output, cadence_receipt=None):
     try:
-        return _value_certificate(top, sources, mapped, liberty, output, cadence_receipt)
+        receipt = _value_certificate(top, sources, mapped, liberty, output, cadence_receipt)
+        receipt['status']='pending-reset-aware-qualification'
+        (Path(output)/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
+        from hw.ip.usb.formal.reset_certificate import extend
+        return extend(top,mapped,liberty,output,receipt,cadence_receipt)
     except Exception as error:
         path = Path(output)/'result.json'
         if path.exists():

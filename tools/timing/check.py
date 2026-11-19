@@ -242,6 +242,10 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
             raise ValueError('USB fanout buffer absent from pinned library')
         (output / 'unbuffered.json').write_text(json.dumps(design))
         design['modules'][top], inserted = buffer_module(design['modules'][top], clock)
+        if usb_cadence and top in ('UsbEngine','Usb','UsbSieTiming'):
+            from tools.timing.usb_enable_fanout import size_enable_buffers
+            design['modules'][top], mapping['enable_buffer_sizing'] = size_enable_buffers(
+                design['modules'][top],liberty,output/'enable-buffer-sizing')
         mapping['fanout_tree'] = dict(cell=BUFFER,limit=8,inserted=len(inserted),
                                     verification='all original pins resolve identically; clocks unchanged')
         (output / 'buffered.json').write_text(json.dumps(design))
@@ -286,11 +290,15 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
             prefix='certified' if name in certificate['certified'] else 'full'
             sets[prefix+'_q'].append(name+'/Q');sets[prefix+'_d'].append(name+'/D')
             if prefix=='certified':sets['certified_clock'].append(name+'/CLK')
-            sets['reset_pins'].extend(name+'/'+p for p in ('RN','SN') if p in cell['connections'])
+            sets['reset_pins'].extend(name+'/'+p for p in ('RN','SETN') if p in cell['connections'])
         if any(re.search(r'[{}\s]',p) for values in sets.values() for p in values):
             raise ValueError('Unsafe mapped pin name')
         constraints=output/'protocol.tcl'
-        constraints.write_text('\n'.join('set '+name+' {'+' '.join(values)+'}' for name,values in sets.items())+'\n')
+        lines=['set '+name+' {'+' '.join(values)+'}' for name,values in sets.items()]
+        reset_groups=certificate['reset_aware']['groups']
+        lines.append('set reset_groups {'+' '.join(g+' {'+' '.join(names)+'}' for g,names in reset_groups.items())+'}')
+        lines.append('set reset_pairs {'+' '.join('{'+a+' '+b+'}' for a,b in certificate['reset_aware']['allowed_pairs'])+'}')
+        constraints.write_text('\n'.join(lines)+'\n')
     tcl.write_text('\n'.join([
         f'set liberty {{{liberty}}}', f'set netlist {{{output / "mapped.v"}}}',
         f'set top {top}', f'set clock_port {{{clock or ""}}}', f'set period {cfg["period_ns"]}',
@@ -342,8 +350,8 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
         domain,base=kind.split('.',1) if '.' in kind else (None,kind)
         period=domain_clocks[domain] if domain else cfg['period_ns']
         return period*cfg['budget_fraction']*(4 if base=='CC' else 1)
-    class_names=(tuple(f'{domain}.{kind}' for domain in domain_clocks for kind in ('CC','CF','FC','FF','IR','RO','IO','RG','IG')) if domain_clocks else
-                 ('CC','CF','FC','FF','IR','RO','IO','RG','IG') if certificate else ('RR','IR','RO','IO','RG','IG'))
+    class_names=(tuple(f'{domain}.{kind}' for domain in domain_clocks for kind in ('CC','CC_reset','CF','FC','FF','IR','RO','IO','RG','IG')) if domain_clocks else
+                 ('CC','CC_reset','CF','FC','FF','IR','RO','IO','RG','IG') if certificate else ('RR','IR','RO','IO','RG','IG'))
     passed=all(p['delay_ns']<=class_budget(p['class']) for p in paths) and electrical['max_capacitance_and_slew_violations']==0 and not short_reset_violations
     # D45 implementation is under qualification. A numeric pass alone cannot
     # discharge sampling equivalence, exception coverage and planted path faults.

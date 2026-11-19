@@ -1053,3 +1053,152 @@ EP0 FC remains `state[5]` → `header_5[6]`. None is reported closed.
 zero combinational raw-usbReset_n-to-D endpoints and four asynchronous RN
 endpoints in the mapped wrapper (receipt `build/t19/d48-reset-data-cone.json`).
 These are measured structural counts, not physical reset-delay/skew results.
+
+## D51 reset-compatible classes and enable sizing, 2026-11-18
+
+**Measured**, baseline `269fa0f7fe1b0560d58dd62c44ef01340e84b06b` plus the source/flow inventories:
+`python tools/env/run.py run -- python3 scratch/t19_d51_measure.py d51-timing-01`.
+Exact per-block commands are in `build/t19/d51-timing-01/commands.json`.
+Production RTL is unchanged from D48; the diagnostic uses its frozen emission.
+Yosys 0.71+34/OpenSTA 3.2.0, pinned GF180 7-track SS/125 C/3.0 V,
+mapped pre-layout, ideal clocks, no wire parasitics. These diagnostic results
+are followed by fresh frozen emission/checks, not substituted for them.
+Estimated budgets remain 0.60 × 1000/48 = 12.5 ns, 0.60 × 4 × 1000/48 =
+50 ns for proved compatible pairs, and 0.60 × 41.6 = 24.96 ns for app/AON.
+
+R is root-reset protocol state; B is protocol state reset by root and bus reset;
+H is header state with bus-reset write suppression; S is EP0 state with a
+synchronous bus-reset constant override. S→R is **CC_reset**, single-cycle.
+All other proved group pairs are CC. PHY bus_reset_q stays full-rate because
+it drives next-sample synchronous reset data. PHY rx_en_q and the sampler/
+clock-recovery registers stay full-rate. Neither approval nor reset-value
+idempotence alone establishes a compatible capture pair.
+
+| Block | Class | Measured worst ns | Estimated budget ns | Mapped start → end | Measured area um2 |
+| --- | --- | ---: | ---: | --- | ---: |
+| control | CC | 13.370109 | 50 | `_1963_/Q` → `_1990_/D` | 42922.7456 |
+| control | CC_reset | 11.621190 | 12.5 | `_1963_/Q` → `_1854_/D` | 42922.7456 |
+| control | CF | 11.557283 | 12.5 | `_1958_/Q` → `_1823_/D` | 42922.7456 |
+| control | FC | 9.330946 | 12.5 | `_1818_/Q` → `_1846_/D` | 42922.7456 |
+| control | FF | 10.059363 | 12.5 | `_1865_/Q` → `_1798_/D` | 42922.7456 |
+| control | IR | 11.261580 | 12.5 | `busReset` → `_1846_/D` | 42922.7456 |
+| control | RO | 4.142676 | 12.5 | `_2039_/Q` → `configured` | 42922.7456 |
+| engine | CC | 21.709534 | 50 | `_9906_/Q` → `_10181_/D` | 282454.1888 |
+| engine | CC_reset | 12.409761 | 12.5 | `_9673_/Q` → `_9720_/D` | 282454.1888 |
+| engine | CF | 14.038514 | 12.5 | `_9880_/Q` → `_10159_/D` | 282454.1888 |
+| engine | FC | 13.719343 | 12.5 | `_10192_/Q` → `_9208_/D` | 282454.1888 |
+| engine | FF | 14.122969 | 12.5 | `_9457_/Q` → `_10037_/D` | 282454.1888 |
+| engine | IR | 6.502565 | 12.5 | `rxReady` → `_8955_/D` | 282454.1888 |
+| engine | RO | 9.062789 | 12.5 | `_10121_/Q` → `txEnable` | 282454.1888 |
+| engine | IO | 3.674172 | 12.5 | `reset_n` → `pullup_0` | 282454.1888 |
+| usb | appClock.FF | 12.017683 | 24.96 | `_11078_/Q` → `_10550_/D` | 319390.6240 |
+| usb | appClock.IR | 9.074254 | 24.96 | `bus_bits_origin[1]` → `_10525_/D` | 319390.6240 |
+| usb | appClock.RO | 3.929136 | 24.96 | `_11405_/Q` → `bus_gnt` | 319390.6240 |
+| usb | appClock.IO | 4.683438 | 24.96 | `vbus` → `pullupEnable` | 319390.6240 |
+| usb | usbClock.CC | 22.338293 | 50 | `_10637_/Q` → `_10662_/D` | 319390.6240 |
+| usb | usbClock.CC_reset | 12.927523 | 12.5 | `_10860_/Q` → `_9284_/D` | 319390.6240 |
+| usb | usbClock.CF | 16.453081 | 12.5 | `_10973_/Q` → `_10281_/D` | 319390.6240 |
+| usb | usbClock.FC | 14.488053 | 12.5 | `_9893_/Q` → `_10745_/D` | 319390.6240 |
+| usb | usbClock.FF | 16.038822 | 12.5 | `_11342_/Q` → `_10281_/D` | 319390.6240 |
+| usb | usbClock.IR | 12.100127 | 12.5 | `vbus` → `_10281_/D` | 319390.6240 |
+| usb | usbClock.RO | 9.848157 | 12.5 | `_11342_/Q` → `pullupEnable` | 319390.6240 |
+| usb | usbClock.IO | 4.683438 | 12.5 | `vbus` → `pullupEnable` | 319390.6240 |
+| usb | aonClock.FF | 2.488224 | 24.96 | `_10940_/Q` → `_10943_/D` | 319390.6240 |
+| usb | aonClock.RO | 3.750224 | 24.96 | `_10943_/Q` → `usbClockRequest` | 319390.6240 |
+| usb | aonClock.IO | 4.683438 | 24.96 | `vbus` → `pullupEnable` | 319390.6240 |
+
+
+The enable sizing change replaces only weak positive buffers in the proved
+cadence tree after fanout insertion. Actual Liberty functions are proved
+equivalent; a wrong-polarity replacement fails. Exact type restoration
+recovers every original pin and connection. **Measured** engine enable→
+rx_eop_qq worst over both transitions is 9.351625 ns, from usb_enable_replica_1/Q to _10139_/D, versus
+the historical D48 13.296519 ns. Worst measured enable-launch delay is
+11.768248 ns. This is cell sizing, not placement closure.
+
+Remaining measured failures trigger the stop on further restructuring:
+
+- engine CF: endpoint decode `_9880_/Q` → packet-stage `in.consume`
+  `_10159_/D`, 14.038514 ns;
+- engine FC: packet-stage `control.inRequest` `_10192_/Q` → configured
+  `_9208_/D`, 13.719343 ns;
+- engine FF: OUT reset release `_9457_/Q` → packet RAM `_10037_/D`, 14.122969 ns;
+- wrapper CC_reset: EP0 state[4] `_10860_/Q` → writeCount[0] `_9284_/D`, 12.927523 ns;
+- wrapper CF: PHY TX state[0] `_10973_/Q` → resume.carries_3 `_10281_/D`, 16.453081 ns;
+- wrapper FC: PHY bus-reset `_9893_/Q` → header_4[6] `_10745_/D`, 14.488053 ns;
+- wrapper FF: usbUp release `_11342_/Q` → resume.carries_3 `_10281_/D`, 16.038822 ns.
+
+Each has the unchanged estimated 12.5 ns budget. Standalone EP0 has a numerical
+pass, but remains blocked by sampling/exception qualification. No stage was
+removed: packet-boundary stages are still full-rate and reset-incompatible
+pairs remain. Boundary-delay contract, standalone-fixture adjustment and
+additional pipeline changes are not reached after this stop. Existing zero-
+delay IO screening/negative hold remains unqualified physical-flow evidence,
+not pad/board signoff. No pre-CTS hold RTL or packet-buffer changes were made.
+
+### D51 frozen confirmation
+
+**Measured**, baseline `269fa0f7fe1b0560d58dd62c44ef01340e84b06b` plus frozen
+inventories, using `python tools/env/run.py run -- python3 hw/ip/usb/check.py
+--output build/t19/d51-frozen-check-01`. Fresh production emission reproduces
+every EP0/engine/wrapper class delay and area in the D51 table. All source
+hashes match before reporting edits. Final exact-member/pin guards and
+execution-dependent fault inventories are exercised in this run. No earlier
+diagnostic is retroactively claimed to have tested those final corrections.
+Aggregate and fast CI fail; full tier was not run.
+
+Requested original paths are now measured CC: SIE→PHY TX nrzi_q is
+15.341034 ns (`_9878_/Q` → `_10183_/D`), and EP0 configured→SIE frame[10]
+is 20.658268 ns (`_9208_/Q` → `_10175_/D`), both in the engine. These fit
+the estimated 50 ns budget. The former EP0 state[5]→header_5[6] FC path is
+now compatible CC because the actual header capture is bus-reset-suppressed.
+Incompatible S→R paths retain the original single-cycle budget.
+
+| Block | Group R | Group B | Group H | Group S | Full-rate |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| control | 60 | 0 | 64 | 72 | 68 |
+| engine | 85 | 102 | 64 | 43 | 1625 |
+| usb | 85 | 102 | 64 | 43 | 1924 |
+| sie | 26 | 142 | 0 | 0 | 46 |
+
+Counts above are measured from exact mapped certificate inventories.
+
+| Block | Class | Measured ns | Estimated budget ns | Mapped start → end | Measured area um2 |
+| --- | --- | ---: | ---: | --- | ---: |
+| in | RR | 11.140153 | 12.5 | `_3172_/Q` → `_3128_/D` | 105051.2960 |
+| in | IR | 9.972349 | 12.5 | `reset_n` → `_3299_/D` | 105051.2960 |
+| in | RO | 3.984604 | 12.5 | `_3098_/Q` → `appReady` | 105051.2960 |
+| out | RR | 11.820112 | 12.5 | `_3072_/Q` → `_3039_/D` | 102331.4432 |
+| out | IR | 9.609552 | 12.5 | `reset_n` → `_3679_/D` | 102331.4432 |
+| out | RO | 4.164564 | 12.5 | `_3716_/Q` → `nak` | 102331.4432 |
+| resume | RR | 9.333540 | 12.5 | `_202_/Q` → `_201_/D` | 4361.8624 |
+| resume | IR | 8.076866 | 12.5 | `attached` → `_201_/D` | 4361.8624 |
+| resume | RO | 4.093227 | 12.5 | `_195_/Q` → `suspended` | 4361.8624 |
+| registers | RR | 11.202718 | 24.96 | `_453_/Q` → `_454_/D` | 8365.9072 |
+| registers | IR | 9.328797 | 24.96 | `bus_bits_addr[9]` → `_454_/D` | 8365.9072 |
+| registers | RO | 4.043431 | 24.96 | `_453_/Q` → `bus_gnt` | 8365.9072 |
+| sie | CC | 24.721727 | 50 | `_2779_/Q` → `_2916_/D` | 55171.9616 |
+| sie | CF | 8.469969 | 12.5 | `_2844_/Q` → `_2893_/D` | 55171.9616 |
+| sie | FC | 11.308363 | 12.5 | `_2720_/Q` → `_2718_/D` | 55171.9616 |
+| sie | FF | 15.381041 | 12.5 | `_2830_/Q` → `_2801_/D` | 55171.9616 |
+| sie | IR | 18.264446 | 12.5 | `io_in_int_endps_i[14]` → `_2916_/D` | 55171.9616 |
+| sie | RO | 21.622900 | 12.5 | `_2779_/Q` → `io_in_ready_o` | 55171.9616 |
+| sie | IO | 14.955754 | 12.5 | `io_in_int_endps_i[14]` → `io_in_ready_o` | 55171.9616 |
+
+No electrical slew/capacitance violation is reported. Hold/reset checks are retained, including SETN.
+
+| Block | Measured worst hold slack ns | Measured worst reset-check slack ns | Negative rows |
+| --- | ---: | ---: | ---: |
+| control | 1.175274 | 0.396825 | 0 |
+| engine | -0.102503 | 0.100245 | 2 |
+| usb | -0.102503 | -0.975158 | 6 |
+| sie | -0.102503 | -0.396361 | 5 |
+
+These use the unchanged zero-delay screening boundary, not a completed pad/
+board contract. Negative hold remains a physical-flow item and still fails
+the current gate; no RTL was added to repair pre-CTS hold.
+
+Independent read-only diagnosis identifies possible next scoped work:
+size weak reset/decode buffers before adding RTL, and refactor the resume
+running/count carry predicates combinationally without adding latency.
+These are unmeasured proposals; no repair or timing closure is claimed.

@@ -52,15 +52,17 @@ the rows are not additive.
 
 | Block | Measured um2 |
 | --- | ---: |
-| Retained SIE plus production cadence/replicas, external endpoint inputs | 55049.0304 |
+| Retained SIE plus production cadence/replicas, external endpoint inputs | 55171.9616 |
 | Chisel EP0, final frozen certificate-preserving mapping | 42922.7456 |
 | IN packet buffer | 105051.2960 |
 | OUT packet buffer | 102331.4432 |
-| Combined engine | 282348.8192 |
-| Complete wrapper, including CDC/events/clock requests | 319285.2544 |
+| Combined engine | 282454.1888 |
+| Complete wrapper, including CDC/events/clock requests | 319390.6240 |
 
 The wrapper-minus-engine difference is **estimated** by subtraction:
-319285.2544 − 282348.8192 = 36936.4352 um2. It is not an isolated glue-area
+319390.6240 − 282454.1888 = 36936.4352 um2. It is not an isolated glue-area
 measurement because integration changes optimization and buffering.
 
 Latest block-area command: `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d48-frozen-check-01`, base `15161bf897d1b4b4cba69030154daf89ee19ca12` plus its frozen hashes. SRAM replacement estimates above are unchanged; no macro swap or buffer RTL change occurred.
+
+D51 latest measured areas use `python tools/env/run.py run -- python3 hw/ip/usb/check.py --output build/t19/d51-frozen-check-01`, baseline `269fa0f7fe1b0560d58dd62c44ef01340e84b06b` plus frozen hashes. Only mapped enable-buffer sizing changes these areas; SRAM estimates remain unchanged.

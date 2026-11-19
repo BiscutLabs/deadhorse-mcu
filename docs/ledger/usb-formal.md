@@ -262,3 +262,43 @@ wrong-data and wrong-reset faults fail. The checker uses only those proved
 equalities in its otherwise all-Q-free mapped cut. Independent review is clear
 for this limited evidence; timing, packet and sampling/exception qualification
 remain unresolved. Aggregate and fast CI fail; full tier was not run.
+
+## D51 reset-aware proof composition, 2026-11-18
+
+Baseline `269fa0f7fe1b0560d58dd62c44ef01340e84b06b` plus recorded source hashes.
+`python tools/env/run.py run -- python3 hw/ip/usb/formal/check.py --json build/t19/regmap/usb_regs.json --case cadence_reset --case reset_aware --case reset_aware_early --output build/t19/d51-formal-02`
+passes the unbounded ABC PDR proofs, cadence-model covers and missing-suppression/
+early-restart faults under the existing per-job caps. Initial reset is low,
+subsequently arbitrary; monitor history survives DUT reset. Bus-reset next
+data is arbitrary but updates only on the actual production cadence. This is
+a sound producer over-approximation, discharged by the source/mapped bus-reset
+hold, clock and reset binding; it is not a new environmental assumption.
+Both reset-aware lemma cadence emissions must match the cadence_reset proof.
+
+`reset_certificate.py` proves actual source next values and mapped D pins:
+normal CE hold, synchronous bus-reset constants, header masking, reset value/
+polarity, clock and exact non-ambiguous scalar identities. All unrelated Qs
+are free; only separately proved replica equalities are substituted. Actual
+source wrong-constant/removed-header-mask mutations and actual mapped wrong-
+reset-pin plus wrong-classified-pin controls fail. Receipts list only controls
+actually executed; absent S/H groups are explicitly not applicable. All old
+controls remain. Reset-aware classification is pair-specific; S→R remains
+single-cycle, and the bus-reset producer remains full-rate as reset data.
+Standalone EP0 is conditional on both cadence and bus-reset producer contracts,
+which the integrated engine discharges. This is sampled digital evidence,
+not an inter-edge/physical reset-skew proof.
+
+Diagnostic preparation failures are preserved: formal01's unused cover history
+was removed before fminit and was corrected with a reachable release cover;
+cert01-03 exposed constant alias and actual GF180 SETN pin handling; cert04
+refuted rx_en_q's common-CE hold (it is sample-clock driven); cert05 exposed a
+lost primary cadence name, repaired through exact aliases. cert06 was local
+proof only before review excluded bus_reset_q from relaxed reset-as-data paths.
+cert07 passes the corrected integrated binding. No existing assertion, cap or
+assumption was relaxed. Timing now also inventories SETN reset-removal pins.
+
+No packet proof was attempted or restarted; D47 remains exhausted and D50
+ineligible. Sampling equivalence and exhaustive applied-exception/per-class
+over-budget qualification remain open. Independent review checked the group
+composition, reset-as-data exclusion, aliases, controls, enable sizing and
+constraint partition. Fresh frozen aggregate and fast CI fail at USB. All ten non-packet cases, their covers/faults and supporting controls pass; packet positives and sampling/exception qualification remain open. Full tier was not run.

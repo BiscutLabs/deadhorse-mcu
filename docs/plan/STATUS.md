@@ -62,6 +62,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D48 | USB value-stability certificate | Approved 2026-11-18; includes reset assertion/release, exact production/mapped binding |
 | [x] | D49 | USB PHY multicycle eligibility | Approved 2026-11-18; only value-certified endpoints, full-rate paths unchanged |
 | [x] | D50 | Conditional small-model USB packet proof | Approved 2026-11-18; clean size parameters only, at most 60 minutes, original assertions and full-size simulation |
+| [x] | D51 | USB reset-aware timing closure | Approved 2026-11-18; proved reset/capture contract and focused enable fanout work, limits unchanged |
 
 ## Tasks
 
@@ -87,7 +88,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T16 | [SPI host](tasks/T16-spi-host.md) | Codex | T05, T07, T09, T14, T15 | [Report](tasks/reports/T16.md): SPI acceptance, GF180 timing and independent review pass; fast 31/31 with inherited T14 deferrals, no SPI deferrals; full not run |
 | [x] | T17 | [I2C controller](tasks/T17-i2c-host.md) | Codex | T05, T07, T09, T14, T16 | [Report](tasks/reports/T17.md); 19 simulations, GF180 timing and fast CI active checks pass; eight I2C formal jobs remain deferred/unproved |
 | [x] | T18 | [Lite I2C recovery loader](tasks/T18-i2c-recovery-loader.md) | Codex | T06, T07, T09, T14 | [Report](tasks/reports/T18.md). Wire-to-memory recovery and warm-reset lock retention verified. |
-| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): D48 conservative header subset; frozen aggregate/fast fail after enable replication/reset-data change; D50 not eligible; stop retained, full tier unrun, review publication requested |
+| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): D51 closes enable path numerically; frozen aggregate/fast fail on integrated timing and open qualification; packet proofs unchanged, full tier unrun |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -150,6 +151,9 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 
 ## Log
 
+- 2026-11-18: D51 frozen USB aggregate and fast CI fail with exact tested source inventories unchanged. Eleven simulations, ten non-packet formal cases and supporting controls pass; integrated full-rate timing, packet and sampling/exception obligations remain open. Independent review is clear for the blocked checkpoint; full tier unrun, no merge.
+- 2026-11-18: D51 local proofs/controls pass and enable→PHY RX worst over both transitions measures 9.351625 ns against 12.5 ns. Integrated packet-boundary/reset/resume paths still fail; stop further restructuring and freeze for aggregate/fast checks. Packet obligations unchanged; full tier unrun.
+- 2026-11-18: T19 resumed under D51: prove reset-aware capture eligibility before changing classes, investigate enable fanout, then finish boundary/fixture/pipeline work. Packet proofs remain separate; previous failures are preserved.
 - 2026-11-18: D48-D50 frozen aggregate and fast CI fail at USB with exact source hashes unchanged. Eleven USB tests, eight non-packet formal cases and supporting controls pass; timing and packet obligations remain open. Independent review is clear for the blocked review checkpoint. Full tier not run; user-requested commit/push does not qualify T19 or authorize merge.
 - 2026-11-18: D48-D50 post-step-4 stop: literal reset-inclusive certificate retains unreset headers; replicated enable path still measures 13.296519 ns versus 12.5 ns, with other full-rate failures. Shared reset-data substitution and eleven USB tests pass; independent review confirms D50 is ineligible without buffer restructuring. Freeze for aggregate/fast checks; full tier unrun, no acceptance claim.
 - 2026-11-18: T19 resumed under explicit D48-D50 decisions. Apply value-stability/PHY certification, enable replication and synchronized reset-data changes in order; stop on remaining timing failures after steps 1-4. Conditional small-model proof cannot restructure buffers. No prior failure or qualification obligation is waived; no merge authorized.

@@ -2,6 +2,14 @@
 
 Status: implementation in progress; acceptance has not passed.
 
+Current D51 status: reset-compatible register pairs are certified, and enable
+buffer sizing closes the enable-to-PHY path numerically. Integrated full-rate
+packet-boundary, reset-data and resume paths still fail. Packet proofs and
+sampling/exception qualification remain open. See [D51 below](#d51-reset-aware-follow-up)
+and the [T19 report](../../../docs/plan/tasks/reports/T19.md).
+
+## Historical D48-D50 baseline
+
 User decisions D48-D50 (2026-11-18) extend D45 to value changes rather than
 write enables, including reset assertion/release, and allow retained PHY
 registers only when the same invariant certifies them. Both endpoints must
@@ -45,6 +53,8 @@ Post-step-4 timing still fails, so further restructuring, the proposed pad
 delay contract and standalone-fixture changes are stopped. Existing hold/reset
 checks remain failures, not waived physical-flow items under an unimplemented
 contract. The task report and timing ledger contain commands and paths.
+## Interface and integration
+
 The [brief](../../../docs/plan/tasks/T19-usb.md) and
 [adoption assessment](../../../docs/spec/usb-adoption.md) define the scope.
 
@@ -157,3 +167,24 @@ subsequently authorized a review commit/push with these failures preserved;
 this does not qualify the implementation or authorize merging. See the T19 report.
 
 The D48-D50 frozen aggregate and fast tier both fail at USB. Local certificates, reset/replica proofs, wire/MMIO/resume and supporting controls pass; timing and packet obligations remain open. Full tier was not run. The user requested publication to `codex/t19-usb-review` with failures preserved, without merging.
+
+## D51 reset-aware follow-up
+
+The user approved a reset-aware extension to D48 on 2026-11-18: affected
+captures must be proved suppressed during reset and unable to resume early
+afterward, on production source and mapped identities. Approval alone does
+not qualify registers. Common enable, setup 4 / hold 3, the estimated 50 ns
+budget and all other limits remain unchanged. Focused enable fanout/placement
+work may preserve phase while reducing delay, followed by boundary-contract,
+fixture and pipeline work. Packet proofs are separate and remain unresolved.
+
+D51 implementation uses reset-compatible R/B/H/S groups; S→R remains
+single-cycle, as does the PHY bus-reset producer's reset-as-data launch.
+Standalone EP0 needs both the integrated cadence and bus-reset producer
+guarantees. New local constant/mask/reset-pin faults and reset/restart temporal
+faults supplement every existing control. The actual GF180 SETN pin is included
+in reset-removal reports. Weak enable-tree buffers are sized with proved
+same-function replacement; no production RTL or enable phase changes.
+Targeted measurements close the enable path but retain integrated full-rate
+failures, so no further restructuring follows. Boundary contract, fixture and
+sampling/exception qualification remain open. Frozen aggregate and fast CI fail at USB; full tier was not run. Eleven simulations, ten non-packet formal cases and supporting controls pass, while timing/packet/qualification failures remain blocking.

@@ -15,6 +15,8 @@ CASES = {
     'cadence': ('UsbCadenceFormal', 2, 2, 16),
     'cadence_reset': ('UsbCadenceResetFormal', 2, 2, 16),
     'reset_data': ('UsbResetDataFormal', 2, 2, 16),
+    'reset_aware': ('UsbResetAwareFormal', 2, 3, 16),
+    'reset_aware_early': ('UsbResetAwareFormal', 2, 3, 16),
     'resume': ('UsbResumeFormal', 2, 2, 48),
     'denied': ('UsbDeniedFormal', 8, 2, 32),
     'in': ('UsbInFormal', 6, 4, 48),
@@ -88,7 +90,8 @@ def run(output, regmap, roles=None, portfolio=False, controls_only=False):
                     '', '[engines]', engine, '', '[script]',
                     f'read_slang --top {top} ' + ' '.join(p.name for p in sources),
                     f'prep -top {top} -flatten', "fminit -seq reset_n 0,'z",
-                    *(["fminit -seq history 0,'z", "fminit -seq releaseHistory 0,'z"] if role=='cadence_reset' else []),
+                    *(["fminit -seq history 0,'z", "fminit -seq releaseHistory 0,'z"] if role in ('cadence_reset','reset_aware','reset_aware_early') else []),
+                    *(["fminit -seq previousBusReset 0,'z"] if role.startswith('reset_aware') else []),
                     'async2sync', 'chformal -lower',
                     f'select -assert-count {covers if mode == "cover" else expected_assertions} t:$' + ('cover' if mode == 'cover' else 'assert'),
                     '', '[files]', *map(str, sources), '']))

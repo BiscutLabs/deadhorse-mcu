@@ -133,3 +133,65 @@ def replicate(module, top, limit=1):
     if recovered!=module:raise ValueError('Replica pass changed unrelated logic')
     return result,{'original':original,'replicas':added,'copied_prefixes':added_logic,'limit':limit,'loads':len(sinks),
                    'verification':'Exact substitution recovers original netlist; actual pin identity plus unbounded library-FF equality proof'}
+
+
+def size_enable_buffers(module, liberty, output):
+    """Size weak branches of the proved enable tree after fanout insertion.
+
+    No nets, register phases, reset pins or non-enable cells change. Restrict
+    the traversal to library buffers; do not cross functional logic.
+    """
+    output=Path(output);output.mkdir(parents=True,exist_ok=False)
+    result=copy.deepcopy(module)
+    relations=identities(module)
+    roots=set(relations)|set(relations.values())
+    buffer_prefix='gf180mcu_fd_sc_mcu7t5v0__buf_'
+    reachable=set(roots);branches=[]
+    pending={n:c for n,c in module['cells'].items() if c['type'].startswith(buffer_prefix)}
+    while True:
+        found=[n for n,c in pending.items() if c['connections']['I'][0] in reachable]
+        if not found:break
+        for n in found:
+            c=pending.pop(n);reachable.add(c['connections']['Z'][0]);branches.append(n)
+    loads={}
+    for c in module['cells'].values():
+        for p,direction in c['port_directions'].items():
+            if direction=='input':
+                for b in c['connections'][p]:loads[b]=loads.get(b,0)+1
+    changed=[]
+    for n in branches:
+        c=result['cells'][n]
+        if c['type']==buffer_prefix+'1' and loads.get(c['connections']['Z'][0],0)>1:
+            c['type']=buffer_prefix+'4';changed.append(n)
+    # Recover original cell types exactly: everything else must be unchanged.
+    recovered=copy.deepcopy(result)
+    for n in changed:recovered['cells'][n]['type']=module['cells'][n]['type']
+    if recovered!=module:raise ValueError('Enable sizing altered connectivity')
+    m={'ports':{'i':{'direction':'input','bits':[2]},'equal':{'direction':'output','bits':[5]}},'cells':{},'netnames':{},'attributes':{}}
+    for n,size,q in [('before',1,3),('after',4,4)]:
+        m['cells'][n]={'type':buffer_prefix+str(size),'parameters':{},'attributes':{},
+            'port_directions':{'I':'input','Z':'output'},'connections':{'I':[2],'Z':[q]}}
+    m['cells']['eq']={'type':'$eq','parameters':{'A_WIDTH':'1','B_WIDTH':'1','Y_WIDTH':'1','A_SIGNED':'0','B_SIGNED':'0'},
+        'attributes':{},'port_directions':{'A':'input','B':'input','Y':'output'},'connections':{'A':[3],'B':[4],'Y':[5]}}
+    (output/'pair.json').write_text(json.dumps({'modules':{'BufferPair':m}}))
+    script=output/'pair.ys'
+    script.write_text('\n'.join([f'read_liberty -ignore_miss_func {liberty}',f'read_json {output}/pair.json',
+        'hierarchy -check -top BufferPair','flatten','proc','opt_clean','check -assert','techmap','opt',
+        'sat -set-def-inputs -prove equal 1 -verify'])+'\n')
+    r=subprocess.run(['yosys','-Q','-T','-s',str(script)],capture_output=True,text=True,timeout=120)
+    (output/'pair.log').write_text(r.stdout+r.stderr)
+    if r.returncode or 'SUCCESS!' not in r.stdout:raise ValueError('Enable buffer sizing equivalence failed')
+    # A polarity-changing replacement must fail the same equality check.
+    bad=copy.deepcopy(m);bad['cells']['after']['type']='gf180mcu_fd_sc_mcu7t5v0__inv_1'
+    bad['cells']['after']['connections']={'I':[2],'ZN':[4]}
+    bad['cells']['after']['port_directions']={'I':'input','ZN':'output'}
+    (output/'wrong-polarity.json').write_text(json.dumps({'modules':{'BufferPair':bad}}))
+    fault=output/'wrong-polarity.ys';fault.write_text(script.read_text().replace('pair.json','wrong-polarity.json'))
+    r=subprocess.run(['yosys','-Q','-T','-s',str(fault)],capture_output=True,text=True,timeout=120)
+    (output/'wrong-polarity.log').write_text(r.stdout+r.stderr)
+    if r.returncode!=1 or 'proof did fail' not in r.stdout+r.stderr:raise ValueError('Enable sizing polarity fault escaped')
+    receipt={'cells':changed,'from':buffer_prefix+'1','to':buffer_prefix+'4',
+        'proof':'Exact type restoration recovers input netlist; actual Liberty combinational functions proved equal for every input',
+        'scope':'Mapped pre-layout sizing only; no placement/parasitic claim'}
+    (output/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    return result,receipt

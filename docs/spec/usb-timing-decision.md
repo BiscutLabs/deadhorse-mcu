@@ -1,6 +1,12 @@
 # USB SIE timing decision proposal
 
-Current status (2026-11-18): [D48-D50](../plan/10-decisions-and-risks.md)
+Current D51 status (2026-11-18): the approved reset-aware extension permits
+only proved reset-compatible launch/capture groups. EP0 synchronous-reset
+state → unguarded decode remains single-cycle; the bus-reset producer remains
+full-rate as reset data. Enable sizing closes its path numerically, but other
+integrated full-rate paths trigger the stop. See the T19 report and ledgers.
+
+Historical D48 status (2026-11-18): [D48-D50](../plan/10-decisions-and-risks.md)
 supersede the eligibility and stop wording in the historical proposal below.
 D48 requires that certified values change only on the common enable, including
 reset assertion and release; idempotent off-enable writes are permitted.
