@@ -6,6 +6,61 @@ import unittest
 from tools.timing.check import CONFIG, timing_config, mapping_target_ps, validate_boundary, electrical_checks, result_status, output_aliases
 
 
+class UsbBoundaryTests(unittest.TestCase):
+    def test_liberty_envelope_interpolation_and_out_of_range_rejection(self):
+        from tools.timing.usb_boundary import table_range
+        body='index_1("0, 2"); index_2("0, 2"); values("1, 3", "5, 7");'
+        self.assertEqual(table_range(body,(1,1),(1,1)),(4,4))
+        self.assertEqual(table_range(body,(0,2),(0,2)),(1,7))
+        with self.assertRaises(ValueError):table_range(body,(-1,1),(0,2))
+
+    def test_contract_sources_and_asynchronous_pad_minima(self):
+        from tools.timing.usb_boundary import contract,validate
+        for top in ('UsbEngine','Usb'):
+            c=contract(top)
+            module={'ports':{p:dict(direction=d,bits=[i+2]) for i,(p,d) in enumerate(
+                [(p,'input') for p in c['inputs']]+[(p,'output') for p in c['outputs']])}}
+            clocks={r['clock']:1 for r in c['inputs'].values()}
+            validate(c,module,clocks)
+            for p in ('dpRx','dnRx','vbus'):self.assertEqual(c['inputs'][p]['minimum'],0)
+            for p,r in c['inputs'].items():
+                if p.endswith('Reset_n') or p=='reset_n':
+                    self.assertEqual(r['edge'],'rise');self.assertGreater(r['minimum'],0)
+                    self.assertGreater(r['transition'],0.5)
+            bad=copy.deepcopy(module);bad['ports']['dpRx']['direction']='output'
+            with self.assertRaises(ValueError):validate(c,bad,clocks)
+            with self.assertRaises(ValueError):validate(c,module,{})
+            for key,value in [('minimum',float('nan')),('maximum',float('inf')),('minimum',0.1)]:
+                bad=copy.deepcopy(c);bad['inputs']['dpRx'][key]=value
+                with self.assertRaises(ValueError):validate(bad,module,clocks)
+            bad=copy.deepcopy(c);bad['inputs'].pop('vbus')
+            with self.assertRaises(ValueError):validate(bad,module,clocks)
+        c=contract('Usb')
+        self.assertEqual(c['inputs']['appReset_n']['clock'],'appClock')
+        self.assertEqual(c['inputs']['usbReset_n']['clock'],'usbClock')
+        self.assertEqual(c['inputs']['aonReset_n']['clock'],'aonClock')
+
+    def test_reset_inventory_retains_peer_domain_sinks_and_stops_at_ff(self):
+        from tools.timing.usb_boundary import contract,reset_sinks
+        c=contract('Usb')
+        m={'ports':{n:dict(bits=[i]) for i,n in enumerate(('appClock','usbClock','aonClock','appReset_n','usbReset_n','aonReset_n'),2)},
+           'cells':{}}
+        m['cells']['common']={'connections':{'A':[5],'B':[6],'Z':[8]},'port_directions':{'A':'input','B':'input','Z':'output'}}
+        for n,clock,rst,q in [('app',2,8,9),('usb',3,8,10),('aon',4,7,11),('downstream',4,11,12)]:
+            m['cells'][n]={'connections':{'CLK':[clock],'RN':[rst],'Q':[q]},'port_directions':{'CLK':'input','RN':'input','Q':'output'}}
+        rows=reset_sinks(c,m)
+        self.assertEqual(len(rows),5)
+        self.assertEqual({(r['port'],r['pin']) for r in rows if r['qualification']=='peer-domain RDC unqualified'},
+                         {('appReset_n','usb/RN'),('usbReset_n','app/RN')})
+        self.assertNotIn('downstream/RN',{r['pin'] for r in rows})
+
+    def test_output_contract_rejects_setup_hold_and_missing_evidence(self):
+        from tools.timing.usb_boundary import output_pass
+        self.assertTrue(output_pass([{'slack_ns':0},{'slack_ns':0.001}]))
+        for rows in ([],[{'slack_ns':-0.001}],[{'slack_ns':float('nan')}],[{'slack_ns':float('inf')}]):
+            self.assertFalse(output_pass(rows))
+
+
 class UsbWarningPolicyTests(unittest.TestCase):
     def test_classification_and_required_checks_at_warning_boundaries(self):
         from tools.timing.check import classify_screening

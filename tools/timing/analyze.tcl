@@ -29,15 +29,70 @@ if {!$combinational} {
     foreach clock $clocks {set data_inputs [lsearch -all -inline -not -exact $data_inputs $clock]}
 }
 if {[llength $data_inputs]} {
-    foreach name $clock_names {set_input_delay 0 -clock $name -add_delay $data_inputs}
+    set default_inputs $data_inputs
+    if {[info exists usb_input_contract]} {
+        foreach row $usb_input_contract {
+            lassign $row port name minimum maximum edge transition
+            set pin [get_ports $port]
+            if {[llength $pin]!=1} {error "Missing USB contracted input"}
+            set default_inputs [lsearch -all -inline -not -exact $default_inputs [lindex $pin 0]]
+            if {$edge eq "rise"} {
+                set_input_delay -rise -min $minimum -clock $name $pin
+                set_input_delay -rise -max $maximum -clock $name $pin
+                # Asynchronous assertion: retain zero-phase diagnostics.
+                set_input_delay -fall -min 0 -clock $name $pin
+                set_input_delay -fall -max 0 -clock $name $pin
+            } else {
+                set_input_delay -min $minimum -clock $name $pin
+                set_input_delay -max $maximum -clock $name $pin
+            }
+        }
+    }
+    if {[llength $default_inputs]} {foreach name $clock_names {set_input_delay 0 -clock $name -add_delay $default_inputs}}
     set_input_transition $input_transition $data_inputs
+    if {[info exists usb_input_contract]} {
+        foreach row $usb_input_contract {
+            lassign $row port name minimum maximum edge transition
+            if {$edge eq "rise"} {
+                set_input_transition -rise $transition [get_ports $port]
+            } else {set_input_transition $transition [get_ports $port]}
+        }
+    }
 }
 set outputs [get_ports -filter "direction == output" *]
 if {[llength $outputs]} {
-    foreach name $clock_names {set_output_delay 0 -clock $name -add_delay $outputs}
+    set default_outputs $outputs
+    if {[info exists usb_output_contract]} {
+        foreach row $usb_output_contract {
+            lassign $row port name minimum maximum edge
+            set pin [get_ports $port]
+            if {[llength $pin]!=1} {error "Missing USB contracted output"}
+            set default_outputs [lsearch -all -inline -not -exact $default_outputs [lindex $pin 0]]
+            set_output_delay -min $minimum -clock $name $pin
+            set_output_delay -max $maximum -clock $name $pin
+        }
+    }
+    if {[llength $default_outputs]} {foreach name $clock_names {set_output_delay 0 -clock $name -add_delay $default_outputs}}
     set_load $output_load $outputs
 }
 set regs [all_registers]
+if {[info exists usb_output_contract]} {
+    # Retain the actual applied delays/edges, including asynchronous assertion.
+    write_sdc [file join [file dirname $path_report] boundary.sdc]
+    set of [open [file join [file dirname $path_report] output_checks.tsv] w]
+    puts $of "check\tstart\tend\tslack_ns"
+    foreach row $usb_output_contract {
+        lassign $row port name minimum maximum edge
+        foreach mode {max_rise max_fall min_rise min_fall} {
+            set found [find_timing_paths -to [get_ports $port] -path_delay $mode -group_path_count 100 -endpoint_path_count 100]
+            if {![llength $found]} {error "Missing contracted output path: $port/$mode"}
+            foreach path $found {
+                puts $of "$mode\t[get_full_name [get_property $path startpoint]]\t[get_full_name [get_property $path endpoint]]\t[get_property $path slack]"
+            }
+        }
+    }
+    close $of
+}
 if {$combinational && [llength $regs]} {error "Sequential cell in combinational timing mode"}
 if {!$combinational && ![llength $regs]} {error "No clocked registers found"}
 if {[llength [all_registers -level_sensitive]]} {error "Unsupported latch timing"}
@@ -208,8 +263,8 @@ foreach {kind ends} $groups {
             set last [lindex $points end]
             # OpenSTA get_property returns times in the selected command units.
             # The first point can be Q, whose arrival already includes clock-to-Q.
-            # All supported launches are at ideal rising edge zero (or zero IO
-            # delay); use endpoint arrival, never subtract the first point.
+            # Register launches are at ideal edge zero; IO arrival includes the
+            # explicit boundary delay. Never subtract the first point.
             set delay [get_property $last arrival]
             set cells {}
             set trace {}

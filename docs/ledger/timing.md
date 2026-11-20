@@ -1650,3 +1650,49 @@ qualification obligations. Boundary/physical work is not hidden by the setup
 warning policy. No additional RTL restructuring, clock gating or SRAM swap.
 
 The final frozen fast02 USB command (`python3 hw/ip/usb/check.py --output build/t19/d59-frozen-fast-02/fast/usb`, invoked by the pinned fast tier) reproduces every engine/wrapper class and area above exactly. Source inventories match; the complete fresh block/class and hold/reset identities are in the T19 report. The standalone SIE fixture preserves the exact full cadence emission and has a passing source/mapped certificate, but remains numeric-failed diagnostic-only under the approved step 1b option: IR 16.586666 ns and RO 22.734825 ns. No binding/tool error remains. Overall USB/fast acceptance still fails original packet and physical/prior qualification obligations; full tier and post-placement recheck unrun.
+
+## T19 pad/reset boundary contract, 2026-11-19
+
+The approved boundary follow-up changes only timing collateral, not RTL.
+Measured by `python tools/env/run.py run -- python3 scratch/t19_boundary_measure.py engine`
+and the same command with `usb`, at base `33cf251` plus exact flow/source hashes
+in `build/t19/boundary-timing-01/{engine,usb}/result.json`. Pinned Yosys
+0.71+34/e419c4eef, OpenSTA 3.2.0, GF180 7t5v0 SS/125 C/3.0 V; mapped pre-layout,
+no routed wires. Both overall results remain failed; setup warnings only,
+no over-limit setup class or electrical violation. All output setup/hold
+polarities pass under the estimated contract.
+
+| Boundary diagnostic | Engine measured slack (ns) | Wrapper measured slack (ns) |
+| --- | --- | --- |
+| Worst pad hold | -0.102503, dpRx/dnRx to sampler D; 2 paths | -0.102503, dpRx/dnRx to sampler D; 4 paths |
+| Worst removal | +0.559058, vbus to _6355_/RN | +0.961138, vbus to _6357_/RN |
+| Former AON removal | n/a | raw -0.975158 to conditional +1.143400, aonReset_n to _7632_/RN and _7699_/RN |
+| Worst recovery | +10.616619, _6372_/Q to _5690_/RN | +11.605783, _6357_/Q to _6438_/SETN |
+| Worst contracted output setup/hold | +3.530727, reset_n to pullup_0 | +3.514510, vbus to txEnable |
+| Mapped area (um2) | 160227.6480, unchanged | 197379.2128, unchanged |
+
+Estimated digital pad/board reserve is 0..1+0..1=0..2 ns; asynchronous input
+minimum remains zero. Reset rising release uses estimated upstream dffrnq_1
+CLK-to-Q 2.420..3.882109 ns from the actual pinned library over assumed clock
+slew 0.02..0.5 ns and load 0.001..0.05 pF; estimated rise slew is 2.4 ns.
+Falling assertion remains asynchronous with zero-phase diagnostics. No delay
+is added to internal release flops. Source-cell assumptions require eventual
+integration validation and are not fast-corner hold bounds.
+
+Identical-netlist zero-delay reference reproduces the old engine2/wrapper6
+negatives. Real output-delay faults and zero-CQ reset-release fault are
+rejected. Four wrapper peer-domain reset sink rows remain RDC-unqualified.
+Negative pad hold remains a physical-flow item and is not waived. Actual
+pads/board, reset implementation, fast corner, CTS and routed timing remain open.
+The core's historical identical -0.975158 ns is the same zero-arrival minus
+library-removal artifact (`build/s1/timing/sta.log`, receipt commit20881a4,
+`sta -no_init -exit /work/build/s1/timing/timing.tcl`); core timing was inspected,
+not rerun. See T19 report for full provenance, identities and commands.
+
+Independent boundary review found no blocking defect. `boundary.sdc` records
+the boundary setup before later multicycle commands; the driver/protocol TCL
+and edge audits retain that later context. Existing IO domain labels are
+repeated query buckets, not ownership claims. Frozen USB/fast rerun follows;
+full tier and physical timing remain unrun.
+
+Frozen follow-up: `python tools/env/run.py run -- python3 tools/ci.py --tier fast --output build/t19/boundary-frozen-fast-01` invokes fresh `python3 hw/ip/usb/check.py --output build/t19/boundary-frozen-fast-01/fast/usb`. Measured elapsed times are 2923.629 s (fast) and 1321.439 s (USB). `python scratch/t19_boundary_final_audit.py` confirms exact source inventories and reproduction of every engine/wrapper class, area and hold/reset row above. All 19 simulations, 16 focused formal cases, equivalence and byte CDC pass; output/reset boundary faults are rejected. USB/fast remain failed for unchanged positive packet proof, physical hold and prior sampling/exception qualification obligations. Only reporting files change after the audit. Full tier/post-placement unrun; no merge.

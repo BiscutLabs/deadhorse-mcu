@@ -1,6 +1,7 @@
 # USB CDC-ACM peripheral (T19)
 
-Status: consume-path change verified; complete T19 acceptance remains blocked.
+Status: consume-path change verified and estimated pad/reset contract measured;
+complete T19 acceptance remains blocked.
 
 D59 (2026-11-19) sets the active USB sample-clock single-cycle warning ceiling
 to 15 ns. The target remains estimated 12.5 ns, and post-placement timing with
@@ -33,6 +34,67 @@ step 1b option: its unconstrained endpoint-mask and boundary IO paths differ fro
 the integrated engine/wrapper acceptance targets. Its numerical failures remain
 in the receipt. A missing measurement or invalid source/certificate binding still
 fails the aggregate; this does not waive any engine/wrapper check.
+
+## Pad/reset boundary contract (2026-11-19 follow-up)
+
+This is an **estimated integration contract**, applied to `UsbEngine` and `Usb`
+by `tools/timing/usb_boundary.py`. It is not a characterized pad ring, board
+measurement, fast-corner hold result or physical signoff. No RTL changes.
+
+| Boundary | Reference | Estimated min / max delay (ns) | Basis |
+| --- | --- | --- | --- |
+| dpRx, dnRx, vbus | USB clock, diagnostic phase only | 0 / 2 | Assumed 0..1 ns digital pad plus 0..1 ns package/board transport. They remain asynchronous; zero effective minimum preserves first-sampler hold diagnostics. No synchronous input-phase guarantee is claimed. |
+| dpTx, dnTx, txEnable, pullupEnable (engine emitted pullup_0) | USB clock | 0 / 2 output reserve | Same assumed pad plus package/board transport, 1+1=2 ns. Output max reduces the available setup window; both setup and hold polarities are checked. |
+| engine reset_n rising release | USB clock | 2.420 / 3.882109 | Upstream GF180 dffrnq_1 CLK-to-Q envelope, described below. |
+| appReset_n rising release | appClock | 2.420 / 3.882109 | Same upstream release-cell requirement, only relative to its owning clock. |
+| usbReset_n rising release | usbClock | 2.420 / 3.882109 | Same requirement. |
+| aonReset_n rising release | aonClock | 2.420 / 3.882109 | Same requirement. |
+| Every active-low reset falling assertion | Asynchronous | 0 / 0 diagnostic phase | Assertion remains asynchronous in RTL and is not delayed by a new register. The existing 0.5 ns fall-slew screen remains. |
+
+The reset release range is calculated from the pinned SS/125 C/3.0 V
+`gf180mcu_fd_sc_mcu7t5v0__dffrnq_1` rising CLK-to-Q table, over assumed upstream
+clock slew 0.02..0.5 ns and Q load 0.001..0.05 pF. Bilinear extrema are recomputed
+from the actual library in every measurement and its SHA is recorded. The
+estimated rising output slew is 2.4 ns, rounding the table-envelope maximum
+2.362750 ns upward. The source cell and slew/load envelope are requirements on
+the eventual reset controller, not measured properties of that unimplemented
+upstream integration. An SS minimum does not establish a fast-corner hold bound.
+`vbus` denotes the already-conditioned digital level at this boundary; analog
+VBUS detection and filtering latency are outside this transport estimate.
+
+`commonReset = appReset_n && usbReset_n` reaches both local reset-release
+blocks. Neither external release is assumed synchronous to the peer clock.
+Every directly reachable asynchronous reset pin is inventoried with its source
+and capture domains; peer-domain entries remain RDC-unqualified. A separate
+all-domain zero-delay STA run on the identical netlist retains the former raw
+phase diagnostics. Internal ResetRelease outputs receive no artificial delay.
+Reset assertion still clears the shared release flops asynchronously, including
+with stopped clocks; their release still needs the existing local edges.
+
+All other IO, mapped loads/slew limits, clocks, electrical checks, multicycle
+certificates and path budgets are unchanged. Asynchronous RX/VBUS phase, actual
+pad/board delays, upstream reset implementation, RDC/MTBF, fast-corner timing,
+clock trees and routed wire delays remain physical-flow obligations. Negative
+pre-CTS hold is reported as a physical-flow item; no RTL delay is added.
+The retained `boundary.sdc` is the boundary-constraint snapshot before later
+multicycle commands; `timing.tcl`, `protocol.tcl` and the applied-edge audits
+retain the complete analysis context. Existing domain-prefixed IO report rows
+are repeated all-IO query buckets, not ownership claims; the SDC assigns each
+contracted port to its stated reference clock.
+
+The frozen boundary run reproduces the targeted measurements exactly: measured
+AON removal changes from -0.975158 ns in the raw zero-delay comparison to
++1.143400 ns under this contract. Measured pad hold remains -0.102503 ns
+(engine two paths, wrapper four), retained as failed physical-flow items.
+These are mapped pre-layout SS results, not signoff. The core's identical raw
+removal value is the same missing-boundary artifact; see T19 for its recorded
+command and receipt commit. All 19 USB simulations, focused formal and exact
+equivalence pass in the fresh frozen run. USB/fast still fail retained packet,
+physical and prior qualification obligations; full tier/post-placement unrun.
+Commands and provenance: `python tools/env/run.py run -- python3 tools/ci.py
+--tier fast --output build/t19/boundary-frozen-fast-01`, nested USB receipt
+`fast/usb/result.json`, base `33cf251` plus recorded source/flow hashes;
+[T19 report](../../../docs/plan/tasks/reports/T19.md).
 
 Historical D57 candidate and policy (D59 supersedes its 70% ceiling):
 

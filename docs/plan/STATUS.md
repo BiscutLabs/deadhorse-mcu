@@ -96,7 +96,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T16 | [SPI host](tasks/T16-spi-host.md) | Codex | T05, T07, T09, T14, T15 | [Report](tasks/reports/T16.md): SPI acceptance, GF180 timing and independent review pass; fast 31/31 with inherited T14 deferrals, no SPI deferrals; full not run |
 | [x] | T17 | [I2C controller](tasks/T17-i2c-host.md) | Codex | T05, T07, T09, T14, T16 | [Report](tasks/reports/T17.md); 19 simulations, GF180 timing and fast CI active checks pass; eight I2C formal jobs remain deferred/unproved |
 | [x] | T18 | [Lite I2C recovery loader](tasks/T18-i2c-recovery-loader.md) | Codex | T06, T07, T09, T14 | [Report](tasks/reports/T18.md). Wire-to-memory recovery and warm-reset lock retention verified. |
-| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): D58/D59 consume fix verified; 19 simulations and focused proofs pass; frozen USB/fast fail packet/physical/prior qualification; full tier unrun |
+| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): Pad/reset contract measured and reviewed; frozen 19 simulations/focused proofs pass; USB/fast still fail packet/physical/prior qualification; full tier unrun |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -490,3 +490,7 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - 2026-11-19: First D59 frozen USB run passes all 19 simulations and focused proofs; packet/physical qualification remains failed. Fixed standalone fixture cadence emission binding and re-proved exact engine/wrapper equivalence. Applying the already-approved diagnostic-only standalone SIE option, preserving its failed measurements; final frozen fast tier will repeat the USB aggregate. Full tier unrun.
 
 - 2026-11-19: D58/D59 final frozen fast02 repeats all 19 USB simulations, exact equivalence, focused formal, CDC and timing. No engine/wrapper setup class exceeds its approved failure limit; packet proofs, hold/reset and prior sampling/exception qualification retain failed USB/fast status. Source inventories match; standalone SIE remains a complete failed diagnostic under the approved option. Reporting-only updates follow; full tier/post-placement timing unrun. T19 blocked, no merge.
+
+- 2026-11-19: User resumed the pad/reset boundary contract only. Modeling documented pad/board estimates and synchronized reset-release clock-to-Q, preserving asynchronous assertion, all limits and physical hold checks; no RTL or packet-proof change.
+
+- 2026-11-19: T19 pad/reset contract implemented and independently reviewed. Frozen boundary fast/USB rerun reproduces timing and exact source hashes; all 19 simulations, focused formal and equivalence pass. Conditional AON removal artifact resolved; pad hold, peer RDC/physical qualification, packet and prior sampling obligations remain. USB/fast failed, full tier/post-placement unrun; T19 blocked, no merge.

@@ -360,6 +360,11 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
         lines.append('set reset_groups {'+' '.join(g+' {'+' '.join(names)+'}' for g,names in reset_groups.items())+'}')
         lines.append('set reset_pairs {'+' '.join('{'+a+' '+b+'}' for a,b in certificate['reset_aware']['allowed_pairs'])+'}')
         constraints.write_text('\n'.join(lines)+'\n')
+    from tools.timing.usb_boundary import contract, characterize, tcl_rows, reset_sinks, audit_runs, validate as validate_usb_contract
+    usb_boundary=contract(top,characterize(liberty)) if top in ('UsbEngine','Usb') and operating_point=='usb-48mhz' else None
+    if usb_boundary:
+        validate_usb_contract(usb_boundary,module,domain_clocks or {'block_clock':cfg['period_ns']})
+        usb_boundary['reset_sink_inventory']=reset_sinks(usb_boundary,module)
     tcl.write_text('\n'.join([
         f'set liberty {{{liberty}}}', f'set netlist {{{output / "mapped.v"}}}',
         f'set top {top}', f'set clock_port {{{clock or ""}}}', f'set period {cfg["period_ns"]}',
@@ -368,6 +373,8 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
         'set clock_gate_pins {'+' '.join(gate_pins)+'}',
         f'set input_transition {cfg["input_transition_ns"]}',
         f'set output_load {cfg["output_load_pf"]}',
+        *(['set usb_input_contract {'+tcl_rows(usb_boundary['inputs'])+'}',
+           'set usb_output_contract {'+tcl_rows(usb_boundary['outputs'])+'}'] if usb_boundary else []),
         f'set path_report {{{output / "paths.tsv"}}}',
         f'set gate_path_report {{{output / "gate_checks.tsv"}}}',
         *([f'source {{{output / "protocol.tcl"}}}'] if certificate else []),
@@ -387,6 +394,10 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
             row['slack_ns']=float(row['slack_ns'])
             if not math.isfinite(row['slack_ns']):raise ValueError('Invalid hold/reset slack')
     short_reset_violations=[row for row in short_reset_checks if row['slack_ns']<0]
+    boundary_audit=audit_runs(output,tcl,run,usb_boundary) if usb_boundary else None
+    if boundary_audit:
+        boundary_audit['physical_flow_items']=[dict(row,disposition='Retained pre-CTS hold diagnostic; resolve/check in physical flow, no RTL delay added')
+            for row in short_reset_violations if row['check'].startswith('hold/')]
     gate_checks=[]
     if gate_pins:
         with (output/'gate_checks.tsv').open() as stream:
@@ -426,6 +437,8 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
              if certificate else [])
     screening=classify_screening(paths,{k:class_budget(k) for k in class_names},
                                 {k:class_limit(k) for k in class_names},electrical,short_reset_violations,pending)
+    if boundary_audit and not boundary_audit['output_checks_pass']:
+        screening.update(status='fail',numerical_status='fail')
     report = dict(**screening,top=top,unresolved=pending,
                   post_placement_recheck=dict(required=operating_point=='usb-48mhz',status='not run',
                       scope='D57 requires a fresh post-placement timing check with real interconnect delays before final USB timing qualification; pre-layout warning acceptance is provisional'),
@@ -433,8 +446,8 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
                         'operating-point-trial' if operating_point not in ('default','usb-48mhz') else 'production'),
                   operating_point=operating_point,
                   domain_periods_ns=domain_clocks,
-                  domain_scope=('All mapped registers and glue; app/AON screened at conservative 41.6 ns, USB at 1000/48 ns. IO conservatively constrained against every domain, not domain-owned IO. Asynchronous inter-domain paths excluded from synchronous STA; crossing skew/MTBF remains unqualified' if domain_clocks else None),
-                  mapping=mapping, electrical=electrical,
+                  domain_scope=('All mapped registers and glue; app/AON screened at conservative 41.6 ns, USB at 1000/48 ns. USB pads/reset releases use the explicit conditional boundary contract; other IO retains every-domain zero delays. Asynchronous inter-domain paths excluded from synchronous STA; peer-domain reset sinks are inventoried and remain RDC-unqualified, with zero-phase diagnostics retained' if domain_clocks else None),
+                  mapping=mapping, electrical=electrical,usb_boundary_contract=usb_boundary,boundary_audit=boundary_audit,
                   boundary='usb-three-clock-domains' if domain_clocks else 'combinational' if combinational else 'root-clock-with-icg' if gate_pins else 'single-clock',
                   clock_gate_checks=gate_checks,
                   budget_ns=budget, worst=worst,
