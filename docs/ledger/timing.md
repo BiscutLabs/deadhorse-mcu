@@ -1696,3 +1696,38 @@ repeated query buckets, not ownership claims. Frozen USB/fast rerun follows;
 full tier and physical timing remain unrun.
 
 Frozen follow-up: `python tools/env/run.py run -- python3 tools/ci.py --tier fast --output build/t19/boundary-frozen-fast-01` invokes fresh `python3 hw/ip/usb/check.py --output build/t19/boundary-frozen-fast-01/fast/usb`. Measured elapsed times are 2923.629 s (fast) and 1321.439 s (USB). `python scratch/t19_boundary_final_audit.py` confirms exact source inventories and reproduction of every engine/wrapper class, area and hold/reset row above. All 19 simulations, 16 focused formal cases, equivalence and byte CDC pass; output/reset boundary faults are rejected. USB/fast remain failed for unchanged positive packet proof, physical hold and prior sampling/exception qualification obligations. Only reporting files change after the audit. Full tier/post-placement unrun; no merge.
+
+
+## T19 routed standalone physical diagnostic, 2026-11-20
+
+**Measured** on `d8d51aca578b8353a582d05129c01624c915dc6a` plus the sealed
+physical tooling, using unchanged production/mapped sources. Exact commands,
+all class rows and source/artifact bindings are in
+[the physical validation report](../spec/usb-physical-validation.md).
+`tools/physical/` pins the companion OpenROAD runtime and existing GF180 views.
+The wrapper completed place/CTS/detail-route, three OpenRCX extractions and
+fifteen PVT/RC STA cases. No CI, USB aggregate or proof solver ran.
+
+| Reported class | Measured worst observed delay (ns) | Approved failure ceiling (ns) | Start → end |
+| --- | ---: | ---: | --- |
+| USB FP | 13.691668 | 12.5 | `_7583_/Q` → `_7709_/D` |
+| USB FC | 16.003422 | 15 | `_6520_/Q` → `_7435_/D` |
+| USB FF | 15.516943 | 15 | `_6398_/Q` → `_7362_/D` |
+
+All three fail; no further restructuring. Values remove actual launch-clock
+insertion but retain CLK-to-Q and routed data delay. Endpoint selection makes
+these worst observed delays, not exhaustive data-order maxima. Measured raw
+period setup minimum is +3.296796 ns; it does not override the project budgets.
+Worst measured boundary hold is −3.828268 ns (`dnRx` → `_7547_/D`), removal
+−2.508364 ns (`vbus` → `_6357_/RN`); no negative internal register-origin row
+was reported. Directed local reset-chain interstage setup/hold and downstream
+recovery/removal are positive across all cases. Raw-reset topology qualifies
+only the destination release structure; upstream pulse/phase, analog
+metastability and full RDC remain unqualified.
+
+Measured routed Liberty cell-area sum is 217149.1840 µm². The floorplan and
+pad/reset envelope are assumed/estimated standalone inputs. Missing PDN/pads,
+unsupported LEF58 enclosure rules, foundry DRC/LVS and actual boundary
+implementation prevent physical signoff. Effective-SDC, graph and annotation
+audits and ten focused fault tests pass after independent review. Status stays
+failed-validation; neither T19 nor merge is accepted.

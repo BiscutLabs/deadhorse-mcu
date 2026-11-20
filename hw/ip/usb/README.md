@@ -1,5 +1,15 @@
 # USB CDC-ACM peripheral (T19)
 
+Physical follow-up (2026-11-20): the unchanged wrapper has now been placed,
+clock-tree synthesized, routed and measured with extracted RC across fifteen
+PVT/RC cases. Validation fails: measured worst observed FP is 13.691668 ns
+against 12.5 ns, FC 16.003422 ns against 15 ns, and FF 15.516943 ns against
+15 ns. Local reset-chain interstage and downstream recovery/removal slacks are
+positive; asynchronous boundary hold/removal and analog/integration RDC remain
+open. No RTL, limit or exception change, CI, aggregate or proof run. See the
+[physical validation report](../../../docs/spec/usb-physical-validation.md)
+for exact commands, source bindings, area and signoff limitations. No merge.
+
 Non-proof follow-up (2026-11-20): acceptance now accepts an explicit
 `--packet-evidence` manifest and audits the existing packet/SIE/wrapper receipts
 without retrying solvers. Missing or stale evidence fails closed; OUT integrity

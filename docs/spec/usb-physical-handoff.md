@@ -1,8 +1,11 @@
 # T19 USB physical timing handoff
 
-This is a handoff, not physical signoff. No placement, CTS, routing or extracted
-wire-delay measurement has been performed. The standalone digital acceptance
-also remains blocked by packet composition and prior proof qualification.
+This historical handoff is superseded by the
+[2026-11-20 routed validation](usb-physical-validation.md): placement, CTS,
+routing and extracted-wire measurements now exist, with three over-limit
+classes and unresolved boundary/signoff qualification. The data below records
+the earlier pre-layout handoff; it is not physical signoff. Standalone digital
+acceptance also remains blocked by packet composition and prior proof qualification.
 
 ## Bound snapshot and reproduction
 
@@ -90,7 +93,7 @@ row +1.143400 ns conditionally. It does not waive reset checks or peer RDC.
 
 ## Physical flow prerequisites and exit evidence
 
-The pinned environment currently exposes OpenSTA; OpenROAD, OpenLane,
+At the time of this historical handoff, the pinned environment exposed OpenSTA; OpenROAD, OpenLane,
 Magic and KLayout are not found on PATH (measured with `shutil.which` by the
 handoff command).
 `phys/gf180-ws-1x1` contains the block timing policy, not a placement/CTS/routing
@@ -109,6 +112,7 @@ flow. The following work therefore needs the project physical-flow integration:
 5. Attach RDC, pad/ESD/VBUS and clock-tolerance qualification before physical
    signoff. None is supplied by a passing digital simulation.
 
-No physical tool was installed, no RTL was changed, and no CI was run for this
-handoff. Whole-chip gateway/clock-controller and pad-ring implementation remain
+No physical tool was installed, no RTL was changed, and no CI was run for that
+handoff. The later validation adds a separately pinned physical companion.
+Whole-chip gateway/clock-controller and pad-ring implementation remain
 outside the standalone USB brief.
