@@ -1,5 +1,24 @@
 # Core reference formal ledger
 
+## T13 acceptance deferred for S1, 2026-11-17
+
+User-approved S1 measurement dependency exception; T13 remains incomplete.
+Formal timeouts are deferred/unproved, with their original assertions,
+assumptions and bounds preserved. No further long sweep is authorized by this
+exception. See the [acceptance inventory](../plan/tasks/reports/T13.md#deferred-acceptance-for-s1).
+
+| Obligation | Current status | Scope retained |
+| --- | --- | --- |
+| Repaired faithful-F integration, original 28 assertions, depth 160 | Deferred, unresolved timeout | Diagnostic depth 40/80 bounded arithmetic-abstracted results, concrete covers and fault controls do not prove depth 160 |
+| Complete repaired faithful-F configured ISA sweep | Deferred, unrun | Earlier three focused instruction checks preceded the repair |
+| Complete changed-core no-F/refinement | Deferred, not established | Local compressed-decode/CSR proofs and unchanged-module equivalence retain only their stated scope |
+| Standard full CI tier | Unrun | Not a proof result or a passing gate |
+
+Independent read-only audit found current candidate source hashes match the
+bus-error repair and the prior non-formal receipt's core/FPU inputs. No proof
+was rerun for this reconciliation. Counterexamples require investigation;
+they are not covered by a timeout deferral.
+
 ## T11 final focused acceptance, 2026-11-15
 
 Final-source configured proofs, faithful core/top proofs and all fault controls

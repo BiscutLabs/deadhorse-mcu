@@ -136,6 +136,27 @@ monitors; estimated bank plus three monitors is
 Historical failed timing receipts remain preserved; no timing limit changed.
 [Report](../plan/tasks/reports/T15.md).
 
+## S1 faithful-F baseline, 2026-11-17
+
+Historical task base: `172d4f1d2279bb5cc5c621685ad94923bfd15282`; measurement
+receipt revision is qualified below. `python tools/env/run.py run -- python3
+hw/ip/perf_core/check_top_timing.py --emitted build/s1/emit/faithful-float/asic
+--operating-point main-9mhz --output build/s1/timing` passes **65.726219 /
+66.666667 ns**, mapped standard-cell area **839962.5472 um2**, zero electrical
+violations. GF1807t5v0 SS/125C/3.0V, Yosys0.71+34/OpenSTA3.2.0; pre-layout,
+ideal clocks, no wire delay or SRAM macro views. Derived margin0.940448ns;
+ABC target62500ps and the60%rule unchanged. No production clock adoption.
+Publication audit: both S1 measurement receipts record commit
+`20881a45655db39b9bb8b42d6c3bced83e48f527`, which is unavailable in the local
+object store. The historical task base above is not asserted equivalent;
+the receipts' exact source hashes identify their measured inputs.
+
+S1 is blocked separately: the ideal-memory hard-float fixture has measured
+mean12338.667/worst14233cycles, derived1.090122MIPS at9MHz, below the unchanged
+2.5MIPS floor. Independent review confirmed the raw loop windows and
+comparisons. No formal or CI tier ran for S1; no latency sweep followed the
+stop condition. [Report](../plan/tasks/reports/S1.md).
+
 ## T11 final focused acceptance, 2026-11-15
 
 Base `a532304` plus final source/flow hashes: `python tools/env/run.py run --
