@@ -1,9 +1,19 @@
 # USB CDC-ACM peripheral (T19)
 
+OUT lemma follow-up (2026-11-20): all twelve independent-reset packet claims
+now qualify: five proved at sixteen bytes, seven **proved at small model,
+simulated at full size**. The remaining OUT integrity claim closes on the
+eight-byte model using newly proved non-overlap and combined-occupancy bounds.
+Real overflow/data faults and reset/traffic covers pass qualification; the
+read-only collector reports `closed=12 unresolved=[]`. No production RTL,
+original assertion, reset/environment restriction or cap changed. No CI ran.
+See the [formal ledger](../../../docs/ledger/usb-formal.md#out-occupancy-and-independent-reset-packet-closure-2026-11-20).
+The earlier OUT-unresolved statements below describe historical checkpoints.
+
 D63 (2026-11-20): the user authorized merging this work into `main` for others
 to help finish it. **USB/T19 is not accepted or physically signed off.** Open
-items are routed setup, boundary hold/RDC, physical integration/signoff, OUT
-reset/SIE composition, retained sampling/exception proofs and acceptance
+items are routed setup, boundary hold/RDC, physical integration/signoff,
+retained sampling/exception proofs and aggregate acceptance
 execution. See the [merge handoff](../../../docs/plan/tasks/reports/T19.md#merge-handoff-remaining-work).
 No CI runs for this merge; earlier no-merge statements describe prior checkpoints.
 
@@ -17,7 +27,7 @@ open. No RTL, limit or exception change, CI, aggregate or proof run. See the
 [physical validation report](../../../docs/spec/usb-physical-validation.md)
 for exact commands, source bindings, area and signoff limitations. No merge.
 
-Non-proof follow-up (2026-11-20): acceptance now accepts an explicit
+Historical non-proof follow-up (2026-11-20): acceptance gained an explicit
 `--packet-evidence` manifest and audits the existing packet/SIE/wrapper receipts
 without retrying solvers. Missing or stale evidence fails closed; OUT integrity
 remains unresolved. See [evidence usage](formal/README.md#read-only-acceptance-evidence)
@@ -25,7 +35,7 @@ and the [physical handoff](../../../docs/spec/usb-physical-handoff.md).
 The additional occupancy-lemma attempt is approved but deferred while non-proof
 work takes priority. No CI or aggregate run is authorized in this follow-up.
 
-Independent reset/SIE follow-up (2026-11-19): eleven of twelve broader packet
+Historical independent reset/SIE follow-up (2026-11-19): eleven of twelve broader packet
 assertions now close, including zero-byte IN ACK and independent transport reset.
 OUT ownership/integrity remains open after the permitted proof attempts. The
 actual SIE producer predicates prove without cutpoints; fresh wrapper binding

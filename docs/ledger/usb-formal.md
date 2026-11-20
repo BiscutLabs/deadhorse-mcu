@@ -1,5 +1,103 @@
 # T19 USB formal ledger
 
+## OUT occupancy and independent-reset packet closure (2026-11-20)
+
+The approved deferred attempt closes the remaining OUT byte-integrity claim.
+Read-only evidence accounting discharges all twelve independent-reset packet
+assertions: five at production sixteen-byte size, seven **proved at small model,
+simulated at full size**. The older common-reset inventory is unchanged. This
+closes the packet-interface reset/SIE obligation under the existing producer,
+binding and D50 qualifications, not EP0 sampling, exception or physical signoff.
+
+**Measured** at base `0216c37ea7cd92a6a28aa02983ecfa7f8aad45fd` plus exact
+archived sources in `build/t19/packet-occupancy-02/result.json`. Production RTL,
+original assertions, arbitrary later root/transport resets, positive depth 48,
+120-second per-job cap and depth-128 small-model covers are unchanged. No E1/E2
+or other new environment restriction. No CI, USB aggregate, timing or new
+full-size simulation ran.
+
+`UsbOutOccupancyLemma.scala` adds two stateless source-emitted observers on the
+eight-byte/nine-slot model. With `d(a,b)` the forward ring distance:
+
+```text
+!reject => d(head,tail) +& d(tail,speculative) <= 8
+!reject => queued +& packet <= 8 + appValid
+```
+
+The widened sum prevents modular wrap from hiding overlapping intervals.
+`d(head,speculative) <= 8` alone would not exclude the prior impossible witness.
+The counter consequence uses the proved `queued=d(head,tail)+appValid` and
+`!reject => packet=d(tail,speculative)` links. Storage/warmup and every helper
+are freshly proved on canonical hash
+`ee0007c84befbb00132ec3237211c8fbf6ad0ab88defcdf9da3356c23739e14b`.
+Only authenticated PASS receipts for that identical model become assumptions.
+Original assertions remain in the canonical model with their original reset
+enable and predicate. Observer projection restores every original cell;
+binding forbids DUT drivers, state, new assumptions and ambiguous aliases.
+
+Commands actually run in the pinned environment:
+
+```text
+python tools/env/run.py run -- python3 hw/ip/usb/formal/packet_epoch.py --output build/t19/packet-occupancy-02 --role out --packet-bytes 8 --properties integrity --sparse --upper --occupancy --prior-audit build/t19/packet-focused-audit-01/result.json
+  storage-warmup PASS; occupancy-geometry PASS; occupancy-count PASS
+  position PASS; position-upper PASS; ownership PASS
+  owned-data PASS; read-pipeline PASS; out integrity PASS
+  UNRESOLVED independent-reset packet out (exit 1: only one of six role originals selected)
+python tools/env/run.py run -- python3 hw/ip/usb/evidence.py --manifest build/t19/occupancy-evidence-manifest.json --output build/t19/occupancy-evidence-01
+  PASS USB evidence; closed=12 unresolved=[]
+python tools/env/run.py run -- python3 -m unittest discover -s hw/ip/usb/formal -p test_packet*.py
+  Ran 17 tests; OK
+python tools/env/run.py run -- python3 -m unittest discover -s hw/ip/usb -p test_evidence.py
+  Ran 12 tests; OK
+```
+
+The subset runner's overall unresolved label is its unchanged requirement that
+one invocation select all six role originals. The individual integrity claim
+proved; the combined audit accounts for every original exactly once and is the
+complete inventory result. No unresolved result was relabeled as a proof.
+
+Per-job wall times are **measured** by the focused command above. Engines are
+the unchanged ABC PDR/Z3 induction portfolio; all positives are unbounded.
+
+| Job | Result | Seconds |
+| --- | --- | ---: |
+| Storage/warmup prerequisites | proved | 37.312 |
+| Pointer geometry | proved | 1.120 |
+| Counter consequence | proved | 0.373 |
+| Position lower / upper | proved | 0.422 / 0.578 |
+| Ownership | proved | 35.623 |
+| Owned data | proved | 10.551 |
+| Read pipeline | proved | 69.059 |
+| Original OUT byte integrity | proved at small model | 7.936 |
+| Real epoch covers | covered, depth 128 | 0.624 |
+
+Both occupancy faults force the actual production `full` signal low, admitting
+overflow, with **no helper assumptions**. Sparse and real-RAM models reject
+both faults. The real geometry witness has **47 measured samples** within
+depth 48: released reset high, reject low, appValid high, head=1, tail=8,
+speculative=1. Its intervals total `7+2=9 > 8`. The counter fault, original
+data-corruption fault and all existing helper faults also fail. The existing
+upper-position fault remains the explicitly labelled joint cadence/reject
+mutation, not a reject-only detection claim. All eleven real epoch covers
+remain reachable, including reset phases/reassertion and overlength wrap,
+abort and recovery. Prior full/empty/wrap/retry/max-packet covers and memory
+refinement remain hash authenticated.
+
+The evidence manifest replaces only `packet-epoch-out-finish-01` with
+`packet-occupancy-02` and adds the latter as an emission anchor. It retains
+the SIE proof, wrapper binding/archive and historical full-size seeded
+simulation `nonproof-fullsize-01`; the collector checks their exact current
+production-source bindings. No fresh full-size simulation is claimed.
+
+`packet-occupancy-01` preserves a pre-solver tooling failure: the guarded
+observer importer omitted unsigned `$lt` (`sum <= 8` emitted as `sum < 9`).
+Allowing that combinational comparator fixed import without changing any
+assertion or model restriction. No timed-out job was rerun; no extra lemma
+after a new timeout or cap extension was needed. Independent review verified
+the arithmetic, reset guard, exact-model chaining, real overflow witnesses,
+all twelve claims and SIE/full-size evidence. Focused guard tests reject bad
+widths/aliases, DUT drivers, state, assumptions and unsupported model size.
+
 ## Non-proof acceptance plumbing (2026-11-20)
 
 The user approved one extra unchanged-cap OUT combined-occupancy attempt, then

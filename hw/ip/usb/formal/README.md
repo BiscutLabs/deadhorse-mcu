@@ -1,12 +1,33 @@
 # USB formal contracts
 
+## Independent-reset packet inventory closed (2026-11-20)
+
+The approved OUT occupancy attempt is complete: all twelve independent-reset
+packet assertions are discharged, five at sixteen bytes and seven **proved at
+small model, simulated at full size**. The final OUT integrity proof uses the
+eight-byte model with unchanged historical full-size seeded simulation
+authenticated against current production sources. Original assertions and
+arbitrary later root/transport resets remain. No new environment assumption,
+RTL change, bound/cap change or CI run. EP0 sampling, SIE CRC/EOP spacing,
+timing-exception qualification and physical acceptance remain separate.
+
+`UsbOutOccupancyLemma` is an observation-only eight-byte proof monitor. It first
+proves `!reject => distance(head,tail) +& distance(tail,speculative) <= 8`, then
+derives `!reject => queued +& packet <= 8 + appValid` from proved counter links.
+Unsigned sums widen; a single modular head-to-speculative distance cannot
+exclude overlap. `packet_epoch.py --occupancy` binds both claims to actual
+production state and accepts only exact-model PASS dependencies. Both catch
+actual overflow admission (`full=0`) on the real model without good-DUT
+assumptions. Reset/traffic covers remain reachable. See the
+[formal ledger](../../../../docs/ledger/usb-formal.md#out-occupancy-and-independent-reset-packet-closure-2026-11-20)
+for commands, caps and measured results.
+
 ## Read-only acceptance evidence
 
 `../evidence.py` audits existing solver models, exact-model lemma chains,
 negative controls, covers, production sources, SIE/wrapper binding and full-size
-seeded simulation. It launches no solver, synthesis or CI. The additional
-unchanged-cap occupancy-lemma attempt is approved but deferred by the user's
-2026-11-20 instruction to finish non-proof work first.
+seeded simulation. It launches no solver, synthesis or CI. The approved
+occupancy attempt above now supplies the final OUT receipt.
 
 Create a JSON manifest under `build/` with exactly these fields (paths are
 repository-relative or absolute under the repository's `build/` directory):
@@ -18,12 +39,13 @@ repository-relative or absolute under the repository's `build/` directory):
     "build/t19/packet-epoch-in-01/result.json",
     "build/t19/packet-epoch-in-sparse-01/result.json",
     "build/t19/packet-epoch-out-01/result.json",
-    "build/t19/packet-epoch-out-finish-01/result.json"
+    "build/t19/packet-occupancy-02/result.json"
   ],
   "anchors": [
     "build/t19/packet-epoch-in-02/result.json",
     "build/t19/packet-epoch-in-sparse-01/result.json",
-    "build/t19/packet-epoch-out-sparse-02/result.json"
+    "build/t19/packet-epoch-out-sparse-02/result.json",
+    "build/t19/packet-occupancy-02/result.json"
   ],
   "sie_proof": "build/t19/sie-packet-contract-02/result.json",
   "sie_binding": "build/t19/sie-wrapper-binding-03/result.json",
@@ -33,9 +55,9 @@ repository-relative or absolute under the repository's `build/` directory):
 ```
 
 Run `python tools/env/run.py run -- python3 hw/ip/usb/evidence.py --manifest
-build/t19/nonproof-evidence-manifest.json --output build/t19/evidence-new` with
-a fresh output directory. Exit one is intentional while OUT integrity remains
-unresolved. A passing artifact audit is not a passing overall proof inventory.
+build/t19/occupancy-evidence-manifest.json --output build/t19/evidence-new` with
+a fresh output directory. The current manifest yields `closed=12 unresolved=[]`.
+A passing packet inventory is not passing whole-T19 acceptance.
 Small-model claims require the exact full-size throughput command, successful
 log and complete production/test/shared-library/vendor/applied-vendor/build/
 environment/regmap source bindings. Historical receipts without that inventory

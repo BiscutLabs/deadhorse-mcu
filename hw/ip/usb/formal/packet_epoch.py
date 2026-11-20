@@ -57,8 +57,57 @@ def bind_upper(base, top, observer):
     return result
 
 
-def run(output, role, packet_bytes, properties, sparse=False, prior_audit=None, upper=False):
+def bind_occupancy(base, top, observer):
+    """Attach only two eight-byte occupancy assertions to exact DUT nets."""
+    result=copy.deepcopy(base);target=result['modules'][top]
+    monitor=observer['modules']['UsbOutOccupancyLemma']
+    expected={'clock':1,'reset_n':1,'head':4,'tail':4,'speculative':4,'reject':1,'queued':5,'packet':4,'appValid':1}
+    if set(monitor['ports'])!=set(expected):raise ValueError('Unexpected occupancy ports')
+    if any(c['type'] not in ('$assert','$and','$not','$le','$lt','$ge','$add','$sub','$mux') for c in monitor['cells'].values()):
+        raise ValueError('Occupancy observer contains state, assumptions or unknown logic')
+    if {n for n,c in monitor['cells'].items() if c['type']=='$assert'}!=set(names(2)):
+        raise ValueError('Wrong occupancy assertion inventory')
+    inputs={b for p in monitor['ports'].values() for b in p['bits']};driven=set()
+    for c in monitor['cells'].values():
+        for p,bits in c['connections'].items():
+            if c['port_directions'][p]!='output':continue
+            if any(not isinstance(b,int) or b in inputs or b in driven for b in bits):raise ValueError('Occupancy drives input or duplicate driver')
+            driven.update(bits)
+    used={b for c in target['cells'].values() for bs in c['connections'].values() for b in bs if isinstance(b,int)}
+    used|={b for n in target['netnames'].values() for b in n['bits'] if isinstance(b,int)}
+    used|={b for p in target['ports'].values() for b in p['bits'] if isinstance(b,int)}
+    next_bit=max(used)+1;mapping={}
+    for name,width in expected.items():
+        net='subject.'+('d.' if name in ('head','tail','speculative','reject','appValid') else '')+name
+        port=monitor['ports'][name];bits=target['netnames'][net]['bits']
+        if port['direction']!='input' or len(port['bits'])!=width or len(bits)!=width or not all(isinstance(b,int) for b in bits):
+            raise ValueError('Wrong occupancy binding: '+name)
+        for source,destination in zip(port['bits'],bits):
+            if source in mapping and mapping[source]!=destination:raise ValueError('Ambiguous occupancy alias')
+            mapping[source]=destination
+    def translated(bits):
+        nonlocal next_bit
+        result=[]
+        for b in bits:
+            if isinstance(b,int):
+                if b not in mapping:mapping[b]=next_bit;next_bit+=1
+                b=mapping[b]
+            result.append(b)
+        return result
+    for name,c in monitor['cells'].items():
+        key='occupancy.'+name
+        if key in target['cells']:raise ValueError('Occupancy name collision')
+        added=copy.deepcopy(c);added['connections']={p:translated(b) for p,b in c['connections'].items()}
+        target['cells'][key]=added
+    projected=copy.deepcopy(result)
+    projected['modules'][top]['cells']={k:c for k,c in target['cells'].items() if not k.startswith('occupancy.')}
+    if projected!=base:raise ValueError('Occupancy monitor changed transition system')
+    return result
+
+
+def run(output, role, packet_bytes, properties, sparse=False, prior_audit=None, upper=False, occupancy=False):
     if len(set(properties)) != len(properties): raise ValueError('Duplicate original property')
+    if occupancy and (role!='out' or packet_bytes!=8 or not sparse or not upper):raise ValueError('Occupancy requires eight-byte sparse OUT with upper observer')
     output = output.resolve(); output.relative_to(ROOT/'build')
     output.mkdir(parents=True, exist_ok=False)
     paths = [ROOT/'hw/ip/usb/formal/UsbBufferFormal.scala', ROOT/'hw/ip/usb/formal/UsbPacketEpoch.scala',
@@ -69,6 +118,7 @@ def run(output, role, packet_bytes, properties, sparse=False, prior_audit=None, 
              ROOT/'hw/ip/usb/src/main/scala/deadhorse/usb/UsbPacketSizing.scala', ROOT/'hw/lib/src/main/scala/deadhorse/lib/Cdc.scala',
              Path(__file__), *[Path(__file__).with_name(n+'.py') for n in
                               ('packet_decompose','packet_partition','packet_remaining','packet_receipt')], ROOT/'tools/formal.py']
+    if occupancy:paths.append(ROOT/'hw/ip/usb/formal/UsbOutOccupancyLemma.scala')
     bound = {str(p.relative_to(ROOT)): digest(p) for p in paths}
     if digest(paths[0]) != REVIEWED_HARNESS_SHA256: raise ValueError('Original assertions changed')
     receipt = dict(status='running', role=role, packet_bytes=packet_bytes, sparse=sparse, upper=upper, source_sha256=bound, jobs=[], originals=[],
@@ -77,6 +127,7 @@ def run(output, role, packet_bytes, properties, sparse=False, prior_audit=None, 
                    'IN reads require valid; zero-byte ACK allowed. OUT packet length unrestricted. No E1/E2.',
                    qualification='Independent-reset packet-interface diagnostic; actual SIE producer composition still required.',
                    ci='not run, user instruction')
+    if occupancy:receipt['occupancy']=True
     (output/'runner.py').write_bytes(Path(__file__).read_bytes())
     for p in paths:
         target=output/'source'/p.relative_to(ROOT);target.parent.mkdir(parents=True,exist_ok=True)
@@ -138,6 +189,11 @@ def run(output, role, packet_bytes, properties, sparse=False, prior_audit=None, 
                             output/'upper-emit.log',600).check_returncode()
                     observer,_=prepare(output/'upper',sorted((output/'upper-emit').glob('*.sv')),'UsbEpochOwnership',1,False)
                     model=bind_upper(model,top,observer);real=bind_upper(real,top,observer)
+                if occupancy:
+                    execute([sys.executable,'tools/sbt.py',f'runMain deadhorse.usb.EmitUsbOutOccupancyLemma {output}/occupancy-emit'],
+                            output/'occupancy-emit.log',600).check_returncode()
+                    observer,_=prepare(output/'occupancy',sorted((output/'occupancy-emit').glob('*.sv')),'UsbOutOccupancyLemma',2,False)
+                    model=bind_occupancy(model,top,observer);real=bind_occupancy(real,top,observer)
                 save(canonical,model);save(realpath,real);h=digest(canonical)
             receipt['real_sha256']=digest(realpath)
         receipt['canonical_sha256']=h
@@ -155,11 +211,18 @@ def run(output, role, packet_bytes, properties, sparse=False, prior_audit=None, 
             receipt['status']='unresolved';return receipt
         if sparse:
             groups=[]
+            if occupancy:
+                # Prove each claim before its exact-model receipt becomes a
+                # premise. Real overflow faults have no good-DUT assumptions.
+                overflow=[('subject.d.full',['0'])]
+                for label,claim in zip(('occupancy-geometry','occupancy-count'),names(2)):
+                    groups.append((label,{'occupancy.'+claim},overflow,{'occupancy.'+claim},overflow))
             if role=='out':groups.append(('position',{'position_monitor.assert__chisel3_builtin'},[('subject.d.appValid',['1'])],
                                           {'position_monitor.assert__chisel3_builtin'},[('subject.d.appValid',['1'])]))
             if upper:
-                groups.append(('position-upper',{'ownership_upper.assert__chisel3_builtin'},[('subject.d.reject',['0'])],
-                               {'ownership_upper.assert__chisel3_builtin'},[('subject.d.reject',['0'])]))
+                mutation=[('subject.cadence.enable',['1']),('subject.d.reject',['0'])] if occupancy else [('subject.d.reject',['0'])]
+                groups.append(('position-upper',{'ownership_upper.assert__chisel3_builtin'},mutation,
+                               {'ownership_upper.assert__chisel3_builtin'},mutation))
             ownership=set(n[8:12]) if role=='in' else set(n[4:8])
             real_ownership=set(rn[8:12]) if role=='in' else set(rn[4:8])
             pointer=[('subject.d.speculative',['1']*packet_bytes.bit_length())]
@@ -345,7 +408,7 @@ def audit_epoch(output, paths, anchors):
             # Preserve exact observer artifacts too, including continuations.
             directory=path.parent
             if row.get('resumed_from'):directory=Path(row['resumed_from']['path']).parent
-            for name in ('position','upper'):
+            for name in ('position','upper','occupancy'):
                 prepared=directory/name/'canonical.json'
                 if prepared.exists():
                     result['monitors'][str(prepared)]=digest(prepared)
@@ -354,7 +417,18 @@ def audit_epoch(output, paths, anchors):
                 observer=json.loads((directory/'upper/canonical.json').read_text())
                 base=copy.deepcopy(model)
                 base['modules'][top]['cells']={n:c for n,c in base['modules'][top]['cells'].items() if not n.startswith('ownership_upper.')}
-                if bind_upper(base,top,observer)!=model:raise ValueError('Upper monitor binding differs')
+                # Occupancy was attached after upper; preserve its allocation
+                # when authenticating the earlier observer independently.
+                upper_model=copy.deepcopy(model)
+                if row.get('occupancy'):
+                    for m in (base,upper_model):
+                        m['modules'][top]['cells']={n:c for n,c in m['modules'][top]['cells'].items() if not n.startswith('occupancy.')}
+                if bind_upper(base,top,observer)!=upper_model:raise ValueError('Upper monitor binding differs')
+            if row.get('occupancy'):
+                observer=json.loads((directory/'occupancy/canonical.json').read_text())
+                base=copy.deepcopy(model)
+                base['modules'][top]['cells']={n:c for n,c in base['modules'][top]['cells'].items() if not n.startswith('occupancy.')}
+                if bind_occupancy(base,top,observer)!=model:raise ValueError('Occupancy monitor binding differs')
         required={(v['role'],v['packet_bytes']) for v in inventory.values() if v}
         result['covers']=[]
         for role,size in sorted(required):
@@ -404,6 +478,7 @@ if __name__=='__main__':
     p.add_argument('--properties',nargs='+',choices=PROPERTIES,default=PROPERTIES)
     p.add_argument('--sparse',action='store_true');p.add_argument('--prior-audit',type=Path)
     p.add_argument('--upper',action='store_true')
+    p.add_argument('--occupancy',action='store_true')
     p.add_argument('--resume-upper',type=Path)
     p.add_argument('--audit-receipts',type=Path,nargs='+');p.add_argument('--anchors',type=Path,nargs='+')
     a=p.parse_args()
@@ -412,6 +487,6 @@ if __name__=='__main__':
     if a.audit_receipts:
         if not a.anchors:p.error('--anchors required for audit')
         r=audit_epoch(a.output,a.audit_receipts,a.anchors)
-    else:r=resume_upper(a.output,a.resume_upper) if a.resume_upper else run(a.output,a.role,a.packet_bytes,a.properties,a.sparse,a.prior_audit,a.upper)
+    else:r=resume_upper(a.output,a.resume_upper) if a.resume_upper else run(a.output,a.role,a.packet_bytes,a.properties,a.sparse,a.prior_audit,a.upper,a.occupancy)
     print(r['status'].upper()+' independent-reset packet '+r.get('role','audit'),flush=True)
     sys.exit(0 if r['status'] in ('pass','property-proved') else 1)

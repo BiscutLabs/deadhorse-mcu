@@ -215,5 +215,8 @@ The three over-limit paths trigger the existing stop rule: no further RTL or
 physical optimization was attempted after this measurement. Timing repair needs
 a separately scoped follow-up. Actual pad/board and upstream reset/clock inputs,
 physical hold fixes where applicable, reset/CDC analog qualification and the
-missing physical signoff stages are still required. Existing packet composition
-and prior sampling/exception proofs remain separate open T19 items. No merge.
+missing physical signoff stages are still required. Subsequent packet work
+qualifies all twelve independent-reset claims under the mixed-size policy; see
+the [formal ledger](../ledger/usb-formal.md#out-occupancy-and-independent-reset-packet-closure-2026-11-20).
+Prior sampling/exception proofs remain open. D63 separately authorized merging
+this failed diagnostic with those issues recorded; it did not grant signoff.
