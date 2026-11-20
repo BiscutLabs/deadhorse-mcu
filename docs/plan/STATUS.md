@@ -1,6 +1,6 @@
 # Status
 
-Single progress tracker. Last updated: 2026-11-19.
+Single progress tracker. Last updated: 2026-11-20.
 States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete,
 `[-]` withdrawn.
 Decision checks record the user's approvals, not implementation completion.
@@ -99,7 +99,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T16 | [SPI host](tasks/T16-spi-host.md) | Codex | T05, T07, T09, T14, T15 | [Report](tasks/reports/T16.md): SPI acceptance, GF180 timing and independent review pass; fast 31/31 with inherited T14 deferrals, no SPI deferrals; full not run |
 | [x] | T17 | [I2C controller](tasks/T17-i2c-host.md) | Codex | T05, T07, T09, T14, T16 | [Report](tasks/reports/T17.md); 19 simulations, GF180 timing and fast CI active checks pass; eight I2C formal jobs remain deferred/unproved |
 | [x] | T18 | [Lite I2C recovery loader](tasks/T18-i2c-recovery-loader.md) | Codex | T06, T07, T09, T14 | [Report](tasks/reports/T18.md). Wire-to-memory recovery and warm-reset lock retention verified. |
-| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): Eleven independent-reset epoch claims close; OUT ownership/integrity hits triage stop. SIE safety proved; composition/aggregate/physical qualification open. No CI per user instruction |
+| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): Audited evidence integration and physical handoff complete; OUT integrity/prior proof and physical qualification open. Focused simulation/tools pass; no CI. Extra proof attempt deferred |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -509,3 +509,5 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - 2026-11-19: Focused IN progress proves at 16 bytes and OUT integrity at eight bytes with authenticated lemma chains and real faults. Original common-reset packet inventory now closes (seven full-size, five small-model plus prior full-size simulation). Focused audits and ten guard tests pass; no production RTL/assertion/environment/cap change. CI/aggregate/timing/simulation not run by user instruction; T19 remains blocked on composition, integration and physical/prior qualification. No merge.
 - 2026-11-19: User assigned independent reset/SIE composition closure from b2e9845; no CI. Checking actual producer/reset guarantees and phase-general packet properties, including zero-byte ACK and malformed overlength OUT; no new environment assumption or RTL change authorized.
 - 2026-11-19: Independent reset/SIE follow-up from b2e9845: eleven epoch claims qualify (five full-size, six proved at small model and simulated at full size); actual SIE safety, wrapper bindings, four real-traffic/fault tests, two seeded throughput tests and fourteen proof-tool unit tests pass. OUT ownership/integrity remains open after the triage budget; combined-occupancy lemma proposed for an additional approved attempt. No production RTL change, CI tier, USB aggregate or merge.
+- 2026-11-20: User approved one additional unchanged-cap OUT occupancy-lemma attempt, then prioritized all non-proof T19 work first. The extra proof is deferred. Completing acceptance evidence plumbing and physical handoff within the standalone USB scope; no CI or solver run.
+- 2026-11-20: Non-proof priority follow-up from 8084eb2: fail-closed evidence integration and independent physical handoff review complete. Twelve tooling tests and two unchanged seeded throughput tests pass; audited inventory retains eleven closed claims and unresolved OUT integrity. No production RTL/limits/assertions/assumptions changed; no solver, CI tier or USB aggregate run. Physical hold/RDC/placement and prior proof qualification remain; extra approved proof attempt deferred. Incomplete review checkpoint only, no merge.

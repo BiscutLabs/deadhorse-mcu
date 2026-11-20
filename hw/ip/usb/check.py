@@ -57,15 +57,29 @@ def sie_diagnostic_complete(detail, sources):
         all(path(classes[k],'delay_ns') for k in ('CC','CF','FC','FF','IR','RO','IO')) and physical)
 
 
-def run(output,packet_triage=None):
+def packet_obligations(evidence):
+    """A qualified inventory may close claims, never a missing/failed audit."""
+    if evidence.get('status') not in ('pass','unresolved'):
+        return ['Packet acceptance evidence missing or invalid: '+evidence.get('error','no qualified audit')]
+    # Revalidate the complete inventory at the acceptance boundary too.
+    from evidence import inventory
+    rows=[*evidence.get('closed',[]),*(dict(role=k.split('.')[0],property=k.split('.')[1],kind='unresolved')
+          for k in evidence.get('unresolved',[]) if isinstance(k,str) and len(k.split('.'))==2)]
+    checked=inventory(rows)
+    if checked['status']!=evidence['status']:
+        raise ValueError('Packet evidence status contradicts assertion inventory')
+    return ['Independent reset/SIE packet assertion remains unresolved: '+k for k in checked['unresolved']]
+
+
+def run(output,packet_triage=None,packet_evidence=None):
+    if packet_triage and packet_evidence:raise ValueError('Choose packet triage or audited packet evidence, not both')
     output = Path(output).resolve(); output.relative_to(ROOT/'build')
     if output.exists() and any(output.iterdir()): raise ValueError('Use fresh output; preserve earlier failures')
     output.mkdir(parents=True)
     before = inputs(); started = time.monotonic()
     receipt = dict(status='running', task='T19', commands=[], timing={}, source_sha256=before,
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
-        unresolved=['Packet-buffer assertion decomposition is incomplete; exact partial results are documented in the USB formal ledger',
-                    'Complete wrapper clock-domain timing has not yet been qualified'],
+        unresolved=['Complete wrapper clock-domain timing has not yet been qualified'],
         qualification_limits=['No physical pad/ESD/VBUS, clock tolerance or board electrical qualification',
                               'Standalone peripheral; whole-chip gateway and clock-controller integration remain separate'])
     def command(name, argv, child=None):
@@ -84,6 +98,7 @@ def run(output,packet_triage=None):
         command('provenance',[py,'hw/vendor/usb/prepare.py'])
         command('timing-runner-tests',[py,'-m','unittest','tools.timing.test_fanout','tools.timing.test_timing'])
         command('packet-receipt-tests',[py,'-m','unittest','discover','-s','hw/ip/usb/formal','-p','test_packet_proofs.py'])
+        command('packet-evidence-tests',[py,'-m','unittest','discover','-s','hw/ip/usb','-p','test_evidence.py'])
         command('regmap',[py,'hw/regmap/regmap.py','hw/ip/usb/usb.regmap.yaml','--out',output/'regmap'])
         # The independently runnable Scala suites use this deterministic generated fixture.
         command('test-regmap',[py,'hw/regmap/regmap.py','hw/ip/usb/usb.regmap.yaml','--out','build/t19/regmap'])
@@ -96,8 +111,7 @@ def run(output,packet_triage=None):
             '--after',output/'emit','--regmap',output/'regmap/usb_regs.json',
             '--output',output/'preenable-equivalence'],output/'preenable-equivalence/result.json')
         # The user requires a triage-budget stop, never an unchanged timeout
-        # retry. Positive packet acceptance remains required and unresolved.
-        # Preserve exact-source evidence if supplied; it is never a deferral.
+        # retry. Consume authenticated partial proofs without rerunning solvers.
         packet_status=dict(status='unresolved',rerun=False,
             reason='Packet proof triage exhausted; no unchanged positive proof retry; original acceptance remains required')
         if packet_triage:
@@ -111,6 +125,12 @@ def run(output,packet_triage=None):
             if not {'in_sparse','out_sparse'}<=set(detail.get('cases',{})):
                 raise ValueError('Incomplete packet triage evidence')
             packet_status.update(receipt=str(prior.relative_to(ROOT)),sha256=hashlib.sha256(prior.read_bytes()).hexdigest(),cases=detail['cases'])
+        if packet_evidence:
+            from evidence import collect
+            packet_status=collect(packet_evidence,output/'packet-evidence')
+            receipt['unresolved'].extend(packet_obligations(packet_status))
+        else:
+            receipt['unresolved'].append('Packet acceptance requires an audited --packet-evidence manifest; legacy triage cannot close claims')
         receipt['packet_proofs']=packet_status
         formal_args=[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json','--output',output/'formal']
         for role in ('cadence','cadence_reset','preenable_early','preenable_late','preenable_reset','preenable_write','reset_data','reset_aware','reset_aware_early','buffer_reset','retry_boundary','resume','denied','pads','control','address'):
@@ -148,4 +168,5 @@ def run(output,packet_triage=None):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',required=True)
     parser.add_argument('--packet-triage',help='Exact-source unresolved packet evidence; preserves failure without repeating exhausted positive jobs')
-    args=parser.parse_args();sys.exit(0 if run(ROOT/args.output,args.packet_triage)['status']=='pass' else 1)
+    parser.add_argument('--packet-evidence',help='Build-local manifest of packet, SIE/wrapper and full-size simulation receipts; audited without solver retries')
+    args=parser.parse_args();sys.exit(0 if run(ROOT/args.output,args.packet_triage,args.packet_evidence)['status']=='pass' else 1)

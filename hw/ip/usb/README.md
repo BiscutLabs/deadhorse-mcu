@@ -1,5 +1,13 @@
 # USB CDC-ACM peripheral (T19)
 
+Non-proof follow-up (2026-11-20): acceptance now accepts an explicit
+`--packet-evidence` manifest and audits the existing packet/SIE/wrapper receipts
+without retrying solvers. Missing or stale evidence fails closed; OUT integrity
+remains unresolved. See [evidence usage](formal/README.md#read-only-acceptance-evidence)
+and the [physical handoff](../../../docs/spec/usb-physical-handoff.md).
+The additional occupancy-lemma attempt is approved but deferred while non-proof
+work takes priority. No CI or aggregate run is authorized in this follow-up.
+
 Independent reset/SIE follow-up (2026-11-19): eleven of twelve broader packet
 assertions now close, including zero-byte IN ACK and independent transport reset.
 OUT ownership/integrity remains open after the permitted proof attempts. The

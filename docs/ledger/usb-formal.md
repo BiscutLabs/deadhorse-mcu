@@ -1,5 +1,48 @@
 # T19 USB formal ledger
 
+## Non-proof acceptance plumbing (2026-11-20)
+
+The user approved one extra unchanged-cap OUT combined-occupancy attempt, then
+prioritized non-proof work. That attempt is deferred; no proof solver was run
+in this follow-up. Original assertions, environments and caps are unchanged.
+
+`hw/ip/usb/evidence.py` now audits the existing expanded epoch inventory and
+actual SIE/wrapper receipts without retrying jobs. `hw/ip/usb/check.py` accepts
+an explicit `--packet-evidence` manifest and retains each unresolved original
+claim. It does not remove or skip any existing aggregate command, physical
+qualification or negative control. The original common-reset proof inventory
+and the broader independent-reset composition obligation remain distinct.
+
+Independent review requested complete source-inventory guards, exact wrapper
+model binding, archived-source/artifact links and full-size simulation
+provenance. These guards are implemented with focused negative tests.
+`python tools/env/run.py run -- python3 -m unittest discover -s hw/ip/usb -p
+test_evidence.py` passes **twelve tests (measured)** on `8084eb2` plus this
+follow-up. This is a tooling unit suite, not a new hardware proof or CI run.
+
+The final read-only collector command `python tools/env/run.py run -- python3
+hw/ip/usb/evidence.py --manifest build/t19/nonproof-evidence-manifest.json
+--output build/t19/nonproof-evidence-03` authenticates **eleven claims (measured
+inventory)** and deliberately returns unresolved/exit one for `out.integrity`.
+SIE/wrapper and full-size simulation evidence qualify. No new proof is claimed.
+
+Fresh focused simulation, `python tools/env/run.py run -- python3
+scratch/t19_fullsize_capture.py` wrapping `python3 tools/sbt.py "testOnly
+deadhorse.usb.UsbThroughputSpec"`, passes both unchanged tests with **57
+source/fixture bindings (measured inventory)** before/after. Receipt:
+`build/t19/nonproof-fullsize-01/result.json`. Simultaneous payload is **measured**
+1,022,483.316 bit/s each way; slow service measures 286,567.164 bit/s and is
+correctly rejected. This is the existing offered-load test, not a maximum-rate
+measurement. Raw vendor hashes remain recorded; only terminal LF count differs
+between the applied files and Chisel resource export. The earlier strict-byte
+audit failure is preserved under `nonproof-evidence-02`; all other byte changes
+are rejected by the reviewed guard.
+
+The physical deliverable is the reviewed
+[handoff](../spec/usb-physical-handoff.md), with historical source-bound timing
+and explicit open hold/RDC/placement work. Fast CI, full CI and the USB
+aggregate remain unrun by user instruction. T19 is not merge-ready.
+
 ## Independent reset/SIE composition follow-up (2026-11-19)
 
 **Open, narrowed to OUT ownership/integrity.** From `b2e9845c2889e585859e710db3266bbe52c9f8e4`,

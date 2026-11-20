@@ -1,5 +1,54 @@
 # USB formal contracts
 
+## Read-only acceptance evidence
+
+`../evidence.py` audits existing solver models, exact-model lemma chains,
+negative controls, covers, production sources, SIE/wrapper binding and full-size
+seeded simulation. It launches no solver, synthesis or CI. The additional
+unchanged-cap occupancy-lemma attempt is approved but deferred by the user's
+2026-11-20 instruction to finish non-proof work first.
+
+Create a JSON manifest under `build/` with exactly these fields (paths are
+repository-relative or absolute under the repository's `build/` directory):
+
+```json
+{
+  "schema": 1,
+  "receipts": [
+    "build/t19/packet-epoch-in-01/result.json",
+    "build/t19/packet-epoch-in-sparse-01/result.json",
+    "build/t19/packet-epoch-out-01/result.json",
+    "build/t19/packet-epoch-out-finish-01/result.json"
+  ],
+  "anchors": [
+    "build/t19/packet-epoch-in-02/result.json",
+    "build/t19/packet-epoch-in-sparse-01/result.json",
+    "build/t19/packet-epoch-out-sparse-02/result.json"
+  ],
+  "sie_proof": "build/t19/sie-packet-contract-02/result.json",
+  "sie_binding": "build/t19/sie-wrapper-binding-03/result.json",
+  "sie_archive": "build/t19/sie-wrapper-binding-03/archive.json",
+  "full_size_simulation": "build/t19/nonproof-fullsize-01/result.json"
+}
+```
+
+Run `python tools/env/run.py run -- python3 hw/ip/usb/evidence.py --manifest
+build/t19/nonproof-evidence-manifest.json --output build/t19/evidence-new` with
+a fresh output directory. Exit one is intentional while OUT integrity remains
+unresolved. A passing artifact audit is not a passing overall proof inventory.
+Small-model claims require the exact full-size throughput command, successful
+log and complete production/test/shared-library/vendor/applied-vendor/build/
+environment/regmap source bindings. Historical receipts without that inventory
+cannot be promoted by adding present-day hashes to them.
+
+For a future authorized aggregate run, pass the same manifest to
+`hw/ip/usb/check.py --packet-evidence`. This replaces the hard-coded packet
+status with the audited per-assertion inventory. Every other required command,
+negative control and unresolved physical/proof qualification remains in force.
+The legacy `--packet-triage` option still preserves failure evidence and cannot
+close any assertion. Both options together are rejected. No aggregate or CI
+was run for this bookkeeping change.
+
 ## Packet-proof decomposition decisions (2026-11-19)
 
 D60/E1 permits enable/pre-enable-aligned protocol stimulus only where a named
