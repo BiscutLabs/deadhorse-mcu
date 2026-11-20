@@ -1,0 +1,63 @@
+schema: 1
+name: deadhorse_soc
+# Provisional T20 configuration, not a clock-source or pad-freeze decision.
+clocks:
+  main: {hz: [8000000, 9000000], source: external_test_input}
+  aon: {hz: [32000, 1000000], source: external_test_input}
+  usb: {hz: [48000000], source: external_test_input}
+resets: [cold, warm, main_core, main_service, aon_service, usb_service]
+masters:
+  lite: {origin: 0, implementation: test_standin}
+  performance: {origin: 1, implementation: real}
+  gateway_debug: {origin: 2, implementation: inactive}
+regions:
+  - {name: boot_rom, base: 0x00000000, size: 0x10000, home: main local, domains: [main], kind: model, reset: main_service}
+  - {name: xip, base: 0x10000000, size: 0x10000000, home: main local, domains: [main], kind: stub, reset: main_service}
+  - {name: performance_sram, base: 0x20000000, size: 0x4000, home: main local, domains: [main], kind: model, reset: main_service}
+  - {name: retained_sram, base: 0x30000000, size: 0x0c00, home: aon, domains: [main, aon], kind: model, reset: aon_service}
+  - {name: power_reset_timer, base: 0x40000000, size: 0x1000, home: aon, domains: [main, aon], kind: stub, reset: aon_service}
+  - {name: mailbox, base: 0x40001000, size: 0x0100, home: each domain local, domains: [main, aon], kind: local_pair, reset: warm, regmap: hw/ip/mailbox/mailbox.regmap.yaml}
+  - {name: uart0, base: 0x40010000, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/uart/uart.regmap.yaml}
+  - {name: uart1, base: 0x40010100, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/uart/uart.regmap.yaml}
+  - {name: uart2, base: 0x40010200, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/uart/uart.regmap.yaml}
+  - {name: spi_host, base: 0x40010300, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/spi_host/spi_host.regmap.yaml}
+  - {name: i2c_host, base: 0x40010400, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/i2c_host/i2c_host.regmap.yaml}
+  - {name: dma, base: 0x40011000, size: 0x1000, home: main, domains: [main, aon], kind: stub, reset: main_service}
+  - {name: gpio_pinmux, base: 0x40012000, size: 0x1000, home: main, domains: [main, aon], kind: stub, reset: main_service}
+  - {name: qspi_control, base: 0x40013000, size: 0x1000, home: main, domains: [main, aon], kind: stub, reset: main_service}
+  - {name: adc_loader_reserved, base: 0x40020000, size: 0x10000, home: aon, domains: [main, aon], kind: stub, reset: aon_service}
+  - {name: actuator, base: 0x40030000, size: 0x1000, home: main, domains: [main, aon], kind: stub, reset: warm}
+  - {name: gateway_reserved, base: 0x40040000, size: 0x0800, home: main, domains: [main, aon], kind: stub, reset: main_service}
+  - {name: usb, base: 0x40040800, size: 0x0100, home: main/usb/aon, domains: [main, aon], kind: optional_usb, reset: usb_service, regmap: hw/ip/usb/usb.regmap.yaml}
+  - {name: future_bridge, base: 0x60000000, size: 0x10000000, home: each domain, domains: [main, aon], kind: reserved, reset: warm}
+interrupts:
+  uart0: 0
+  uart1: 1
+  uart2: 2
+  spi_host: 3
+  i2c_host: 4
+  mailbox: 5
+  usb: 6
+  future_bridge: 7
+  dma: 8
+  gpio_pinmux: 9
+  actuator: 10
+  power_reset_timer: 11
+# Logical groups only. Pad count/assignment and final port schemas remain open.
+pins:
+  uart_tx: {width: 3, direction: output, clock: main, safe: disabled}
+  uart_rx: {width: 3, direction: input, clock: main, safe: input}
+  spi_sclk: {width: 1, direction: output, clock: main, safe: disabled}
+  spi_mosi: {width: 1, direction: output, clock: main, safe: disabled}
+  spi_miso: {width: 1, direction: input, clock: main, safe: input}
+  spi_cs_n: {width: 2, direction: output, clock: main, safe: disabled}
+  imu_drdy: {width: 1, direction: input, clock: main, safe: input}
+  i2c_host: {width: 2, direction: open_drain, clock: main, safe: released}
+  i2c_recovery: {width: 2, direction: open_drain, clock: aon, safe: released}
+  qspi_sclk: {width: 1, direction: output, clock: main, safe: disabled}
+  qspi_dq: {width: 4, direction: bidirectional, clock: main, safe: disabled}
+  qspi_cs_n: {width: 2, direction: output, clock: main, safe: disabled}
+  actuator: {width: 9, direction: output, clock: main, safe: disabled}
+  usb_data: {width: 2, direction: bidirectional, clock: usb, safe: disabled}
+  usb_vbus: {width: 1, direction: input, clock: usb, safe: input}
+  usb_pullup: {width: 1, direction: output, clock: usb, safe: disabled}
