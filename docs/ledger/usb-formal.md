@@ -1,6 +1,117 @@
 # T19 USB formal ledger
 
-## D60–D62 packet decomposition (2026-11-19)
+## Focused IN progress / OUT integrity closure (2026-11-19)
+
+Base `b6326d00eb0df77d98f6e028caee7bdcd61fa3d5`; exact source/model hashes in
+receipts. User authorized these strengthening proofs and explicitly prohibited
+CI. No production RTL, original assertion, reset restriction, environment,
+positive depth or solver cap changed. No CI tier, USB aggregate, simulation or
+timing command ran in this follow-up. Prior full-size simulation is historical
+`packet-frozen-fast-02/fast/usb/simulation.log`: all 19 tests passed on the same
+production sources and original packet harness, whose hashes remain unchanged.
+
+IN: `UsbInProgressFormal` inherits every original assertion and adds
+`pending => head != visibleTail`. Storage plus this ownership invariant prove
+on the real 16-byte model before the unchanged service assertion is attempted.
+The former induction witness started with an empty retained packet; the proved
+invariant excludes it without restricting inputs or later resets.
+
+OUT: splitting the existing helper group proves owned-data lifetime and read
+pipeline facts, but original integrity still times out in `packet-focused-out-01`.
+Its induction witness starts with `watching=1, inPacket=1, reject=1,
+position=6, queued=9, packet=0`. That impossible uncommitted byte later appears
+at the committed front. The new asserted relation is precisely
+`watching && inPacket => position >= queued`.
+
+The separate Chisel monitor has no state or assumptions after monitor-only
+formal retiming. Its predicate is unsigned five-bit comparison, enabled by
+`reset_n && watching && inPacket`. Binding validates exact named widths,
+predicate, guards and driver ownership. Deleting its cells restores both old
+canonical models exactly. All storage/position/ownership/data/pipeline lemmas
+reprove on the identical augmented model hash; none is imported under a
+mismatched hash. All original assertions remain in that canonical model.
+
+Commands use the pinned prefix `python tools/env/run.py run -- python3`:
+
+```text
+hw/ip/usb/formal/packet_remaining.py --role in --output build/t19/packet-focused-in-01
+hw/ip/usb/formal/packet_remaining.py --role out --prior-audit build/t19/packet-focused-audit-01/result.json --output build/t19/packet-focused-out-01
+hw/ip/usb/formal/packet_remaining.py --role out --position-bridge --prior-audit build/t19/packet-focused-audit-01/result.json --output build/t19/packet-focused-out-03
+hw/ip/usb/formal/packet_remaining.py --audit-result build/t19/packet-focused-in-01/result.json --output build/t19/packet-focused-in-audit-01
+hw/ip/usb/formal/packet_remaining.py --audit-result build/t19/packet-focused-out-03/result.json --output build/t19/packet-focused-out-audit-01
+-m unittest discover -s hw/ip/usb/formal -p 'test_packet*.py'
+```
+
+Both final focused proofs and their artifact audits **PASS**. All ten focused
+unit tests **PASS** (`packet-focused-unit-02.log`). The inherited memory/cover
+chain was re-audited with `packet_receipt.py --audit
+build/t19/packet-small-accounting-01/result.json --helpers
+build/t19/packet-small-originals-01/result.json --small-cover-receipt
+build/t19/packet-small-covers-01/result.json --output
+build/t19/packet-focused-audit-01`: audit PASS; its historical original inventory
+correctly stays unresolved until combined with the new receipts.
+
+Measured positive-job wall seconds from those commands (not estimates):
+
+| Job | Size | Unbounded engine | Seconds | Negative control |
+| --- | ---: | --- | ---: | --- |
+| IN storage + pending ownership | 16 | Z3 induction | 62.889 | Actual pending forced high; rejected |
+| IN original progress | 16 | Z3 induction, k=38 | 4.622 | Actual valid withheld; rejected |
+| OUT storage | 8 | ABC PDR | 14.184 | Actual tail corrupted; sparse/real rejected |
+| OUT position lower bound | 8 | ABC PDR / Z3 | 0.373 | Actual appValid forced high; sparse/real rejected |
+| OUT ownership | 8 | ABC PDR | 100.023 | Actual speculative pointer corrupted; sparse/real rejected |
+| OUT owned-data lifetime | 8 | ABC PDR | 59.135 | Sparse pending data / real write data corrupted; rejected |
+| OUT read pipeline | 8 | ABC PDR | 32.659 | Sparse read stage / real write data corrupted; rejected |
+| OUT original byte integrity | 8 | Z3 induction, k=43 | 4.973 | Actual application data corrupted; rejected |
+
+All negative jobs use zero helper assumptions. The five fresh real IN covers
+pass at unchanged depth 48. OUT retains authenticated real eight-byte covers
+at approved depth 128, including full/empty/wrap/retry/maximum-size packet, and
+the separately proved matching-size sparse-memory refinement with its fault.
+
+Assumptions are exactly the original common-reset environment: one digital
+clock, initial reset asserted and later resets arbitrary; IN consumes only
+valid data and ACKs only after consumed data; OUT packet length at most MPS.
+All other inputs remain arbitrary. IN progress assumes nine proved guarded
+predicates (the eight storage predicates plus pending ownership). OUT integrity
+assumes sixteen proved guarded predicates (the prior fifteen helpers plus the
+new position lower bound), with exact receipts and dependency order. No E1/E2,
+fairness, reset-removal, initialized RAM or additional producer assumption.
+
+Current original-assertion accounting, exactly once per claim:
+
+| Original claim | Current receipt | Kind |
+| --- | --- | --- |
+| IN capacity | `packet-helpers-03/in/capacity-positive` | proved, 16 bytes |
+| IN read nonempty | `packet-helpers-03/in/read_nonempty-positive` | proved, 16 bytes |
+| IN byte integrity | `packet-helpers-03/in/integrity-positive` | proved, 16 bytes |
+| IN held valid | `packet-decompose-split-01/in/held_valid-positive` | proved, 16 bytes |
+| IN held data | `packet-small-helpers-01/in/held_data-positive` | proved at small model, simulated at full size |
+| IN progress | `packet-focused-in-01/progress-positive` | proved, 16 bytes |
+| OUT capacity | `packet-small-originals-01/out-capacity-positive` | proved at small model, simulated at full size |
+| OUT read nonempty | `packet-small-originals-01/out-read_nonempty-positive` | proved at small model, simulated at full size |
+| OUT byte integrity | `packet-focused-out-03/integrity-positive` | proved at small model, simulated at full size |
+| OUT held valid | `packet-decompose-split-01/out/held_valid-positive` | proved, 16 bytes |
+| OUT held data | `packet-decompose-split-01/out/held_data-positive` | proved, 16 bytes |
+| OUT progress | `packet-small-originals-01/out-progress-positive` | proved at small model, simulated at full size |
+
+Earlier row engine/time/assumption details remain in the historical table
+below; the two replacement rows are detailed above. Seven claims are proved
+at full size and five under the approved small-model rule. This closes the
+original common-reset harness inventory, not independent transport-reset/SIE
+composition. Aggregate receipt integration and physical/prior qualification
+remain open; CI/full tier are **not run in this follow-up** by user instruction.
+
+Preserved unsuccessful diagnostics: out01 original integrity TIMEOUT,
+measured 121.577 s after both helper groups pass. Out02 stops before proofs
+because ordinary clocked-assert lowering introduced sampling registers into
+the intended combinational monitor. `packet-monitor-lowering-01` confirms
+lowering before async2sync is unsupported; `packet-monitor-lowering-02` confirms
+`async2sync; chformal -lower; chformal -early; opt_clean` produces the exact
+combinational predicate. Out03 validates that predicate before proof. No
+unchanged timed-out job, increased cap, weakened assertion or production edit.
+
+## Historical D60–D62 packet decomposition (2026-11-19)
 
 Base `20bcb66995886ec8ff182012157360868a529f91`, descendant of requested
 `33cf251`; production RTL and all original assertions are unchanged. All

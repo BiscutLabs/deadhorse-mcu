@@ -11,12 +11,16 @@ dependent results and small-model results must be labelled explicitly. See
 Status: consume-path change verified and estimated pad/reset contract measured;
 complete T19 acceptance remains blocked.
 
-Packet decomposition proves six original assertions at production size and
-four additional assertions at eight bytes, backed by passing full-size seeded
-simulation: "proved at small model, simulated at full size". IN progress and OUT byte integrity remain
-unresolved after the approved attempt. No production buffer change or new
-environment assumption supports the accepted partial results; arbitrary later
-common resets remain. Exact claims and receipts are in the USB formal ledger.
+Packet decomposition now discharges all original common-reset harness claims:
+seven at production size and five at eight bytes, backed by the prior passing
+full-size seeded simulation: "proved at small model, simulated at full size".
+The focused follow-up proves IN progress at 16 bytes and OUT byte integrity at
+eight bytes using separately proved ownership/position lemmas. Production RTL,
+original assertions and environments are unchanged; arbitrary later common
+resets remain. This is not an independent transport-reset/SIE composition proof.
+No CI or USB aggregate was run in this follow-up, per user instruction. Exact
+claims, historical simulation provenance and focused receipts are in the USB
+formal ledger.
 
 D59 (2026-11-19) sets the active USB sample-clock single-cycle warning ceiling
 to 15 ns. The target remains estimated 12.5 ns, and post-placement timing with
@@ -40,8 +44,9 @@ reset and every non-exempt state/output; phase and real-wire consumer controls
 reject their faults. Reset-safe P proofs and exact source/mapped certificates
 pass. CP is 3/2 only for reset-compatible R/B/H launches; S and other full-rate
 launches into P retain strict FP timing. The final frozen run passes all 19 simulations, equivalence, focused formal
-and CDC. USB acceptance and fast CI still fail on original packet proofs,
-hold/reset and prior qualification obligations. Full tier and post-placement
+and CDC. That historical USB acceptance/fast CI run failed on then-open packet
+proofs, hold/reset and prior qualification obligations. The new focused packet
+receipts still need aggregate integration; CI has not been rerun. Full tier and post-placement
 real-wire timing are not run; no merge. See the T19 report for exact commands.
 
 The standalone SIE fixture remains a measured diagnostic under the user-approved

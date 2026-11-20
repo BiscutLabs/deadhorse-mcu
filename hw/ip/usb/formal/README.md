@@ -207,13 +207,13 @@ checked. No original assertion is an assumed helper. The memory-refinement
 receipt must match the packet geometry. `packet_receipt.py` accounts for all
 twelve original claims exactly once and preserves unresolved results.
 
-The current full-size partial result proves IN capacity, read-nonempty, byte
-integrity and held-valid, plus OUT held-valid and held-data. IN integrity and
+The current full-size result proves IN capacity, read-nonempty, byte
+integrity, held-valid and progress, plus OUT held-valid and held-data. IN integrity and
 the two IN queue claims compose the proved sparse-memory refinement with the
 common-reset age guarantee. Eight-byte proofs add IN held-data and OUT capacity,
-read-nonempty and progress. These four are labelled "proved at small model,
-simulated at full size", backed by the passing full-size seeded suite. IN progress
-and OUT integrity remain unresolved after the approved attempt. Real covers
+read-nonempty, integrity and progress. These five are labelled "proved at small model,
+simulated at full size", backed by the prior passing full-size seeded suite.
+The focused follow-up closes both formerly unresolved original claims. Real covers
 and original-assertion-specific faulty-DUT witnesses remain required.
 
 No reset-removal assumption was applied. The literal proposed reset-return
@@ -227,3 +227,35 @@ OUT data, symbolic byte selection and application inputs remain arbitrary.
 Such results are conditional on the encoded-operation harness contract; the
 phase certificate does not establish a new full-SIE composition theorem.
 E2 is skipped because no exact raw-push spacing guarantee has been proved.
+
+## Focused progress and integrity follow-up
+
+`UsbPacketProgress.scala` inherits the unchanged IN oracle and adds the asserted
+ownership fact `pending => head != visibleTail`. `packet_remaining.py --role in`
+proves storage plus that fact on the real 16-byte model, then the original
+service assertion. The pending-state and withheld-valid faults must fail.
+
+`UsbOutPositionLemma.scala` asserts `watching && inPacket => position >= queued`.
+Its emitted monitor binds to those exact original oracle nets. Monitor-only
+formal retiming removes assertion sampling stages; the runner checks the exact
+unsigned predicate/reset guard and rejects state, assumptions, wrong widths,
+input drivers and multiple drivers. Removing the monitor restores the entire
+original canonical model. This adds no DUT behavior or input restriction.
+
+`packet_remaining.py --role out --position-bridge --prior-audit <receipt>`
+reproves storage, position lower bound, ownership, owned-data lifetime and read
+pipeline groups on the same augmented eight-byte canonical hash, then the
+original byte-integrity assertion. Only authenticated PASS predecessors become
+assumptions. Original assertions never become assumed helpers. Sparse and real
+faults run without helper assumptions; the audited size-matched memory
+refinement and real full/empty/wrap/retry/maximum-packet covers remain required.
+
+`--audit-result <receipt>` validates source/emission/canonical hashes, archived
+runner, exact solver inputs, guarded predicates, acyclic dependency receipts,
+real controls and monitor composition without rerunning proofs. Progress and
+integrity are unbounded induction proofs with the unchanged depth 48 and
+120-second cap. The exact commands/results are in the USB formal ledger.
+No E1/E2 or initial-reset-only assumption is used. CI, the USB aggregate, timing
+and simulation were not run in this follow-up, as instructed; prior full-size
+simulation is historical evidence on unchanged production RTL. Independent
+transport-reset/SIE composition and aggregate receipt integration remain open.
