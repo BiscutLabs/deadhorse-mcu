@@ -27,6 +27,7 @@ PLAN01 is documentation only; no other task is started by this revision.
 | T17 | [I2C controller](T17-i2c-host.md) | T05, T07, T09, T14, T16 | User assigned next serial peripheral; controller only, retained loader separate |
 | T18 | [Lite I2C recovery loader](T18-i2c-recovery-loader.md) | T06, T07, T09, T14 | Pinned clocked adoption and end-to-end recovery test brief ready |
 | T19 | [USB CDC-ACM](T19-usb.md) | T05, T07, T08, T09, T14 | User assigned adoption; source assessment must resolve vendor timing/CDC exceptions before production integration |
+| T20 | [Reference SoC integration, I0–I1](T20-soc-integration.md) | T05, T07, T09, T13, T14–T19, S3 | Write `docs/spec/soc.md` first; Q15/Q16 stay open |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |
@@ -39,17 +40,22 @@ Those results were not rerun by PLAN01. Maven Central blocked the original
 Scala/build verification. The historical QEMU off-by-one issue remains T02's
 work; no test failure was fixed by editing this plan.
 
-All newly specified commands in T07-T14/S1-S4 are explicitly unverified until
+All newly specified commands in T07-T14, T20 and S1-S4 are explicitly unverified until
 those tasks run. A written acceptance command is not an implemented tool.
 Missing tools cannot be skipped to claim success.
 
 ## Further briefs still required
 
-RISCay source adoption/restructuring; shared CDC; analog macro layout and
-threshold controls; physical-flow/pad-ring import; peripheral/DMA/pin-mux and
-SoC integration; final actuator ABI after policy tests; production test and
-board/silicon integration. Prepare these from the approved contracts before
-assigning implementation. T19 owns the supplied USB digital implementation and
+SoC integration now has a plan ([../16-soc-integration.md](../16-soc-integration.md))
+and a brief for its first two stages (T20). Block briefs still required, in
+the order the SoC stages need them: timers and timebase; actuator block
+(final ABI after policy tests); interrupt routing and GPIO/pin mux; RISCay
+lite-core adoption; power/clock/reset controller and watchdogs; boot ROM,
+QSPI flash and XIP; JTAG debug for both cores; DMA; analog macro layout and
+threshold controls; physical-flow/pad-ring import; production test and
+board/silicon integration. Each new block brief ends by replacing its stub
+in the reference SoC and passing the SoC system tests. Prepare these from the
+approved contracts before assigning implementation. T19 owns the supplied USB digital implementation and
 its adoption assessment; USB electrical and shuttle qualification remain open.
 D18 and chip-to-chip work are deferred.
 

@@ -31,6 +31,7 @@ is subsequently assigned.
 | [13-test-environment.md](13-test-environment.md) | Pinned tool environment, block tests, reference models, one test body on four targets, firmware and airframe in the loop |
 | [14-timing-design-rules.md](14-timing-design-rules.md) | Rules against long combinational paths, and the per-block GF180 timing check |
 | [15-skills.md](15-skills.md) | The agent skills and when to use each |
+| [16-soc-integration.md](16-soc-integration.md) | SoC integration: block inventory, staged assembly with stubs, top-level rules, open clock plan, block briefs still needed |
 | [STATUS.md](STATUS.md) | Progress tracker: decisions, tasks, gates, and a change log |
 | [tasks/README.md](tasks/README.md) | Task briefs for Phase 0 and the spikes, written for hand-off |
 | [../spec/](../spec/) | Register-map format and actuator block |

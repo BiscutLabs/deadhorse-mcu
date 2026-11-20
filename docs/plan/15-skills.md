@@ -69,6 +69,7 @@ called done.
 | T13 F integration | `sv-to-chisel-translation` (unchanged modules must stay equivalent), `clocked-chisel-block-design`, `chisel-formal-properties`, `reference-model-testing`, `gf180-synth-timing-check`, `formal-timeout-triage` |
 | S1 Core measurement | `gf180-synth-timing-check`, `reference-model-testing` |
 | T14 Bus, bridge and mailbox | `clocked-chisel-block-design`, `chisel-formal-properties`, `gf180-synth-timing-check`, `reference-model-testing`, `formal-timeout-triage` |
+| T20 Reference SoC integration | `clocked-chisel-block-design`, `regmap-authoring`, `reference-model-testing`, `chisel-formal-properties`, `gf180-synth-timing-check`, `formal-timeout-triage` |
 | S3 Memory | `reference-model-testing` |
 | S4 Latency and test | `gf180-synth-timing-check`, `reference-model-testing` |
 

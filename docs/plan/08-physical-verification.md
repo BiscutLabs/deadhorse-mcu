@@ -29,6 +29,9 @@ for production test needs both, so the approved choice is
 
 ## Historical area budget (not a revised fit result)
 
+T20 rebuilds this budget from measured block areas; see
+[16-soc-integration.md](16-soc-integration.md) for the current inventory.
+
 The following component estimates do not establish whole-chip fit.
 
 | Block | Mapped (mm2) | Basis |

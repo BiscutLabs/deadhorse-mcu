@@ -94,6 +94,7 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | K14 | Domain bridge and mailbox are new and cross a stopped clock | T14 proves one response per request, no lost wake, cancel on reset; independent models |
 | K21 | A later neuromorphic or chip-to-chip project must add a NoC | Reserved address window and interrupt (D43); that project carries its own router, source rights and area |
 | K22 | Multiplier arithmetic rests on an algebraic lemma, review and simulation, not an end-to-end proof | T10 attempts the stronger abstract-function check once; lockstep and the stress fixture stay in CI; module equivalence carries the conversion |
+| K23 | Blocks needed for flight (timers, actuator, interrupt routing, pin mux, boot, lite core, power/clock/reset, debug, DMA, analog) are not yet briefed; the chip-level area budget predates the FPU | Staged integration with honest stubs (16); T20 rebuilds the area budget; block briefs in the order of 16 |
 | K15 | RISCay clean baseline not fully reproduced | T06, with independent receipt and no changes to upstream |
 | K16 | New pinned environment/build unverified | T08 then T07; missing tools fail required checks |
 | K17 | Performance/power improvements unmeasured | Document intended improvements and measure; do not inherit Ibex results |
@@ -117,6 +118,8 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | Q12 | USB boundary approved; actual area, PHY/pads, clock tolerance, delivery and test collateral outstanding | Reservation freeze and integration cutoff |
 | Q13 | Command-timeout deadline and recovery policy intentionally open | Actuator behavior/register freeze after testing |
 | Q14 | UART board assignments and telemetry transport not approved | Board/firmware integration; not MCU foundation |
+| Q15 | Main clock source and frequency: derive 8 MHz from the 48 MHz USB input, or keep a separate source for 9 MHz (9 MHz is not an integer division of 48 MHz). T20 measures both | G1 clock/CDC partition freeze |
+| Q16 | Control-loop rate target given measured faithful-core cycles (worst 4,350 fixed point, 8,973 hard float): 1 kHz versus the documented 500 Hz fallback, and fixed versus hard float for the inner loop | Flight firmware architecture; S1 closure |
 
 ## Evidence policy
 
