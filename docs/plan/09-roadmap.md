@@ -45,7 +45,10 @@ automatic core substitution, FPU removal or relaxed acceptance limits.
 
 ## P2 SoC and FPGA
 
-Under separately assigned integration briefs: adopt/restructure RISCay clocked
+The SoC is assembled in stages I0–I5 of
+[16-soc-integration.md](16-soc-integration.md). T20 builds the reference SoC
+top with existing blocks and honest stubs (I0–I1); each later block brief
+replaces its own stub. Under separately assigned integration briefs: adopt/restructure RISCay clocked
 logic, integrate selected core/FPU and word-wide SRAM, bus/ownership/CDC, shared
 sleep peripherals/DMA, domain bridge and mailbox, timers, actuator and pin mux. Establish
 two-image boot/recovery, unlocked both-core JTAG and UART gateway, USB stub.
