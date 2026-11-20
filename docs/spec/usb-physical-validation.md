@@ -1,5 +1,10 @@
 # T19 standalone routed USB validation, 2026-11-20
 
+D63 subsequently authorizes merging the USB branch for collaborative follow-up.
+That authorization supersedes the earlier no-merge instruction, not the failed
+validation result or any signoff requirement. See the
+[merge handoff](../plan/tasks/reports/T19.md#merge-handoff-remaining-work).
+
 **Outcome: failed validation; not physical signoff.** The mandatory routed
 recheck was performed on the unchanged integrated USB wrapper. Three reported
 path classes exceed the approved limits. Local reset-release structure and

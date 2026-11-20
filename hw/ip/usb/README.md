@@ -1,5 +1,12 @@
 # USB CDC-ACM peripheral (T19)
 
+D63 (2026-11-20): the user authorized merging this work into `main` for others
+to help finish it. **USB/T19 is not accepted or physically signed off.** Open
+items are routed setup, boundary hold/RDC, physical integration/signoff, OUT
+reset/SIE composition, retained sampling/exception proofs and acceptance
+execution. See the [merge handoff](../../../docs/plan/tasks/reports/T19.md#merge-handoff-remaining-work).
+No CI runs for this merge; earlier no-merge statements describe prior checkpoints.
+
 Physical follow-up (2026-11-20): the unchanged wrapper has now been placed,
 clock-tree synthesized, routed and measured with extracted RC across fifteen
 PVT/RC cases. Validation fails: measured worst observed FP is 13.691668 ns
