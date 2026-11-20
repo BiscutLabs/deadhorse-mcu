@@ -19,7 +19,7 @@ lazy val hw = project.in(file(".")).settings(
   Compile / unmanagedSourceDirectories := sources("main") ++ Seq(repo / "hw/lib/formal", repo / "hw/ip/bus/formal",
     repo / "hw/ip/bus_bridge/formal", repo / "hw/ip/mailbox/formal", repo / "hw/ip/uart/formal",
     repo / "hw/ip/spi_host/formal", repo / "hw/ip/i2c_host/formal",
-    repo / "hw/ip/i2c_recovery_loader/formal", repo / "build/vendor/hardfloat"),
+    repo / "hw/ip/i2c_recovery_loader/formal", repo / "hw/ip/usb/formal", repo / "build/vendor/hardfloat"),
   Test / unmanagedSourceDirectories := sources("test"),
   Compile / unmanagedResourceDirectories := Seq.empty,
   Test / unmanagedResourceDirectories := Seq.empty,

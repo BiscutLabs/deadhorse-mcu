@@ -1,4 +1,4 @@
-"""Pinned single-clock or stateless GF180 timing. No exception/waiver flags."""
+"""Pinned GF180 timing; D45 USB class reporting remains fail-closed pending qualification."""
 import argparse
 import csv
 import hashlib
@@ -10,8 +10,9 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 CONFIG = ROOT / 'phys/gf180-ws-1x1/block-timing.json'
-OPERATING_POINTS = ('default', 'main-12mhz', 'main-9p6mhz', 'main-9mhz')
+OPERATING_POINTS = ('default', 'main-12mhz', 'main-9p6mhz', 'main-9mhz', 'usb-48mhz')
 
 # Reference adapters and primitives are verification-only.
 sys.path.insert(0, str(ROOT / 'dv/core'))
@@ -53,6 +54,49 @@ def result_status(delay, budget, electrical):
     return 'pass' if delay <= budget and electrical['max_capacitance_and_slew_violations'] == 0 else 'fail'
 
 
+def protocol_cycles(kind):
+    return 4 if kind=='CC' else 3 if kind=='CP' else 1
+
+
+def pre_enable_edges(log, period):
+    """Audit the applied STA edges, including that FP did not inherit 3/2."""
+    result={}
+    for kind in ('CP','FP'):
+        for mode in ('max','min'):
+            blocks=re.findall(rf'PRE_ENABLE_EDGE_BEGIN {kind} {mode}\n(.*?)PRE_ENABLE_EDGE_END {kind} {mode}',log,re.S)
+            if len(blocks)!=1:raise ValueError('Missing/duplicate pre-enable edge audit')
+            edges=[float(n) for n in re.findall(r'^\s*[-\d.]+\s+([-\d.]+)\s+clock \S+ \(rise edge\)',blocks[0],re.M)]
+            expected=[0.0,period*protocol_cycles(kind) if mode=='max' else 0.0]
+            # Only allow printing/STA float precision, never a path-budget margin.
+            if len(edges)!=2 or any(abs(a-b)>0.000002 for a,b in zip(edges,expected)):
+                raise ValueError('Incorrect pre-enable setup/hold edges: '+kind+'/'+mode)
+            result[kind+'/'+mode]=edges
+    return result
+
+
+def screening_limit(top, kind, target, period, operating_point):
+    """D57/D59: USB sample-clock single-cycle warning ceiling is 15 ns."""
+    usb_tops={'UsbControl','UsbEngine','Usb','UsbInBuffer','UsbOutBuffer','UsbResume','UsbSieTiming'}
+    domain,base=kind.split('.',1) if '.' in kind else (None,kind)
+    singles={'RR','CC_reset','CF','FC','FF','IR','RO','IO','RG','IG'}
+    if top in usb_tops and operating_point=='usb-48mhz' and domain in (None,'usbClock') and base in singles:
+        return 15.0
+    return target
+
+
+def classify_screening(paths, targets, limits, electrical, hold_reset_violations, pending):
+    if not paths or any(p['class'] not in targets or p['class'] not in limits for p in paths):
+        raise ValueError('Missing/unknown timing path class')
+    if any(not math.isfinite(p['delay_ns']) or p['delay_ns']<0 for p in paths):
+        raise ValueError('Invalid timing path delay')
+    warnings=[dict(p,target_ns=targets[p['class']],failure_limit_ns=limits[p['class']])
+              for p in paths if targets[p['class']]<p['delay_ns']<=limits[p['class']]]
+    setup='fail' if any(p['delay_ns']>limits[p['class']] for p in paths) else 'warning' if warnings else 'pass'
+    passed=setup!='fail' and electrical['max_capacitance_and_slew_violations']==0 and not hold_reset_violations
+    return dict(status=('blocked' if pending else setup) if passed else 'fail',
+                numerical_status=setup if passed else 'fail',setup_status=setup,timing_warnings=warnings)
+
+
 def run(command, output, name, allowed=(0,)):
     result = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
@@ -64,7 +108,7 @@ def run(command, output, name, allowed=(0,)):
     return result.stdout
 
 
-def validate_boundary(module, clock, library_cells, combinational=False):
+def validate_boundary(module, clock, library_cells, combinational=False, domain_clocks=None):
     ports = module['ports']
     if not combinational and (clock not in ports or ports[clock]['direction'] != 'input' or len(ports[clock]['bits']) != 1):
         raise ValueError('Missing scalar clock input')
@@ -75,6 +119,11 @@ def validate_boundary(module, clock, library_cells, combinational=False):
     # arbitrary logic, cascaded gates, dividers, or extra clock domains.
     gate_type='gf180mcu_fd_sc_mcu7t5v0__icgtp_1'
     clock_nets=[] if combinational else [ports[clock]['bits']]
+    if domain_clocks:
+        for domain in domain_clocks:
+            if domain not in ports or ports[domain]['direction']!='input' or len(ports[domain]['bits'])!=1:
+                raise ValueError('Missing wrapper domain clock')
+        clock_nets=[ports[domain]['bits'] for domain in domain_clocks]
     for cell in module['cells'].values():
         if cell['type']==gate_type:
             pins=cell['connections']
@@ -98,11 +147,14 @@ def timing_config(operating_point='default'):
         raise ValueError('Unsupported timing operating point')
     cfg = json.loads(CONFIG.read_text())
     if operating_point != 'default':
-        frequency_mhz = {'main-12mhz': 12.0, 'main-9p6mhz': 9.6, 'main-9mhz': 9.0}[operating_point]
+        frequency_mhz = {'main-12mhz': 12.0, 'main-9p6mhz': 9.6, 'main-9mhz': 9.0, 'usb-48mhz': 48.0}[operating_point]
         cfg['period_ns'] = 1000.0 / frequency_mhz
         cfg['provenance'] = (f'User-authorized T13 {frequency_mhz:g} MHz trial: only the period changes; '
                              'the budget fraction and other constraints are unchanged. '
                              'Default configuration provenance: ' + cfg['provenance'])
+        if operating_point == 'usb-48mhz':
+            cfg['provenance'] = cfg['provenance'].replace('User-authorized T13 48 MHz trial',
+                'T19 required USB 48 MHz sample-clock operating point')
         if operating_point == 'main-9mhz':
             cfg['provenance'] = cfg['provenance'].replace(
                 'only the period changes;',
@@ -117,12 +169,12 @@ def mapping_target_ps(cfg, operating_point):
     return min(budget_ps, 62500.0) if operating_point == 'main-9mhz' else budget_ps
 
 
-def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default'):
-    return _measure(top,sources,clock,output,liberty,combinational,operating_point=operating_point)
+def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default', usb_cadence=None, usb_equivalence=None):
+    return _measure(top,sources,clock,output,liberty,combinational,operating_point=operating_point,usb_cadence=usb_cadence,usb_equivalence=usb_equivalence)
 
 
 def _measure(top, sources, clock, output, liberty=None, combinational=False,
-             reference_options=None, *, operating_point='default'):
+             reference_options=None, *, operating_point='default', usb_cadence=None, usb_equivalence=None):
     # Shared numerical flow. The production entry above always checks isolation.
     # Only dv/core/reference_timing.py supplies authenticated reference options;
     # such receipts are explicitly benchmarks, never production acceptance.
@@ -131,6 +183,9 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     if reference_options is not None and operating_point != 'default':
         raise ValueError('Reference benchmark requires the default operating point')
     cfg = timing_config(operating_point)
+    if usb_cadence and (top not in ('UsbControl','UsbEngine','Usb','UsbSieTiming') or operating_point!='usb-48mhz' or reference_options or combinational):
+        raise ValueError('D45 only permits production USB control/engine timing')
+    domain_clocks=({'appClock':41.6,'usbClock':1000/48,'aonClock':41.6} if top=='Usb' and usb_cadence else None)
     if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', top + ''):
         raise ValueError('Top must be a simple identifier')
     if combinational and clock is not None:
@@ -164,6 +219,14 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     run(['yosys', '-Q', '-T', '-s', str(elaborate)], output, 'elaboration')
     library_cells = set(re.findall(r'\bcell\s*\(\s*"?([^\s"()]+)"?\s*\)', liberty.read_text()))
     elaborated = json.loads((output / 'elaborated.json').read_text())
+    resume_modules = [name for name in elaborated['modules'] if name.split('$')[0]=='UsbResume']
+    if operating_point == 'usb-48mhz' and resume_modules:
+        # Preserve the count-decode boundaries requested by production Chisel
+        # dontTouch: emission retains names, but no Verilog keep for ABC.
+        predicates = ' '.join(f'{name}/w:{pattern}' for name in resume_modules
+                              for pattern in ('terminalMatch','carries_countMatch*'))
+        frontend += [f'select -assert-count {5*len(resume_modules)} {predicates}',
+                     f'setattr -set keep 1 {predicates}']
     # Detect uncharacterized macros before flattening/optimization can erase an
     # empty synthesis stub (notably the T06 SRAM model's SYNTHESIS branch).
     for name, mod in elaborated['modules'].items():
@@ -183,7 +246,7 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     # maximum aggregate load to every mapper PO. STA constraints do not change.
     premap = output / 'premap.ys'
     premap.write_text('\n'.join(frontend + [
-        'check -assert', f'synth -top {top} -flatten -noabc',
+        'check -assert', f'synth -top {top} -flatten -noabc'+(' -nofsm' if usb_cadence else ''),
         f'dfflibmap -liberty "{liberty}"', f'write_json "{output / "premapped.json"}"', '']))
     run(['yosys','-Q','-T','-s',str(premap)],output,'premap')
     predesign = json.loads((output/'premapped.json').read_text())
@@ -192,6 +255,9 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
                    driver_cell_heuristic=driver, output_load_ff=cfg['output_load_pf'] * 1000 * multiplicity,
                    output_alias_multiplier=multiplicity, output_alias_groups=aliases,
                    retiming=False)
+    if usb_cadence:
+        mapping['fsm_recoding']=False
+        mapping['identity_provenance']='Preserve source register bits for D45 pin certificates; no state recoding'
     if operating_point == 'main-9mhz':
         mapping['target_provenance'] = ('Retain the 9.6 MHz trial mapping target; '
                                         'STA acceptance remains period * budget_fraction.')
@@ -207,21 +273,50 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     # reimporting JSON: serialization changes ABC's traversal order and would
     # gratuitously perturb the qualified mapping even for non-aliased blocks.
     synth.write_text('\n'.join(frontend + [
-        'check -assert', f'synth -top {top} -flatten -noabc',
+        'check -assert', f'synth -top {top} -flatten -noabc'+(' -nofsm' if usb_cadence else ''),
         f'dfflibmap -liberty "{liberty}"',
         f'abc -liberty "{liberty}" -constr "{abc_constraints}" -script "{abc_script}"',
         'clean -purge', 'check -assert', f'stat -liberty "{liberty}"',
+        *(['rename -enumerate'] if usb_cadence else []),
         f'write_json "{output / "mapped.json"}"',
         f'write_verilog -noattr -noexpr "{output / "mapped.v"}"', '']))
     synthesis = run(['yosys', '-Q', '-T', '-s', str(synth)], output, 'synthesis')
     design = json.loads((output / 'mapped.json').read_text())
+    if usb_cadence and top in ('UsbEngine','Usb','UsbSieTiming'):
+        from tools.timing.usb_enable_fanout import replicate, prove_pair
+        design['modules'][top], replication = replicate(design['modules'][top],top)
+        replication['proof'] = prove_pair(liberty,output/'enable-replica-proof')
+        mapping['enable_replication'] = replication
+    if operating_point == 'usb-48mhz':
+        from tools.timing.fanout import BUFFER, buffer_module
+        if BUFFER not in library_cells:
+            raise ValueError('USB fanout buffer absent from pinned library')
+        (output / 'unbuffered.json').write_text(json.dumps(design))
+        design['modules'][top], inserted = buffer_module(design['modules'][top], clock)
+        if usb_cadence and top in ('UsbEngine','Usb','UsbSieTiming'):
+            from tools.timing.usb_enable_fanout import size_enable_buffers
+            design['modules'][top], mapping['enable_buffer_sizing'] = size_enable_buffers(
+                design['modules'][top],liberty,output/'enable-buffer-sizing')
+        mapping['fanout_tree'] = dict(cell=BUFFER,limit=8,inserted=len(inserted),
+                                    verification='all original pins resolve identically; clocks unchanged')
+        from tools.timing.usb_buffer_sizing import size as size_usb_buffers
+        design['modules'][top], mapping['usb_buffer_sizing'] = size_usb_buffers(
+            design['modules'][top],liberty,output/'usb-buffer-sizing')
+        (output / 'buffered.json').write_text(json.dumps(design))
+        buffer_script = output / 'buffer.ys'
+        buffer_script.write_text('\n'.join([
+            f'read_json "{output / "buffered.json"}"', 'check -assert',
+            f'stat -liberty "{liberty}"', f'write_json "{output / "mapped.json"}"',
+            f'write_verilog -noattr -noexpr "{output / "mapped.v"}"', '']))
+        synthesis = run(['yosys','-Q','-T','-s',str(buffer_script)],output,'buffer')
+        design = json.loads((output / 'mapped.json').read_text())
     module = design['modules'][top]
     post_multiplicity, post_aliases = output_aliases(module)
     if post_multiplicity > multiplicity:
         raise ValueError('ABC introduced additional output aliases; mapping load must be revised')
     mapping['mapped_output_alias_multiplier'] = post_multiplicity
     mapping['mapped_output_alias_groups'] = post_aliases
-    validate_boundary(module, clock, library_cells, combinational)
+    validate_boundary(module, clock, library_cells, combinational,domain_clocks)
     areas = re.findall(r'Chip area for (?:top )?module.*?:\s*([0-9.]+)', synthesis)
     if not areas:
         raise ValueError('Missing mapped area')
@@ -230,20 +325,79 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
                if cell['type']=='gf180mcu_fd_sc_mcu7t5v0__icgtp_1' for pin in ('E','TE')]
     if any(re.search(r'[{}\s]',pin) for pin in gate_pins):
         raise ValueError('Unsupported clock-gate instance name')
+    certificate=None
+    if usb_cadence:
+        from hw.ip.usb.formal.enable_certificate import certify
+        cadence=json.loads(local(usb_cadence).read_text())
+        case=cadence.get('cases',{}).get('cadence_reset',{})
+        if cadence.get('status')!='pass' or case.get('status')!='pass' or {j.get('result') for j in case.get('jobs',[])}!={'proved','covered','fault_rejected'}:
+            raise ValueError('Missing reset-safe cadence proof/cover/fault')
+        for name,expected in cadence.get('production_source_sha256',{}).items():
+            if digest(local(name))!=expected:raise ValueError('Stale cadence source')
+        if 'hw/ip/usb/src/main/scala/deadhorse/usb/UsbBitEnable.scala' not in cadence.get('production_source_sha256',{}):
+            raise ValueError('Unbound production cadence')
+        equivalence=json.loads(local(usb_equivalence).read_text()) if usb_equivalence else None
+        certificate=certify(top,sources,output/'mapped.json',liberty,output/'certificate',cadence,equivalence)
+        certificate['cadence_receipt_sha256']=digest(local(usb_cadence))
+        sets={'certified_q':[], 'certified_d':[], 'certified_clock':[], 'full_q':[], 'full_d':[], 'reset_pins':[], 'pre_d':[], 'pre_certified_q':[], 'pre_certified_clock':[], 'pre_full_q':[]}
+        pre=certificate.get('pre_enable',{})
+        pre_names=set(pre.get('capture_pins',{}))
+        pre_launch=set(n for g in pre.get('allowed_launch_groups',[]) for n in certificate['reset_aware']['groups'][g])
+        for name,cell in module['cells'].items():
+            if 'CLK' not in cell['connections']:continue
+            prefix='certified' if name in certificate['certified'] else 'full'
+            sets[prefix+'_q'].append(name+'/Q')
+            sets['pre_d' if name in pre_names else prefix+'_d'].append(name+'/D')
+            sets['pre_certified_q' if name in pre_launch else 'pre_full_q'].append(name+'/Q')
+            if name in pre_launch:sets['pre_certified_clock'].append(name+'/CLK')
+            if prefix=='certified':sets['certified_clock'].append(name+'/CLK')
+            sets['reset_pins'].extend(name+'/'+p for p in ('RN','SETN') if p in cell['connections'])
+        if any(re.search(r'[{}\s]',p) for values in sets.values() for p in values):
+            raise ValueError('Unsafe mapped pin name')
+        constraints=output/'protocol.tcl'
+        lines=['set '+name+' {'+' '.join(values)+'}' for name,values in sets.items()]
+        reset_groups=certificate['reset_aware']['groups']
+        lines.append('set reset_groups {'+' '.join(g+' {'+' '.join(names)+'}' for g,names in reset_groups.items())+'}')
+        lines.append('set reset_pairs {'+' '.join('{'+a+' '+b+'}' for a,b in certificate['reset_aware']['allowed_pairs'])+'}')
+        constraints.write_text('\n'.join(lines)+'\n')
+    from tools.timing.usb_boundary import contract, characterize, tcl_rows, reset_sinks, audit_runs, validate as validate_usb_contract
+    usb_boundary=contract(top,characterize(liberty)) if top in ('UsbEngine','Usb') and operating_point=='usb-48mhz' else None
+    if usb_boundary:
+        validate_usb_contract(usb_boundary,module,domain_clocks or {'block_clock':cfg['period_ns']})
+        usb_boundary['reset_sink_inventory']=reset_sinks(usb_boundary,module)
     tcl.write_text('\n'.join([
         f'set liberty {{{liberty}}}', f'set netlist {{{output / "mapped.v"}}}',
         f'set top {top}', f'set clock_port {{{clock or ""}}}', f'set period {cfg["period_ns"]}',
         f'set combinational {int(combinational)}',
+        *(['set domain_periods {'+' '.join(f'{n} {p}' for n,p in domain_clocks.items())+'}'] if domain_clocks else []),
         'set clock_gate_pins {'+' '.join(gate_pins)+'}',
         f'set input_transition {cfg["input_transition_ns"]}',
         f'set output_load {cfg["output_load_pf"]}',
+        *(['set usb_input_contract {'+tcl_rows(usb_boundary['inputs'])+'}',
+           'set usb_output_contract {'+tcl_rows(usb_boundary['outputs'])+'}'] if usb_boundary else []),
         f'set path_report {{{output / "paths.tsv"}}}',
         f'set gate_path_report {{{output / "gate_checks.tsv"}}}',
+        *([f'source {{{output / "protocol.tcl"}}}'] if certificate else []),
         f'source {{{ROOT / "tools/timing/analyze.tcl"}}}', '']))
     timing = run(['sta', '-no_init', '-exit', str(tcl)], output, 'sta')
-    if 'TIMING_COMPLETE' not in timing or re.search(r'(?im)^Error:', timing):
+    if 'TIMING_COMPLETE' not in timing or re.search(r'(?im)^Error:|not a valid (?:start|end) point', timing):
         raise ValueError('Incomplete STA analysis; see sta.log')
     electrical = electrical_checks(timing)
+    pre_edges=pre_enable_edges(timing,cfg['period_ns']) if certificate and certificate.get('pre_enable') else None
+    short_reset_checks=[]
+    if certificate:
+        with (output/'short_reset_checks.tsv').open() as stream:
+            short_reset_checks=list(csv.DictReader(stream,delimiter='\t'))
+        if not short_reset_checks:
+            raise ValueError('Missing hold/reset report')
+        for row in short_reset_checks:
+            row['slack_ns']=float(row['slack_ns'])
+            if not math.isfinite(row['slack_ns']):raise ValueError('Invalid hold/reset slack')
+    short_reset_violations=[row for row in short_reset_checks if row['slack_ns']<0]
+    boundary_audit=audit_runs(output,tcl,run,usb_boundary) if usb_boundary else None
+    if boundary_audit:
+        boundary_audit['physical_flow_items']=[dict(row,disposition='Retained pre-CTS hold diagnostic; resolve/check in physical flow, no RTL delay added')
+            for row in short_reset_violations if row['check'].startswith('hold/')]
     gate_checks=[]
     if gate_pins:
         with (output/'gate_checks.tsv').open() as stream:
@@ -265,17 +419,43 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
         if not math.isfinite(path['delay_ns']) or path['delay_ns'] < 0:
             raise ValueError('Invalid path delay')
     worst = max(paths, key=lambda p: p['delay_ns'])
-    report = dict(status=result_status(worst['delay_ns'], budget, electrical), top=top,
+    def class_budget(kind):
+        domain,base=kind.split('.',1) if '.' in kind else (None,kind)
+        period=domain_clocks[domain] if domain else cfg['period_ns']
+        return period*cfg['budget_fraction']*protocol_cycles(base)
+    def class_limit(kind):
+        domain=kind.split('.',1)[0] if '.' in kind else None
+        period=domain_clocks[domain] if domain else cfg['period_ns']
+        return screening_limit(top,kind,class_budget(kind),period,operating_point)
+    class_names=(tuple(f'{domain}.{kind}' for domain in domain_clocks for kind in ('CC','CC_reset','CF','FC','FF','CP','FP','IR','RO','IO','RG','IG')) if domain_clocks else
+                 ('CC','CC_reset','CF','FC','FF','CP','FP','IR','RO','IO','RG','IG') if certificate else ('RR','IR','RO','IO','RG','IG'))
+    classes={kind:max((p for p in paths if p['class']==kind),key=lambda p:p['delay_ns'],default=None) for kind in class_names}
+    # D45 implementation is under qualification. A numeric pass alone cannot
+    # discharge sampling equivalence, exception coverage and planted path faults.
+    pending=(['Protocol sampling equivalence is not yet proved',
+              'Applied setup/hold exception coverage and per-class over-budget faults remain unqualified']
+             if certificate else [])
+    screening=classify_screening(paths,{k:class_budget(k) for k in class_names},
+                                {k:class_limit(k) for k in class_names},electrical,short_reset_violations,pending)
+    if boundary_audit and not boundary_audit['output_checks_pass']:
+        screening.update(status='fail',numerical_status='fail')
+    report = dict(**screening,top=top,unresolved=pending,
+                  post_placement_recheck=dict(required=operating_point=='usb-48mhz',status='not run',
+                      scope='D57 requires a fresh post-placement timing check with real interconnect delays before final USB timing qualification; pre-layout warning acceptance is provisional'),
                   role=('reference-benchmark-only' if reference_options is not None else
-                        'operating-point-trial' if operating_point != 'default' else 'production'),
+                        'operating-point-trial' if operating_point not in ('default','usb-48mhz') else 'production'),
                   operating_point=operating_point,
-                  mapping=mapping, electrical=electrical,
-                  boundary='combinational' if combinational else 'root-clock-with-icg' if gate_pins else 'single-clock',
+                  domain_periods_ns=domain_clocks,
+                  domain_scope=('All mapped registers and glue; app/AON screened at conservative 41.6 ns, USB at 1000/48 ns. USB pads/reset releases use the explicit conditional boundary contract; other IO retains every-domain zero delays. Asynchronous inter-domain paths excluded from synchronous STA; peer-domain reset sinks are inventoried and remain RDC-unqualified, with zero-phase diagnostics retained' if domain_clocks else None),
+                  mapping=mapping, electrical=electrical,usb_boundary_contract=usb_boundary,boundary_audit=boundary_audit,
+                  boundary='usb-three-clock-domains' if domain_clocks else 'combinational' if combinational else 'root-clock-with-icg' if gate_pins else 'single-clock',
                   clock_gate_checks=gate_checks,
                   budget_ns=budget, worst=worst,
-                  classes={kind: max((p for p in paths if p['class'] == kind),
-                                    key=lambda p: p['delay_ns'], default=None)
-                           for kind in ('RR', 'IR', 'RO', 'IO', 'RG', 'IG')},
+                  protocol_certificate=certificate,pre_enable_edge_audit=pre_edges,
+                  hold_reset_checks=short_reset_checks,hold_reset_violations=short_reset_violations,
+                  class_budgets_ns={kind:class_budget(kind) for kind in class_names},
+                  class_failure_limits_ns={kind:class_limit(kind) for kind in class_names},
+                  classes=classes,
                   area_um2=float(areas[-1]), assumptions=cfg, tools=versions,
                   flow_sha256={str(p.relative_to(ROOT)): digest(p) for p in
                                [CONFIG, *sorted((ROOT / 'tools/timing').glob('*.py')),
@@ -287,7 +467,9 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     (output / 'ledger-row.md').write_text(
         f'| {top} | {worst["delay_ns"]:.6f} ns | {worst["start"]} | {worst["end"]} | '
         f'{worst["logic_depth"]} | {report["area_um2"]:.4f} um2 | {report["status"]} |\n')
-    print(f'{report["status"].upper()} {top}: {worst["delay_ns"]:.6f} ns, budget {budget:.6f} ns; '
+    limiting=max(paths,key=lambda p:p['delay_ns']/class_limit(p['class']))
+    limit=class_limit(limiting['class'])
+    print(f'{report["status"].upper()} {top}: {limiting["class"]} {limiting["delay_ns"]:.6f} ns, target {class_budget(limiting["class"]):.6f} ns, failure limit {limit:.6f} ns; '
           f'electrical violations {electrical["max_capacitance_and_slew_violations"]}', flush=True)
     return report
 
@@ -440,6 +622,8 @@ def main():
     parser.add_argument('--clock')
     parser.add_argument('--combinational', action='store_true')
     parser.add_argument('--liberty')
+    parser.add_argument('--usb-equivalence', help='D58 source-bound engine/wrapper equivalence receipt')
+    parser.add_argument('--usb-cadence', help='D45 reset-safe production cadence receipt; mapped enable certificate is generated, never supplied')
     parser.add_argument('--operating-point', choices=OPERATING_POINTS, default='default',
                         help='Named trial; default production acceptance remains unchanged')
     args = parser.parse_args()
@@ -452,7 +636,7 @@ def main():
         if not args.top or (not args.clock and not args.combinational):
             parser.error('--top and either --clock or --combinational are required')
         return int(measure(args.top, args.source, args.clock, args.output,
-                           args.liberty, args.combinational, operating_point=args.operating_point)['status'] != 'pass')
+                           args.liberty, args.combinational, operating_point=args.operating_point, usb_cadence=args.usb_cadence, usb_equivalence=args.usb_equivalence)['status'] not in ('pass','warning'))
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f'BLOCKED timing: {exc}', file=sys.stderr)
         return 2

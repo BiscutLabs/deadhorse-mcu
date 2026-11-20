@@ -14,8 +14,6 @@ def main():
     if not installed.is_file() or installed.read_bytes() != lock_file.read_bytes():
         raise RuntimeError('use the pinned T08 image via tools/env/run.py')
     lock = json.loads(lock_file.read_text())
-    subprocess.run([sys.executable, str(ROOT / 'hw/vendor/hardfloat/prepare.py')],
-                   cwd=ROOT, check=True)
     pins = lock['versions']
     if (ROOT / 'project/build.properties').read_text().strip() != 'sbt.version=' + pins['sbt']:
         raise RuntimeError('project/build.properties disagrees with T08 lock')
@@ -53,10 +51,14 @@ def main():
     # All invocations share Zinc's class products, even when a formal emitter
     # temporarily adds unmanagedSources. Concurrent sbt processes can remove
     # each other's products between compilation and runMain. Serialize the
-    # complete child lifetime across pinned-container invocations.
+    # preparation and complete child lifetime across pinned-container invocations.
+    # Preparation rewrites and patches shared Scala inputs, so it must not run
+    # while another invocation's Zinc compiler is reading those same files.
     import fcntl
     with (ROOT / 'build/sbt/compile.lock').open('a') as guard:
         fcntl.flock(guard.fileno(), fcntl.LOCK_EX)
+        subprocess.run([sys.executable, str(ROOT / 'hw/vendor/hardfloat/prepare.py')],
+                       cwd=ROOT, check=True)
         return subprocess.call(command, cwd=work)
 
 

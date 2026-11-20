@@ -6,7 +6,187 @@ import unittest
 from tools.timing.check import CONFIG, timing_config, mapping_target_ps, validate_boundary, electrical_checks, result_status, output_aliases
 
 
+class UsbBoundaryTests(unittest.TestCase):
+    def test_liberty_envelope_interpolation_and_out_of_range_rejection(self):
+        from tools.timing.usb_boundary import table_range
+        body='index_1("0, 2"); index_2("0, 2"); values("1, 3", "5, 7");'
+        self.assertEqual(table_range(body,(1,1),(1,1)),(4,4))
+        self.assertEqual(table_range(body,(0,2),(0,2)),(1,7))
+        with self.assertRaises(ValueError):table_range(body,(-1,1),(0,2))
+
+    def test_contract_sources_and_asynchronous_pad_minima(self):
+        from tools.timing.usb_boundary import contract,validate
+        for top in ('UsbEngine','Usb'):
+            c=contract(top)
+            module={'ports':{p:dict(direction=d,bits=[i+2]) for i,(p,d) in enumerate(
+                [(p,'input') for p in c['inputs']]+[(p,'output') for p in c['outputs']])}}
+            clocks={r['clock']:1 for r in c['inputs'].values()}
+            validate(c,module,clocks)
+            for p in ('dpRx','dnRx','vbus'):self.assertEqual(c['inputs'][p]['minimum'],0)
+            for p,r in c['inputs'].items():
+                if p.endswith('Reset_n') or p=='reset_n':
+                    self.assertEqual(r['edge'],'rise');self.assertGreater(r['minimum'],0)
+                    self.assertGreater(r['transition'],0.5)
+            bad=copy.deepcopy(module);bad['ports']['dpRx']['direction']='output'
+            with self.assertRaises(ValueError):validate(c,bad,clocks)
+            with self.assertRaises(ValueError):validate(c,module,{})
+            for key,value in [('minimum',float('nan')),('maximum',float('inf')),('minimum',0.1)]:
+                bad=copy.deepcopy(c);bad['inputs']['dpRx'][key]=value
+                with self.assertRaises(ValueError):validate(bad,module,clocks)
+            bad=copy.deepcopy(c);bad['inputs'].pop('vbus')
+            with self.assertRaises(ValueError):validate(bad,module,clocks)
+        c=contract('Usb')
+        self.assertEqual(c['inputs']['appReset_n']['clock'],'appClock')
+        self.assertEqual(c['inputs']['usbReset_n']['clock'],'usbClock')
+        self.assertEqual(c['inputs']['aonReset_n']['clock'],'aonClock')
+
+    def test_reset_inventory_retains_peer_domain_sinks_and_stops_at_ff(self):
+        from tools.timing.usb_boundary import contract,reset_sinks
+        c=contract('Usb')
+        m={'ports':{n:dict(bits=[i]) for i,n in enumerate(('appClock','usbClock','aonClock','appReset_n','usbReset_n','aonReset_n'),2)},
+           'cells':{}}
+        m['cells']['common']={'connections':{'A':[5],'B':[6],'Z':[8]},'port_directions':{'A':'input','B':'input','Z':'output'}}
+        for n,clock,rst,q in [('app',2,8,9),('usb',3,8,10),('aon',4,7,11),('downstream',4,11,12)]:
+            m['cells'][n]={'connections':{'CLK':[clock],'RN':[rst],'Q':[q]},'port_directions':{'CLK':'input','RN':'input','Q':'output'}}
+        rows=reset_sinks(c,m)
+        self.assertEqual(len(rows),5)
+        self.assertEqual({(r['port'],r['pin']) for r in rows if r['qualification']=='peer-domain RDC unqualified'},
+                         {('appReset_n','usb/RN'),('usbReset_n','app/RN')})
+        self.assertNotIn('downstream/RN',{r['pin'] for r in rows})
+
+    def test_output_contract_rejects_setup_hold_and_missing_evidence(self):
+        from tools.timing.usb_boundary import output_pass
+        self.assertTrue(output_pass([{'slack_ns':0},{'slack_ns':0.001}]))
+        for rows in ([],[{'slack_ns':-0.001}],[{'slack_ns':float('nan')}],[{'slack_ns':float('inf')}]):
+            self.assertFalse(output_pass(rows))
+
+
+class UsbWarningPolicyTests(unittest.TestCase):
+    def test_classification_and_required_checks_at_warning_boundaries(self):
+        from tools.timing.check import classify_screening
+        target={'CF':12.5,'CC':50,'appClock.FF':24.96,'aonClock.FF':24.96}
+        limit={**target,'CF':15.0}
+        def check(paths,electrical=0,hold=False,pending=False):
+            return classify_screening([{'class':k,'delay_ns':v} for k,v in paths],target,limit,
+                {'max_capacitance_and_slew_violations':electrical},[{}] if hold else [],['unproved'] if pending else [])
+        self.assertEqual(check([('CF',12.5)])['status'],'pass')
+        self.assertEqual(check([('CF',limit['CF'])])['status'],'warning')
+        self.assertEqual(check([('CF',limit['CF']+0.001)])['status'],'fail')
+        self.assertEqual(len(check([('CF',13),('CF',14)])['timing_warnings']),2)
+        for kind in ('CC','appClock.FF','aonClock.FF'):
+            self.assertEqual(check([(kind,target[kind]+0.001)])['status'],'fail')
+        self.assertEqual(check([('CF',13)],electrical=1)['status'],'fail')
+        self.assertEqual(check([('CF',13)],hold=True)['status'],'fail')
+        self.assertEqual(check([('CF',13)],pending=True)['status'],'blocked')
+        with self.assertRaises(ValueError):check([('unknown',13)])
+
+    def test_pre_enable_classes_reject_over_budget_paths(self):
+        from tools.timing.check import protocol_cycles, screening_limit, classify_screening
+        for kind,budget in [('CP',37.5),('FP',12.5)]:
+            self.assertEqual(protocol_cycles(kind)*12.5,budget)
+            for top,prefix in [('UsbEngine',''),('Usb','usbClock.')]:
+                key=prefix+kind
+                limit=screening_limit(top,key,budget,1000/48,'usb-48mhz')
+                self.assertEqual(limit,budget)
+                for delay,status in [(budget,'pass'),(budget+0.001,'fail')]:
+                    r=classify_screening([dict(**{'class':key},delay_ns=delay)],{key:budget},{key:limit},
+                        {'max_capacitance_and_slew_violations':0},[],[])
+                    self.assertEqual(r['status'],status)
+
+    def test_actual_pre_enable_edges_reject_wrong_setup_and_hold(self):
+        from tools.timing.check import pre_enable_edges
+        period=1000/48
+        def report(cp=62.5,fp=period,hold=0):
+            return ''.join(f'PRE_ENABLE_EDGE_BEGIN {kind} {mode}\n'
+                f' 0.000000 0.000000 clock usbClock (rise edge)\n'
+                f' {edge:.6f} {edge:.6f} clock usbClock (rise edge)\n'
+                f'PRE_ENABLE_EDGE_END {kind} {mode}\n'
+                for kind,setup in [('CP',cp),('FP',fp)] for mode,edge in [('max',setup),('min',hold)])
+        self.assertEqual(pre_enable_edges(report(),period)['CP/max'],[0,62.5])
+        for bad in (report(cp=period*4),report(fp=period*3),report(hold=period),''):
+            with self.assertRaises(ValueError):pre_enable_edges(bad,period)
+
+    def test_only_timing_children_accept_warnings(self):
+        from hw.ip.usb.check import command_accepted
+        self.assertTrue(command_accepted(dict(name='timing-engine',returncode=0,child_status='warning')))
+        for name in ('formal','byte-cdc','provenance','timing-registers','timing-unrecognized'):
+            self.assertFalse(command_accepted(dict(name=name,returncode=0,child_status='warning')))
+        self.assertFalse(command_accepted(dict(name='timing-engine',returncode=1,child_status='warning')))
+        self.assertFalse(command_accepted(dict(name='timing-engine',returncode=0,child_status='blocked')))
+
+    def test_standalone_sie_diagnostic_does_not_hide_missing_evidence(self):
+        import hashlib
+        from unittest.mock import patch
+        from hw.ip.usb.check import ROOT, command_accepted, sie_diagnostic_complete
+        source=ROOT/'build/unit/UsbSieTiming.sv'
+        digest=hashlib.sha256(b'fixture').hexdigest()
+        detail=dict(top='UsbSieTiming',role='production',operating_point='usb-48mhz',
+            source_sha256={'build/unit/UsbSieTiming.sv':digest},
+            protocol_certificate=dict(status='pass',top='UsbSieTiming',sources={str(source):digest}),
+            classes={k:dict(delay_ns=1,start='a',end='b') for k in
+                     ('CC','CC_reset','CF','FC','FF','CP','FP','IR','RO','IO','RG','IG')},
+            electrical={'max_capacitance_and_slew_violations':0},
+            hold_reset_checks=[dict(check='hold/min',start='a',end='b',slack_ns=1)],
+            hold_reset_violations=[],clock_gate_checks=[],area_um2=1)
+        with patch('pathlib.Path.read_bytes',return_value=b'fixture'):
+            self.assertTrue(sie_diagnostic_complete(detail,[source]))
+            for key in detail:
+                bad=copy.deepcopy(detail);del bad[key]
+                self.assertFalse(sie_diagnostic_complete(bad,[source]),key)
+                bad=copy.deepcopy(detail);bad[key]=None
+                self.assertFalse(sie_diagnostic_complete(bad,[source]),key)
+            for value in (None,float('nan'),float('inf'),'1',True):
+                for key in ('delay_ns','start','end'):
+                    if key!='delay_ns' and isinstance(value,str):continue
+                    bad=copy.deepcopy(detail);bad['classes']['FF'][key]=value
+                    self.assertFalse(sie_diagnostic_complete(bad,[source]))
+                bad=copy.deepcopy(detail);bad['area_um2']=value
+                self.assertFalse(sie_diagnostic_complete(bad,[source]))
+            for value in ([],[{}],[dict(check='hold',start='a',end='b',slack_ns=float('nan'))]):
+                bad=copy.deepcopy(detail);bad['hold_reset_checks']=value
+                self.assertFalse(sie_diagnostic_complete(bad,[source]))
+            for key in ('status','top','sources'):
+                bad=copy.deepcopy(detail);del bad['protocol_certificate'][key]
+                self.assertFalse(sie_diagnostic_complete(bad,[source]))
+            for key in detail['classes']:
+                bad=copy.deepcopy(detail);del bad['classes'][key]
+                self.assertFalse(sie_diagnostic_complete(bad,[source]))
+        row=dict(name='timing-sie',returncode=1,child_status='fail',
+                 acceptance_required=False,diagnostic_complete=True)
+        self.assertTrue(command_accepted(row))
+        for mutation in (dict(returncode=2),dict(returncode=0),dict(child_status='missing'),
+                         dict(diagnostic_complete=False),dict(name='timing-engine'),dict(name='formal')):
+            self.assertFalse(command_accepted({**row,**mutation}))
+
+    def test_d59_warning_ceiling_keeps_multicycle_and_other_domains_unchanged(self):
+        from tools.timing.check import screening_limit
+        period=1000/48
+        for top in ('UsbControl','UsbEngine','Usb','UsbInBuffer','UsbOutBuffer','UsbResume','UsbSieTiming'):
+            for kind in ('RR','CF','FC','FF','CC_reset','IR','RO','IO','RG','IG','usbClock.CF'):
+                self.assertAlmostEqual(screening_limit(top,kind,12.5,period,'usb-48mhz'),15.0)
+                self.assertLessEqual(15.0,screening_limit(top,kind,12.5,period,'usb-48mhz'))
+                self.assertGreater(15.001,screening_limit(top,kind,12.5,period,'usb-48mhz'))
+            self.assertEqual(screening_limit(top,'CC',50,period,'usb-48mhz'),50)
+            self.assertEqual(screening_limit(top,'usbClock.CC',50,period,'usb-48mhz'),50)
+        for top,kind,point in [('Hello','RR','usb-48mhz'),('Usb','appClock.CF','usb-48mhz'),
+                               ('Usb','aonClock.FF','usb-48mhz'),('UsbEngine','FF','default')]:
+            self.assertEqual(screening_limit(top,kind,12.5,period,point),12.5)
+
+
 class OperatingPointTests(unittest.TestCase):
+    def test_usb_sample_clock_keeps_stricter_budget_and_electrical_checks(self):
+        original = timing_config()
+        usb = timing_config('usb-48mhz')
+        self.assertAlmostEqual(usb['period_ns'], 1000 / 48)
+        budget = usb['period_ns'] * usb['budget_fraction']
+        self.assertAlmostEqual(budget, 12.5)
+        self.assertAlmostEqual(mapping_target_ps(usb, 'usb-48mhz'), 12500)
+        for key in original.keys() - {'period_ns', 'provenance'}:
+            self.assertEqual(usb[key], original[key])
+        self.assertEqual(result_status(12.49, budget, {'max_capacitance_and_slew_violations': 0}), 'pass')
+        self.assertEqual(result_status(12.51, budget, {'max_capacitance_and_slew_violations': 0}), 'fail')
+        self.assertEqual(result_status(12.49, budget, {'max_capacitance_and_slew_violations': 1}), 'fail')
+
     def test_mapping_target_is_separate_from_unchanged_sta_acceptance(self):
         for point, expected in (('default', 24960), ('main-12mhz', 50000),
                                 ('main-9p6mhz', 62500), ('main-9mhz', 62500)):

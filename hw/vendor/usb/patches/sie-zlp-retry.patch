@@ -1,0 +1,82 @@
+--- a/rtl/sie.v
++++ b/rtl/sie.v
+@@ -271,6 +271,8 @@
+    reg               in_ack_pending_q, in_ack_pending_d;
+    reg [15:0]        out_toggle_q, out_toggle_d;
+    reg [15:0]        in_zlp_q, in_zlp_d;
++   // Bulk ZLP already offered: preserve its identity until qualified ACK.
++   reg [15:0]        in_zlp_pending_q, in_zlp_pending_d;
+    reg [IN_WIDTH-1:0] in_byte_q, in_byte_d;
+    reg                out_valid;
+    reg                out_err;
+@@ -366,6 +368,7 @@
+          in_ack_pending_q <= 1'b0;
+          out_toggle_q <= 16'd0;
+          in_zlp_q <= 16'd0;
++         in_zlp_pending_q <= 16'd0;
+          in_byte_q <= 'd0;
+       end else begin
+          if (clk_gate_i) begin
+@@ -381,11 +384,15 @@
+                out_toggle_q <= out_toggle_d & out_toggle_endps;
+                in_ack_pending_q <= in_ack_pending_d;
+                in_zlp_q <= in_zlp_d & in_valid_endps;
++               in_zlp_pending_q <= in_zlp_pending_d & in_bulk_endps_i;
+                in_byte_q <= in_byte_d;
+             end
+             for (i = 0; i < 16; i = i + 1) begin
+-               if (in_toggle_reset_i[i] & in_toggle_endps[i] & ~CTRL_ENDPS[i])
++               if (in_toggle_reset_i[i] & in_toggle_endps[i] & ~CTRL_ENDPS[i]) begin
+                  in_toggle_q[i] <= 1'b0;
++                 in_zlp_q[i] <= 1'b0;
++                 in_zlp_pending_q[i] <= 1'b0;
++               end
+                if (out_toggle_reset_i[i] & out_toggle_endps[i] & ~CTRL_ENDPS[i])
+                  out_toggle_q[i] <= 1'b0;
+             end
+@@ -398,6 +405,7 @@
+             or in_int_endps_i or in_iso_endps_i or in_nak_i
+             or in_toggle_endps or in_toggle_q or in_valid_endps
+             or in_valid_i or in_zlp_i or in_zlp_q or in_ack_pending_q
++            or in_zlp_pending_q
+             or out_iso_endps_i
+             or out_nak_i or out_toggle_endps or out_toggle_q
+             or out_valid_endps or phy_state_q or pid_q or rx_data
+@@ -413,6 +421,7 @@
+       in_ack_pending_d = in_ack_pending_q;
+       out_toggle_d = out_toggle_q;
+       in_zlp_d = in_zlp_q;
++      in_zlp_pending_d = in_zlp_pending_q;
+       in_byte_d = 'd0;
+       out_valid = 1'b0;
+       out_err = 1'b0;
+@@ -474,6 +483,7 @@
+                              in_ack_pending_q == 1'b1) begin // qualified ACK
+                             in_toggle_d[endp_q] = ~in_toggle_q[endp_q];
+                             in_data_ack = 1'b1;
++                            in_zlp_pending_d[endp_q] = 1'b0;
+                             in_ack_pending_d = 1'b0;
+                          end
+                       end else begin
+@@ -588,7 +598,8 @@
+                     tx_valid = 1'b0;
+                  end
+                  phy_state_d = PHY_IDLE;
+-              end else if ((in_nak_i == 1'b1) || (in_valid_i == 1'b0 && in_zlp_q[endp_q] == 1'b0)) begin
++              end else if ((in_nak_i == 1'b1) || (in_valid_i == 1'b0 && in_zlp_q[endp_q] == 1'b0 &&
++                         in_zlp_pending_q[endp_q] == 1'b0)) begin
+                  if (in_toggle_endps[endp_q] == 1'b1) begin
+                     pid_d = PID_NAK;
+                     tx_data = {~PID_NAK, PID_NAK};
+@@ -604,8 +615,10 @@
+                     pid_d = PID_DATA1;
+                     tx_data = {~PID_DATA1, PID_DATA1};
+                  end
+-                 if ((in_valid_i == 1'b0) || (in_zlp_i == 1'b1)) begin
++                 if ((in_valid_i == 1'b0) || (in_zlp_i == 1'b1) ||
++                     (in_zlp_pending_q[endp_q] == 1'b1)) begin
+                     phy_state_d = PHY_TX_CRC16_0;
++                    in_zlp_pending_d[endp_q] = in_bulk_endps_i[endp_q];
+                  end else begin
+                     in_ready = 1'b1;
+                     phy_state_d = PHY_TX_DATA;

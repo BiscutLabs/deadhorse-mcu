@@ -1,0 +1,86 @@
+--- a/rtl/sie.v
++++ b/rtl/sie.v
+@@ -1,5 +1,9 @@
+ //  USB 2.0 full speed Serial Interface Engine.
+ //  Written in verilog 2001
++//
++// Project-local change against the MIT-licensed upstream revision below:
++// qualify non-iso IN ACKs against a completed DATA response; a bare or stale
++// ACK must not commit the endpoint toggle. Upstream license/copyright retained.
+ 
+ // SIE module shall manage physical and protocol layers of full
+ //   speed USB 2.0 (USB2.0 Chapters 7 and 8):
+@@ -264,6 +268,7 @@
+    reg [15:0]        data_q, data_d;
+    reg [15:0]        crc16_q, crc16_d;
+    reg [15:0]        in_toggle_q, in_toggle_d;
++   reg               in_ack_pending_q, in_ack_pending_d;
+    reg [15:0]        out_toggle_q, out_toggle_d;
+    reg [15:0]        in_zlp_q, in_zlp_d;
+    reg [IN_WIDTH-1:0] in_byte_q, in_byte_d;
+@@ -358,6 +363,7 @@
+          data_q <= 16'd0;
+          crc16_q <= 16'd0;
+          in_toggle_q <= 16'd0;
++         in_ack_pending_q <= 1'b0;
+          out_toggle_q <= 16'd0;
+          in_zlp_q <= 16'd0;
+          in_byte_q <= 'd0;
+@@ -373,6 +379,7 @@
+                crc16_q <= crc16_d;
+                in_toggle_q <= in_toggle_d & in_toggle_endps;
+                out_toggle_q <= out_toggle_d & out_toggle_endps;
++               in_ack_pending_q <= in_ack_pending_d;
+                in_zlp_q <= in_zlp_d & in_valid_endps;
+                in_byte_q <= in_byte_d;
+             end
+@@ -390,7 +397,8 @@
+             or frame_q or in_bulk_endps_i or in_byte_q or in_data_i
+             or in_int_endps_i or in_iso_endps_i or in_nak_i
+             or in_toggle_endps or in_toggle_q or in_valid_endps
+-            or in_valid_i or in_zlp_i or in_zlp_q or out_iso_endps_i
++            or in_valid_i or in_zlp_i or in_zlp_q or in_ack_pending_q
++            or out_iso_endps_i
+             or out_nak_i or out_toggle_endps or out_toggle_q
+             or out_valid_endps or phy_state_q or pid_q or rx_data
+             or rx_err or rx_valid or stall_i) begin
+@@ -402,6 +410,7 @@
+       data_d = {8'd0, rx_data};
+       crc16_d = crc16_q;
+       in_toggle_d = in_toggle_q;
++      in_ack_pending_d = in_ack_pending_q;
+       out_toggle_d = out_toggle_q;
+       in_zlp_d = in_zlp_q;
+       in_byte_d = 'd0;
+@@ -435,6 +444,9 @@
+                  pid_d = data_q[3:0];
+                  case (data_q[1:0])
+                    2'b01 : begin // Token
++                      // A new transaction closes any prior unacknowledged
++                      // IN response; only its immediate ACK may commit it.
++                      in_ack_pending_d = 1'b0;
+                       if (rx_valid == 1'b1) begin
+                          phy_state_d = PHY_RX_ADDR;
+                       end else begin
+@@ -458,9 +470,11 @@
+                       if (rx_valid == 1'b0) begin
+                          phy_state_d = PHY_IDLE;
+                          if (data_q[3:2] == PID_ACK[3:2] && addr_q == addr_i &&
+-                             in_toggle_endps[endp_q] == 1'b1) begin // ACK
++                             in_toggle_endps[endp_q] == 1'b1 &&
++                             in_ack_pending_q == 1'b1) begin // qualified ACK
+                             in_toggle_d[endp_q] = ~in_toggle_q[endp_q];
+                             in_data_ack = 1'b1;
++                            in_ack_pending_d = 1'b0;
+                          end
+                       end else begin
+                          phy_state_d = PHY_RX_WAIT_EOP;
+@@ -630,6 +644,8 @@
+               tx_valid = 1'b1;
+               if (in_iso_endps_i[endp_q] == 1'b1)
+                 in_data_ack = 1'b1;
++              else
++                in_ack_pending_d = 1'b1;
+            end
+            default : begin
+               phy_state_d = PHY_IDLE;

@@ -35,6 +35,7 @@ class TierTest(unittest.TestCase):
         self.assertEqual(jobs['i2c-host'][1:],['hw/ip/i2c_host/check.py','--output','build/tier-test/fast/i2c-host'])
         self.assertEqual(jobs['i2c-recovery-loader'][1:], [
             'hw/ip/i2c_recovery_loader/check.py','--output','build/tier-test/fast/i2c-recovery-loader'])
+        self.assertEqual(jobs['usb'][1:],['hw/ip/usb/check.py','--output','build/tier-test/fast/usb'])
         self.assertIn(('full-legacy-00',['python3','retained-legacy.py']),full)
 
     def test_faithful_float_checks_are_separate_and_preserve_registered_checks(self):
@@ -126,6 +127,16 @@ class TierTest(unittest.TestCase):
         self.assertEqual(code,0)
         self.assertEqual(receipt['status'],'pass')
         self.assertEqual(receipt['deferred'],[])
+
+    def test_usb_rejects_missing_or_unresolved_success_receipts(self):
+        with self.assertRaisesRegex(ValueError,'Missing usb success receipt'):
+            self.run_receipt_case(None,job_name='usb')
+        for detail in (dict(task='T19',status='pass'),dict(task='T19',status='pass',unresolved=['packet proof']),
+                       dict(task='T19',status='unresolved',unresolved=[]),dict(task='other',status='pass',unresolved=[])):
+            with self.subTest(detail=detail),self.assertRaisesRegex(ValueError,'Invalid USB success receipt'):
+                self.run_receipt_case(detail,job_name='usb')
+        code,receipt,_=self.run_receipt_case(dict(task='T19',status='pass',unresolved=[]),job_name='usb')
+        self.assertEqual(code,0);self.assertEqual(receipt['status'],'pass')
 
     def test_missing_deferral_inventory_is_rejected(self):
         with self.assertRaisesRegex(ValueError,'Missing child deferral inventory'):
