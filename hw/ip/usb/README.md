@@ -1,5 +1,15 @@
 # USB CDC-ACM peripheral (T19)
 
+Independent reset/SIE follow-up (2026-11-19): eleven of twelve broader packet
+assertions now close, including zero-byte IN ACK and independent transport reset.
+OUT ownership/integrity remains open after the permitted proof attempts. The
+actual SIE producer predicates prove without cutpoints; fresh wrapper binding
+and real-traffic fault checks qualify the connection separately. No production
+RTL, assertion, environment assumption or cap changed. No CI was run. See the
+[formal ledger](../../../docs/ledger/usb-formal.md) for exact evidence and the
+proposed control-only combined-occupancy lemma.
+
+
 D60/E1, D61/E2 and D62/E3 (2026-11-19) authorize the scoped packet-proof
 decomposition: phase-aligned stimulus only with exact proved producer
 guarantees, IN push spacing only with a proved shared-CDC guarantee, and

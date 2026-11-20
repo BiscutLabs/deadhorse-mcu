@@ -259,3 +259,26 @@ No E1/E2 or initial-reset-only assumption is used. CI, the USB aggregate, timing
 and simulation were not run in this follow-up, as instructed; prior full-size
 simulation is historical evidence on unchanged production RTL. Independent
 transport-reset/SIE composition and aggregate receipt integration remain open.
+
+## Independent reset/SIE epoch follow-up (2026-11-19)
+
+`UsbPacketEpoch.scala` broadens the unchanged original assertions to independent
+transport reset, zero-byte IN ACK and unrestricted OUT packet length. It uses
+actual ResetRelease/cadence, arbitrary later resets, and no E1/E2 assumption.
+`packet_epoch.py` qualifies warmup/tag, occupancy, overflow, ownership and data
+lemmas against exact canonical models; sparse proofs retain real faults/covers
+and the matching memory refinement. `UsbEpochOwnership.scala` is a pure, proved
+upper-bound observer. Old common-reset-only helpers are not assumed.
+
+Current receipt audit: eleven of twelve epoch claims close (five full-size, six
+small-model); OUT ownership/integrity remains unresolved after the triage budget.
+The older twelve common-reset claims remain closed. This follow-up does not
+claim completed reset/SIE composition. See [the formal ledger](../../../../docs/ledger/usb-formal.md)
+for commands, assumptions, model sizes, preserved faults and the proposed
+combined-occupancy lemma.
+
+`UsbSiePacketContract.scala` observes the actual production engine and patched
+SIE/PHY, with no cuts. `sie_packet_contract.py` proves the producer predicates
+and binds the fresh wrapper's clocks, resets, geometry and application ports.
+`UsbSieCompositionSpec` exercises real USB traffic and actual DUT faults against
+the same predicates. These are focused checks; no CI tier or USB aggregate ran.

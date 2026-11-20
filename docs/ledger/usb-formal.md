@@ -1,5 +1,135 @@
 # T19 USB formal ledger
 
+## Independent reset/SIE composition follow-up (2026-11-19)
+
+**Open, narrowed to OUT ownership/integrity.** From `b2e9845c2889e585859e710db3266bbe52c9f8e4`,
+this follow-up changes verification and documentation only. No production RTL,
+original assertion, environment assumption, positive depth or solver cap changes.
+The user explicitly prohibited CI: neither CI tier nor the USB aggregate ran.
+Earlier common-reset proofs remain valid; this is a broader composition obligation.
+
+`UsbPacketEpoch.scala` inherits the original six assertions in each direction.
+The actual shared `ResetRelease` resets the buffer/oracle independently while
+production cadence continues. Root and transport resets can reassert arbitrarily.
+IN now exercises zero-byte ACK, including clearing retained ownership without
+removing queued bytes. OUT accepts arbitrary packet length, including counter
+wrap. A separate saturating monitor proves overlength rejection, sticky reject,
+unchanged committed tail and rollback at termination. No legal-host assumption
+is added. All unreset memory/pipeline state remains arbitrary.
+
+The old common-reset-only warmup and unqualified tag helpers remain in the
+canonical model but are never assumed. New helpers prove qualified IN reads and
+actual OUT captures occur only after memory warmup; the sparse tag relation is
+proved under `enable && age == 3`. The existing same-size, source-bound memory
+refinement therefore applies at every data observation, including independently
+released epochs. Fresh exact-model helper receipts precede each assumed lemma.
+No E1/E2, application spacing, initialized RAM, fairness or reset-removal premise.
+
+The actual production engine/SIE/PHY proves request implies consume, qualified
+normal IN consume implies valid, and IN/OUT endpoint isolation. The proof has no
+cutpoints. IN operation normalization gives request priority, then ACK, then
+normal read; idle ACK is harmless. OUT uses idle/error/byte/terminator priority.
+The epoch root binds to the engine's shared-release output, not its raw input.
+Fresh wrapper netlist binding checks cadence, reset releases, memory resets,
+USB clock, packet geometry, CDC-facing application pins and patched vendor hashes.
+Arbitrary application inputs already include the wrapper's CDC behavior; no new
+CDC guarantee is assumed. This does not assert a stronger pre-CDC application
+transaction lifetime contract.
+
+All commands below use `python tools/env/run.py run -- python3`. Results are
+**measured** on the above base plus the exact working-source hashes in receipts:
+
+```text
+hw/ip/usb/formal/packet_epoch.py --output build/t19/packet-epoch-in-01 --role in --properties capacity read_nonempty held_valid held_data progress
+hw/ip/usb/formal/packet_epoch.py --output build/t19/packet-epoch-out-01 --role out --packet-bytes 8 --properties capacity read_nonempty held_valid held_data progress integrity
+hw/ip/usb/formal/packet_epoch.py --output build/t19/packet-epoch-in-02 --role in --properties integrity
+hw/ip/usb/formal/packet_epoch.py --output build/t19/packet-epoch-in-sparse-01 --role in --packet-bytes 8 --properties integrity --sparse --prior-audit build/t19/packet-focused-audit-01/result.json
+hw/ip/usb/formal/packet_epoch.py --output build/t19/packet-epoch-out-sparse-01 --role out --packet-bytes 8 --properties integrity --sparse --prior-audit build/t19/packet-focused-audit-01/result.json
+hw/ip/usb/formal/packet_epoch.py --output build/t19/packet-epoch-out-sparse-02 --role out --packet-bytes 8 --properties integrity --sparse --upper --prior-audit build/t19/packet-focused-audit-01/result.json
+hw/ip/usb/formal/packet_epoch.py --output build/t19/packet-epoch-out-finish-01 --resume-upper build/t19/packet-epoch-out-sparse-02/result.json
+hw/ip/usb/formal/sie_packet_contract.py --output build/t19/sie-packet-contract-02
+hw/ip/usb/formal/sie_packet_contract.py --output build/t19/sie-wrapper-binding-03 --bind-proof build/t19/sie-packet-contract-02/result.json --regmap build/t19/regmap/usb_regs.json --simulate
+hw/ip/usb/formal/packet_epoch.py --audit-receipts build/t19/packet-epoch-in-01/result.json build/t19/packet-epoch-in-sparse-01/result.json build/t19/packet-epoch-out-01/result.json build/t19/packet-epoch-out-finish-01/result.json --anchors build/t19/packet-epoch-in-02/result.json build/t19/packet-epoch-in-sparse-01/result.json build/t19/packet-epoch-out-sparse-02/result.json --output build/t19/packet-epoch-audit-02
+-m unittest discover -s hw/ip/usb/formal -p 'test_packet*.py'
+tools/sbt.py "testOnly deadhorse.usb.UsbThroughputSpec"
+```
+
+The receipt audit passes and correctly leaves composition unresolved.
+Fresh `sie-wrapper-binding-03 --simulate` passes the wrapper binding and all
+four real-traffic/fault tests. `python scratch/t19_epoch_archive.py` preserves
+receipt-local positive/mutant emissions, source snapshot and logs with matching
+hashes in `sie-wrapper-binding-03/archive.json`; no mutable shared simulation
+directory is the only retained copy. Historical
+harness versions are accepted only against byte-identical current emitted RTL;
+all solver inputs, actual original predicates, guarded helper dependencies and
+real negative mutations are rechecked. Monitor HDL/prepared-model hashes and
+exact upper-monitor projection are retained. Fourteen focused unit tests pass
+(`packet-epoch-unit-02.log`). No solver is launched by the receipt audit.
+
+Per-original accounting, exactly once. Seconds are measured job wall time from
+those commands; all accepted safety jobs are unbounded PDR/Z3 proofs, not BMC:
+
+| Original assertion | Model bytes | Kind | Seconds | Receipt |
+| --- | ---: | --- | ---: | --- |
+| IN capacity | 16 | proved | 0.318 | `packet-epoch-in-01` |
+| IN read_nonempty | 16 | proved | 0.470 | same |
+| IN integrity | 8 | proved at small model | 0.768 | `packet-epoch-in-sparse-01` |
+| IN held_valid | 16 | proved | 1.269 | `packet-epoch-in-01` |
+| IN held_data | 16 | proved | 49.575 | same |
+| IN progress | 16 | proved | 4.223 | same |
+| OUT capacity | 8 | proved at small model | 0.369 | `packet-epoch-out-01` |
+| OUT read_nonempty | 8 | proved at small model | 0.318 | same |
+| OUT integrity | 8 | unresolved | 121.275 direct; 121.949 final ownership | `packet-epoch-out-finish-01` |
+| OUT held_valid | 8 | proved at small model | 0.318 | `packet-epoch-out-01` |
+| OUT held_data | 8 | proved at small model | 0.318 | same |
+| OUT progress | 8 | proved at small model | 2.421 | same |
+
+All accepted originals have actual-DUT negative controls with zero helper
+assumptions. Real eight-byte covers pass: four reset-release phases, repeated
+reset, reset after pending/stalled activity, zero-byte ACK, and OUT overlength
+through counter wrap, abort and recovery, in addition to inherited byte covers.
+The approved earlier full/empty/wrap/retry/maximum-packet covers/refinement remain
+hash-authenticated. All six accepted small-model results are labelled **proved at small model,
+simulated at full size**: the focused unchanged `UsbThroughputSpec` completed
+with two tests passing, including seeded IN/OUT/simultaneous MMIO/CDC streams
+and the slow-service negative (`packet-epoch-fullsize-simulation-01.log`).
+Measured simultaneous payload: 1,022,483.316 bit/s each way; slow service:
+286,567.164 bit/s each way, correctly rejected. The offered load was unchanged;
+this is not a maximum-rate measurement.
+
+`UsbEpochOwnership` adds only the proved unsigned relation
+`watching && inPacket && !reject => position < (queued +& packet)`.
+Its binding cannot drive an input, introduce state/assumptions, or alter the DUT.
+The reject-only negative did not fail within depth 48; this is preserved as a
+failed qualification in `packet-epoch-out-sparse-02`. The unchanged positive is
+reused with a **joint cadence-enable-high/overflow-reject-low DUT fault**, which
+fails on real and sparse models within the unchanged bound. It is not labelled
+as detection of the reject-only fault. Remaining ownership still times out.
+
+Step-0/triage measurements from the actual reduced solver JSON/logs:
+
+| OUT attempt | Cells | Sequential bits | RAM bits | Requested/reached | Result |
+| --- | ---: | ---: | ---: | --- | --- |
+| Real integrity portfolio | 270 | 140 | 128 | depth 48; no unbounded closure | timeout |
+| Sparse ownership + lower bound | 274 | 101 | 0 | depth 48; induction fails | timeout |
+| Sparse ownership + both bounds | 282 | 101 | 0 | basecase 48 passes; induction fails; PDR frame 40 | timeout |
+
+Each attempt retains the 120-second cap. Quarter/half-depth growth runs were
+not performed: this follow-up retains positive depth 48 and stops after the
+third changed formulation. The final cone contains no RAM; further memory
+abstraction is not the remaining issue. An induction counterexample is not a
+trace from reset and is not evidence of a hardware defect.
+
+The final witness has `queued=5, packet=7, appValid=1, head=7, tail=2,
+speculative=0, reject=0, selected slot=8, position=11` in the nine-slot model.
+It permits impossible combined committed/speculative occupancy. The smallest
+proposed next step is a separate control-only proof of
+`!reject => queued +& packet <= packetBytes + appValid`, then reuse that exact
+receipt for ownership and integrity. This is an inference from the witness,
+not a proved fact. No further OUT proof attempt or RTL change was made after
+the triage budget. Aggregate integration, EP0 sampling qualification and
+physical-flow items remain separate T19 blockers.
+
 ## Focused IN progress / OUT integrity closure (2026-11-19)
 
 Base `b6326d00eb0df77d98f6e028caee7bdcd61fa3d5`; exact source/model hashes in
