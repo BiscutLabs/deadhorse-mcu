@@ -92,8 +92,12 @@ def run(before, after, output, regmap):
             reference_paths['UsbSieTiming.scala']='hw/ip/usb/formal/UsbSieTiming.scala'
             for name,path in reference_paths.items():
                 (reference/name).write_bytes(subprocess.check_output(['git','show',BASELINE+':'+path]))
+            # This verification-only emitter uses the new preEnable API and is
+            # unrelated to EmitUsb. Do not compile it against the old cadence.
+            historical_excluded=(*reference_paths,'UsbPacketProof.scala')
+            receipt['historical_compile_exclusions']=list(historical_excluded)
             setting=('set hw / Compile / unmanagedSources := (hw / Compile / unmanagedSources).value'
-                     '.filterNot(s => Set('+', '.join('"'+n+'"' for n in reference_paths)+').contains(s.getName)) ++ Seq('
+                     '.filterNot(s => Set('+', '.join('"'+n+'"' for n in historical_excluded)+').contains(s.getName)) ++ Seq('
                      +', '.join('file("'+str(reference/n)+'")' for n in reference_paths)+')')
             before=output/'reference'
             with (output/'reference-emit.log').open('w') as log:

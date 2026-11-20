@@ -1,5 +1,23 @@
 # USB formal contracts
 
+## Packet-proof decomposition decisions (2026-11-19)
+
+D60/E1 permits enable/pre-enable-aligned protocol stimulus only where a named
+proved production guarantee supports the exact signal and phase. D61/E2 permits
+an IN push-spacing assumption only after proving the shared CDC spacing, and
+only if E1 leaves the property open. D62/E3 permits depth-128 covers for the
+D50 eight-byte model; positive bounds and the 120-second job cap are unchanged.
+Original assertions remain mandatory, with one receipt per assertion. Dependent
+results must say "proved under environment assumptions E1[/E2]" and cite each
+guarantee; small-model acceptance also needs full-size simulation.
+
+Accepted partial proofs use no new environment restriction. The separate E1
+diagnostic did not close a proof; E2 was skipped. D58 keeps packetData full-rate,
+and symbolic choose is not a certified producer. The literal reset-return
+premise is false: production memory read/write staging contains unreset
+registers as well as uninitialized RAM. All data proofs retain arbitrary later
+common resets; no first-cycle-only reset assumption was applied.
+
 Run through the pinned environment:
 
 ```sh
@@ -169,10 +187,43 @@ The OUT oracle uses one extra occupancy bit so an erroneous capacity-plus-packet
 commit cannot wrap below the unchanged capacity assertion. This repairs an
 existing monitor blind spot; no DUT behavior, assumption or assertion is relaxed.
 
-D50/C is still not eligible under the unchanged depth-48 cover cap, even at
+Historical D53 result (D62 now permits a new depth-128 cover attempt): D50/C
+was not eligible under the depth-48 cover cap, even at
 the minimum supported eight-byte model. Estimated lower bound: consecutive IN
 RAM writes require two four-cycle enables because staging cannot refill on its
 drain edge, so filling eight RAM entries takes at least `7 * 8 = 56` sample edges
 after the first write, excluding startup. Full and wrap witnesses take longer.
 Independent review confirmed this source-derived argument; no small-model job
 was launched and no cover bound was raised.
+
+## Packet decomposition receipts
+
+`packet_decompose.py` gives each of the six unchanged assertions per direction
+its own job. Safety/data use unbounded PDR; progress uses induction at depth 48.
+`packet_partition.py --helpers` separates storage, ownership and data lemmas,
+then permits only exact-model PASS lemmas as assumptions. Predicate A/EN guards,
+canonical hashes, dependency order and actual sparse/real fault controls are
+checked. No original assertion is an assumed helper. The memory-refinement
+receipt must match the packet geometry. `packet_receipt.py` accounts for all
+twelve original claims exactly once and preserves unresolved results.
+
+The current full-size partial result proves IN capacity, read-nonempty, byte
+integrity and held-valid, plus OUT held-valid and held-data. IN integrity and
+the two IN queue claims compose the proved sparse-memory refinement with the
+common-reset age guarantee. Eight-byte proofs add IN held-data and OUT capacity,
+read-nonempty and progress. These four are labelled "proved at small model,
+simulated at full size", backed by the passing full-size seeded suite. IN progress
+and OUT integrity remain unresolved after the approved attempt. Real covers
+and original-assertion-specific faulty-DUT witnesses remain required.
+
+No reset-removal assumption was applied. The literal proposed reset-return
+premise is false: unreset read/write pipeline registers survive as well as
+RAM. All decomposition proofs retain arbitrary later common resets, and none
+is a proof of independently phased transport reset plus SIE behavior.
+
+E1 attempts register only encoded operation on `preEnable`, using the exact
+D58 production flag certificate, cadence and engine/wrapper equivalence receipts.
+OUT data, symbolic byte selection and application inputs remain arbitrary.
+Such results are conditional on the encoded-operation harness contract; the
+phase certificate does not establish a new full-SIE composition theorem.
+E2 is skipped because no exact raw-push spacing guarantee has been proved.

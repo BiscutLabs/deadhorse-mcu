@@ -71,6 +71,9 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D57 | USB timing warning band and scope | Approved 2026-11-19; fix only consume now, 60–70% warning, mandatory real-wire post-placement recheck |
 | [x] | D58 | USB pre-enable capture class | Approved 2026-11-19; conditional 3/2 certified-launch capture class, proof required; strict full-rate 12.5 ns; packetData full-rate amendment and consumer stop rule |
 | [x] | D59 | USB 15 ns warning ceiling | Approved 2026-11-19; D58 FP stays strict 12.5 ns; real-wire post-placement recheck mandatory |
+| [x] | D60 | USB packet stimulus E1 | Approved; exact producer guarantees required |
+| [x] | D61 | USB CDC push spacing E2 | Conditional approval; spacing must be proved |
+| [x] | D62 | USB small-model cover depth E3 | Approved depth 128 for covers only |
 
 ## Tasks
 
@@ -96,7 +99,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T16 | [SPI host](tasks/T16-spi-host.md) | Codex | T05, T07, T09, T14, T15 | [Report](tasks/reports/T16.md): SPI acceptance, GF180 timing and independent review pass; fast 31/31 with inherited T14 deferrals, no SPI deferrals; full not run |
 | [x] | T17 | [I2C controller](tasks/T17-i2c-host.md) | Codex | T05, T07, T09, T14, T16 | [Report](tasks/reports/T17.md); 19 simulations, GF180 timing and fast CI active checks pass; eight I2C formal jobs remain deferred/unproved |
 | [x] | T18 | [Lite I2C recovery loader](tasks/T18-i2c-recovery-loader.md) | Codex | T06, T07, T09, T14 | [Report](tasks/reports/T18.md). Wire-to-memory recovery and warm-reset lock retention verified. |
-| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): Pad/reset contract measured and reviewed; frozen 19 simulations/focused proofs pass; USB/fast still fail packet/physical/prior qualification; full tier unrun |
+| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): Six packet claims proved at full size, four more at small size; IN progress/OUT integrity unresolved; 19 simulations pass, frozen USB/fast fail remaining qualification; full tier unrun |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -494,3 +497,9 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - 2026-11-19: User resumed the pad/reset boundary contract only. Modeling documented pad/board estimates and synchronized reset-release clock-to-Q, preserving asynchronous assertion, all limits and physical hold checks; no RTL or packet-proof change.
 
 - 2026-11-19: T19 pad/reset contract implemented and independently reviewed. Frozen boundary fast/USB rerun reproduces timing and exact source hashes; all 19 simulations, focused formal and equivalence pass. Conditional AON removal artifact resolved; pad hold, peer RDC/physical qualification, packet and prior sampling obligations remain. USB/fast failed, full tier/post-placement unrun; T19 blocked, no merge.
+
+- 2026-11-19: User assigned packet-proof decomposition under E1/E2/E3, recorded D60-D62. Continue at 20bcb66, preserving the boundary-contract descendant of requested base 33cf251. No assertion/cap change; independent reset-return and assumption review requested.
+- 2026-11-19: D60-D62 decomposition reaches its stop: six original claims prove at 16 bytes and four additional claims at eight bytes; IN progress/OUT integrity remain unresolved. Arbitrary later resets retained because the literal reset-return premise is false. E1 closes no additional proof; E2 skipped. Real small covers/faults and independently audited lemma chains pass. Freeze for USB/fast and full-size simulation; no T19 completion or merge.
+- 2026-11-19: First packet frozen run passes all 19 full-size simulations but exposes a historical-fixture compile failure from the new proof-only emitter. Reviewed fixture-only exclusion restores engine/wrapper equivalence and every control with exact pinned baseline HDL hashes. Sources refrozen for fast02; no production RTL, assertion, assumption or cap change. Two original packet proofs and existing physical/qualification items remain open.
+
+- 2026-11-19: Final packet snapshot fast02 preserves exact source hashes; all 19 USB simulations, focused formal, CDC, equivalence and fault controls pass. Six original claims prove at full size and four at the small model with full-size simulation; IN progress/OUT integrity remain unresolved. Frozen USB/fast fail packet and existing physical/prior qualification; full tier unrun. Independent review clears an incomplete checkpoint for publication only; no merge.

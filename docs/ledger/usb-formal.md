@@ -1,5 +1,244 @@
 # T19 USB formal ledger
 
+## D60–D62 packet decomposition (2026-11-19)
+
+Base `20bcb66995886ec8ff182012157360868a529f91`, descendant of requested
+`33cf251`; production RTL and all original assertions are unchanged. All
+measurements below use the pinned environment through
+`python tools/env/run.py run -- python3 …`. Exact source/model/configuration
+hashes and solver artifacts are retained in the named receipts under `build/t19`.
+
+The requested reset-return premise is false: the production memory has
+**measured 59 unreset non-RAM pipeline bits per buffer**, including write
+address/data and read stages. `scratch/t19_packet_inventory.py` generated
+`packet-decompose-preflight-02/result.json` from the production emission.
+This is an inventory, not a proof that only RAM survives. No reset was removed
+from the data proofs, and no reset-return theorem is claimed. Initial reset is
+asserted; later common reset remains arbitrary in every result below. The
+proposed initial-state-set amendment was not assumed approved. Independent
+transport-reset/SIE composition remains outside these packet harness proofs.
+
+Step 2 command: `hw/ip/usb/formal/packet_decompose.py --baseline
+build/t19/boundary-frozen-fast-01/fast/usb --output
+build/t19/packet-decompose-split-01`. Each original assertion has its own job;
+none of the other original assertions is assumed. Progress uses Z3 induction
+at depth 48, above the unchanged 12/8-edge conditions; other jobs use ABC PDR.
+
+Step 3 command: `hw/ip/usb/formal/packet_partition.py --helpers
+--helper-portfolio --split build/t19/packet-decompose-split-01/result.json
+--refinement build/t19/packet-refinement-01/proof/result.json --output
+build/t19/packet-helpers-03`. Earlier helper01 grouped control invariants;
+helper02 split storage/ownership/data; both PDR attempts timed out. Helper03
+adds Z3 induction to PDR, with the same depth 48 and 120-second solver cap.
+There are no unchanged timeout retries. IN storage (measured 62.382 s, Z3),
+ownership (19.889 s, PDR), and data (10.529 s, Z3) prove. Both sparse and real
+DUT mutations fail for each group. OUT storage remains unresolved; no OUT
+dependent lemma or original assertion is allowed to assume it.
+
+The chain converts only proved helper predicates to assumptions, retaining
+their exact A/EN reset guards. Canonical model hash, predicate hash, unbounded
+PASS status, prior dependency set, job artifacts and actual faulty-DUT controls
+must match. Missing, stale, bounded, UNKNOWN and circular receipts fail closed.
+The original six assertions are never helper assumptions. Fresh 16-byte memory
+refinement (`memory_refinement.py --emit build/t19/packet-refinement-01/emit
+--packet-bytes 16 --output build/t19/packet-refinement-01/proof`) proves with
+real RAM witnesses, covers and a mis-phased negative control. Common-reset
+cadence proves memory age three before a qualified RAM observation; this
+connects sparse-model results to the real memory without an environment assumption.
+
+Step-0 measurements from split01's prepared `stat -width` and solver logs:
+
+| Original property | IN cells / FF bits / RAM bits | IN result and measured seconds | OUT cells / FF bits / RAM bits | OUT result and measured seconds |
+| --- | ---: | --- | ---: | --- |
+| capacity | 120 / 52 / 0 | TIMEOUT 121.371 | 101 / 46 / 0 | TIMEOUT 121.980 |
+| read nonempty | 122 / 52 / 0 | TIMEOUT 121.284 | 102 / 46 / 0 | TIMEOUT 121.675 |
+| byte integrity | 206 / 137 / 192 | TIMEOUT 121.433 | 198 / 133 / 192 | TIMEOUT 121.138 |
+| held valid | 124 / 49 / 0 | proved 0.318 | 97 / 41 / 0 | proved 0.268 |
+| held data | 181 / 127 / 192 | TIMEOUT 121.382 | 155 / 119 / 192 | proved 0.268 |
+| progress | 142 / 59 / 0 | UNKNOWN 7.825 | 108 / 50 / 0 | UNKNOWN 39.309 |
+
+Both progress basecases pass through step 47; induction exhausts 48→0. UNKNOWN
+is unresolved, not a reachable DUT counterexample (the initial split runner
+used an imprecise `failed` label; raw evidence is preserved). PDR's highest
+frames for timed-out IN capacity/nonempty/integrity/held-data are measured
+67/75/42/99; OUT capacity/nonempty/integrity are 54/55/37. These are algorithm
+frames, not bounded proof depths. Current quarter/half-depth timings are not
+available: a depth argument does not bound PDR, and shortening induction would
+remove history used by the successful helper proofs (steps 43/45). Historical
+576-bit-model growth measurements are not reused as current evidence.
+
+Real cover bounds in the authenticated boundary snapshot are measured IN
+14/22/18/22 for tracked read/repeated read/commit/service and OUT 15/10/16 for
+tracked take/rollback/held take. Counts are solver bounds; traces contain one
+more sampled state. Capacity/nonempty/progress already have no RAM cone, so
+their difficulty is control reachability rather than RAM size alone.
+
+Original environment assumptions retained: one digital sample clock; initial
+common reset low and subsequently arbitrary; IN consumes only valid bytes and
+ACKs only after consumed data; OUT packets contain at most the configured MPS.
+Application data/push/ready, byte selection, request/retry and later reset are
+otherwise arbitrary. No fairness or CDC-spacing assumption is added.
+
+E2/D61 is skipped: no exact proved raw-push spacing guarantee exists. A CDC
+accepted-transfer gap does not imply that its valid level cannot remain high
+while stalled. It is not used as a substitute assumption.
+
+E1 command: `hw/ip/usb/formal/packet_partition.py --environment-attempt
+--split build/t19/packet-accounting-01/result.json --baseline
+build/t19/boundary-frozen-fast-01/fast/usb --output build/t19/packet-e1-02`.
+The encoded operation captures on the production `preEnable`; data, choose,
+push and ready remain arbitrary. Guarantee references are that snapshot's
+`timing/engine/certificate/result.json` pre-enable source registers
+8074–8079 (IN request/consume/ACK, OUT valid/ready/error), source-bound cadence
+receipt `formal/result.json`, and `preenable-equivalence/result.json`.
+The exact aliases, source hashes and sorted-JSON equivalence digest are checked.
+This is the approved conditional encoded-operation environment, not a theorem
+that the full SIE satisfies every packet-harness assumption. E1 is applied only
+to still-open integrity/progress, never held-data stability.
+
+Measured E1 results: IN progress UNKNOWN 8.425 s; OUT integrity TIMEOUT
+121.608 s; OUT progress UNKNOWN 44.762 s. Real IN/OUT covers and all three
+original-assertion faults remain reachable. No proof closed under E1, so no
+original-environment result is silently promoted from it. E1 preflight01
+stopped before emission on a receipt serialization mismatch; 02 fixes the
+digest to the certificate's canonical sorted JSON representation. No timed-out
+solver was repeated unchanged.
+
+Exact non-environment lemma assumptions (only after a matching PASS receipt):
+
+| Canonical helper indices (zero based) | Predicate inventory | Guarantee receipt |
+| --- | --- | --- |
+| IN storage 0–7, 17 | CE implies memoryAge=3; pointer range; stagingVisible implies stagingValid; appReady implies no stagingValid; queued=distance(head,tail)+stagingValid; offset=distance(head,speculative); speculative distance<=offered distance<=tail distance; CE implies three-stage read tag=speculative | `packet-helpers-03/in/storage-receipt.json` (16 bytes); `packet-small-helpers-01/in/storage-receipt.json` (8) |
+| IN ownership 8–11 | watching implies position<queued, position=distance(head,slot), and selected; selected implies slot<=MPS | corresponding `in/ownership-receipt.json` |
+| IN data 12–16, 18–19 | watched staging/pending/tracked bytes match; a watched queued byte is pending or tracked; CE requires its tracked value; stageSeen/outputSeen imply the watched RAM stage/output | corresponding `in/data-receipt.json` |
+| OUT storage 0–3, 12 | CE implies memoryAge=3; pointer range; queued=distance(head,tail)+appValid; reject or packet=distance(tail,speculative); CE implies three-stage read tag=head | `packet-small-helpers-01/out/storage-receipt.json` only; full-size storage did not prove |
+| OUT ownership 4–7 | watching implies inPacket or position<queued; under the original owned-byte guard position=distance(head,slot)+appValid; watching implies selected; selected implies slot<=MPS | corresponding small `out/ownership-receipt.json` |
+| OUT data 8–11, 13–14 | owned pending/tracked bytes match watched; an owned byte is pending or tracked; CE requires its tracked value; stageSeen/outputSeen imply watched RAM stage/output | May be assumed only if its own exact-model receipt proves; unresolved helpers are never assumptions |
+
+Indices map to `assert__chisel3_builtin` then `_0`, `_1`, … in the authenticated
+canonical JSON. The receipts carry the exact predicate/guard connections,
+hashes and predecessor sets; prose does not override those identities. IN
+original helper-dependent jobs use 20 proved predicates; the original singleton
+held-valid/data results use none. Any remaining job's receipt records its actual
+qualified subset. Memory containment is a proved relation, not an extra input
+constraint or assumed RAM initialization.
+
+### Terminal small-model attempt and original-assertion accounting
+
+The D53 generator is unchanged: eight-byte proofs pass only `packetBytes=8`
+through the same buffer/memory constructors. Ring size, pointer widths, bank
+count and oracle widths derive from that parameter. Fixed constants remain
+eight-bit bytes, eight-word banks, three RAM read stages, four sample edges
+per enable, and the original 12/4/8 service conditions. Production remains 16.
+
+Commands (same pinned prefix above):
+
+```
+hw/ip/usb/formal/packet_partition.py --small-covers --split build/t19/packet-accounting-01/result.json --output build/t19/packet-small-covers-01
+tools/sbt.py "runMain deadhorse.usb.EmitUsbPacketProof build/t19/packet-small-refinement-01/emit memory 8 real"
+hw/ip/usb/formal/memory_refinement.py --emit build/t19/packet-small-refinement-01/emit --packet-bytes 8 --output build/t19/packet-small-refinement-01/proof
+hw/ip/usb/formal/packet_partition.py --helpers --helper-portfolio --packet-bytes 8 --split build/t19/packet-decompose-split-01/result.json --refinement build/t19/packet-small-refinement-01/proof/result.json --output build/t19/packet-small-helpers-01
+hw/ip/usb/formal/packet_partition.py --finish-small build/t19/packet-small-helpers-01/result.json --output build/t19/packet-small-originals-01
+```
+
+All ten IN and nine OUT real covers pass at authorized depth 128, measured
+3.421/0.868 s. Latest earliest witnesses are measured bounds 102/59. They include
+full, nontrivial empty, physical pointer wrap, retry/rollback, and a maximum-size
+packet. The eight-byte memory refinement passes with its real fault. No E1/E2
+assumption or reset removal is used in the small model. The small attempt stays
+within its approved 60-minute wall budget and the unchanged per-job cap.
+
+Five of six small helper groups prove; OUT data times out (measured 121.146 s).
+The completion command attempts only original OUT assertions never reached by
+the helper runner, using the nine proved storage/ownership predicates. It does
+not assume the timed-out data helpers or rerun any IN assertion. OUT progress
+then proves by induction. All accepted original assertions have a concrete real
+DUT fault targeting that assertion, with no good-DUT helper assumptions.
+
+Terminal audits: `packet_receipt.py --audit … --helpers …` produces
+`packet-audit-03/result.json` for the full-size accounting and
+`packet-small-audit-01/result.json` for the small accounting (the latter uses
+`--small-cover-receipt build/t19/packet-small-covers-01/result.json`). Audit status
+passes; aggregate status remains unresolved. Real-model faults, covers, exact
+solver input copies, source/flow hashes, memory witnesses, reset guards and
+acyclic helper dependencies were independently reviewed.
+
+This table accounts for each original assertion **once**, choosing the earliest
+qualified result. Times are **measured** positive-job wall seconds from the
+commands/receipts above; PDR is unbounded, and induction proves unbounded safety
+of the bounded-response assertion. `A` means the original environment listed
+above; `I16/I8` add the 20 proved IN helpers at that exact geometry; `O8` adds
+only the nine proved OUT control helpers. The small-model claims are labelled
+"proved at small model, simulated at full size": all 19 full-size seeded USB
+simulations pass in both `packet-frozen-fast-01/fast/usb/simulation.log` and
+the final `packet-frozen-fast-02/fast/usb/simulation.log`.
+
+| Original assertion | Job receipt / property | Kind | Winning engine | Seconds | Assumptions |
+| --- | --- | --- | --- | ---: | --- |
+| IN queued<=slots | helpers-03 / in.capacity | proved, 16 bytes | ABC PDR | 0.372 | A + I16 |
+| IN take implies offset<queued | helpers-03 / in.read_nonempty | proved, 16 bytes | ABC PDR | 0.418 | A + I16 |
+| IN matchPosition implies data=watched | helpers-03 / in.integrity | proved, 16 bytes | ABC PDR | 4.021 | A + I16 |
+| IN idle held valid | split-01 / in.held_valid | proved, 16 bytes | ABC PDR | 0.318 | A |
+| IN idle held data | small-helpers-01 / in.held_data | proved at small model, 8 bytes | Z3 induction | 5.782 | A + I8 |
+| IN service=1 implies valid | small-helpers-01 / in.progress | unresolved (UNKNOWN) | Z3, induction unsuccessful | 7.631 | A + I8 |
+| OUT queued<=slots | small-originals-01 / out.capacity | proved at small model, 8 bytes | ABC PDR | 0.319 | A + O8 |
+| OUT appValid implies queued!=0 | small-originals-01 / out.read_nonempty | proved at small model, 8 bytes | ABC PDR | 0.374 | A + O8 |
+| OUT selected position-zero data=watched | small-originals-01 / out.integrity | unresolved (TIMEOUT) | ABC PDR + Z3 | 121.251 | A + O8 |
+| OUT held valid | split-01 / out.held_valid | proved, 16 bytes | ABC PDR | 0.268 | A |
+| OUT held data | split-01 / out.held_data | proved, 16 bytes | ABC PDR | 0.268 | A |
+| OUT waitForData<8 | small-originals-01 / out.progress | proved at small model, 8 bytes | Z3 induction | 2.770 | A + O8 |
+
+Paths in the table abbreviate the `packet-` prefix and `build/t19` parent.
+Six original claims prove at production size; four more prove only at eight
+bytes; two remain unresolved. No complete packet proof or T19 closure is claimed.
+
+The IN progress induction witness initializes `pending=1` while
+`head=visibleTail=0`. The existing retry-boundary invariant forbids that state,
+but it is absent from this helper set. The basecase passes through step 47;
+this is not a reachable RTL counterexample. The smallest proposed next proof
+change is to add/reprove that ownership invariant in the identical canonical
+size/reset model before using it as a lemma. A separate 16-byte receipt cannot
+be assumed in the eight-byte model. OUT still needs its selected-byte/data
+invariants to close. No further attempt follows the step-5 stop.
+
+Final step-0 rows for the two unresolved small-model jobs, **measured** from
+their preserved `job/model/design.log` and engine logs (same commands above):
+
+| Property | Cells / FF bits / RAM bits | Requested depth / cap | Solver reach | Positive wall seconds |
+| --- | ---: | --- | --- | ---: |
+| IN progress | 377 / 192 / 0 | 48 / 120 s | Z3 basecase through 47; induction 48→0 unsuccessful | 7.631 |
+| OUT integrity | 278 / 158 / 0 | 48 / 120 s | PDR frame 36; Z3 basecase through 47, induction 48→0 unsuccessful | 121.251 |
+
+IN progress retains data-tracking predicates that are not needed by a control
+response claim; its missing ownership relation is the concrete induction
+obstacle identified above. OUT integrity needs selected-byte memory lifetime
+information; zero RAM cells here reflects the proved sparse abstraction.
+Real small covers reach 102/59, with all required witnesses. No current
+quarter/half-depth timings or extra timed extension are claimed. OUT progress
+does close at Z3 induction step 41 (basecase through 47), measured 2.770 s;
+its cone is 231 cells / 87 FF bits / zero RAM cells.
+
+The first frozen fast run preserves a separate historical-fixture failure:
+the new proof-only Scala emitter references `preEnable`, which is absent in
+the pinned baseline cadence. The reviewed repair excludes only that file from
+historical compilation, leaving the actual baseline HDL manifest checks,
+candidate and all equivalence properties intact. No packet proof is rerun for
+this fixture repair; its production sources and model hashes are unchanged.
+
+Final frozen confirmation: `python tools/env/run.py run -- python3 tools/ci.py
+--tier fast --output build/t19/packet-frozen-fast-02` invokes a fresh USB
+aggregate under `fast/usb`. All 19 full-size simulations, 31 timing units,
+six receipt units, resume and engine/wrapper equivalence/faults, all 16 focused
+formal cases, byte CDC and packet covers/faults pass. The historical-fixture
+repair is independently verified against the exact pinned baseline HDL hashes.
+USB is **failed** (measured 1321.047 s), and fast is **failed, partial tier run**
+(measured 2937.287 s): packet positives and existing physical/prior qualification
+obligations remain open. Later fast stages and the full tier are **not run**.
+`python scratch/t19_packet_final_audit.py` confirms both frozen source inventories
+unchanged before reporting updates and exact reproduction of the prior
+engine/wrapper timing, area and hold/reset evidence. No further packet proof
+attempt, production RTL change or merge follows this stop.
+
 ## D48/D50 preflight (2026-11-18)
 
 Decision D48's literal reset-inclusive value-change invariant has a concrete

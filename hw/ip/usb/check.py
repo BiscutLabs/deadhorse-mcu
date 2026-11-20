@@ -64,7 +64,7 @@ def run(output,packet_triage=None):
     before = inputs(); started = time.monotonic()
     receipt = dict(status='running', task='T19', commands=[], timing={}, source_sha256=before,
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
-        unresolved=['Packet-buffer integrity/stall/service formal closure remains unresolved; monolithic proofs timed out',
+        unresolved=['Packet-buffer assertion decomposition is incomplete; exact partial results are documented in the USB formal ledger',
                     'Complete wrapper clock-domain timing has not yet been qualified'],
         qualification_limits=['No physical pad/ESD/VBUS, clock tolerance or board electrical qualification',
                               'Standalone peripheral; whole-chip gateway and clock-controller integration remain separate'])
@@ -83,6 +83,7 @@ def run(output,packet_triage=None):
         py=sys.executable
         command('provenance',[py,'hw/vendor/usb/prepare.py'])
         command('timing-runner-tests',[py,'-m','unittest','tools.timing.test_fanout','tools.timing.test_timing'])
+        command('packet-receipt-tests',[py,'-m','unittest','discover','-s','hw/ip/usb/formal','-p','test_packet_proofs.py'])
         command('regmap',[py,'hw/regmap/regmap.py','hw/ip/usb/usb.regmap.yaml','--out',output/'regmap'])
         # The independently runnable Scala suites use this deterministic generated fixture.
         command('test-regmap',[py,'hw/regmap/regmap.py','hw/ip/usb/usb.regmap.yaml','--out','build/t19/regmap'])

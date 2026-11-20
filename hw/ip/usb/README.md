@@ -1,7 +1,22 @@
 # USB CDC-ACM peripheral (T19)
 
+D60/E1, D61/E2 and D62/E3 (2026-11-19) authorize the scoped packet-proof
+decomposition: phase-aligned stimulus only with exact proved producer
+guarantees, IN push spacing only with a proved shared-CDC guarantee, and
+eight-byte small-model covers to depth 128. Positive bounds and solver caps
+remain unchanged. Every original assertion remains required; environment-
+dependent results and small-model results must be labelled explicitly. See
+`formal/README.md` for assumptions, applicability and proof status.
+
 Status: consume-path change verified and estimated pad/reset contract measured;
 complete T19 acceptance remains blocked.
+
+Packet decomposition proves six original assertions at production size and
+four additional assertions at eight bytes, backed by passing full-size seeded
+simulation: "proved at small model, simulated at full size". IN progress and OUT byte integrity remain
+unresolved after the approved attempt. No production buffer change or new
+environment assumption supports the accepted partial results; arbitrary later
+common resets remain. Exact claims and receipts are in the USB formal ledger.
 
 D59 (2026-11-19) sets the active USB sample-clock single-cycle warning ceiling
 to 15 ns. The target remains estimated 12.5 ns, and post-placement timing with
