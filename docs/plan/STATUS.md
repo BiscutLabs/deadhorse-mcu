@@ -100,7 +100,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T17 | [I2C controller](tasks/T17-i2c-host.md) | Codex | T05, T07, T09, T14, T16 | [Report](tasks/reports/T17.md); 19 simulations, GF180 timing and fast CI active checks pass; eight I2C formal jobs remain deferred/unproved |
 | [x] | T18 | [Lite I2C recovery loader](tasks/T18-i2c-recovery-loader.md) | Codex | T06, T07, T09, T14 | [Report](tasks/reports/T18.md). Wire-to-memory recovery and warm-reset lock retention verified. |
 | [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): all twelve independent-reset packet claims qualify (five full-size, seven small-model with full-size simulation). Routed setup, hold/RDC, physical signoff and sampling/exception obligations remain. Acceptance incomplete; no CI |
-| [~] | T20 | [Reference SoC integration, I0–I1](tasks/T20-soc-integration.md) | Codex | T05, T07, T09, T13, T14–T19, S3 | [Initial contract/map](tasks/reports/T20.md): provisional map and seven tooling tests pass; connected RTL, I0/I1 tests and measurements pending; no CI |
+| [~] | T20 | [Reference SoC integration, I0–I1](tasks/T20-soc-integration.md) | Codex | T05, T07, T09, T13, T14–T19, S3 | [I0 boot/control milestone](tasks/reports/T20.md): core/ROM/SRAM/fabric/UART connected, 13 focused simulations and local control proof pass; integrated lockstep, I1 and measurements pending; no CI |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -163,6 +163,7 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 
 ## Log
 
+- 2026-11-20: T20 I0 boot/control milestone on main: production faithful RV32IMFC, native local ROM/banked SRAM path, retained MMIO, main fabric and UART0 connected. Thirteen focused simulations pass; eleven local-memory control assertions prove with covers and a rejecting fault. Independent review resolved reset-test and receipt gaps. Integrated lockstep, performance/timing, I1, pin fit and gateway target transport remain open. No CI; no T20 completion or gate claimed.
 - 2026-11-20: T20 initial contract/map milestone on main: documented reset scopes, memory permissions, bridge/loader/stub boundaries and inherited limits; provisional schema emits configuration and checks spec/register/IRQ consistency. Seven focused tests pass with negative controls. No connected SoC RTL, timing, solver or CI result claimed; gateway target transport remains a user question, Q15/Q16 remain open.
 
 - 2026-11-20: User directed merging all current work into main and working directly on main, then assigned the SoC tasks. Main now includes f1c17ba and the T20 brief. T20 starts with the SoC contract and independent interface review before RTL; Q15/Q16 and inherited block qualifications remain open. Existing no-CI instruction retained.

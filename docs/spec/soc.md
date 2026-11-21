@@ -1,6 +1,6 @@
 # Reference SoC contract — T20 I0/I1
 
-Draft for independent review, 2026-11-20, based on `f1c17ba`. This specifies
+Initial contract reviewed, 2026-11-20, based on `f1c17ba`. This specifies
 the reference simulation top, not a pad-level chip or accepted physical design.
 Authority: [plan 16](../plan/16-soc-integration.md), the
 [T20 brief](../plan/tasks/T20-soc-integration.md), [bus contract](bus.md) and
@@ -322,6 +322,16 @@ boundary/RDC/physical and sampling/exception obligations. T19's twelve packet
 claims qualify under their mixed-size policy, not all as full-size proofs.
 The block reports retain detailed simulation/bounded-proof/physical limits.
 
-No acceptance command, integrated area/timing, firmware boot, pin-fit check or
-SoC proof is claimed here. The user's no-CI instruction remains active. Fast
+The I0 implementation now connects the production core, modeled ROM/SRAM,
+local-memory adapter, fabric and UART0. Its focused boot test exercises SRAM
+byte writes and an FPU multiply, and prints through UART0. `clockHold` currently
+exports UART demand only: the main clock must continue running externally.
+Local memory has registered exclusive grants, synchronous word banks and
+accepted-beat response metadata. The service-reset MMIO slot survives a
+client-only reset and drains before releasing a new epoch. Focused control
+properties and tests are reported in the T20 report; this does not establish
+the brief's full SoC composition or gateway-based acceptance.
+
+No integrated area/timing, lockstep, performance or pin-fit result is claimed.
+The user's no-CI instruction remains active. Fast
 and full tiers must be reported unrun until authorized; no task/gate is complete.
