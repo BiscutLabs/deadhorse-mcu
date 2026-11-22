@@ -30,10 +30,11 @@ def main(output,formal,timing):
         scope='D71 raw production ADC, firmware conversion and four full SoC emissions; neither CI tier run')
     try:
         for relative in (*formal,timing):receipt['evidence'].append(verify_receipt(ROOT/relative/'result.json'))
-        top_command=[sys.executable,'tools/sbt.py',*[f'hw/runMain deadhorse.top.EmitSocWatchdog '+
-            f'{out.relative_to(ROOT)}/soc-{mhz}-{usb} soc {usb} {mhz}' for mhz in (8,9) for usb in ('stub','usb')]]
+        top_command=[sys.executable,'tools/sbt.py',*[f'hw/runMain deadhorse.top.EmitSoc '+
+            f'{out.relative_to(ROOT)}/soc-{mhz}-{usb} {usb} {mhz}' for mhz in (8,9)
+            for usb in ('usb-stub-test','production')]]
         for name,argv in [
-            ('prepare',[sys.executable,'dv/soc/prepare_watchdog.py']),
+            ('prepare',[sys.executable,'dv/soc/prepare_production.py']),
             ('firmware',[sys.executable,'sw/hal/tests/test_adc_convert.py','--output',str(out/'firmware')]),
             ('simulation',[sys.executable,'tools/sbt.py','hw/testOnly deadhorse.adc.AdcSpec deadhorse.adc.AdcSampleStateSpec deadhorse.adc.AdcRawSpec deadhorse.top.SocIoSpec']),
             ('whole-soc',top_command),

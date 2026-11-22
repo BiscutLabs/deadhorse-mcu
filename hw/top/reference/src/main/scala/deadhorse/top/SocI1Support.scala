@@ -145,18 +145,6 @@ class SocRetainedMemory(description: SocDescription) extends RawModule {
 case class SocIoConfig(gpio: String, timers: String, aonTimer: String, adc: String, mainMHz: Int) {
   require(Set(8,9).contains(mainMHz))
 }
-case class SocI1Config(uart: String, spi: String, i2c: String, mailbox: String,
-                     usb: String, realUsb: Boolean=false, io: Option[SocIoConfig]=None,
-                     pwm: Option[String]=None, dma: Option[String]=None, pinmux: Option[String]=None,
-                     liteCore: Boolean=false, watchdog: Option[String]=None,
-                     bootControl: Option[String]=None, qspi: Option[String]=None, xip: Boolean=false) {
-  require(!xip || qspi.nonEmpty,"XIP requires the shared QSPI engine")
-  require(dma.isEmpty || pwm.isDefined,"DMA profile requires the PWM endpoints")
-  require(pinmux.isEmpty || (pwm.isDefined && io.isDefined),"Pinmux needs GPIO, timer and PWM sources")
-  require(watchdog.isEmpty || (io.isDefined && pwm.isDefined && pinmux.isDefined),"Watchdog needs I/O/PWM/pinmux")
-  require(bootControl.isEmpty || watchdog.isDefined,"Boot release needs the AON service fabric")
-}
-
 /** Explicit I1 test-controller and pad-facing signals. No clock controller. */
 class SocI1Pins extends Bundle {
   val inactive=new SocInactivePins

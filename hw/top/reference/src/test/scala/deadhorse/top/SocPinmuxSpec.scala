@@ -4,7 +4,7 @@ import chisel3._
 /** Public MMIO and dedicated source pins supply the integration oracle. */
 class SocPinmuxSpec extends SocIoSpec {
   test("pin mux routes all three sources, retains raw inputs/wake and survives AON reset") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocPinmuxFiles.config())) {d=>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) {d=>
       val memory=d.dmaMemory.get
       memory.gnt.poke(false.B);memory.rvalid.poke(false.B);memory.err.poke(false.B);memory.rdata.poke(0.U)
       reset(d)
@@ -22,7 +22,7 @@ class SocPinmuxSpec extends SocIoSpec {
         good(d,d.main,pwm+0x40+4*i,true,15+i*4)
         good(d,d.main,pwm+0xc0+4*i,true,3+i)
       }
-      good(d,d.main,pwm,true,7)
+      good(d,d.main,pwm+4,true,7);good(d,d.main,pwm,true,7)
       for(i<-0 until 3) good(d,d.main,mux+4*i,true,3)
       for(_<-0 until 100) {
         val v=d.pins.inactive.actuatorOut.peek().litValue & 7

@@ -18,7 +18,7 @@ def main():
     ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--output',required=True);a=ap.parse_args()
     out=(ROOT/a.output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
     receipt=dict(status='running',commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
-        source_sha256=snapshot(),commands=[],ci='Neither tier run, per user instruction')
+        source_sha256=snapshot(),commands=[],ci='Focused runner only; CI status is recorded separately under D76')
     def command(argv,label):
         before=time.monotonic()
         with (out/(label+'.log')).open('w') as f:
@@ -27,7 +27,7 @@ def main():
         if p.returncode:raise RuntimeError(label+' failed')
         print('PASS',label,flush=True)
     try:
-        command([sys.executable,'dv/soc/prepare_io.py'],'prepare')
+        command([sys.executable,'dv/soc/prepare_production.py'],'prepare')
         command([sys.executable,'hw/top/reference/test_soc_map.py'],'map-tests')
         command([sys.executable,'tools/check_structure.py','--include-untracked'],'structure')
         suites=['deadhorse.gpio.GpioSpec','deadhorse.adc.AdcSpec','deadhorse.timers.TimersSpec',
@@ -37,7 +37,7 @@ def main():
         commands=[sys.executable,'tools/sbt.py']
         for mhz in (8,9):
             for usb in ('stub','usb'):
-                commands.append(f'hw/runMain deadhorse.top.EmitSocIo {out.relative_to(ROOT)}/soc-{mhz}-{usb} soc {usb} {mhz}')
+                commands.append(f'hw/runMain deadhorse.top.EmitSoc {out.relative_to(ROOT)}/soc-{mhz}-{usb} {"production" if usb=="usb" else "usb-stub-test"} {mhz}')
         command(commands,'whole-soc')
         if snapshot()!=receipt['source_sha256']:raise RuntimeError('Frozen implementation changed during checks')
         receipt['status']='pass'

@@ -66,8 +66,8 @@ def compile_sim(directory, images):
     # The pinned firtool guards file initialization separately from randomization.
     run(['verilator','--cc','--exe','--build','--assert','-DENABLE_INITIAL_MEM_',
          '-DENABLE_INITIAL_REG_','-j','4','-Wno-fatal',
-         '--top-module','DeadhorseSoc','--Mdir',directory/'obj',*sources,gate,ROOT/'dv/soc/sim_main.cpp'],directory,'compile')
-    return directory/'obj/VDeadhorseSoc'
+         '--top-module','SocMinimalI0','--Mdir',directory/'obj',*sources,gate,ROOT/'dv/soc/sim_main.cpp'],directory,'compile')
+    return directory/'obj/VSocMinimalI0'
 
 
 def allocated_sections(elf,directory,stack_bytes=0):

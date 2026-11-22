@@ -1,3 +1,178 @@
+# Production SoC contract
+
+PLAN03 / D72: `DeadhorseSoc` is the single production assembly. This contract
+describes digital integration, not a pad-level or physically qualified chip.
+Q15 (clock source/frequency) and Q16 (application loop rate) remain open.
+The profile history below is historical evidence, not selectable chip features.
+
+## Assembly
+
+The top contains the faithful RV32IMFC Chisel performance core with its shared
+integer/FPU MAC, local ROM and banked performance SRAM path, main and AON
+fabrics, shared-CDC bidirectional bridge/permit and mailbox, three UARTs, SPI
+host, I2C host, USB CDC-ACM, GPIO, main capture/compare/timebase, AON deadlines,
+generic PWM, DMA, pinmux, both watchdog channels, real lite hart, boot-release
+control, shared QSPI command/native-XIP engine and frozen I2C recovery loader.
+JTAG, clock/power control and analog interfaces await their own briefs.
+Reserved address holes are error targets, not implemented gateway/debug hardware.
+
+`SocProduction` supplies one set of generated register descriptions. Main
+frequency remains an elaboration parameter evaluated at 8 and 9 MHz. Production
+uses real USB; the named USB-stub simulation configuration retains every other
+production feature. `SocMinimalI0` is a named minimal boot/performance fixture.
+Bus-driven tests substitute stimulus at the CPU boundary; real-core tests use
+the actual recovery loader and lite-first release. Neither fixture is a second
+production configuration. `EmitSoc` is the production emission entry point;
+the old profile emitters have been removed after the B2 test comparison passed.
+
+The dedicated SPI ADC is retired by D74. Firmware uses the general SPI host
+and DMA for external converters. Its former window and three logical pins are
+unassigned; IRQ12 is unassigned. Historical ADC tests remain isolated only until
+the separately authorized source/test deletion after B2 passes.
+
+## Authoritative map
+
+`hw/top/reference/soc.yaml` defines production regions, child windows, trusted
+origins, interrupts and logical pins. Peripheral register YAMLs define register
+semantics; generated descriptions/headers go under build/. Unmapped, reserved,
+misaligned and denied accesses error without side effects. ROM writes and device
+instruction accesses error. Legal subword memory instructions retain byte masks.
+
+| Endpoint | Base | Size | Home | Implementation |
+| --- | --- | --- | --- | --- |
+| boot_rom | 0x00000000 | 0x10000 | main local | synchronous ROM model; production firmware pending |
+| xip | 0x10000000 | 0x10000000 | main local | native QSPI reads |
+| performance_sram | 0x20000000 | 0x4000 | main local | synchronous banked model |
+| retained_sram | 0x30000000 | 0x0c00 | aon | synchronous retained model |
+| power_reset_timer | 0x40000000 | 0x1000 | aon | AON timer, watchdogs and boot-release children |
+| mailbox | 0x40001000 | 0x0100 | each domain local | real paired endpoints |
+| uart0 | 0x40010000 | 0x0100 | main | real |
+| uart1 | 0x40010100 | 0x0100 | main | real |
+| uart2 | 0x40010200 | 0x0100 | main | real |
+| spi_host | 0x40010300 | 0x0100 | main | real |
+| i2c_host | 0x40010400 | 0x0100 | main | real |
+| dma | 0x40011000 | 0x1000 | main | real, low 256 bytes |
+| gpio_pinmux | 0x40012000 | 0x1000 | main | GPIO, timer and pinmux children |
+| qspi_control | 0x40013000 | 0x1000 | main | command and native-XIP configuration |
+| unassigned_aon | 0x40020000 | 0x10000 | aon | unassigned; always error |
+| actuator | 0x40030000 | 0x1000 | main | generic PWM, low 256 bytes |
+| gateway_reserved | 0x40040000 | 0x0800 | main | reserved; always error |
+| usb | 0x40040800 | 0x0100 | main/usb/aon | real |
+| future_bridge | 0x60000000 | 0x10000000 | each domain | reserved; always error |
+
+Child offsets: AON timer 0, performance watchdog 0x100, lite watchdog 0x200,
+boot release 0x300 in the AON parent; GPIO 0, main timers 0x100, pinmux 0x200 in
+the GPIO parent. QSPI native configuration extends the command map at 0x100.
+Child holes remain errors. No parent or endpoint timeout changes.
+
+| Source | Fast index | Production binding |
+| --- | --- | --- |
+| uart0 | 0 | UART0 |
+| uart1 | 1 | UART1 |
+| uart2 | 2 | UART2 |
+| spi_host | 3 | SPI |
+| i2c_host | 4 | I2C |
+| mailbox | 5 | main endpoint |
+| usb | 6 | USB application IRQ |
+| future_bridge | 7 | inactive reservation |
+| dma | 8 | DMA |
+| gpio_pinmux | 9 | GPIO |
+| actuator | 10 | PWM |
+| power_reset_timer | 11 | main timer or synchronized AON timer |
+
+## Memory, ownership and transactions
+
+Instruction/data access to ROM and SRAM bypasses peripheral arbitration.
+D65 current-request arbitration retains exclusive acceptance, round-robin
+preference, synchronous responses and exclusion of a returning data response.
+The core's outstanding fetch behavior, byte enables and epoch drain remain.
+DMA is confined to performance SRAM and fixed UART/SPI/PWM register endpoints;
+its origin is assigned by hardware. Offered operations drain before abort.
+ROM aperture is a model capacity, not a measured mask-ROM allocation.
+
+Trusted origins: lite 0, performance 1, future gateway/debug 2. Existing fixed-owner
+peripherals check every local/remote/DMA access. QSPI alone has its existing
+idle-only keyed ownership handoff. USB ownership is constant during application
+reset release. There is no added dynamic ownership controller.
+
+Retained SRAM contains 2048 program bytes and 1024 working bytes. CPU program
+writes are denied. Loader programming requires halted, unlocked, in-range
+aligned writes and acknowledgment after the synchronous write. Lite reads its
+program while halted or after admitted START. Remote performance accesses
+require the lite hart halted and loader idle; no debug bypass is implemented.
+Service resets flush handshakes, not RAM contents. The real hart supplies halt
+status; legacy external stand-in controls are inert in production.
+
+Native XIP serves aligned performance reads, little endian, with no cache or
+prefetch. Three-byte addresses reject unrepresentable offsets; four-byte mode
+uses the window. Disabled reads, writes and wrong origins error. Complete frames
+arbitrate round robin with captured CS1 commands. Raw CS0 commands are denied
+while XIP is enabled. Configuration/handoff is idle-only. Firmware handles
+flash readiness and must execute reconfiguration from ROM/SRAM. Native reads
+use the existing estimated bound `2 * 53299 + 32 = 106630` running main edges;
+peripheral bound 128 and bridge 131072/fabric 131080 are unchanged.
+
+## Clock, reset and boot
+
+Clocks are explicit external model inputs: main 8/9 MHz trials, USB 48 MHz, AON
+nominal 32 kHz or a declared active-service test clock. These are assumed model
+rates, not selected/qualified oscillators. SPI's existing divider allows at most
+estimated main/6, or 1.333/1.5 MHz; its separate 4 MHz target remains unmet. Loader
+needs eight service edges per SCL period; normal I2C speeds cannot run at 32 kHz.
+
+Shared ResetRelease supplies asynchronous assertion and synchronous release.
+Cold and warm reset affect all ordinary state; loader lock survives warm reset.
+Performance core reset preserves shared fabrics/peripherals/DMA and drains old
+accepted client work before epochReady. D70 performance-watchdog expiry also
+disables PWM; a post-drain STOP acknowledgment and APPLY are required to restart
+outputs. GPIO/timer alternatives survive. Lite watchdog resets the whole MCU.
+Main-service reset cancels its peripherals/memory control, AON-service reset
+cancels the lite/loader/AON transport, and USB-service reset flushes USB. Crossing
+reset isolation and nested-fabric drain acknowledgments remain connected; no
+quiescent input is tied true to manufacture recovery.
+
+Validated recovery START launches the real lite hart. A lite-owned keyed write
+to boot release then releases performance through its client reset. Release
+survives AON-service reset but not whole reset. D73 freezes the loader's existing
+image-invalidation policy: warm/AON reset invalidates START/image metadata while
+lock remains; no retained-image restart extension or autonomous boot is implied.
+Production QSPI image selection/CRC/recovery firmware is still pending.
+
+Clock demands/wakes pass through shared CDC to the always-running controller
+boundary and survive stopped destination clocks as specified by each block.
+Those outputs are not permission to stop a running core. The clock/power/reset
+controller, analog qualification, full crossing inventory/MTBF and physical
+reset/hold/clock-tree checks remain separate obligations.
+
+## Pins and verification boundary
+
+Three GPIO pads select disconnected, same-index GPIO, timer compare or PWM.
+Selections reset disconnected; switching includes the existing disabled interval.
+Dedicated timer/PWM pins remain, and input/wake routes are independent. Firmware
+must quiesce sources when a truncated pulse is unacceptable. Serial, recovery,
+QSPI, USB and dedicated JTAG/external-clock/reset logical groups retain their
+contracts. JTAG TDO stays disabled until debug implementation.
+
+Estimated simultaneous digital demand after D74 is 38 output-capable and 9
+input-only pads: previous 40/10 minus ADC 2/1. Historical slot capacities remain
+40/12; dedicated clock/reset/analog are separate. This is allocation arithmetic,
+not measured pad-ring fit or USB electrical qualification. Scan sharing and
+final physical assignment remain open.
+
+Focused tests use independent bus/pin/architectural oracles and real faults.
+The minimal I0 QEMU fixture preserves its declared relocated address map,
+preloads and marker targets; it is not production-top performance evidence.
+Production performance must be measured separately. No inherited T13/T14/T17/
+T19/T23/T25/T26 proof or physical obligation is waived. D76 now requires fast CI
+on main and full CI at integration-stage ends; historical no-CI notes below do
+not govern current acceptance.
+
+## Appendix: historical profile contracts
+
+The following is the pre-PLAN03 contract, retained verbatim as history. Its
+profiles, stub tables, pending-work descriptions and no-CI instructions are
+superseded by the current contract and D72–D76.
+
 # Reference SoC contract — T20 I0/I1
 
 Initial contract reviewed, 2026-11-20, based on `f1c17ba`. This specifies

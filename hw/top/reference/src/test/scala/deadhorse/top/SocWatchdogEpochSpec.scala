@@ -23,11 +23,11 @@ class SocWatchdogEpochSpec extends SocDmaSpec {
       wr(d,pwm+4,1);wr(d,pwm,1);assert(rd(d,pwm+8)==1)
   }
   test("retained pre-watchdog STOP drains before break acknowledgment is enabled") {
-    simulateRaw(new SocDmaHarness(SocWatchdogFiles.config().copy(liteCore=false)),settings=settings)(checkEpoch)
+    simulateRaw(new SocDmaHarness(SocProduction.config(realUsb=false)),settings=settings)(checkEpoch)
   }
   test("bypassing actual epoch readiness is caught by the retained STOP scenario") {
     val e=intercept[org.scalatest.exceptions.TestFailedException] {
-      simulateRaw(new SocDmaHarness(SocWatchdogFiles.config().copy(liteCore=false),bypassWatchdogEpoch=true),
+      simulateRaw(new SocDmaHarness(SocProduction.config(realUsb=false),bypassWatchdogEpoch=true),
         settings=settings)(checkEpoch)
     }
     assert(e.getMessage.contains("WATCHDOG_OLD_STOP_CANNOT_ACK"))

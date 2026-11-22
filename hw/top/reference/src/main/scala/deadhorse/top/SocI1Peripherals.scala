@@ -23,10 +23,12 @@ import deadhorse.watchdog.Watchdog
 import deadhorse.boot_control.BootControl
 import deadhorse.qspi.Qspi
 
-/** The I1 assembly's real peripheral/bridge path, also tested without a CPU.
+/** The production peripheral/bridge path, also tested at its CPU boundary.
   * All test-controller inputs are synchronous to their declared owning domain.
   */
 class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends RawModule {
+  protected def legacyAdcRegisterFile: Option[String]=None
+  protected def testBusInjection: Boolean=false
   protected def loaderHalted(halted: Bool,starting: Bool): Bool=halted && !starting
   protected def wholeWatchdogReset(performance: Bool,lite: Bool): Bool=lite
   protected def qspiServiceReset(main: Bool,aon: Bool): Bool=main
@@ -40,7 +42,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   })))
   val performanceReady=config.watchdog.map(_=>IO(Input(Bool())))
   val performanceReleased=config.bootControl.map(_=>IO(Output(Bool())))
-  val nativeXip=if(config.xip) Some(IO(new LocalBus)) else None
+  val nativeXip=Some(IO(new LocalBus))
   val validatedStart=WireDefault(false.B)
   val performanceHold=WireDefault(false.B);val wholeHold=WireDefault(false.B)
   val watchdogWarning=WireDefault(false.B);val watchdogDemand=WireDefault(false.B)
@@ -50,7 +52,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   inactivePads.pins<>pins.inactive
   for((name,width)<-Seq("qspi_dq"->4,"qspi_cs_n"->2,"qspi_sclk"->1,"actuator"->9,
       "imu_drdy"->1,"jtag_tck"->1,"jtag_tms"->1,"jtag_tdi"->1,"jtag_tdo"->1,
-      "gpio"->3,"timer"->4,"adc_miso"->1,"adc_sclk"->1,"adc_cs_n"->1))
+      "gpio"->3,"timer"->4))
     require(description.pinWidth(name)==width,s"I1 inactive port width differs: $name")
   require(description.origin("lite")==0 && description.origin("performance")==1)
   require(description.region("mailbox").base==BigInt("40001000",16))
@@ -66,13 +68,13 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   // cohort; AON service reset must not erase surviving main orphan demand.
   val controllerUp=release(pins.aonClock,coldReset_n && warmRaw)
   val coldUp=release(pins.aonClock,coldReset_n)
-  val pwmUp=if(config.watchdog.isDefined) release(mainClock,mainRaw && !performanceHold) else mainUp
+  val pwmUp=release(mainClock,mainRaw && !performanceHold)
   val usbAppUp=release(mainClock,mainRaw && usbRaw)
   def syncMain(value: Bool): Bool = {
     val s=Module(new CdcSync(1));s.clk:=pins.aonClock;s.reset_n:=controllerUp;s.in:=value.asUInt;s.out.asBool
   }
   val mainNames=description.fabric("main");val aonNames=description.fabric("aon")
-  val mainRemote=Seq("retained_sram","power_reset_timer","adc_loader_reserved")
+  val mainRemote=Seq("retained_sram","power_reset_timer","unassigned_aon")
   val aonRemote=Seq("serial","actuator","gateway")
   def fabric(names: Seq[String], remote: Seq[String], masters: Int, clock: Clock, reset: Bool): BusFabric = {
     val f=Module(new BusFabric(masters,names.map { n =>
@@ -84,7 +86,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     f.allow.foreach(_:=true.B);f.admit.foreach(_:=true.B);f.quiescent.foreach(_:=false.B)
     f
   }
-  val mf=fabric(mainNames,mainRemote,if(config.dma.isDefined) 3 else 2,mainClock,mainUp)
+  val mf=fabric(mainNames,mainRemote,3,mainClock,mainUp)
   val af=fabric(aonNames,aonRemote,2,pins.aonClock,aonUp)
   def hits(addr: UInt, allowed: Seq[String]): Bool = allowed.flatMap(description.expanded).map(r =>
     addr>=r.base.U && addr<(r.base+r.size).U).reduce(_ || _)
@@ -96,17 +98,20 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     source.gnt:=target.gnt;source.rvalid:=target.rvalid;source.rdata:=target.rdata;source.err:=target.err
   }
   ingress(mf.master(0),main,mainNames,Some(description.origin("performance")))
-  val liteHart=if(config.liteCore) Some(Module(new LiteHart(description.origin("lite")))) else None
-  liteHart match {
-    case Some(hart) =>
+  val liteHart=Some(Module(new LiteHart(description.origin("lite"))))
+  liteHart.foreach { hart =>
       hart.clk:=pins.aonClock;hart.reset_n:=aonUp;hart.irq:=pins.aonIrq
-      ingress(af.master(0),hart.bus,aonNames,Some(description.origin("lite")))
+      if(testBusInjection) {
+        ingress(af.master(0),pins.lite,aonNames,Some(description.origin("lite")))
+        hart.bus.gnt:=false.B;hart.bus.rvalid:=false.B;hart.bus.rdata:=0.U;hart.bus.err:=false.B
+      } else ingress(af.master(0),hart.bus,aonNames,Some(description.origin("lite")))
       // The test-master port is inert in the real-hart profile, including its
       // claimed halted state. Only the core controls retained-memory ownership.
-      pins.lite.gnt:=false.B;pins.lite.rvalid:=false.B;pins.lite.rdata:=0.U;pins.lite.err:=false.B
-    case None => ingress(af.master(0),pins.lite,aonNames,Some(description.origin("lite")))
+      if(!testBusInjection) {
+        pins.lite.gnt:=false.B;pins.lite.rvalid:=false.B;pins.lite.rdata:=0.U;pins.lite.err:=false.B
+      }
   }
-  val liteHalted=liteHart.map(_.halted).getOrElse(pins.liteHalted)
+  val liteHalted=if(testBusInjection) pins.liteHalted else liteHart.get.halted
   val toAon=Module(new BusBridge);val toMain=Module(new BusBridge)
   toAon.sourceClock:=mainClock;toAon.targetClock:=pins.aonClock
   toAon.sourceReset_n:=mainRaw;toAon.targetReset_n:=aonRaw
@@ -118,7 +123,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   permits.requestAon:=toMain.permitRequest;permits.requestMain:=toAon.permitRequest
   toMain.permit:=permits.permitAon;toAon.permit:=permits.permitMain
   ingress(mf.master(1),toMain.target,Seq("serial","actuator","gateway","future_bridge"),None)
-  ingress(af.master(1),toAon.target,Seq("retained_sram","power_reset_timer","adc_loader_reserved","future_bridge"),None)
+  ingress(af.master(1),toAon.target,Seq("retained_sram","power_reset_timer","unassigned_aon","future_bridge"),None)
   def remote(f: BusFabric,names: Seq[String],remoteNames: Seq[String],bridge: BusBridge,clock: Clock,reset: Bool): Unit = {
     val indices=remoteNames.map(names.indexOf);require(indices.forall(_>=0))
     val req=VecInit(indices.map(i=>f.target(i).req))
@@ -217,11 +222,9 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   drain(af,powerFabric.toSeq,toAon,pins.aonClock,aonUp)
   gateway.master(0)<>mf.target(mainNames.indexOf("gateway"))
   stub(gateway.target(gatewayNames.indexOf("gateway_reserved")),mainClock,mainUp)
-  for(n<-(if(config.qspi.isEmpty) Seq("qspi_control") else Seq.empty)++(if(config.dma.isEmpty) Seq("dma") else Seq.empty)++(if(config.io.isEmpty) Seq("gpio_pinmux") else Seq.empty))
-    stub(serial.target(serialNames.indexOf(n)),mainClock,mainUp)
   val qspiHold=WireDefault(false.B)
   config.qspi.foreach {json=>
-    val flash=Module(new Qspi(json,description.qspiRegion.base,withXip=config.xip))
+    val flash=Module(new Qspi(json,description.qspiRegion.base,withXip=true))
     flash.clk:=mainClock;flash.reset_n:=qspiServiceReset(mainUp,aonUp);flash.bus<>serial.target(serialNames.indexOf("qspi_control"))
     flash.dqIn:=pins.inactive.qspiDqIn
     pins.inactive.qspiDqOut:=flash.dqOut;pins.inactive.qspiDqEnable:=flash.dqEnable
@@ -235,9 +238,8 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   val muxValues=WireDefault(VecInit(Seq.fill(3)(0.U(3.W))))
   val muxEnables=WireDefault(VecInit(Seq.fill(3)(0.U(3.W))))
   val pinmuxHold=WireDefault(false.B)
-  config.pwm match {
-    case Some(json) =>
-      val p=Module(new Pwm(json,base=description.pwmRegion.base,watchdog=config.watchdog.isDefined))
+  config.pwm.foreach { json =>
+      val p=Module(new Pwm(json,base=description.pwmRegion.base,watchdog=true))
       p.clk:=mainClock;p.reset_n:=mainUp;p.owner:=description.origin("performance").U
       p.watchdogReset_n.foreach(_:=pwmUp)
       p.performanceReady.foreach(_:=performanceReady.get)
@@ -245,14 +247,14 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
       pins.inactive.actuatorOut:=p.pinsOut;pins.inactive.actuatorEnable:=p.pinsEnable
       muxValues(2):=p.pinsOut(2,0);muxEnables(2):=p.pinsEnable(2,0)
       pwmIrq:=p.irq;pwmHold:=p.clockHold
-    case None => stub(mf.target(mainNames.indexOf("actuator")),mainClock,mainUp)
   }
   stub(mf.target(mainNames.indexOf("future_bridge")),mainClock,mainUp)
-  for(n<-Seq("future_bridge")++(if(config.io.isEmpty) Seq("power_reset_timer","adc_loader_reserved") else Seq.empty))
+  for(n<-Seq("future_bridge")++(if(legacyAdcRegisterFile.isEmpty) Seq("unassigned_aon") else Seq.empty))
     stub(af.target(aonNames.indexOf(n)),pins.aonClock,aonUp)
   val ioMainHold=WireDefault(false.B);val ioAonHold=WireDefault(false.B)
   val ioWake=WireDefault(false.B);val ioAonIrq=WireDefault(false.B)
   val gpioIrq=WireDefault(false.B);val timerIrq=WireDefault(false.B);val adcIrq=WireDefault(false.B)
+  val legacyAdcHold=WireDefault(false.B);val legacyAdcInterrupt=WireDefault(false.B)
   val timeNow=WireDefault(pins.spiTimeNow)
   config.io.foreach { c =>
     def toMainLevel(value: Bool): Bool = {
@@ -270,20 +272,25 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     muxValues(1):=timers.compareOut(2,0);muxEnables(1):=timers.pinsEnable(2,0)
     val aonTimer=Module(new AonTimers(c.aonTimer,base=description.ioRegion("aon_timer").base))
     aonTimer.clk:=pins.aonClock;aonTimer.reset_n:=aonUp;aonTimer.owner:=description.origin("lite").U
-    aonTimer.bus<>powerFabric.map(_.target(0)).getOrElse(af.target(aonNames.indexOf("power_reset_timer")))
-    val adc=Module(new Adc(c.adc,base=description.ioRegion("adc").base))
+    aonTimer.bus<>powerFabric.get.target(0)
+    // Historical ADC regression only, removed after the B2 comparison passes.
+    // The production assembly has no ADC instance or assigned pins/window.
+    legacyAdcRegisterFile.foreach {path=>
+    val adc=Module(new Adc(path,base=description.region("unassigned_aon").base))
     adc.clk:=pins.aonClock;adc.reset_n:=aonUp;adc.owner:=description.origin("lite").U
-    adc.bus<>af.target(aonNames.indexOf("adc_loader_reserved"));adc.miso:=pins.inactive.adcMiso
+    adc.bus<>af.target(aonNames.indexOf("unassigned_aon"));adc.miso:=pins.inactive.adcMiso
     pins.inactive.adcSclk:=adc.sclk;pins.inactive.adcCs_n:=adc.cs_n
     pins.inactive.adcSclkEnable:=adc.pinsEnable;pins.inactive.adcCsEnable:=adc.pinsEnable
-    gpioIrq:=gpio.irq;timerIrq:=timers.irq || toMainLevel(aonTimer.irq);adcIrq:=toMainLevel(adc.irq)
+    legacyAdcHold:=adc.clockHold;legacyAdcInterrupt:=adc.irq
+    }
+    gpioIrq:=gpio.irq;timerIrq:=timers.irq || toMainLevel(aonTimer.irq);adcIrq:=toMainLevel(legacyAdcInterrupt)
     ioMainHold:=gpio.clockHold || timers.clockHold || ioFabric.get.waiting.asUInt.orR
-    ioAonHold:=aonTimer.clockHold || adc.clockHold
-    ioWake:=aonTimer.wake || gpio.wake || adc.irq
-    ioAonIrq:=aonTimer.irq || adc.irq || gpio.wake
+    ioAonHold:=aonTimer.clockHold || legacyAdcHold
+    ioWake:=aonTimer.wake || gpio.wake || legacyAdcInterrupt
+    ioAonIrq:=aonTimer.irq || legacyAdcInterrupt || gpio.wake
   }
   config.pinmux.foreach {json=>
-    val p=Module(new Pinmux(json,base=description.pinmuxRegion.base,watchdog=config.watchdog.isDefined))
+    val p=Module(new Pinmux(json,base=description.pinmuxRegion.base,watchdog=true))
     p.clk:=mainClock;p.reset_n:=mainUp;p.owner:=description.origin("performance").U
     p.watchdogReset_n.foreach(_:=pwmUp)
     p.bus<>ioFabric.get.target(2);p.values:=muxValues;p.enables:=muxEnables
@@ -293,8 +300,9 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   mailbox.mainClock:=mainClock;mailbox.aonClock:=pins.aonClock
   mailbox.mainReset_n:=mainRaw;mailbox.aonReset_n:=aonRaw
   mailbox.main<>mf.target(mainNames.indexOf("mailbox"));mailbox.aon<>af.target(aonNames.indexOf("mailbox"))
-  pins.aonIrq:= (if(config.io.isEmpty) mailbox.irq(0) else
-    withClockAndReset(pins.aonClock,(!aonUp).asAsyncReset) {RegNext(mailbox.irq(0) || ioAonIrq,false.B)})
+  pins.aonIrq:=withClockAndReset(pins.aonClock,(!aonUp).asAsyncReset) {
+    RegNext(mailbox.irq(0) || ioAonIrq,false.B)
+  }
   val uarts=(0 until 3).map { i =>
     val name=s"uart$i";val u=Module(new Uart(config.uart,base=description.region(name).base))
     u.clk:=mainClock;u.reset_n:=mainUp;u.owner:=description.origin("performance").U
@@ -336,9 +344,9 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   // START is registered by the loader and consumed by the hart on the next
   // edge. Do not report that one handoff edge as a later halt to the loader.
   validatedStart:=acceptedLiteStart
-  loader.halted:=(if(config.liteCore) loaderHalted(liteHalted,acceptedLiteStart) else liteHalted)
+  loader.halted:=loaderHalted(liteHalted,acceptedLiteStart)
   liteHart.foreach {hart=>
-    hart.start:=acceptedLiteStart
+    hart.start:=(if(testBusInjection) false.B else acceptedLiteStart)
     hart.entry:=description.region("retained_sram").base.U+loader.entry
   }
   val retained=Module(new SocRetainedMemory(description))
@@ -347,7 +355,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   retained.halted:=liteHalted;retained.locked:=loader.locked;retained.loaderBusy:=loader.busy
   retained.started:=withClockAndReset(pins.aonClock,(!aonUp).asAsyncReset) {
     val started=RegInit(false.B)
-    when(if(config.liteCore) acceptedLiteStart else loader.start) {started:=true.B};started
+    when(acceptedLiteStart) {started:=true.B};started
   }
   retained.memValid:=loader.memValid;retained.memOffset:=loader.memOffset;retained.memWord:=loader.memWord
   loader.memReady:=retained.memReady;loader.memDone:=retained.memDone
@@ -374,8 +382,9 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   protected def interruptIndex(name: String): Int=description.interrupt(name)
   val irq=WireDefault(0.U(15.W))
   val sources=(0 until 3).map(i=>s"uart$i"->uarts(i).irq) ++ Seq("spi_host"->spi.irq,"i2c_host"->i2c.irq,"mailbox"->mailbox.irq(1),"usb"->usbIrq,"actuator"->pwmIrq,"dma"->dmaIrq) ++
-    (if(config.io.isDefined) Seq("gpio_pinmux"->gpioIrq,"power_reset_timer"->timerIrq,"adc_loader_reserved"->adcIrq) else Seq.empty)
-  irq:=sources.map {case(n,v)=>v.asUInt<<interruptIndex(n)}.reduce(_|_)
+    Seq("gpio_pinmux"->gpioIrq,"power_reset_timer"->timerIrq)
+  irq:=sources.map {case(n,v)=>v.asUInt<<interruptIndex(n)}.reduce(_|_) |
+    (if(legacyAdcRegisterFile.nonEmpty) adcIrq.asUInt<<12 else 0.U)
   fastIrq:=irq
   val held=withClockAndReset(mainClock,(!mainUp).asAsyncReset) {
     RegNext(uarts.map(_.clockHold).reduce(_||_) || spi.clockHold || i2c.clockHold || ioMainHold || pwmHold || dmaHold || pinmuxHold || qspiHold ||
@@ -388,11 +397,11 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     wake
   }
   pins.loaderWake:=loaderWake
-  withClockAndReset(pins.aonClock,(!(if(config.watchdog.isDefined) coldUp else controllerUp)).asAsyncReset) {
+  withClockAndReset(pins.aonClock,(!coldUp).asAsyncReset) {
     pins.mainDemand:=RegNext(fromMain || toMain.clockRequest || mailbox.wakePeer(0) || pins.usbWake || ioWake ||
       watchdogWarning || performanceHold || wholeHold,false.B)
     pins.aonDemand:=RegNext(fromMain || toAon.targetClockHold || af.waiting.asUInt.orR ||
       loader.clockHold || retained.busy || loaderWake || pins.usbWake || ioAonHold || ioWake ||
-      liteHart.map(_.clockHold).getOrElse(false.B) || watchdogDemand,false.B)
+      liteHart.get.clockHold || watchdogDemand,false.B)
   }
 }

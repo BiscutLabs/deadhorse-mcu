@@ -90,7 +90,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | --- | --- | --- | --- | --- | --- |
 | [x] | PLAN01 | [Reconcile decisions](tasks/PLAN01-reconcile.md) | Codex | User approvals | [Report](tasks/reports/PLAN01.md); documentation only |
 | [x] | PLAN02 | [General-purpose MCU scope](tasks/PLAN02-general-mcu.md) | Codex | User direction D69 | [Report](tasks/reports/PLAN02.md); documentation checks and independent review pass; no RTL or CI |
-| [~] | PLAN03 | [SoC consolidation and tape-out planning](tasks/PLAN03-soc-consolidation.md) | Codex | D72–D76; existing T20–T30 evidence | B1 freeze; B2 inventory/consolidation underway. No new block work |
+| [~] | PLAN03 | [SoC consolidation and tape-out planning](tasks/PLAN03-soc-consolidation.md) | Codex | D72–D76; existing T20–T30 evidence | B2 consolidation verified/reviewed; separate ADC retirement and B3 fast CI next. [Report](tasks/reports/PLAN03.md). No new block work |
 | [x] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | Codex | none | [Report](tasks/reports/T08.md); clean rebuild and runtime smoke pass |
 | [x] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | Codex | T08 | [Report](tasks/reports/T01.md); local gate and fresh-context review pass |
 | [x] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | Codex | T01, T08 | [Report](tasks/reports/T02.md); exact QEMU matches, historical summary preserved, local gate passes |
@@ -185,6 +185,7 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 
 ## Log
 
+- 2026-11-21: PLAN03 B2 accepted after independent review: all 82 original SoC tests across 24 suites pass; production/USB-stub emissions at 8/9 MHz and minimal-I0 compilation pass. Removed old profile alternatives/emitters; all four emitted RTL inventories remain byte-identical. Corrected the GPIO test boundary for production pinmux and retained exact register-state checks. ADC source deletion remains separate; neither CI tier nor B3–B6 has run.
 - 2026-11-21: PLAN03 assigned on main; recorded D72–D76, froze new block work and withdrew T31. Read-first/source/test inventory started for B2. Existing D65 I0 fixture fixed/hard-float evidence is historical, distinct from required production-SoC measurements. Prior no-CI instructions are superseded by D76; no new check result claimed.
 
 - 2026-11-21: User requested committing all accumulated work on main and pushing for review. This publication supersedes the historical local/uncommitted/no-push checkpoint notes. It includes the SoC/peripheral/native-flash implementation and the pending T31 proposal; it does not close unresolved task acceptance or approve T31's reset-policy change. Repository hygiene and independent snapshot review apply; neither CI tier is run. Final staging removes trailing blank lines only from existing verification scripts, with prior bytes and a hash manifest retained under build/commit-review.

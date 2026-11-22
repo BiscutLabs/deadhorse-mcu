@@ -7,7 +7,7 @@ import deadhorse.lib.LocalBus
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
-class WrongI1Irq(d: SocDescription,c: SocI1Config) extends SocI1Peripherals(d,c) {
+class WrongI1Irq(d: SocDescription,c: SocI1Config) extends SocPeripheralBusTest(d,c) {
   override protected def interruptIndex(name: String): Int=if(name=="uart1") 12 else super.interruptIndex(name)
 }
 
@@ -33,6 +33,7 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
     bus.bits.wdata.poke(data.U);bus.bits.be.poke(be.U);bus.bits.origin.poke(origin.U)
   }
   def reset(d: SocI1Peripherals): Unit = {
+    SocTestPorts.idle(d)
     drive(d.main,0);drive(d.pins.lite,0);d.main.req.poke(false.B);d.pins.lite.req.poke(false.B)
     d.coldReset_n.poke(false.B);d.warmReset_n.poke(false.B);d.mainServiceReset_n.poke(false.B)
     d.pins.aonServiceReset_n.poke(false.B);d.pins.usbServiceReset_n.poke(false.B)
@@ -72,7 +73,7 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
     }
   }
   test("serial endpoints, ownership, exact decode, all stub windows and IRQ wiring") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocI1Files.config())) { d =>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       irqCheck(d)
       val bases=Seq(0x40010000L,0x40010100L,0x40010200L,0x40010300L,0x40010400L)
       for(base<-bases) {
@@ -82,8 +83,10 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
         assert(denied,"I1_OWNER_BYPASS");assert(good(d,d.main,base)==1)
         good(d,d.main,base,true,0)
       }
-      val errors=Seq(0x40000000L,0x40011000L,0x40012000L,0x40013000L,0x40020000L,
-        0x40030000L,0x40040000L,0x40040800L,0x60000000L,0x40010500L,0x40040900L,0xffffffffL)
+      // These were stub apertures in I1; production exposes their registers.
+      // Keep the error oracle on the reserved padding in each aperture.
+      val errors=Seq(0x40000400L,0x40011100L,0x40012300L,0x40013200L,0x40020100L,
+        0x40030100L,0x40040000L,0x40040800L,0x60000000L,0x40010500L,0x40040900L,0xffffffffL)
       for(address<-errors;bus<-Seq(d.main,d.pins.lite)) {
         val(v,e,_)=access(d,bus,address);assert(e && v==0,s"I1_STUB_OR_HOLE $address")
       }
@@ -92,7 +95,7 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
     }
   }
   test("mailbox round trip, retained byte lanes, denied program writes and independent service reset") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocI1Files.config())) { d =>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d)
       val mailbox=BigInt(0x40001000L)
       good(d,d.main,mailbox,true,0x12345678);good(d,d.main,mailbox+4,true,1)
@@ -119,7 +122,7 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
     }
   }
   test("opposite-direction traffic completes without circular bridge admission") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocI1Files.config())) { d =>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       aonPeriod=3
       try {
       reset(d);good(d,d.pins.lite,0x30000800L,true,0x1234)
@@ -137,13 +140,13 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
     }
   }
   test("wrong generated interrupt connection is detected") {
-    simulateRaw(new WrongI1Irq(SocTestFiles.description,SocI1Files.config())) { d =>
+    simulateRaw(new WrongI1Irq(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       val failure=intercept[org.scalatest.exceptions.TestFailedException] {irqCheck(d)}
       assert(failure.getMessage.contains("I1_IRQ_MAP"))
     }
   }
   test("real USB recovers after an outer timeout while its service reset blocks admission") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocI1Files.config(realUsb=true))) { d =>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=true))) { d =>
       reset(d)
       val usb=BigInt(0x40040800L)
       assert(good(d,d.main,usb)==0)
@@ -158,7 +161,7 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
     }
   }
   test("recovery I2C wire loads actual retained SRAM, rejects bad CRC and preserves lock across warm reset") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocI1Files.config())) { d =>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d)
       var hostLow=false;var starts=0
       def wireStep(n: Int): Unit=for(_<-0 until n) {
@@ -208,7 +211,7 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
     }
   }
   test("integrated SPI reads a BMI270 chip-ID wire fixture and detects corrupted MISO") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocI1Files.config())) { d =>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d)
       val base=BigInt(0x40010300L)
       def wr(offset: Int,value: Int): Unit={good(d,d.main,base+offset,true,value);()}
@@ -241,7 +244,7 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
     }
   }
   test("integrated I2C reads a BMP390 chip-ID wire fixture and detects a corrupted reply") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocI1Files.config())) { d =>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d)
       val base=BigInt(0x40010400L);val peer=new deadhorse.i2c_host.I2cPeer
       var cycles=0

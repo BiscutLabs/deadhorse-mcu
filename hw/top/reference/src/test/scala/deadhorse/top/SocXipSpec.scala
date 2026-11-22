@@ -7,7 +7,7 @@ import org.scalatest.funsuite.AnyFunSuite
 
 class SocXipBench extends DeadhorseSoc(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
-  Paths.get("build/t30/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocXipFiles.config()))
+  Paths.get("build/t30/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocProduction.config(realUsb=false)))
 class SocXipSpec extends AnyFunSuite with ChiselSim {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t30/soc-simulation").toAbsolutePath

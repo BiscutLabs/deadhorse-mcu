@@ -11,7 +11,7 @@ class SocBootSpec extends AnyFunSuite with ChiselSim {
   implicit val outputDirectory: HasTestingDirectory = new HasTestingDirectory {
     def getDirectory = Paths.get("build/t20/i0-simulation").toAbsolutePath
   }
-  private val settings = Settings.defaultRaw[DeadhorseSoc].copy(
+  private val settings = Settings.defaultRaw[SocCoreAssembly].copy(
     randomization = Randomization.random.copy(memories = false)).withLibraryPaths(Seq(
       Paths.get("hw/vendor/ibex_ref/vendor/lowrisc_ip/ip/prim_generic/rtl/prim_generic_clock_gating.sv")
         .toAbsolutePath.toString))
@@ -37,9 +37,11 @@ class SocBootSpec extends AnyFunSuite with ChiselSim {
       .digest(java.nio.file.Files.readAllBytes(Paths.get("build/t20/i0-firmware/boot.hex")))
       .map(b=>f"${b & 255}%02x").mkString
     assert(digest==receipt("rom_sha256").str, "I0_ROM_RECEIPT")
-    simulateRaw(new DeadhorseSoc("build/t20/map/soc.json", "build/t20/i0-firmware/uart_regs.json",
+    simulateRaw(if(integrated) new DeadhorseSoc("build/t20/map/soc.json", "build/t20/i0-firmware/uart_regs.json",
       Paths.get("build/t20/i0-firmware/boot.hex").toAbsolutePath.toString,
-      i1Config=if(integrated) Some(SocI1Files.config()) else None),
+      i1Config=Some(SocProduction.config(realUsb=false))) else new SocMinimalI0(
+        "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
+        Paths.get("build/t20/i0-firmware/boot.hex").toAbsolutePath.toString),
       firtoolOpts=gateBinding, settings=settings) { d =>
       d.uartRx.poke(true.B)
       d.coldReset_n.poke(false.B); d.warmReset_n.poke(false.B)
@@ -59,6 +61,7 @@ class SocBootSpec extends AnyFunSuite with ChiselSim {
       d.coldReset_n.poke(true.B); d.warmReset_n.poke(true.B)
       d.mainCoreReset_n.poke(true.B); d.mainServiceReset_n.poke(true.B)
       d.i1.foreach {p=>p.aonServiceReset_n.poke(true.B);p.usbServiceReset_n.poke(true.B)}
+      if(integrated) SocTestBoot.release(d,()=>tick())
       val samples = ArrayBuffer.empty[Boolean]
       var retired = 0; var sawMultiply = false
       for(_ <- 0 until 3000) {

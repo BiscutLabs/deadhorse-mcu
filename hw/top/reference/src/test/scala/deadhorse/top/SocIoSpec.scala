@@ -21,6 +21,7 @@ class SocIoSpec extends AnyFunSuite with ChiselSim {
     bus.bits.wdata.poke(data.U);bus.bits.be.poke(be.U);bus.bits.origin.poke(origin.U)
   }
   def reset(d: SocI1Peripherals): Unit = {
+    SocTestPorts.idle(d)
     drive(d.main,0);drive(d.pins.lite,0);d.main.req.poke(false.B);d.pins.lite.req.poke(false.B)
     d.coldReset_n.poke(false.B);d.warmReset_n.poke(false.B);d.mainServiceReset_n.poke(false.B)
     d.pins.aonServiceReset_n.poke(false.B);d.pins.usbServiceReset_n.poke(false.B)
@@ -52,9 +53,10 @@ class SocIoSpec extends AnyFunSuite with ChiselSim {
     val(v,e,_)=access(d,bus,address,write,data,be);assert(!e,s"I1_BUS_ERROR $address");v
   }
   test("functional I/O decode, ownership, pad outputs and timer IRQ") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocIoFiles.config())) { d =>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d)
       val gpio=BigInt(0x40012000L);val timer=gpio+256
+      for(i<-0 until 3) good(d,d.main,0x40012200L+4*i,true,1)
       good(d,d.main,gpio,true,5);good(d,d.main,gpio+4,true,7)
       assert(d.pins.inactive.gpioOut.peek().litValue==5 && d.pins.inactive.gpioEnable.peek().litValue==7)
       assert(access(d,d.pins.lite,gpio,true,0)._2);assert(good(d,d.main,gpio)==5)
@@ -67,7 +69,7 @@ class SocIoSpec extends AnyFunSuite with ChiselSim {
       assert(d.pins.inactive.timerEnable.peek().litValue==1 && high(d.mainHold))
       tick(d,820);assert(d.pins.inactive.timerOut.peek().litValue==1 && d.fastIrq.peek().litValue.testBit(11))
       good(d,d.main,timer,true,0);assert(d.pins.inactive.timerEnable.peek().litValue==0)
-      for(a<-Seq(0x40012080L,0x40012180L,0x40012200L,0x40000100L,0x40020100L))
+      for(a<-Seq(0x40012080L,0x40012180L,0x40012280L,0x40000400L,0x40020100L))
         assert(access(d,d.main,a)._2,"IO_HOLE")
       assert(access(d,d.main,0x40000020L,true,100)._2 && access(d,d.main,0x40020000L,true,1)._2)
       d.mainServiceReset_n.poke(false.B);tick(d,2)
@@ -75,8 +77,9 @@ class SocIoSpec extends AnyFunSuite with ChiselSim {
     }
   }
   test("AON deadline and GPIO level wake with main stopped; independent reset scopes") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocIoFiles.config())) { d =>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d);val gpio=BigInt(0x40012000L);val aon=BigInt(0x40000000L)
+      for(i<-0 until 3) good(d,d.main,0x40012200L+4*i,true,1)
       good(d,d.main,gpio,true,6);good(d,d.main,gpio+4,true,3)
       good(d,d.main,gpio+28,true,1);good(d,d.main,gpio+32,true,1);good(d,d.main,gpio+36,true,1)
       tick(d,32);good(d,d.pins.lite,aon+8,true,1);good(d,d.pins.lite,aon+12,true,1)
@@ -88,17 +91,23 @@ class SocIoSpec extends AnyFunSuite with ChiselSim {
       assert(d.fastIrq.peek().litValue.testBit(11),"AON_IRQ_REASSERTS_AFTER_MAIN_RESET")
       good(d,d.pins.lite,aon+4,true,1);tick(d,40);assert(!high(d.pins.mainDemand))
       // Main reset flushed GPIO wake; reinstall before the stopped-main check.
+      for(i<-0 until 3) good(d,d.main,0x40012200L+4*i,true,1)
       good(d,d.main,gpio,true,6);good(d,d.main,gpio+4,true,3)
       good(d,d.main,gpio+28,true,1);good(d,d.main,gpio+32,true,1);good(d,d.main,gpio+36,true,1);tick(d,32)
       d.pins.inactive.gpioIn.poke(1.U);d.pins.aonClock.step(12);assert(high(d.pins.mainDemand))
       d.pins.aonServiceReset_n.poke(false.B);d.pins.aonClock.step(4)
-      assert(d.pins.inactive.gpioOut.peek().litValue==6 && d.pins.inactive.gpioEnable.peek().litValue==3)
+      // Production pinmux drives disabled pads low, even when the GPIO data
+      // register retains a one. Check the exact physical value while main is stopped.
+      assert(d.pins.inactive.gpioOut.peek().litValue==2 && d.pins.inactive.gpioEnable.peek().litValue==3)
       assert(!high(d.pins.aonIrq));d.pins.aonServiceReset_n.poke(true.B);tick(d,48)
       assert(!high(d.pins.mainDemand),"IO_WAKE_CONFIG_FLUSH")
+      // Preserve the original raw GPIO retention obligation, including the
+      // disabled bit, without adding main edges before the wake-flush check.
+      assert(good(d,d.main,gpio)==6 && good(d,d.main,gpio+4)==3,"IO_GPIO_STATE_RETAINED")
     }
   }
   test("ADC pin producer reaches AON MMIO and both interrupt destinations") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocIoFiles.config())) { d =>
+    simulateRaw(new SocAdcRetirementTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d);val a=BigInt(0x40020000L);val pins=d.pins.inactive
       val h=new AdcPeer(d.pins.aonClock,pins.adcCs_n,pins.adcSclk,pins.adcMiso,pins.adcSclkEnable,d.pins.aonDemand)
       peer=Some(h)

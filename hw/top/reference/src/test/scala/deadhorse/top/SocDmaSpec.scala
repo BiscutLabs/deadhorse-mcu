@@ -8,7 +8,7 @@ import org.scalatest.funsuite.AnyFunSuite
 
 /** Real SRAM/controller/fabrics/endpoints; software bus substitutes for the CPU.
   * UART and SPI pads have explicit digital loopbacks, not mocked FIFO requests. */
-class SocDmaHarness(config: SocI1Config=SocDmaFiles.config(),bypassWatchdogEpoch: Boolean=false) extends RawModule {
+class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),bypassWatchdogEpoch: Boolean=false) extends RawModule {
   require(!bypassWatchdogEpoch || config.watchdog.isDefined)
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val coreReset_n=IO(Input(Bool()))
   val aonReset_n=IO(Input(Bool()));val bus=IO(new LocalBus);val lite=IO(new LocalBus)
@@ -17,14 +17,15 @@ class SocDmaHarness(config: SocI1Config=SocDmaFiles.config(),bypassWatchdogEpoch
   val stallPeripheral=config.watchdog.map(_=>IO(Input(Bool())))
   val epochReady=config.watchdog.map(_=>IO(Output(Bool())))
   val watchdogReset=config.watchdog.map(_=>IO(Output(Bool())))
-  val p=Module(new SocI1Peripherals(SocTestFiles.description,config))
+  val p=Module(new SocPeripheralBusTest(SocTestFiles.description,config))
   val whole=p.supervision.map(_.wholeReset).getOrElse(false.B)
   val performance=p.supervision.map(_.performanceReset).getOrElse(false.B)
   val up=Module(new ResetRelease);up.clk:=clk;up.reset_n:=reset_n && !whole
   val core=Module(new ResetRelease);core.clk:=clk;core.reset_n:=reset_n && coreReset_n && !whole && !performance
-  val mem=Module(new SocLocalMemory(SocTestFiles.description,SocTestFiles.memoryRom,dmaEnabled=true))
+  val mem=Module(new SocLocalMemory(SocTestFiles.description,SocTestFiles.memoryRom,dmaEnabled=true,xipEnabled=true))
   mem.clk:=clk;mem.serviceReset_n:=up.released;mem.clientReset_n:=core.released
   mem.data<>bus;mem.dma.get<>p.dmaMemory.get
+  mem.xip.get<>p.nativeXip.get
   if(config.watchdog.isDefined) {
     p.main.req:=mem.peripheral.req && !stallPeripheral.get;p.main.bits:=mem.peripheral.bits
     mem.peripheral.gnt:=p.main.gnt && !stallPeripheral.get
@@ -55,6 +56,7 @@ class SocDmaSpec extends AnyFunSuite with ChiselSim {
   val ram=BigInt(0x20000000L);val dma=BigInt(0x40011000L);val uart=BigInt(0x40010000L)
   val spi=BigInt(0x40010300L);val pwm=BigInt(0x40030000L)
   def init(d: SocDmaHarness): Unit={
+    d.stallPeripheral.foreach(_.poke(false.B))
     Seq(d.bus,d.lite).foreach {p=>p.req.poke(false.B);p.bits.poke(0.U.asTypeOf(new BusPayload))}
     d.reset_n.poke(false.B);d.coreReset_n.poke(false.B);d.aonReset_n.poke(false.B);d.clk.step(4)
     d.reset_n.poke(true.B);d.coreReset_n.poke(true.B);d.aonReset_n.poke(true.B);d.clk.step(40)
@@ -100,7 +102,7 @@ class SocDmaSpec extends AnyFunSuite with ChiselSim {
   }
   test("PWM DMA updates survive held core/AON resets; service reset cancels") {
     simulateRaw(new SocDmaHarness,settings=settings) {d=>
-      init(d);wr(d,pwm+0x40,999);wr(d,pwm+0xc0,0);wr(d,pwm+0x18,1);wr(d,pwm,1)
+      init(d);wr(d,pwm+4,1);wr(d,pwm+0x40,999);wr(d,pwm+0xc0,0);wr(d,pwm+0x18,1);wr(d,pwm,1)
       wr(d,ram+0x300,250);wr(d,ram+0x304,500);wr(d,ram+0x308,750)
       channel(d,0,0x300,3,8);wr(d,dma,1)
       d.coreReset_n.poke(false.B);d.aonReset_n.poke(false.B);d.clk.step(5000)

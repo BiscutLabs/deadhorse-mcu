@@ -22,7 +22,6 @@ PIN_CONTRACT = {
     'usb_vbus': (1, 'input'), 'usb_pullup': (1, 'output'),
     'jtag_tck': (1, 'input'), 'jtag_tms': (1, 'input'), 'jtag_tdi': (1, 'input'),
     'jtag_tdo': (1, 'output'), 'gpio': (3, 'bidirectional'), 'timer': (4, 'bidirectional'),
-    'adc_sclk': (1, 'output'), 'adc_cs_n': (1, 'output'), 'adc_miso': (1, 'input'),
 }
 
 
@@ -45,7 +44,7 @@ def name(value):
 
 
 def validate(data):
-    keys(data, ('schema', 'name', 'clocks', 'resets', 'masters', 'regions', 'interrupts', 'pins', 'pin_budget'), ('groups', 'fabrics', 'flight_io', 'pwm', 'dma', 'pinmux', 'watchdog', 'boot_control', 'qspi', 'qspi_xip'))
+    keys(data, ('schema', 'name', 'clocks', 'resets', 'masters', 'regions', 'interrupts', 'pins', 'pin_budget', 'groups', 'fabrics', 'flight_io', 'pwm', 'dma', 'pinmux', 'watchdog', 'boot_control', 'qspi', 'qspi_xip'))
     check(type(data['schema']) is int and data['schema'] == 1, 'Unsupported schema')
     name(data['name'])
     check(isinstance(data['clocks'], dict) and data['clocks'], 'Missing clocks')
@@ -64,6 +63,7 @@ def validate(data):
         check(number(m['origin'], 0, 7) and m['origin'] not in origins, 'Duplicate/invalid origin')
         origins.add(m['origin'])
         check(m['implementation'] in ('real', 'test_standin', 'inactive'), 'Invalid master kind')
+    check(data['masters'].get('lite', {}).get('implementation') == 'real', 'Production requires real lite hart')
     check(isinstance(data['regions'], list) and data['regions'], 'Missing regions')
     seen = set()
     for r in data['regions']:
@@ -77,7 +77,7 @@ def validate(data):
         check(all(d in data['clocks'] for d in r['domains']) and
               len(set(r['domains'])) == len(r['domains']), 'Invalid domains')
         check(r['reset'] in data['resets'], 'Unknown reset')
-        check(r['kind'] in ('model', 'stub', 'real', 'local_pair', 'optional_usb', 'reserved'), 'Invalid kind')
+        check(r['kind'] in ('model', 'stub', 'real', 'local_pair', 'optional_usb', 'reserved', 'container'), 'Invalid kind')
         check(r['kind'] not in ('real', 'local_pair', 'optional_usb') or 'regmap' in r,
               'Implemented register target requires regmap')
         if 'regmap' in r:
@@ -213,11 +213,10 @@ def validate(data):
         check(1 << regs['address_width'] == p['size'], 'PWM regmap width differs')
     if 'flight_io' in data:
         profile = data['flight_io']
-        keys(profile, ('gpio', 'timers', 'aon_timer', 'adc'))
+        keys(profile, ('gpio', 'timers', 'aon_timer'))
         expected = {'gpio': ('gpio_pinmux', 0, 'main', 'performance'),
                     'timers': ('gpio_pinmux', 256, 'main', 'performance'),
-                    'aon_timer': ('power_reset_timer', 0, 'aon', 'lite'),
-                    'adc': ('adc_loader_reserved', 0, 'aon', 'lite')}
+                    'aon_timer': ('power_reset_timer', 0, 'aon', 'lite')}
         parents = {r['name']: r for r in data['regions']}
         spans = []
         for n, p in profile.items():
@@ -279,6 +278,7 @@ def contract_rows(text):
 
 
 def check_contract(data, text):
+    text = text.split("## Appendix: historical profile contracts", 1)[0]
     actual = [(r['name'], r['base'], r['size'], r['home']) for r in data['regions']]
     check(contract_rows(text) == actual, 'Contract address table differs')
     irq_rows = []
@@ -353,7 +353,7 @@ def emit(data, output):
     scala += ['  )', '  val flightIo = Seq(']
     if 'flight_io' in data:
         parents = {r['name']: r for r in data['regions']}
-        markdown += ['', 'Opt-in flight I/O profile (I1 remains stubbed):', '',
+        markdown += ['', 'Production I/O services:', '',
                      '| Service | Base | Size | Clock |', '| --- | --- | --- | --- |']
         for n, p in data['flight_io'].items():
             base = parents[p['parent']]['base'] + p['offset']
@@ -367,19 +367,19 @@ def emit(data, output):
         p = data['pwm']; parent = next(r for r in data['regions'] if r['name'] == p['parent'])
         header += [f'#define DH_SOC_PWM_BASE 0x{parent["base"] + p["offset"]:08x}u',
                    f'#define DH_SOC_PWM_SIZE 0x{p["size"]:x}u']
-        markdown += ['', 'Opt-in PWM uses main-service reset, preserving core-only reset;',
-                     'the legacy stub profile is unchanged.']
+        markdown += ['', 'Production PWM uses main-service reset, preserving core-only reset;',
+                     'watchdog output-disable is connected.']
     if 'dma' in data:
         p = data['dma']; parent = next(r for r in data['regions'] if r['name'] == p['parent'])
         header += [f'#define DH_SOC_DMA_REG_SIZE 0x{p["size"]:x}u']
-        markdown += ['', 'Opt-in DMA: four finite-count channels, performance SRAM, UART/SPI bytes and PWM words;',
+        markdown += ['', 'Production DMA: four finite-count channels, performance SRAM, UART/SPI bytes and PWM words;',
                      'main-service reset. Endpoint addresses are derived from the peripheral register maps.']
     if 'pinmux' in data:
         p=data['pinmux'];parent=next(r for r in data['regions'] if r['name']==p['parent'])
         header += [f'#define DH_SOC_PINMUX_BASE 0x{parent["base"]+p["offset"]:08x}u',
                    f'#define DH_SOC_PINMUX_SIZE 0x{p["size"]:x}u']
         header += [f'#define DH_SOC_PINMUX_{name.upper()} {i}u' for i,name in enumerate(p['sources'])]
-        markdown += ['', 'Opt-in GPIO output alternatives, same-index channels0..2: '+', '.join(p['sources'])+'.',
+        markdown += ['', 'Production GPIO output alternatives, same-index channels0..2: '+', '.join(p['sources'])+'.',
                      'Input/wake and dedicated interfaces unchanged; physical map remains provisional.']
     markdown += ['', 'Provisional simultaneous logical pin demand; not physical fit.', '',
                  '| Pad class | Used | Nominal capacity |', '| --- | --- | --- |']

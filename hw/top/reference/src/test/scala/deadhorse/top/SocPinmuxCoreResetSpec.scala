@@ -8,7 +8,7 @@ import org.scalatest.funsuite.AnyFunSuite
 
 class SocPinmuxCoreResetBench extends DeadhorseSoc(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
-  Paths.get("build/t24/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocPinmuxFiles.config())) {
+  Paths.get("build/t24/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocProduction.config(realUsb=false))) {
   // Observe an actual MMIO acceptance, not private selector state.
   val applied=IO(Output(Bool()))
   applied:=memory.peripheral.req && memory.peripheral.gnt && memory.peripheral.bits.we &&
@@ -39,6 +39,7 @@ class SocPinmuxCoreResetSpec extends AnyFunSuite with ChiselSim {
       for(_<-0 until 4) tick()
       d.coldReset_n.poke(true.B);d.warmReset_n.poke(true.B);d.mainCoreReset_n.poke(true.B)
       d.mainServiceReset_n.poke(true.B);p.aonServiceReset_n.poke(true.B);p.usbServiceReset_n.poke(true.B)
+      SocTestBoot.release(d,()=>tick())
       var writes=0;var resetAt= -1
       for(cycle<-0 until 2400) {
         if(d.applied.peek().litToBoolean) {writes+=1;resetAt=cycle+24}

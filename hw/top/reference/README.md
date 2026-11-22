@@ -1,4 +1,27 @@
-# Reference SoC (T20)
+# Production SoC
+
+PLAN03 consolidates the existing blocks into one `DeadhorseSoc` under D72.
+The current contract and profile history are in
+[soc.md](../../../docs/spec/soc.md). Production includes the actual lite hart,
+boot release, watchdogs, PWM/DMA, pinmux and native QSPI/XIP. USB is real by
+default; `usb-stub-test` is a named simulation substitution. `SocMinimalI0`
+is a named minimal boot/performance fixture. ADC is unassigned under D74.
+No new peripheral is implemented by consolidation.
+
+```sh
+python tools/env/run.py run -- python dv/soc/prepare_production.py
+python tools/env/run.py run -- python tools/sbt.py "hw/runMain deadhorse.top.EmitSoc build/plan03/soc-production-8 production 8"
+```
+
+These are preparation/emission commands, not acceptance claims. PLAN03 results
+are tracked in STATUS. D76 requires fast CI on main and full CI at integration
+stage ends; old no-CI notes below are historical. Clock/power/analog/JTAG,
+production boot firmware, memory macros and physical qualification remain open.
+
+## Historical integration notes
+
+The following predates PLAN03. Its optional profiles are superseded by D72;
+historical measurements retain their original fixture and source scope.
 
 The optional I1 assembly now connects all three UARTs, SPI/I2C hosts, main/AON
 fabrics and bridges, local mailbox views, retained SRAM and recovery loader.

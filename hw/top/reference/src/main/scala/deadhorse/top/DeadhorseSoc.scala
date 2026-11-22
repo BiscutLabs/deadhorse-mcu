@@ -8,7 +8,7 @@ import deadhorse.perf_core.IbexTop
 import deadhorse.uart.Uart
 
 /** Shared core/local-memory assembly, with optional complete I1 peripheral wiring. */
-class DeadhorseSoc(config: String, uartJson: String, romImage: String,
+class SocCoreAssembly(config: String, uartJson: String, romImage: String,
                    gateTarget: ClockGateTarget = ClockGateTarget.Model,
                    readLatency: Int = 1, banks: Int = 4,
                    verificationFixture: Boolean = false, ramImages: Seq[String] = Seq.empty,
@@ -129,3 +129,20 @@ class DeadhorseSoc(config: String, uartJson: String, romImage: String,
   }
   }
 }
+
+/** Single production assembly. Test substitution may replace USB only. */
+class DeadhorseSoc(config: String, uartJson: String, romImage: String,
+    gateTarget: ClockGateTarget=ClockGateTarget.Model, readLatency: Int=1, banks: Int=4,
+    i1Config: Option[SocI1Config]=Some(SocProduction.config()))
+  extends SocCoreAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config=i1Config) {
+  require(i1Config.exists(c => c.io.nonEmpty && c.pwm.nonEmpty && c.dma.nonEmpty &&
+    c.pinmux.nonEmpty && c.liteCore && c.watchdog.nonEmpty && c.bootControl.nonEmpty &&
+    c.qspi.nonEmpty && c.xip), "DeadhorseSoc requires every production feature")
+}
+
+/** Named minimal boot/performance fixture; never a production feature profile. */
+class SocMinimalI0(config: String, uartJson: String, romImage: String,
+    gateTarget: ClockGateTarget=ClockGateTarget.Model, readLatency: Int=1, banks: Int=4,
+    verificationFixture: Boolean=false, ramImages: Seq[String]=Seq.empty)
+  extends SocCoreAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,
+    verificationFixture,ramImages,None)

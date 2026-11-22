@@ -88,11 +88,11 @@ class SocLiteSpec extends AnyFunSuite with ChiselSim {
     tick(1200);assert(read(0x30000800L)==3,"LITE_RESET_AUTOSTART")
   }
   test("recovery START runs retained RV32E code, timer/mailbox IRQs and independent resets") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocLiteFiles.config()))(exercise)
+    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocProduction.config(realUsb=false)))(exercise)
   }
   test("wrong START handoff status is rejected on the public loader wire") {
     val e=intercept[org.scalatest.exceptions.TestFailedException] {
-      simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocLiteFiles.config()) {
+      simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocProduction.config(realUsb=false)) {
         override protected def loaderHalted(halted: Bool,starting: Bool): Bool=halted
       })(exercise)
     };assert(e.getMessage.contains("LITE_START_STATUS"))

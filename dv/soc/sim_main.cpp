@@ -1,4 +1,4 @@
-#include "VDeadhorseSoc.h"
+#include "VSocMinimalI0.h"
 #include "verilated.h"
 #include <cstdlib>
 #include <fstream>
@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
   std::ofstream bus;
   if(const char *path=std::getenv("DEADHORSE_BUS_TRACE")) { bus.open(path); if(!bus) return 2; }
   VerilatedContext context;
-  VDeadhorseSoc dut(&context);
+  VSocMinimalI0 dut(&context);
   dut.mainClock=0; dut.uartRx=1;
   dut.coldReset_n=1; dut.warmReset_n=1; dut.mainServiceReset_n=1; dut.mainCoreReset_n=1;
   dut.eval(); dut.coldReset_n=0; dut.eval();

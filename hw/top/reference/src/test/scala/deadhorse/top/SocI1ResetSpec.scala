@@ -10,7 +10,7 @@ import org.scalatest.funsuite.AnyFunSuite
 /** Passive event taps on public BusBridge interfaces, never internal state.
   * They select reset phases; the response oracle uses the exposed top buses.
   */
-class SocI1ObservedCrossings extends SocI1Peripherals(SocTestFiles.description,SocI1Files.config()) {
+class SocI1ObservedCrossings extends SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false)) {
   val accepted=IO(Output(Vec(2,Bool())));val dispatched=IO(Output(Vec(2,Bool())))
   for((b,i)<-Seq(toAon,toMain).zipWithIndex) {
     accepted(i):=b.source.req && b.source.gnt
@@ -24,6 +24,7 @@ class SocI1ResetBench extends RawModule {
   val main=IO(new LocalBus);val aon=IO(new LocalBus)
   val accepted=IO(Output(Vec(2,Bool())));val dispatched=IO(Output(Vec(2,Bool())))
   val d=Module(new SocI1ObservedCrossings)
+  SocTestPorts.tieIdle(d)
   SocInactiveTestInputs.tieOff(d.pins.inactive)
   d.mainClock:=mainClock;d.pins.aonClock:=aonClock;d.pins.usbClock:=mainClock
   d.coldReset_n:=reset_n;d.warmReset_n:=true.B;d.mainServiceReset_n:=mainReset_n || ignoreMainReset

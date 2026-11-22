@@ -10,7 +10,7 @@ object EmitSocFixture extends App {
   val build=Paths.get("build").toAbsolutePath.normalize
   require(input.startsWith(build) && output.startsWith(build))
   Files.createDirectories(output)
-  ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new DeadhorseSoc(input.resolve("soc.json").toString,
+  ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new SocMinimalI0(input.resolve("soc.json").toString,
     input.resolve("uart_regs.json").toString,input.resolve("rom.hex").toString,
     verificationFixture=true,ramImages=(0 until 4).map(i=>input.resolve(s"ram$i.hex").toString))),
     Array("--target-dir",output.toString),Array("--disable-all-randomization","-strip-debug-info",

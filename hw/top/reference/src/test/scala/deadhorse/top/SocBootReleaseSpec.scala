@@ -7,7 +7,7 @@ import org.scalatest.funsuite.AnyFunSuite
 
 class SocBootReleaseBench(bypass: Boolean=false) extends DeadhorseSoc(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
-  Paths.get("build/t28/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocBootControlFiles.config())) {
+  Paths.get("build/t28/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocProduction.config(realUsb=false))) {
   override protected def bootPermit(released: Bool): Bool=if(bypass) true.B else released
 }
 class SocBootReleaseSpec extends AnyFunSuite with ChiselSim {

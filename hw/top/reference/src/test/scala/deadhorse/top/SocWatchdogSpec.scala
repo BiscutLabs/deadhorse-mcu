@@ -3,7 +3,7 @@ import chisel3._
 
 /** Both bus masters are controllable here; the emitted production profile uses LiteHart. */
 class SocWatchdogSpec extends SocIoSpec {
-  val profile=SocWatchdogFiles.config().copy(liteCore=false)
+  val profile=SocProduction.config(realUsb=false)
   val pwm=BigInt(0x40030000L);val gpio=BigInt(0x40012000L);val mux=gpio+512
   val perf=BigInt(0x40000100L);val lite=BigInt(0x40000200L);val dma=BigInt(0x40011000L)
   def initialize(d: SocI1Peripherals): Unit={
@@ -56,17 +56,17 @@ class SocWatchdogSpec extends SocIoSpec {
     assert(good(d,d.main,pwm+8)==1 && d.pins.inactive.gpioEnable.peek().litValue==3)
   }
   test("performance watchdog preserves shared state and disables all PWM routes while main is stopped") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,profile))(performanceScope)
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,profile))(performanceScope)
   }
   test("wrongly widening performance watchdog reset is rejected") {
     val e=intercept[org.scalatest.exceptions.TestFailedException] {
-      simulateRaw(new SocI1Peripherals(SocTestFiles.description,profile) {
+      simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,profile) {
         override protected def wholeWatchdogReset(p: Bool,l: Bool): Bool=p || l
       })(performanceScope)
     };assert(e.getMessage.contains("WATCHDOG_CONTAINMENT"))
   }
   test("lite watchdog resets all ordinary services but retains causes and SRAM") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,profile)) {d=>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,profile)) {d=>
       initialize(d);good(d,d.main,dma+0x30,true,29);good(d,d.pins.lite,0x30000800L,true,0x76543210)
       assert(access(d,d.main,lite,true,100)._2)
       good(d,d.pins.lite,lite,true,100);good(d,d.pins.lite,lite+12,true,0x57445354L)

@@ -11,7 +11,7 @@ import scala.collection.mutable.ArrayBuffer
 class SocI1CoreResetBench(corrupt: Boolean) extends DeadhorseSoc(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
   Paths.get("build/t20/i0-firmware/boot.hex").toAbsolutePath.toString,
-  i1Config=Some(SocI1Files.config())) {
+  i1Config=Some(SocProduction.config(realUsb=false))) {
   val firstByteOffered=IO(Output(Bool()))
   firstByteOffered:=memory.peripheral.req && memory.peripheral.bits.we &&
     memory.peripheral.bits.addr==="h4001000c".U && memory.peripheral.bits.wdata===73.U
@@ -60,6 +60,7 @@ class SocI1CoreResetSpec extends AnyFunSuite with ChiselSim {
       for(_<-0 until 4) tick()
       d.coldReset_n.poke(true.B);d.warmReset_n.poke(true.B);d.mainCoreReset_n.poke(true.B)
       d.mainServiceReset_n.poke(true.B);p.aonServiceReset_n.poke(true.B);p.usbServiceReset_n.poke(true.B)
+      SocTestBoot.release(d,()=>tick())
       var n=0
       while(!d.firstByteOffered.peek().litToBoolean && n<3000) {tick();n+=1}
       assert(d.firstByteOffered.peek().litToBoolean,"I1_CORE_RESET_PHASE_NOT_REACHED")

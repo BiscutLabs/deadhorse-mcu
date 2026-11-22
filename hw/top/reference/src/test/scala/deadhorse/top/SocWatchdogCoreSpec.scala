@@ -8,7 +8,7 @@ import org.scalatest.funsuite.AnyFunSuite
 
 class SocWatchdogCoreBench extends DeadhorseSoc(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
-  Paths.get("build/t26/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocWatchdogFiles.config()))
+  Paths.get("build/t26/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocProduction.config(realUsb=false)))
 class SocWatchdogCoreSpec extends AnyFunSuite with ChiselSim {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t26/core-reset-simulation").toAbsolutePath
@@ -34,6 +34,7 @@ class SocWatchdogCoreSpec extends AnyFunSuite with ChiselSim {
       for(_<-0 until 4) tick()
       d.coldReset_n.poke(true.B);d.warmReset_n.poke(true.B);d.mainCoreReset_n.poke(true.B)
       d.mainServiceReset_n.poke(true.B);p.aonServiceReset_n.poke(true.B);p.usbServiceReset_n.poke(true.B)
+      SocTestBoot.release(d,()=>tick())
       var wasReady=false;var sawEnabled=false;var sawReset=false;var recovered=false
       var cycles=0
       while(!recovered && cycles<12000) {

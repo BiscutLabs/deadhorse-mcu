@@ -34,13 +34,13 @@ class SocInactiveSpec extends AnyFunSuite with ChiselSim {
     def getDirectory=Paths.get("build/t20/i1/inactive-simulation").toAbsolutePath
   }
   test("I1 elaboration rejects YAML width drift at the physical stub boundary") {
-    for((name,width)<-Seq("qspi_dq"->3,"gpio"->2,"timer"->3,"adc_miso"->2)) {
+    for((name,width)<-Seq("qspi_dq"->3,"gpio"->2,"timer"->3)) {
     val path=os.Path(s"build/t20/i1/inactive-width-fault-$name.json",os.pwd)
     val document=ujson.read(os.read(os.Path("build/t20/map/soc.json",os.pwd)))
     document("pins")(name)("width")=width
     os.write.over(path,ujson.write(document))
     val e=intercept[IllegalArgumentException] {
-      _root_.circt.stage.ChiselStage.emitCHIRRTL(new SocI1Peripherals(new SocDescription(path.toString),SocI1Files.config()))
+      _root_.circt.stage.ChiselStage.emitCHIRRTL(new SocI1Peripherals(new SocDescription(path.toString),SocProduction.config(realUsb=false)))
     }
     assert(e.getMessage.contains(s"I1 inactive port width differs: $name"))
     }

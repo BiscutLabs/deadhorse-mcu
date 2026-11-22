@@ -24,7 +24,7 @@ def main():
         if code:raise RuntimeError(label+' failed')
         print('PASS',label,flush=True)
     try:
-        run([sys.executable,'dv/soc/prepare_pwm.py'],'prepare')
+        run([sys.executable,'dv/soc/prepare_production.py'],'prepare')
         run([sys.executable,'hw/top/reference/test_soc_map.py'],'map-tests')
         run([sys.executable,'tools/check_structure.py','--include-untracked'],'structure')
         suites=['deadhorse.pwm.PwmChannelSpec','deadhorse.pwm.PwmSpec','deadhorse.top.SocPwmSpec',
@@ -35,7 +35,7 @@ def main():
         commands=[sys.executable,'tools/sbt.py']
         for mhz in (8,9):
             for usb in ('stub','usb'):
-                commands.append(f'hw/runMain deadhorse.top.EmitSocPwm {out.relative_to(ROOT)}/soc-{mhz}-{usb} soc {usb} {mhz}')
+                commands.append(f'hw/runMain deadhorse.top.EmitSoc {out.relative_to(ROOT)}/soc-{mhz}-{usb} {"production" if usb=="usb" else "usb-stub-test"} {mhz}')
         run(commands,'whole-soc')
         if snapshot()!=receipt['source_sha256']:raise RuntimeError('Frozen sources changed')
         receipt['status']='pass'

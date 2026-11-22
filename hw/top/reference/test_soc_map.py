@@ -20,6 +20,8 @@ class SocMapTests(unittest.TestCase):
         def region(m): return m['regions'][0]
         faults = {
             'unknown key': lambda m: m.update(typo=True),
+            'production missing DMA': lambda m: m.pop('dma'),
+            'production lite stand-in': lambda m: m['masters']['lite'].update(implementation='test_standin'),
             'duplicate origin': lambda m: m['masters']['lite'].update(origin=1),
             'boolean origin': lambda m: m['masters']['lite'].update(origin=False),
             'duplicate region': lambda m: m['regions'].append(copy.deepcopy(region(m))),
@@ -63,12 +65,12 @@ class SocMapTests(unittest.TestCase):
             'unknown pin clock': lambda m: m['pins']['jtag_tck'].update(clock='missing'),
             'zero pin width': lambda m: m['pins']['qspi_dq'].update(width=0),
             'unsafe inactive pin': lambda m: m['pins']['jtag_tdo'].update(safe='enabled'),
-            'output pad overflow': lambda m: m['pins']['gpio'].update(width=4),
-            'input pad overflow': lambda m: m['pins']['adc_miso'].update(width=4),
+            'output pad overflow': lambda m: m['pins']['gpio'].update(width=6),
+            'input pad overflow': lambda m: m['pins']['spi_miso'].update(width=5),
             'changed slot capacity': lambda m: m['pin_budget'].update(bidirectional=41),
             'missing pin group': lambda m: m['pins'].pop('uart_tx'),
             'renamed pin group': lambda m: m['pins'].update(uart_tx_alias=m['pins'].pop('uart_tx')),
-            'duplicate pin alias': lambda m: m['pins'].update(adc_alias=m['pins']['adc_miso']),
+            'duplicate pin alias': lambda m: m['pins'].update(spi_alias=m['pins']['spi_miso']),
             'reduced real pin width': lambda m: m['pins']['uart_rx'].update(width=2),
             'changed pin direction': lambda m: m['pins']['uart_tx'].update(direction='input', safe='input'),
             'group missing member': lambda m: m['groups']['serial']['members'].append('unknown'),
@@ -81,8 +83,8 @@ class SocMapTests(unittest.TestCase):
             'invalid member type': lambda m: m['groups']['serial']['members'].__setitem__(0,[]),
             'timer overlaps GPIO': lambda m: m['flight_io']['timers'].update(offset=0),
             'timer wrong domain': lambda m: m['flight_io']['timers'].update(clock='aon'),
-            'ADC wrong owner': lambda m: m['flight_io']['adc'].update(owner='performance'),
-            'ADC wrong size': lambda m: m['flight_io']['adc'].update(size=65536),
+            'retired ADC binding': lambda m: m['flight_io'].update(adc=dict(m['flight_io']['aon_timer'])),
+            'retired ADC pins': lambda m: m['pins'].update(adc_miso=dict(m['pins']['spi_miso'])),
             'GPIO wrong map': lambda m: m['flight_io']['gpio'].update(regmap='hw/ip/uart/uart.regmap.yaml'),
             'missing timer service': lambda m: m['flight_io'].pop('aon_timer'),
         }
@@ -106,7 +108,7 @@ class SocMapTests(unittest.TestCase):
         self.assertEqual(table['pending'], 0x4003000c)
 
     def test_pin_accounting_counts_simultaneous_interfaces_without_sharing(self):
-        self.assertEqual(soc.pin_usage(self.model), {'bidirectional': 40, 'input_only': 10})
+        self.assertEqual(soc.pin_usage(self.model), {'bidirectional': 38, 'input_only': 9})
         for direction, bucket in [('input', 'input_only'), ('output', 'bidirectional'),
                                   ('bidirectional', 'bidirectional'), ('open_drain', 'bidirectional')]:
             model=copy.deepcopy(self.model)
@@ -116,7 +118,7 @@ class SocMapTests(unittest.TestCase):
     def test_direction_contract_rejects_a_fault_that_still_fits_both_capacities(self):
         model=copy.deepcopy(self.model)
         model['pins']['qspi_sclk'].update(direction='input', safe='input')
-        self.assertEqual(soc.pin_usage(model), {'bidirectional': 39, 'input_only': 11})
+        self.assertEqual(soc.pin_usage(model), {'bidirectional': 37, 'input_only': 10})
         with self.assertRaisesRegex(ValueError, 'Logical pin contract differs: qspi_sclk'):
             soc.validate(model)
 
@@ -159,7 +161,7 @@ class SocMapTests(unittest.TestCase):
             self.assertIn('#define DH_SOC_IO_TIMERS_BASE 0x40012100u', header)
             self.assertIn('#define DH_SOC_PINMUX_BASE 0x40012200u', header)
             self.assertIn('#define DH_SOC_PINMUX_PWM 3u', header)
-            self.assertIn('Region("adc", BigInt("40020000",16)', (output / 'SocMap.scala').read_text())
+            self.assertNotIn('Region("adc",', (output / 'SocMap.scala').read_text())
             self.assertIn('"mailbox" -> 5', (output / 'SocMap.scala').read_text())
         with self.assertRaisesRegex(ValueError, 'under build'):
             soc.emit(self.model, soc.ROOT / 'scratch/should-not-emit')

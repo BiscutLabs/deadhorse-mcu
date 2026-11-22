@@ -4,8 +4,9 @@ import chisel3._
 /** Reuse the public bus/pin driver and preserve its existing I/O regressions. */
 class SocPwmSpec extends SocIoSpec {
   test("PWM profile pins, IRQ10, clock demand, holes, denial and independent resets") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocPwmFiles.config())) {d=>
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) {d=>
       reset(d);val base=BigInt(0x40030000L)
+      good(d,d.main,base+4,true,1)
       good(d,d.main,base+0x40,true,9999);good(d,d.main,base+0xc0,true,5000)
       good(d,d.main,base,true,1)
       good(d,d.main,base+0x40,true,15);good(d,d.main,base+0xc0,true,4);good(d,d.main,base,true,1)

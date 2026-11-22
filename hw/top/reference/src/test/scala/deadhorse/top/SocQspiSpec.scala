@@ -48,11 +48,11 @@ class SocQspiSpec extends AnyFunSuite with ChiselSim {
       assert(io.access(d,d.main,0x10000000L)._2,"QSPI_XIP_STUB")
   }
   test("lite bridge ownership handoff, shared service containment and physical pin binding") {
-    simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocQspiFiles.config().copy(liteCore=false)))(exercise)
+    simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false)))(exercise)
   }
   test("wrongly widening QSPI reset to the AON service cohort is rejected") {
     val e=intercept[org.scalatest.exceptions.TestFailedException] {
-      simulateRaw(new SocI1Peripherals(SocTestFiles.description,SocQspiFiles.config().copy(liteCore=false)) {
+      simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false)) {
         override protected def qspiServiceReset(main: Bool,aon: Bool): Bool=main && aon
       })(exercise)
     };assert(e.getMessage.contains("QSPI_AON_ABORT"))

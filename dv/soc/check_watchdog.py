@@ -23,7 +23,7 @@ def main():
         if code:raise RuntimeError(label+' failed')
         print('PASS',label,flush=True)
     try:
-        run([sys.executable,'dv/soc/prepare_watchdog.py'],'prepare')
+        run([sys.executable,'dv/soc/prepare_production.py'],'prepare')
         run([sys.executable,'hw/ip/watchdog/check_provenance.py'],'provenance')
         run([sys.executable,'hw/top/reference/test_soc_map.py'],'map-tests')
         run([sys.executable,'tools/check_structure.py','--include-untracked'],'structure')
@@ -37,7 +37,7 @@ def main():
         commands=[sys.executable,'tools/sbt.py']
         for mhz in (8,9):
             for usb in ('stub','usb'):
-                commands.append(f'hw/runMain deadhorse.top.EmitSocWatchdog {out.relative_to(ROOT)}/soc-{mhz}-{usb} soc {usb} {mhz}')
+                commands.append(f'hw/runMain deadhorse.top.EmitSoc {out.relative_to(ROOT)}/soc-{mhz}-{usb} {"production" if usb=="usb" else "usb-stub-test"} {mhz}')
         run(commands,'whole-soc')
         run([sys.executable,'hw/ip/watchdog/formal/check.py','--output',str(out.relative_to(ROOT)/'output-formal'),'--cases','break','pad'],'output-formal')
         run([sys.executable,'hw/ip/watchdog/check_timing.py','--output',str(out.relative_to(ROOT)/'timing')],'timing')

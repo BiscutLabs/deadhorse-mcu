@@ -1,41 +1,41 @@
 schema: 1
 name: deadhorse_soc
-# Provisional T20 configuration, not a clock-source or pad-freeze decision.
+# One production configuration (D72); clock source and pad freeze remain open.
 clocks:
   main: {hz: [8000000, 9000000], source: external_test_input}
   aon: {hz: [32000, 1000000], source: external_test_input}
   usb: {hz: [48000000], source: external_test_input}
 resets: [cold, warm, main_core, main_service, aon_service, usb_service]
 masters:
-  lite: {origin: 0, implementation: test_standin}
+  lite: {origin: 0, implementation: real}
   performance: {origin: 1, implementation: real}
   gateway_debug: {origin: 2, implementation: inactive}
 regions:
   - {name: boot_rom, base: 0x00000000, size: 0x10000, home: main local, domains: [main], kind: model, reset: main_service}
-  - {name: xip, base: 0x10000000, size: 0x10000000, home: main local, domains: [main], kind: stub, reset: main_service}
+  - {name: xip, base: 0x10000000, size: 0x10000000, home: main local, domains: [main], kind: model, reset: main_service}
   - {name: performance_sram, base: 0x20000000, size: 0x4000, home: main local, domains: [main], kind: model, reset: main_service}
   - {name: retained_sram, base: 0x30000000, size: 0x0c00, home: aon, domains: [main, aon], kind: model, reset: aon_service}
-  - {name: power_reset_timer, base: 0x40000000, size: 0x1000, home: aon, domains: [main, aon], kind: stub, reset: aon_service}
+  - {name: power_reset_timer, base: 0x40000000, size: 0x1000, home: aon, domains: [main, aon], kind: container, reset: aon_service}
   - {name: mailbox, base: 0x40001000, size: 0x0100, home: each domain local, domains: [main, aon], kind: local_pair, reset: warm, regmap: hw/ip/mailbox/mailbox.regmap.yaml}
   - {name: uart0, base: 0x40010000, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/uart/uart.regmap.yaml}
   - {name: uart1, base: 0x40010100, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/uart/uart.regmap.yaml}
   - {name: uart2, base: 0x40010200, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/uart/uart.regmap.yaml}
   - {name: spi_host, base: 0x40010300, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/spi_host/spi_host.regmap.yaml}
   - {name: i2c_host, base: 0x40010400, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/i2c_host/i2c_host.regmap.yaml}
-  - {name: dma, base: 0x40011000, size: 0x1000, home: main, domains: [main, aon], kind: stub, reset: main_service}
-  - {name: gpio_pinmux, base: 0x40012000, size: 0x1000, home: main, domains: [main, aon], kind: stub, reset: main_service}
-  - {name: qspi_control, base: 0x40013000, size: 0x1000, home: main, domains: [main, aon], kind: stub, reset: main_service}
-  - {name: adc_loader_reserved, base: 0x40020000, size: 0x10000, home: aon, domains: [main, aon], kind: stub, reset: aon_service}
-  - {name: actuator, base: 0x40030000, size: 0x1000, home: main, domains: [main, aon], kind: stub, reset: warm}
-  - {name: gateway_reserved, base: 0x40040000, size: 0x0800, home: main, domains: [main, aon], kind: stub, reset: main_service}
-  - {name: usb, base: 0x40040800, size: 0x0100, home: main/usb/aon, domains: [main, aon], kind: optional_usb, reset: usb_service, regmap: hw/ip/usb/usb.regmap.yaml}
+  - {name: dma, base: 0x40011000, size: 0x1000, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/dma/dma.regmap.yaml}
+  - {name: gpio_pinmux, base: 0x40012000, size: 0x1000, home: main, domains: [main, aon], kind: container, reset: main_service}
+  - {name: qspi_control, base: 0x40013000, size: 0x1000, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/qspi/qspi.regmap.yaml}
+  - {name: unassigned_aon, base: 0x40020000, size: 0x10000, home: aon, domains: [main, aon], kind: reserved, reset: aon_service}
+  - {name: actuator, base: 0x40030000, size: 0x1000, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/pwm/pwm.regmap.yaml}
+  - {name: gateway_reserved, base: 0x40040000, size: 0x0800, home: main, domains: [main, aon], kind: reserved, reset: main_service}
+  - {name: usb, base: 0x40040800, size: 0x0100, home: main/usb/aon, domains: [main, aon], kind: real, reset: usb_service, regmap: hw/ip/usb/usb.regmap.yaml}
   - {name: future_bridge, base: 0x60000000, size: 0x10000000, home: each domain, domains: [main, aon], kind: reserved, reset: warm}
 groups:
   serial: {base: 0x40010000, size: 0x10000, members: [uart0, uart1, uart2, spi_host, i2c_host, dma, gpio_pinmux, qspi_control]}
   gateway: {base: 0x40040000, size: 0x1000, members: [gateway_reserved, usb]}
 fabrics:
-  main: [serial, mailbox, actuator, gateway, retained_sram, power_reset_timer, adc_loader_reserved, future_bridge]
-  aon: [retained_sram, power_reset_timer, mailbox, adc_loader_reserved, serial, actuator, gateway, future_bridge]
+  main: [serial, mailbox, actuator, gateway, retained_sram, power_reset_timer, unassigned_aon, future_bridge]
+  aon: [retained_sram, power_reset_timer, mailbox, unassigned_aon, serial, actuator, gateway, future_bridge]
 interrupts:
   uart0: 0
   uart1: 1
@@ -49,8 +49,7 @@ interrupts:
   gpio_pinmux: 9
   actuator: 10
   power_reset_timer: 11
-  adc_loader_reserved: 12
-# Opt-in functional I/O profile; the default I1 region kinds remain unchanged.
+# Production functional register bindings.
 pwm: {parent: actuator, offset: 0, size: 0x100, clock: main, reset: main_service, owner: performance, regmap: hw/ip/pwm/pwm.regmap.yaml}
 dma: {parent: dma, offset: 0, size: 0x100, clock: main, reset: main_service, owner: performance, memory: performance_sram, regmap: hw/ip/dma/dma.regmap.yaml}
 pinmux: {parent: gpio_pinmux, offset: 0x200, size: 0x100, clock: main, reset: main_service, owner: performance, regmap: hw/ip/pinmux/pinmux.regmap.yaml, sources: [disconnected, gpio, timer_compare, pwm], channels: [0, 1, 2]}
@@ -58,17 +57,13 @@ flight_io:
   gpio: {parent: gpio_pinmux, offset: 0, size: 0x100, clock: main, owner: performance, regmap: hw/ip/gpio/gpio.regmap.yaml}
   timers: {parent: gpio_pinmux, offset: 0x100, size: 0x100, clock: main, owner: performance, regmap: hw/ip/timers/timers.regmap.yaml}
   aon_timer: {parent: power_reset_timer, offset: 0, size: 0x100, clock: aon, owner: lite, regmap: hw/ip/aon_timer/aon_timer.regmap.yaml}
-  adc: {parent: adc_loader_reserved, offset: 0, size: 0x100, clock: aon, owner: lite, regmap: hw/ip/adc/adc.regmap.yaml}
 # Nominal capacity from plan08; not physical pad/PHY qualification or G1 freeze.
 # Dedicated clock/reset and analog pads counted separately in that source.
 pin_budget: {bidirectional: 40, input_only: 12}
-# Logical simultaneous groups; unused inputs ignored, outputs disabled in I1.
+# Logical simultaneous production functions; outputs disabled at reset.
 pins:
-  gpio: {width: 3, direction: bidirectional, clock: inactive, safe: disabled}
-  timer: {width: 4, direction: bidirectional, clock: inactive, safe: disabled}
-  adc_sclk: {width: 1, direction: output, clock: inactive, safe: disabled}
-  adc_cs_n: {width: 1, direction: output, clock: inactive, safe: disabled}
-  adc_miso: {width: 1, direction: input, clock: inactive, safe: input}
+  gpio: {width: 3, direction: bidirectional, clock: main, safe: disabled}
+  timer: {width: 4, direction: bidirectional, clock: main, safe: disabled}
   # Inactive is an unsampled stub, not a generated TCK/service clock.
   jtag_tck: {width: 1, direction: input, clock: inactive, safe: input}
   jtag_tms: {width: 1, direction: input, clock: inactive, safe: input}
@@ -91,7 +86,7 @@ pins:
   usb_vbus: {width: 1, direction: input, clock: usb, safe: input}
   usb_pullup: {width: 1, direction: output, clock: usb, safe: disabled}
 
-# T26 opt-in digital supervision; existing profiles retain their reset wiring.
+# Production D70 digital supervision.
 watchdog:
   parent: power_reset_timer
   offset: 256
@@ -102,7 +97,7 @@ watchdog:
   owners: [performance, lite]
   regmap: hw/ip/watchdog/watchdog.regmap.yaml
 
-# T28 opt-in lite-first digital release; transport remains AON-service reset.
+# Production lite-first release; transport remains AON-service reset.
 boot_control:
   parent: power_reset_timer
   offset: 768
@@ -112,7 +107,7 @@ boot_control:
   owner: lite
   regmap: hw/ip/boot_control/boot_control.regmap.yaml
 
-# T29 command mode remains available independently of the T30 native option.
+# Shared command and native XIP controller.
 qspi:
   region: qspi_control
   clock: main
