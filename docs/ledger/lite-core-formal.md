@@ -96,3 +96,13 @@ bindings in all four top profiles. Current-source mapped timing also passes;
 see the timing ledger. This clears the limited RTL/functional/control checkpoint,
 not architectural or physical acceptance. The ADDI obligation above remains
 unresolved. No CI, commit or push.
+
+## PLAN03 focused debt attempt — 2026-11-22
+
+Measured by `python tools/env/run.py run -- python dv/soc/plan03_debt.py --case lite --output build/plan03/debt01/lite`.
+Unbounded solver PASS indices: [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]; unresolved: [4].
+Fresh concrete models match all historical variants. Original assertions,
+assumptions, depths and120-second caps remain. No helper or unchanged retry.
+Exact per-assertion times, model sizes, fault limitations, historical evidence
+audits and next scoped work are in [the debt report](../spec/soc-verification-debt.md).
+Indices6 and9–12 are trivial ADDI memory predicates, not ISA coverage.

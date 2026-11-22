@@ -61,3 +61,12 @@ keeps production unchanged, verifies all archived hashes, and passes four
 affected epoch-suite tests, including the explicit missing-epoch-binding fault.
 That is functional composition evidence, not a whole-SoC unbounded proof.
 Channel positive acceptance remains unresolved; no helper attempt ran.
+
+## PLAN03 focused debt attempt — 2026-11-22
+
+Measured by `python tools/env/run.py run -- python dv/soc/plan03_debt.py --case watchdog --output build/plan03/debt01/watchdog`.
+Unbounded solver PASS indices: [0, 3, 4, 9, 10]; unresolved: [1, 2, 5, 6, 7, 8, 11].
+Fresh concrete models match all historical variants. Original assertions,
+assumptions, depths and120-second caps remain. No helper or unchanged retry.
+Exact per-assertion times, model sizes, fault limitations, historical evidence
+audits and next scoped work are in [the debt report](../spec/soc-verification-debt.md).

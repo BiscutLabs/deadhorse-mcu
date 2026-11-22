@@ -64,3 +64,12 @@ Do not assume an unproved helper. Preserve the cap and source/model-hash checks.
 No further unchanged timeout retry is authorized. An initial triage metadata
 reader failed before starting a solver because SymbiYosys `design.json` is JNY;
 the corrected script exports normal Yosys JSON from the prepared RTLIL.
+
+## PLAN03 focused debt attempt — 2026-11-22
+
+Measured by `python tools/env/run.py run -- python dv/soc/plan03_debt.py --case dma --output build/plan03/debt01/dma`.
+Unbounded solver PASS indices: []; unresolved: [3].
+Fresh concrete models match all historical variants. Original assertions,
+assumptions, depths and120-second caps remain. No helper or unchanged retry.
+Exact per-assertion times, model sizes, fault limitations, historical evidence
+audits and next scoped work are in [the debt report](../spec/soc-verification-debt.md).
