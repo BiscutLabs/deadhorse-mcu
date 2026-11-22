@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import sys
 from usb_prepare import ROOT,sha
-from usb_validate import audit_hashes,number,rows,require_complete,class_coverage
+from usb_validate import audit_hashes,number,rows,require_complete,class_coverage,replacement_arguments,audit_queries
 from usb_graph import equivalent,reset_chains
 from usb_sdc_audit import compare
 sys.path.insert(0,str(ROOT/'tools/timing'))
@@ -20,7 +20,7 @@ def seal(physical,validation,sdc_audit,netlist_audit,output):
     baseline=next(ROOT/n for n in inputs['input_sha256'] if n.endswith('/timing/usb/result.json'))
     before=json.loads((baseline.parent/'mapped.json').read_text())['modules']['Usb']
     after=json.loads((physical/'routed.json').read_text())['modules']['Usb']
-    result['graph']=dict(connectivity=equivalent(before,after),rdc=reset_chains(before))
+    result['graph']=dict(connectivity=equivalent(before,after,**replacement_arguments(inputs)),rdc=reset_chains(before))
     audit_hashes(json.loads((netlist_audit/'result.json').read_text())['sha256'])
     sdc=json.loads((sdc_audit/'result.json').read_text())
     if len(sdc)!=15 or any(x['status']!='pass' for x in sdc):raise ValueError('Incomplete SDC audit')
@@ -37,6 +37,12 @@ def seal(physical,validation,sdc_audit,netlist_audit,output):
     result['worst_period_setup']=min(setup,key=lambda r:r['slack_ns'])
     result['period_setup_violations']=[r for r in setup if r['slack_ns']<0]
     result['delay_interpretation']='Worst observed endpoint-enumerated CLK-to-Q plus data delay, with actual launch CLK arrival removed; absolute-arrival path selection may differ from data-delay ordering. Raw full-period setup slack checked separately.'
+    if json.loads((physical/'extraction-inputs.json').read_text()).get('path_metric')=='launch-relative-data-v3-fixed-launch-enumeration':
+        for c in result['corners']:
+            source=physical/'timing'/c['corner']
+            audit=audit_queries(rows(source/'paths.tsv'),rows(source/'paths.tsv.expected.tsv'),rows(source/'paths.tsv.queries.tsv'))
+            if c.get('query_audit')!=audit:raise ValueError('Changed timing query audit')
+        result['delay_interpretation']='Worst data delay from exhaustive fixed-register-launch/endpoint/polarity queries, retaining CLK-to-Q and subtracting cached propagated launch insertion. Inputs retain absolute boundary arrival. Every query and no-timed-path pair accounted; full-period slack remains separate.'
     pdk=ROOT/'build/physical/pdk/gf180mcuD/libs.ref/gf180mcu_fd_sc_mcu7t5v0'
     # Correct descriptive metadata only; all original numeric scripts/reports
     # remain intact and hashes bind them. Old metadata hard-coded SS prose.

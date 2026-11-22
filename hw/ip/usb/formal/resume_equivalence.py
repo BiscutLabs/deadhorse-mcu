@@ -118,10 +118,96 @@ def run(before, after, output):
     print('PASS resume all-state transition equivalence and carry fault', flush=True)
 
 
+def engine_context(before, after, output):
+    """Bind standalone engine safety to the wrapper's emitted engine variant.
+
+    Chisel drops two unused empty-status outputs in the wrapper. After removing
+    only those observation ports, compare every remaining state transition,
+    clock/reset function and output for arbitrary shared current state/inputs.
+    """
+    root=Path(__file__).resolve().parents[4]
+    output=output.resolve();output.relative_to(root/'build');output.mkdir(parents=True,exist_ok=False)
+    sources={label:sorted(directory.resolve().glob('*.sv'))+sorted(directory.resolve().glob('*.v'))
+             for label,directory in [('before',before),('after',after)]}
+    hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for files in sources.values() for p in files}
+    def yosys(name,commands,negative=False):
+        script=output/(name+'.ys');script.write_text('\n'.join(commands)+'\n')
+        r=subprocess.run(['yosys','-Q','-T','-s',str(script)],capture_output=True,text=True,timeout=120)
+        log=r.stdout+r.stderr;(output/(name+'.log')).write_text(log)
+        if ((r.returncode!=1 or 'proof did fail' not in log) if negative else r.returncode!=0):
+            raise ValueError('Engine context equivalence failed: '+name)
+        return log
+    modules={};registers={}
+    for label,files in sources.items():
+        yosys(label,['read_slang --top UsbEngine '+' '.join(map(str,files)),
+            'prep -top UsbEngine -flatten',f'write_json {output}/{label}-raw.json'])
+        raw=json.loads((output/(label+'-raw.json')).read_text());m=raw['modules']['UsbEngine']
+        if label=='before':
+            for port in ('txEmpty','rxEmpty'):
+                if m['ports'][port]['direction']!='output':raise ValueError('Wrong unused observer port')
+                del m['ports'][port]
+        elif any(p in m['ports'] for p in ('txEmpty','rxEmpty')):
+            raise ValueError('Unexpected wrapper variant')
+        (output/(label+'-ports.json')).write_text(json.dumps(raw))
+        yosys(label+'-prepare',[f'read_json {output}/{label}-ports.json','opt_clean -purge',
+            'memory_map','opt_clean -purge',f'write_json {output}/{label}.json'])
+        module=json.loads((output/(label+'.json')).read_text())['modules']['UsbEngine'];modules[label]=module
+        regs={}
+        for name,cell in module['cells'].items():
+            if cell['type'] in ('$adff','$aldff','$dff'):
+                aliases={n for n,net in module['netnames'].items() if net['bits']==cell['connections']['Q']}
+                if not aliases:raise ValueError('Unidentified engine state')
+                regs[name]=(cell,aliases)
+            elif any(k in cell['type'] for k in ('dff','latch','mem')):
+                raise ValueError('Unsupported engine state: '+cell['type'])
+        registers[label]=regs
+    shapes=[{n:(p['direction'],len(p['bits'])) for n,p in modules[label]['ports'].items()} for label in ('before','after')]
+    if shapes[0]!=shapes[1]:raise ValueError('Engine context port inventory changed')
+    pairs=[];remaining=set(registers['after'])
+    for name,(cell,aliases) in registers['before'].items():
+        matches=[n for n in remaining if aliases&registers['after'][n][1]]
+        if len(matches)!=1:raise ValueError('Missing/mixed engine state identity: '+name)
+        other=matches[0];remaining.remove(other);new=registers['after'][other][0]
+        if cell['type']!=new['type'] or cell['parameters']!=new['parameters']:
+            raise ValueError('Engine state/reset shape changed')
+        pairs.append((name,other,sorted(aliases&registers['after'][other][1])))
+    if remaining:raise ValueError('Extra wrapper engine state')
+    def extract(original,side):
+        module=copy.deepcopy(original)
+        for index,pair in enumerate(pairs):
+            cell=module['cells'].pop(pair[side]);module['ports']['state_'+str(index)]=dict(direction='input',bits=cell['connections']['Q'])
+            for pin,bits in cell['connections'].items():
+                if pin!='Q':module['ports'][f'next_{index}_{pin}']=dict(direction='output',bits=bits)
+        return module
+    for side,label in enumerate(('before','after')):
+        (output/(label+'-cut.json')).write_text(json.dumps({'modules':{label:extract(modules[label],side)}}))
+    commands=[f'read_json {output}/before-cut.json',f'read_json {output}/after-cut.json',
+        'miter -equiv -flatten before after EngineContextMiter','hierarchy -check -top EngineContextMiter',
+        'check -assert','techmap','opt','sat -set-def-inputs -prove trigger 0 -verify']
+    if 'SUCCESS!' not in yosys('equivalence',commands):raise ValueError('No completed engine equivalence')
+    candidates=[p for p in pairs if 'control.nextCursor' in p[2]]
+    if len(candidates)!=1:raise ValueError('Missing actual DUT fault identity')
+    bad=copy.deepcopy(modules['after']);cell=bad['cells'][candidates[0][1]]
+    cell['connections']['D']=['0']*len(cell['connections']['D'])
+    (output/'fault-cut.json').write_text(json.dumps({'modules':{'after':extract(bad,1)}}))
+    yosys('wrong-next-cursor',[c.replace('after-cut.json','fault-cut.json') for c in commands],negative=True)
+    if any(hashlib.sha256(Path(p).read_bytes()).hexdigest()!=h for p,h in hashes.items()):raise ValueError('Context HDL changed')
+    receipt=dict(status='pass',source_sha256=hashes,state_bindings=pairs,checker_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        artifact_sha256={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in output.iterdir() if p.is_file()},
+        removed_observation_ports=['txEmpty','rxEmpty'],assumptions=[],
+        proof='All-state next-transition equivalence after removing only unused empty-status observations; clocks and resets compared',
+        jobs={'equivalence':'proved','wrong-next-cursor':'fault_rejected'})
+    (output/'result.json').write_text(json.dumps(receipt,indent=2)+'\n');print('PASS engine context all-state equivalence and DUT fault',flush=True)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--before', type=Path, help='Optional pinned D51 emission; otherwise reproduce it from the pinned Git source')
     parser.add_argument('--after', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--engine-context',action='store_true')
     args = parser.parse_args()
-    run(args.before, args.after, args.output)
+    if args.engine_context:
+        if args.before is None:parser.error('Engine context requires both emissions')
+        engine_context(args.before,args.after,args.output)
+    else:run(args.before, args.after, args.output)

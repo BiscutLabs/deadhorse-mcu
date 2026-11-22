@@ -1,5 +1,21 @@
 # T19 USB formal ledger
 
+## PLAN03 prerequisite: sampling safety (2026-11-22)
+
+Eleven production-engine sampling assertions now prove unbounded: four
+lookahead, four actual-SIE-use outputs and three SETUP settling/decode claims.
+Measured PDR times are 2.374/5.627/9.032 s; exact commands, source/receipt
+bindings, six real-wire guard covers, reset/error/abort scenarios and five
+detected DUT faults are in [the sampling report](../spec/usb-sampling-proof.md).
+The witness suite passes six tests. No original assertion or assumption changed.
+The extra partial-header/new-SETUP coincidence cover remains unresolved after
+one capped diagnostic attempt; it is not claimed unreachable. Wrapper-context
+equivalence and actual timing-exception qualification now pass, with one real
+over-budget fault for each populated class (control 7, engine 10, wrapper 17).
+Independent review accepted those scopes. A fresh full-size throughput run and
+read-only packet audit qualify all twelve packet claims. Engine/wrapper still
+fail pad hold checks; this is not T19 or CI acceptance.
+
 ## OUT occupancy and independent-reset packet closure (2026-11-20)
 
 The approved deferred attempt closes the remaining OUT byte-integrity claim.

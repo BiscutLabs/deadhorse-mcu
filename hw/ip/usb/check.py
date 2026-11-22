@@ -9,6 +9,7 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0,str(ROOT))
 
 
 def inputs():
@@ -24,6 +25,11 @@ def command_accepted(row):
         return (row.get('diagnostic_complete') is True and
                 row['returncode']==(0 if status in ('pass','warning') else 1) and
                 status in ('pass','warning','fail','blocked'))
+    if row['name']=='packet-controls' and row.get('joint_qualification',{}).get('status')=='pass':
+        joint=row['joint_qualification']
+        expected={r+'.'+p for r in ('in','out') for p in ('capacity','read_nonempty','integrity','held_valid','held_data','progress')}
+        return (row['returncode']==1 and status=='unresolved' and set(joint.get('closed_claims',[]))==expected and
+                joint.get('controls')=={'in':['cover','corrupt','withheld'],'out':['cover','corrupt']})
     return row['returncode']==0 and (status=='pass' or
         (status=='warning' and row['name'] in {'timing-'+n for n in ('control','in','out','resume','engine','usb','sie')}))
 
@@ -71,7 +77,31 @@ def packet_obligations(evidence):
     return ['Independent reset/SIE packet assertion remains unresolved: '+k for k in checked['unresolved']]
 
 
-def run(output,packet_triage=None,packet_evidence=None):
+def packet_control_shape(detail,proofs):
+    if proofs.get('status')!='pass' or packet_obligations(proofs):
+        raise ValueError('Controls require all twelve independently audited packet claims')
+    if detail.get('status')!='unresolved' or set(detail.get('cases',{}))!={'in','out'}:
+        raise ValueError('Wrong controls-only receipt')
+    controls={}
+    for role,variants in [('in',['cover','corrupt','withheld']),('out',['cover','corrupt'])]:
+        case=detail['cases'][role]
+        if case.get('status')!='unresolved' or case.get('error') or [j.get('variant') for j in case.get('jobs',[])]!=variants+['correct']:
+            raise ValueError('Missing or failed packet control')
+        for job in case['jobs'][:-1]:
+            if (job.get('result')!=('covered' if job['variant']=='cover' else 'fault_rejected') or
+                    job.get('solver_status')!=('PASS' if job['variant']=='cover' else 'FAIL')):
+                raise ValueError('Unqualified packet cover/fault')
+        sentinel=case['jobs'][-1]
+        if (sentinel.get('result')!='unresolved' or sentinel.get('rerun') is not False or
+                sentinel.get('reason')!='Triage budget stop; positive proof remains required'):
+            raise ValueError('Changed no-rerun positive sentinel')
+        controls[role]=variants
+    return dict(status='pass',controls=controls,
+                closed_claims=sorted(r['role']+'.'+r['property'] for r in proofs['closed']),
+                qualification='Fresh controls plus separate audited original-assertion closure; child unresolved sentinel retained, no positive solver retry')
+
+
+def run(output,packet_triage=None,packet_evidence=None,acceptance_evidence=None):
     if packet_triage and packet_evidence:raise ValueError('Choose packet triage or audited packet evidence, not both')
     output = Path(output).resolve(); output.relative_to(ROOT/'build')
     if output.exists() and any(output.iterdir()): raise ValueError('Use fresh output; preserve earlier failures')
@@ -95,16 +125,38 @@ def run(output,packet_triage=None,packet_evidence=None):
         return process.returncode
     try:
         py=sys.executable
+        manifest=None;sampling_manifest=None;physical_manifest=None;active_binding=None;evidence_hashes={}
+        if acceptance_evidence:
+            if packet_triage or packet_evidence:raise ValueError('Acceptance manifest already supplies packet evidence')
+            from evidence import local,digest
+            manifest_path=local(acceptance_evidence,True);manifest=json.loads(manifest_path.read_text())
+            if set(manifest)!={'schema','packet','sampling','physical'} or manifest['schema']!=1:
+                raise ValueError('Incomplete USB acceptance evidence manifest')
+            packet_evidence=local(manifest['packet'],True);sampling_manifest=local(manifest['sampling'],True)
+            physical_manifest=local(manifest['physical'],True)
+            evidence_hashes={str(p):digest(p) for p in (manifest_path,packet_evidence,sampling_manifest,physical_manifest)}
+            receipt['acceptance_manifest_sha256']=digest(manifest_path)
         command('provenance',[py,'hw/vendor/usb/prepare.py'])
-        command('timing-runner-tests',[py,'-m','unittest','tools.timing.test_fanout','tools.timing.test_timing'])
+        command('timing-runner-tests',[py,'-m','unittest','tools.timing.test_fanout','tools.timing.test_timing',
+            'tools.timing.test_usb_async','tools.timing.test_usb_qualification'])
+        command('physical-runner-tests',[py,'-m','unittest','discover','-s','tools/physical','-p','test_usb*.py'])
         command('packet-receipt-tests',[py,'-m','unittest','discover','-s','hw/ip/usb/formal','-p','test_packet_proofs.py'])
-        command('packet-evidence-tests',[py,'-m','unittest','discover','-s','hw/ip/usb','-p','test_evidence.py'])
+        command('packet-evidence-tests',[py,'-m','unittest','discover','-s','hw/ip/usb','-p','test_*evidence.py'])
         command('regmap',[py,'hw/regmap/regmap.py','hw/ip/usb/usb.regmap.yaml','--out',output/'regmap'])
         # The independently runnable Scala suites use this deterministic generated fixture.
         command('test-regmap',[py,'hw/regmap/regmap.py','hw/ip/usb/usb.regmap.yaml','--out','build/t19/regmap'])
-        command('simulation',[py,'tools/sbt.py','testOnly deadhorse.usb.*'])
         command('emit',[py,'tools/sbt.py',f'runMain deadhorse.usb.EmitUsb {output}/emit {output}/regmap/usb_regs.json'])
         command('emit-sie',[py,'tools/sbt.py',f'runMain deadhorse.usb.EmitUsbSieTiming {output}/emit/sie'])
+        if sampling_manifest:
+            from evidence import sampling_evidence,local,digest
+            receipt['sampling']=sampling_evidence(sampling_manifest,'Usb',
+                sorted((output/'emit/usb').glob('*.sv'))+sorted((output/'emit/usb').glob('*.v')))
+            receipt['qualification_limits'].append('Optional partial-header/new-SETUP coincidence diagnostic remains unresolved; no original safety assertion depends on it')
+            witness=local(json.loads(sampling_manifest.read_text())['witness'],True)
+            active=ROOT/'build/plan03/usb-sampling-active.txt'
+            active.parent.mkdir(parents=True,exist_ok=True);active.write_text(str(witness.parent))
+            active_binding={str(active):digest(active)}
+        command('simulation',[py,'tools/sbt.py','testOnly deadhorse.usb.*'])
         command('resume-equivalence',[py,'hw/ip/usb/formal/resume_equivalence.py',
             '--after',output/'emit/resume','--output',output/'resume-equivalence'],output/'resume-equivalence/result.json')
         command('preenable-equivalence',[py,'hw/ip/usb/formal/preenable_equivalence.py',
@@ -136,8 +188,21 @@ def run(output,packet_triage=None,packet_evidence=None):
         for role in ('cadence','cadence_reset','preenable_early','preenable_late','preenable_reset','preenable_write','reset_data','reset_aware','reset_aware_early','buffer_reset','retry_boundary','resume','denied','pads','control','address'):
             formal_args+=['--case',role]
         command('formal',formal_args,output/'formal/result.json')
-        command('packet-controls',[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json',
+        controls=command('packet-controls',[py,'hw/ip/usb/formal/check.py','--json',output/'regmap/usb_regs.json',
             '--case','in','--case','out','--controls-only','--output',output/'packet-controls'],output/'packet-controls/result.json')
+        if packet_status.get('status')=='pass':
+            from evidence import check_hashes
+            from tools.formal import validate_job
+            joint=packet_control_shape(controls,packet_status)
+            check_hashes(controls['production_source_sha256'])
+            for role,case in controls['cases'].items():
+                for job in case['jobs']:
+                    directory=output/'packet-controls'/role
+                    hashes={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in (directory/'emit'/job['variant']).glob('*.sv')}
+                    if not hashes or hashes!=job['source_sha256']:raise ValueError('Changed packet-control model')
+                    if job['variant']!='correct':
+                        validate_job(directory/job['variant'],'cover' if job['variant']=='cover' else 'negative',job['returncode'],job['solver_status'])
+            receipt['commands'][-1]['joint_qualification']=joint
         command('byte-cdc',[py,'hw/lib/formal/cdc_proof.py','--width','8','--depth','2','--output',output/'cdc'],output/'cdc/result.json')
         for name,top in [('control','UsbControl'),('in','UsbInBuffer'),('out','UsbOutBuffer'),
                          ('resume','UsbResume'),('engine','UsbEngine'),('registers','UsbRegisters'),('usb','Usb'),('sie','UsbSieTiming')]:
@@ -148,12 +213,38 @@ def run(output,packet_triage=None,packet_evidence=None):
             if name!='registers': argv+=['--operating-point','usb-48mhz']
             if name in ('control','engine','usb','sie'):argv+=['--usb-cadence',output/'formal/result.json']
             if name in ('engine','usb'):argv+=['--usb-equivalence',output/'preenable-equivalence/result.json']
+            if sampling_manifest and name in ('control','engine','usb'):argv+=['--usb-sampling',sampling_manifest]
             for source in sources: argv+=['--source',source]
             receipt['timing'][name]=command('timing-'+name,argv,output/'timing'/name/'result.json')
             if name=='sie':
                 receipt['commands'][-1].update(acceptance_required=False,
                     disposition='diagnostic-only; integrated engine and wrapper are acceptance targets',
                     diagnostic_complete=sie_diagnostic_complete(receipt['timing'][name],sources))
+        if physical_manifest:
+            from physical_evidence import collect as physical_collect
+            physical=physical_collect(physical_manifest,output/'emit/usb',output/'physical-evidence')
+            receipt['physical_evidence']=physical
+            if physical['status']=='pass' and receipt.get('sampling',{}).get('status')=='pass':
+                receipt['unresolved'].remove('Complete wrapper clock-domain timing has not yet been qualified')
+            receipt['qualification_limits'].extend(physical['qualification_limits'])
+            evidence_hashes.update(physical['input_sha256'])
+        if acceptance_evidence:
+            from evidence import check_hashes
+            # Re-audit the complete nested proof/artifact closure after all fresh
+            # checks. No solvers run; linked receipts themselves must also match
+            # the initial audit, so mutable generated evidence cannot drift.
+            from evidence import collect,sampling_evidence
+            final_packet=collect(packet_evidence,output/'packet-evidence-final')
+            if (final_packet.get('status')!='pass' or final_packet.get('inputs')!=packet_status.get('inputs') or
+                    final_packet.get('closed')!=packet_status.get('closed')):
+                raise ValueError('Packet proof closure changed during acceptance')
+            final_sampling=sampling_evidence(sampling_manifest,'Usb',
+                sorted((output/'emit/usb').glob('*.sv'))+sorted((output/'emit/usb').glob('*.v')))
+            if final_sampling!=receipt['sampling']:raise ValueError('Sampling closure changed during acceptance')
+            evidence_hashes.update(final_packet['inputs']);evidence_hashes.update(final_packet['flow_sha256'])
+            check_hashes(evidence_hashes)
+            if active_binding:check_hashes(active_binding)
+            receipt['acceptance_input_sha256']=evidence_hashes
         if inputs()!=before: raise RuntimeError('Source inputs changed during acceptance')
         passed=not receipt['unresolved'] and all(command_accepted(r) for r in receipt['commands'])
         receipt['status']='pass' if passed else 'failed'
@@ -169,4 +260,5 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',required=True)
     parser.add_argument('--packet-triage',help='Exact-source unresolved packet evidence; preserves failure without repeating exhausted positive jobs')
     parser.add_argument('--packet-evidence',help='Build-local manifest of packet, SIE/wrapper and full-size simulation receipts; audited without solver retries')
-    args=parser.parse_args();sys.exit(0 if run(ROOT/args.output,args.packet_triage,args.packet_evidence)['status']=='pass' else 1)
+    parser.add_argument('--acceptance-evidence',help='Explicit build-local packet/sampling/physical evidence manifest; absent or stale evidence cannot pass')
+    args=parser.parse_args();sys.exit(0 if run(ROOT/args.output,args.packet_triage,args.packet_evidence,args.acceptance_evidence)['status']=='pass' else 1)

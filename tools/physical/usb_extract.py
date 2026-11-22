@@ -19,16 +19,25 @@ if __name__=='__main__':
     analysis=(ROOT/'tools/timing/analyze.tcl').read_text()
     analysis=analysis.replace('link_design $top\n','link_design $top\nread_spef $spef\n')
     analysis=analysis.replace('set data_inputs [get_ports','set_propagated_clock [all_clocks]\nset data_inputs [get_ports',1)
+    # Pin clock/arrival queries can invalidate OpenSTA PathEnd handles. Resolve
+    # these before querying paths, never while traversing a returned path list.
+    analysis=analysis.replace('set f [open $path_report w]', '''set enumerate_launches 1
+set launch_arrivals [dict create]
+foreach reg $regs {
+    set name [get_full_name $reg]
+    set cp [get_pins $name/CLK]
+    if {[llength $cp]!=1 || [llength [get_property $cp clocks]]!=1} {error "Ambiguous launch clock"}
+    dict set launch_arrivals $name [get_property $cp arrival_max_rise]
+}
+set f [open $path_report w]''')
     # Physical source-clock insertion delay is not combinational data delay.
     # Preserve absolute arrival and real setup/hold checks in the detailed logs.
     analysis=analysis.replace('set delay [get_property $last arrival]', '''set launch 0.0
             set start [get_property $path startpoint]
             if {![get_property $start is_port]} {
-                set cp [get_pins [file dirname [get_full_name $start]]/CLK]
-                if {[llength $cp]!=1 || [llength [get_property $cp clocks]]!=1} {error "Ambiguous launch clock"}
                 # This flow admits only a single rising clock and preserves
                 # original direct clock connectivity through a buffer tree.
-                set launch [get_property $cp arrival_max_rise]
+                set launch [dict get $launch_arrivals [file dirname [get_full_name $start]]]
             }
             set delay [expr {[get_property $last arrival] - $launch}]''')
     analysis+='\nreport_parasitic_annotation -report_unannotated\nreport_clock_skew\nreport_check_types -min_pulse_width -violators -digits 6\nputs USB_PHYSICAL_TIMING_COMPLETE\n'
@@ -52,7 +61,7 @@ if __name__=='__main__':
             (target/'run.tcl').write_text(text)
             (target/'contract.json').write_text(json.dumps(dict(corner=corner,contract=c),indent=2)+'\n')
     receipt=dict(routed_db_sha256=sha(out/'routed.odb'),routed_netlist_sha256=sha(out/'routed.v'),
-        path_metric='launch-relative-data-v2',
+        path_metric='launch-relative-data-v3-fixed-launch-enumeration',
         analysis_sha256=sha(out/'physical-analyze.tcl'),generator_sha256=sha(Path(__file__)),
         assumption='Same input slew/load and reset source-flop envelope, characterized separately at each PVT; board/upstream implementation unqualified')
     (out/'extraction-inputs.json').write_text(json.dumps(receipt,indent=2)+'\n');print('PREPARED three RC and five PVT corners')

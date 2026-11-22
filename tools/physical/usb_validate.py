@@ -11,6 +11,7 @@ import math
 from pathlib import Path
 import re
 import subprocess
+from collections import Counter, defaultdict
 from usb_prepare import ROOT, linux, sha
 from usb_graph import equivalent, reset_chains
 
@@ -31,8 +32,9 @@ def corrected(row,clocks,metric='absolute-arrival-v1'):
     launch=0.0
     if '/' in row['start']:
         launch=number(clocks[row['start'].rsplit('/',1)[0]+'/CLK']['max_rise_ns'])
-    if metric not in ('absolute-arrival-v1','launch-relative-data-v2'):raise ValueError('Unknown path metric')
-    result['absolute_arrival_ns']=number(row['delay_ns'])+(launch if metric=='launch-relative-data-v2' else 0)
+    relative=metric in ('launch-relative-data-v2','launch-relative-data-v3-fixed-launch-enumeration')
+    if metric!='absolute-arrival-v1' and not relative:raise ValueError('Unknown path metric')
+    result['absolute_arrival_ns']=number(row['delay_ns'])+(launch if relative else 0)
     result['launch_clock_ns']=launch
     result['delay_ns']=result['absolute_arrival_ns']-launch
     if result['delay_ns']<0:raise ValueError('Negative data delay')
@@ -73,6 +75,49 @@ def class_coverage(paths,baseline):
     if {r['class'] for r in paths}!={k for k,v in baseline['classes'].items() if v is not None}:
         raise ValueError('Missing or unexpected populated path class')
 
+def audit_queries(paths,expected,queries):
+    """Every group/launch/polarity query is executed and its rows accounted."""
+    ids=[str(i) for i in range(len(expected))]
+    if not ids or [r['query_id'] for r in expected]!=ids or [r['query_id'] for r in queries]!=ids:
+        raise ValueError('Missing, duplicate or reordered timing query')
+    by_id=defaultdict(list)
+    for row in paths:
+        if row.get('query_id') not in ids:raise ValueError('Unknown timing query')
+        by_id[row['query_id']].append(row)
+    for want,got in zip(expected,queries):
+        if any(want[k]!=got[k] for k in ('query_id','class','launch','polarity')):
+            raise ValueError('Wrong class, launch or polarity')
+        if want['polarity'] not in ('max_rise','max_fall'):raise ValueError('Wrong timing polarity')
+        pins=want['capture_pins'].split(',');absent=got['no_timed_path_captures'].split(',') if got['no_timed_path_captures'] else []
+        if (not pins or len(set(pins))!=len(pins) or len(set(absent))!=len(absent) or
+                not set(absent)<=set(pins) or int(got['requested_captures'])!=len(pins)):
+            raise ValueError('Malformed capture inventory')
+        actual=by_id[want['query_id']]
+        if int(got['returned_paths'])!=len(actual):raise ValueError('Missing or duplicated path row')
+        for row in actual:
+            if (row['class']!=want['class'] or row['start']!=want['launch'] or
+                    row['polarity']!=want['polarity'] or row['end'] not in pins):
+                raise ValueError('Path outside query partition')
+        ends=Counter(row['end'] for row in actual)
+        if set(ends)!=set(pins)-set(absent) or any(n>1 for pin,n in ends.items() if '/' in pin):
+            raise ValueError('Omitted or duplicate register capture')
+    pairs=Counter((r['class'],r['launch'],r['capture_pins']) for r in expected)
+    if any(n!=2 for n in pairs.values()):raise ValueError('Incomplete transition pair')
+    phases=defaultdict(set)
+    for r in expected:phases[(r['class'],r['launch'],r['capture_pins'])].add(r['polarity'])
+    if any(p!={'max_rise','max_fall'} for p in phases.values()):raise ValueError('Repeated transition polarity')
+    return dict(status='pass',queries=len(expected),path_rows=len(paths),
+        no_timed_path_pairs=sum(len(r['no_timed_path_captures'].split(',')) if r['no_timed_path_captures'] else 0 for r in queries),
+        interpretation='Fixed register launch, both endpoint polarities; input launch arrivals retained without subtraction. No-path pairs are disconnected or excluded by unchanged constraints.')
+
+def replacement_arguments(inputs):
+    entry=inputs.get('replacements')
+    if entry is None:return {}
+    path=ROOT/entry['path'];path.resolve().relative_to(ROOT/'build')
+    if sha(path)!=entry['sha256']:raise ValueError('Replacement manifest changed')
+    audit_hashes(entry['libraries'])
+    return dict(replacements=json.loads(path.read_text()),libraries=[ROOT/p for p in entry['libraries']])
+
 def measure(out,snapshot,destination):
     destination.mkdir(parents=True,exist_ok=False)
     inputs=json.loads((out/'inputs.json').read_text())
@@ -100,7 +145,7 @@ def measure(out,snapshot,destination):
     require_complete((out/'run.log').read_text(encoding='utf-8-sig'),'USB_DETAIL_ROUTE_COMPLETE')
     before=json.loads((snapshot/'timing/usb/mapped.json').read_text())['modules']['Usb']
     after=json.loads((out/'routed.json').read_text())['modules']['Usb']
-    graph=dict(connectivity=equivalent(before,after),rdc=reset_chains(before))
+    graph=dict(connectivity=equivalent(before,after,**replacement_arguments(inputs)),rdc=reset_chains(before))
     # Unique, direct, rising launch clock is required for pin-arrival correction.
     clock_bits={tuple(before['ports'][p]['bits']) for p in ('appClock','usbClock','aonClock')}
     for cell in before['cells'].values():
@@ -129,7 +174,10 @@ def measure(out,snapshot,destination):
             subprocess.run(['sta','-no_init','-exit',str(target/'run.tcl')],stdout=stream,stderr=subprocess.STDOUT,check=True,timeout=120)
         require_complete((target/'run.log').read_text(),'USB_DIAGNOSTICS_COMPLETE')
         clocks={r['pin']:r for r in rows(target/'clocks.tsv')}
-        paths=[corrected(r,clocks,metric) for r in rows(source/'paths.tsv')]
+        raw_paths=rows(source/'paths.tsv')
+        query_audit=(audit_queries(raw_paths,rows(source/'paths.tsv.expected.tsv'),rows(source/'paths.tsv.queries.tsv'))
+                     if metric=='launch-relative-data-v3-fixed-launch-enumeration' else None)
+        paths=[corrected(r,clocks,metric) for r in raw_paths]
         class_coverage(paths,baseline)
         for r in paths:
             r['corner']=name
@@ -142,7 +190,7 @@ def measure(out,snapshot,destination):
         rdc=[dict(r,slack_ns=number(r['slack_ns']),corner=name) for r in rows(target/'rdc.tsv')]
         all_safety+=safety;all_rdc+=rdc
         electrical=log.split('ELECTRICAL_BEGIN')[1].split('ELECTRICAL_END')[0]
-        corners.append(dict(corner=name,annotation=annotated,setup_class_failures=sum(r['status']=='fail' for r in paths),
+        corners.append(dict(corner=name,annotation=annotated,query_audit=query_audit,setup_class_failures=sum(r['status']=='fail' for r in paths),
             negative_safety_rows=[r for r in safety if r['slack_ns']<0],electrical_report=electrical,
             output_violations=[r for r in rows(source/'output_checks.tsv') if number(r['slack_ns'])<0]))
         print('AUDITED '+name,flush=True)

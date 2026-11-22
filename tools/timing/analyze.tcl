@@ -249,18 +249,64 @@ if {[info exists reset_groups]} {
     }
 }
 set f [open $path_report w]
-puts $f "class\tdelay_ns\tstart\tend\tcell_depth\tlogic_depth\tpoints"
+puts $f "class\tdelay_ns\tstart\tend\tcell_depth\tlogic_depth\tpoints\tquery_id\tpolarity"
+set enumerate_per_launch [expr {[info exists enumerate_launches] && $enumerate_launches}]
+if {$enumerate_per_launch} {
+    set queries [open ${path_report}.queries.tsv w]
+    puts $queries "query_id\tclass\tlaunch\tpolarity\trequested_captures\treturned_paths\tno_timed_path_captures"
+    set expected [open ${path_report}.expected.tsv w]
+    puts $expected "query_id\tclass\tlaunch\tpolarity\tcapture_pins"
+    set expected_id 0
+    foreach {kind ends} $groups {
+        lassign $ends from to
+        if {![llength $from] || ![llength $to]} {continue}
+        set captures {}
+        foreach pin $to {lappend captures [get_full_name $pin]}
+        foreach launch $from {
+            foreach polarity {max_rise max_fall} {
+                puts $expected "$expected_id\t$kind\t[get_full_name $launch]\t$polarity\t[join $captures {,}]"
+                incr expected_id
+            }
+        }
+    }
+    close $expected
+}
+set query_id 0
 set register_names {}
 foreach reg $regs {dict set register_names [get_full_name $reg] 1}
 foreach {kind ends} $groups {
     lassign $ends from to
     if {![llength $from] || ![llength $to]} {continue}
+    # Routed delay subtracts launch insertion. Fix the launch before ranking
+    # arrivals so a later clock cannot hide a longer data path from another Q.
+    set launch_sets [list $from]
+    if {$enumerate_per_launch} {set launch_sets $from}
+    foreach launch_from $launch_sets {
     # Enumerate every endpoint and both transition polarities. A single worst
     # slack path can miss the worst arrival when endpoint setup times differ.
     foreach polarity {max_rise max_fall} {
-        set paths [find_timing_paths -from $from -to $to -path_delay $polarity \
+        set paths [find_timing_paths -from $launch_from -to $to -path_delay $polarity \
             -group_path_count [expr {2 * [llength $to]}] -endpoint_path_count 1]
+        set destinations {};set observed {};set observed_registers {}
+        if {$enumerate_per_launch} {
+            foreach pin $to {dict set destinations [get_full_name $pin] 1}
+        }
         foreach path $paths {
+            if {$enumerate_per_launch} {
+                set source [get_full_name [get_property $path startpoint]]
+                set endpoint [get_property $path endpoint]
+                set dest [get_full_name $endpoint]
+                if {$source ne [get_full_name $launch_from] || ![dict exists $destinations $dest]} {
+                    error "Timing query escaped its launch/capture partition"
+                }
+                # Register captures have one clock in the audited topology.
+                # Output ports can legitimately occur in several clock groups.
+                if {![get_property $endpoint is_port]} {
+                    if {[dict exists $observed_registers $dest]} {error "Duplicate capture in fixed-launch query"}
+                    dict set observed_registers $dest 1
+                }
+                dict set observed $dest 1
+            }
             set points [get_property $path points]
             set last [lindex $points end]
             # OpenSTA get_property returns times in the selected command units.
@@ -282,11 +328,23 @@ foreach {kind ends} $groups {
             foreach name [dict keys $cells] {
                 if {[dict exists $register_names $name]} {incr depth -1}
             }
-            puts $f "$kind\t$delay\t[get_full_name [get_property $path startpoint]]\t[get_full_name [get_property $path endpoint]]\t[dict size $cells]\t$depth\t[join $trace {; }]"
+            puts $f "$kind\t$delay\t[get_full_name [get_property $path startpoint]]\t[get_full_name [get_property $path endpoint]]\t[dict size $cells]\t$depth\t[join $trace {; }]\t$query_id\t$polarity"
         }
+        if {$enumerate_per_launch} {
+            set absent {}
+            foreach dest [dict keys $destinations] {
+                if {![dict exists $observed $dest]} {lappend absent $dest}
+            }
+            # Empty pairs have no timed path under the unchanged graph and
+            # exceptions; record them rather than silently omitting a query.
+            puts $queries "$query_id\t$kind\t[get_full_name $launch_from]\t$polarity\t[dict size $destinations]\t[llength $paths]\t[join $absent {,}]"
+        }
+        incr query_id
+    }
     }
 }
 close $f
+if {$enumerate_per_launch} {close $queries}
 if {[info exists pre_d] && [llength $pre_d]} {
     foreach {kind from} [list CP $pre_certified_q FP $pre_full_q] {
         foreach mode {max min} {

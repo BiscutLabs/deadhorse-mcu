@@ -21,11 +21,15 @@ def drivers(module):
                     result[b]=('cell',name,pin,i)
     return result
 
-def equivalent(before,after):
+def equivalent(before,after,replacements=None,libraries=()):
     """Exact original connectivity after collapsing only inserted buffers/ties."""
     original=set(before['cells']);extra=set(after['cells'])-original
     if original-set(after['cells']):raise ValueError('Original cell removed')
     if set(before['ports'])!=set(after['ports']):raise ValueError('Ports changed')
+    qualified={}
+    if replacements is not None:
+        from usb_cells import qualify
+        qualified=qualify(before,after,replacements,libraries)
     for name in extra:
         if not re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__(?:clkbuf_\d+|buf_\d+|clkinv_\d+|inv_\d+|tieh|tiel)',after['cells'][name]['type']):
             raise ValueError('Unexpected physical cell: '+name)
@@ -49,7 +53,7 @@ def equivalent(before,after):
     left,right=resolver(before,set()),resolver(after,extra)
     for name,cell in before['cells'].items():
         new=after['cells'][name]
-        if (cell['type']!=new['type'] or cell['port_directions']!=new['port_directions'] or
+        if ((cell['type']!=new['type'] and name not in qualified) or cell['port_directions']!=new['port_directions'] or
             cell.get('parameters',{})!=new.get('parameters',{}) or
             any(d not in ('input','output') for d in cell['port_directions'].values())):raise ValueError('Original cell changed: '+name)
         for pin,direction in cell['port_directions'].items():
@@ -60,7 +64,8 @@ def equivalent(before,after):
         if (port['direction'],len(port['bits']))!=(new['direction'],len(new['bits'])):raise ValueError('Port shape changed')
         if port['direction']=='output' and [left(b) for b in port['bits']]!=[right(b) for b in new['bits']]:raise ValueError('Output changed')
     return dict(status='pass',original_cells=len(original),inserted_cells=len(extra),
-                qualification='Exact logical original pins/outputs preserved; inserted buffers/inverters/ties only')
+                replacements=qualified,
+                qualification='Exact original pins/outputs preserved; inserted buffers/inverters/ties and explicitly qualified drive-strength substitutions only')
 
 def reset_chains(module):
     """Qualify raw reset topology, never analog metastability or reset timing."""
@@ -127,8 +132,12 @@ def reset_chains(module):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--before',type=Path,required=True);p.add_argument('--after',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--replacements',type=Path);p.add_argument('--liberty',type=Path,action='append',default=[])
     a=p.parse_args();before=json.loads(a.before.read_text())['modules']['Usb'];after=json.loads(a.after.read_text())['modules']['Usb']
-    result=dict(before_sha256=sha(a.before),after_sha256=sha(a.after),connectivity=equivalent(before,after),rdc=reset_chains(before))
+    replacements=json.loads(a.replacements.read_text()) if a.replacements else None
+    result=dict(before_sha256=sha(a.before),after_sha256=sha(a.after),
+        replacement_manifest_sha256=sha(a.replacements) if a.replacements else None,
+        connectivity=equivalent(before,after,replacements,a.liberty),rdc=reset_chains(before))
     # Preservation of every original pin (including CLK and RN) carries the
     # checked chain onto the physical graph through the inserted buffer trees.
     a.output.write_text(json.dumps(result,indent=2)+'\n');print('PASS physical connectivity; reset topology structurally qualified only')

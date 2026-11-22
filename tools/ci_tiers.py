@@ -63,8 +63,11 @@ def fast_commands(output):
             '--candidate',f'{root}/faithful-floating','--output',f'{root}/faithful-no-f-formal'])]
 
 
-def plan(tier,output,legacy,triage_result=None):
+def plan(tier,output,legacy,triage_result=None,usb_evidence=None):
     commands=fast_commands(output/'fast')
+    if usb_evidence:
+        for name,command in commands:
+            if name=='usb':command.extend(['--acceptance-evidence',str(usb_evidence)])
     if tier=='full':
         # Full retains every pre-tier gate command. Relocate its explicit T10/T11
         # output paths to avoid overwriting historical comparison candidates.
@@ -97,10 +100,11 @@ def main(argv,legacy):
     ap.add_argument('--output')
     ap.add_argument('--list',action='store_true',help='Describe plan; does not execute or claim a pass')
     ap.add_argument('--triage-result',help='Known critical triage result; unresolved budget blocks full instead of retrying it')
+    ap.add_argument('--usb-evidence',help='Explicit packet/sampling/physical USB evidence manifest; audited without closed-proof solver retries')
     args=ap.parse_args(argv)
     default_output='build/ci-tiers/'+args.tier+'/'+str(time.time_ns())
     output=(ROOT/(args.output or default_output)).resolve()
-    output.relative_to(ROOT/'build');commands=plan(args.tier,output,legacy,args.triage_result)
+    output.relative_to(ROOT/'build');commands=plan(args.tier,output,legacy,args.triage_result,args.usb_evidence)
     if args.list:
         print(json.dumps(dict(tier=args.tier,commands=commands),indent=2));return 0
     if (output/'result.json').exists():raise ValueError('Use a fresh output directory; retain previous CI evidence')

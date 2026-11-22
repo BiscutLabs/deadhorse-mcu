@@ -1,5 +1,28 @@
 # USB CDC-ACM peripheral (T19)
 
+D77 (user, 2026-11-22) approves narrowly enumerated asynchronous-boundary
+qualification for digital CI: actual first-stage sampler D pins and reset-release
+chain asynchronous reset pins require CDC/RDC isolation/behavior and positive
+interstage/downstream timing. Raw STA rows remain visible. Ordinary bus/internal
+checks and numerical limits are unchanged. Pad/board, reset pulse/glitch and
+characterized metastability remain explicit tape-out debt. Scoped routed
+internal/boundary measurements and their independent reviews are complete;
+aggregate evidence integration and a fresh fast tier remain in progress. See the
+[contract](../../../docs/spec/usb-boundary-qualification-proposal.md).
+
+PLAN03 evidence inputs are explicit. A build-local schema-1 acceptance manifest
+contains `packet`, `sampling` and `physical` manifest paths. Invoke
+`python tools/env/run.py run -- python hw/ip/usb/check.py --output <fresh-build-dir> --acceptance-evidence <manifest>`
+or `python tools/env/run.py run -- python tools/ci.py --tier fast --output <fresh-build-dir> --usb-evidence <manifest>`.
+Every linked receipt, source and artifact is audited; missing/stale evidence
+fails. Provision the generated artifacts named by the manifests before running
+from a clean checkout. This does not claim clean-checkout proof regeneration.
+Fresh simulation, focused formal, equivalence and timing still run. Packet
+controls retain their raw unresolved positive sentinel and are qualified only
+jointly with the separate twelve-claim proof audit. No closed or exhausted
+packet solver job is retried. The physical collector preserves separate
+standalone USB and two-way bus-fixture placement scopes and tape-out limits.
+
 OUT lemma follow-up (2026-11-20): all twelve independent-reset packet claims
 now qualify: five proved at sixteen bytes, seven **proved at small model,
 simulated at full size**. The remaining OUT integrity claim closes on the
@@ -10,14 +33,14 @@ original assertion, reset/environment restriction or cap changed. No CI ran.
 See the [formal ledger](../../../docs/ledger/usb-formal.md#out-occupancy-and-independent-reset-packet-closure-2026-11-20).
 The earlier OUT-unresolved statements below describe historical checkpoints.
 
-D63 (2026-11-20): the user authorized merging this work into `main` for others
+Historical D63 checkpoint (2026-11-20): the user authorized merging this work into `main` for others
 to help finish it. **USB/T19 is not accepted or physically signed off.** Open
 items are routed setup, boundary hold/RDC, physical integration/signoff,
 retained sampling/exception proofs and aggregate acceptance
 execution. See the [merge handoff](../../../docs/plan/tasks/reports/T19.md#merge-handoff-remaining-work).
 No CI runs for this merge; earlier no-merge statements describe prior checkpoints.
 
-Physical follow-up (2026-11-20): the unchanged wrapper has now been placed,
+Historical physical follow-up (2026-11-20): the unchanged wrapper was placed,
 clock-tree synthesized, routed and measured with extracted RC across fifteen
 PVT/RC cases. Validation fails: measured worst observed FP is 13.691668 ns
 against 12.5 ns, FC 16.003422 ns against 15 ns, and FF 15.516943 ns against

@@ -11,6 +11,15 @@ from ci_tiers import ROOT, plan
 
 
 class TierTest(unittest.TestCase):
+    def test_usb_evidence_is_forwarded_without_removing_checks(self):
+        output=ROOT/'build/tier-test'
+        for tier in ('fast','full'):
+            plain=plan(tier,output,[])
+            bound=plan(tier,output,[],usb_evidence='build/usb-evidence.json')
+            self.assertEqual([n for n,_ in bound],[n for n,_ in plain])
+            for (name,a),(_,b) in zip(plain,bound):
+                self.assertEqual(b,a+['--acceptance-evidence','build/usb-evidence.json'] if name=='usb' else a)
+
     def test_bus_checks_are_required_by_both_tiers_without_replacing_existing_jobs(self):
         output=ROOT/'build/tier-test'
         fast=plan('fast',output,[])

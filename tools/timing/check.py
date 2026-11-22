@@ -169,12 +169,12 @@ def mapping_target_ps(cfg, operating_point):
     return min(budget_ps, 62500.0) if operating_point == 'main-9mhz' else budget_ps
 
 
-def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default', usb_cadence=None, usb_equivalence=None, reset_fanout=False):
-    return _measure(top,sources,clock,output,liberty,combinational,operating_point=operating_point,usb_cadence=usb_cadence,usb_equivalence=usb_equivalence,reset_fanout=reset_fanout)
+def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default', usb_cadence=None, usb_equivalence=None, reset_fanout=False, usb_sampling=None):
+    return _measure(top,sources,clock,output,liberty,combinational,operating_point=operating_point,usb_cadence=usb_cadence,usb_equivalence=usb_equivalence,reset_fanout=reset_fanout,usb_sampling=usb_sampling)
 
 
 def _measure(top, sources, clock, output, liberty=None, combinational=False,
-             reference_options=None, *, operating_point='default', usb_cadence=None, usb_equivalence=None, reset_fanout=False):
+             reference_options=None, *, operating_point='default', usb_cadence=None, usb_equivalence=None, reset_fanout=False,usb_sampling=None):
     # Shared numerical flow. The production entry above always checks isolation.
     # Only dv/core/reference_timing.py supplies authenticated reference options;
     # such receipts are explicitly benchmarks, never production acceptance.
@@ -455,11 +455,28 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     pending=(['Protocol sampling equivalence is not yet proved',
               'Applied setup/hold exception coverage and per-class over-budget faults remain unqualified']
              if certificate else [])
+    sampling_qualification=None;exception_qualification=None
+    if certificate and usb_sampling:
+        from hw.ip.usb.evidence import sampling_evidence
+        from tools.timing.usb_qualification import qualify
+        sampling_qualification=sampling_evidence(usb_sampling,top,sources)
+        exception_qualification=qualify(output,top,certificate,classes,{k:class_limit(k) for k in class_names},run,classify_screening)
+        if sampling_qualification['status']=='pass' and exception_qualification['status']=='pass':pending=[]
+    async_qualification=None;async_diagnostics=[];acceptance_hold_reset=short_reset_violations
+    if usb_boundary and usb_sampling:
+        from tools.timing.usb_async import qualify as qualify_async,split_violations
+        async_qualification=qualify_async(output,top,module,tcl,run)
+        if async_qualification['status']=='pass':
+            acceptance_hold_reset,async_diagnostics=split_violations(short_reset_violations,async_qualification)
+        else:pending.append('D77 asynchronous interstage/downstream qualification failed')
     screening=classify_screening(paths,{k:class_budget(k) for k in class_names},
-                                {k:class_limit(k) for k in class_names},electrical,short_reset_violations,pending)
+                                {k:class_limit(k) for k in class_names},electrical,acceptance_hold_reset,pending)
     if boundary_audit and not boundary_audit['output_checks_pass']:
         screening.update(status='fail',numerical_status='fail')
     report = dict(**screening,top=top,unresolved=pending,
+                  sampling_qualification=sampling_qualification,exception_qualification=exception_qualification,
+                  async_boundary_qualification=async_qualification,async_boundary_diagnostics=async_diagnostics,
+                  acceptance_hold_reset_violations=acceptance_hold_reset,
                   post_placement_recheck=dict(required=operating_point=='usb-48mhz',status='not run',
                       scope='D57 requires a fresh post-placement timing check with real interconnect delays before final USB timing qualification; pre-layout warning acceptance is provisional'),
                   role=('reference-benchmark-only' if reference_options is not None else
@@ -643,6 +660,7 @@ def main():
     parser.add_argument('--combinational', action='store_true')
     parser.add_argument('--liberty')
     parser.add_argument('--usb-equivalence', help='D58 source-bound engine/wrapper equivalence receipt')
+    parser.add_argument('--usb-sampling',help='Authenticated production sampling/context/wire-witness manifest; actual exception and path faults are checked freshly')
     parser.add_argument('--usb-cadence', help='D45 reset-safe production cadence receipt; mapped enable certificate is generated, never supplied')
     parser.add_argument('--operating-point', choices=OPERATING_POINTS, default='default',
                         help='Named trial; default production acceptance remains unchanged')
@@ -656,7 +674,7 @@ def main():
         if not args.top or (not args.clock and not args.combinational):
             parser.error('--top and either --clock or --combinational are required')
         return int(measure(args.top, args.source, args.clock, args.output,
-                           args.liberty, args.combinational, operating_point=args.operating_point, usb_cadence=args.usb_cadence, usb_equivalence=args.usb_equivalence)['status'] not in ('pass','warning'))
+                           args.liberty, args.combinational, operating_point=args.operating_point, usb_cadence=args.usb_cadence, usb_equivalence=args.usb_equivalence,usb_sampling=args.usb_sampling)['status'] not in ('pass','warning'))
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f'BLOCKED timing: {exc}', file=sys.stderr)
         return 2

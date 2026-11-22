@@ -27,6 +27,15 @@ tolerances unchanged. Generated evidence belongs under build/plan03.
 
 Stop the sequence if a step cannot finish.
 
+Approved B3 follow-up (user, 2026-11-22): complete the focused T19 closure
+needed by fast CI. Audit/reuse closed packet proofs; finish retained EP0
+sampling, SIE CRC/EOP spacing and timing-exception qualification; repair the
+three routed failures under unchanged class limits and externally visible
+behavior; qualify boundary hold/RDC only against justified interface contracts.
+Keep existing caps, assertions, assumptions and negative controls. Independently
+review, then rerun USB and fast CI. Stop for any needed behavior, assumption or
+limit change. This is a prerequisite to B4, not a waiver or new peripheral task.
+
 1. **B1 Freeze:** no T31 or new block work.
 2. **B2 Consolidate:** DeadhorseSoc binds the faithful RV32IMFC/shared-MAC
    performance core, local memory, main/AON fabrics, bridge/mailbox, three

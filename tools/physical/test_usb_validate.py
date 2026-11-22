@@ -1,10 +1,28 @@
 """Faults in measurement accounting must not become passing evidence."""
 import copy
 import unittest
-from usb_validate import annotation, corrected, number, require_complete,class_coverage,audit_hashes
+from usb_validate import annotation, corrected, number, require_complete,class_coverage,audit_hashes,audit_queries
 from usb_sdc_audit import compare
 
 class ValidationTests(unittest.TestCase):
+    def test_fixed_launch_query_inventory(self):
+        expected=[dict(query_id=str(i),**{'class':'usbClock.FF'},launch='a/Q',polarity=p,capture_pins='b/D,c/D')
+                  for i,p in enumerate(('max_rise','max_fall'))]
+        queries=[{k:v for k,v in r.items() if k!='capture_pins'}|dict(requested_captures='2',returned_paths='1',no_timed_path_captures='c/D') for r in expected]
+        paths=[dict(query_id=r['query_id'],**{'class':r['class']},start=r['launch'],end='b/D',polarity=r['polarity']) for r in expected]
+        self.assertEqual(audit_queries(paths,expected,queries)['path_rows'],2)
+        for fault in ('missing_query','duplicate_query','missing_path','duplicate_path','wrong_launch','wrong_capture','wrong_polarity','both_rise','unreported_absent'):
+            p,e,q=map(copy.deepcopy,(paths,expected,queries))
+            if fault=='missing_query':q.pop()
+            if fault=='duplicate_query':q.append(q[0])
+            if fault=='missing_path':p.pop()
+            if fault=='duplicate_path':p.append(p[0])
+            if fault=='wrong_launch':p[0]['start']='wrong/Q'
+            if fault=='wrong_capture':p[0]['end']='wrong/D'
+            if fault=='wrong_polarity':q[0]['polarity']='max_fall'
+            if fault=='both_rise':p[1]['polarity']=e[1]['polarity']=q[1]['polarity']='max_rise'
+            if fault=='unreported_absent':q[0]['no_timed_path_captures']=''
+            with self.subTest(fault=fault),self.assertRaises(ValueError):audit_queries(p,e,q)
     def test_stale_manifest_rejected(self):
         with self.assertRaises(ValueError):audit_hashes({'tools/physical/lock.json':'0'*64})
     def test_missing_class_and_changed_constraints(self):
@@ -27,6 +45,7 @@ class ValidationTests(unittest.TestCase):
         clocks={'a/CLK':dict(max_rise_ns='3')}
         self.assertEqual(corrected(row,clocks)['delay_ns'],9)
         self.assertEqual(corrected(dict(row,delay_ns='9'),clocks,'launch-relative-data-v2')['delay_ns'],9)
+        self.assertEqual(corrected(dict(row,delay_ns='9'),clocks,'launch-relative-data-v3-fixed-launch-enumeration')['delay_ns'],9)
         with self.assertRaises(ValueError):corrected(row,clocks,'unknown')
         self.assertEqual(corrected(dict(row,start='port'),{})['delay_ns'],12)
         with self.assertRaises(KeyError):corrected(row,{})

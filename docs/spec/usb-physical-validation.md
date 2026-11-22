@@ -1,5 +1,156 @@
 # T19 standalone routed USB validation, 2026-11-20
 
+## D77 boundary follow-up, 2026-11-22
+
+The approved digital asynchronous-boundary treatment is implemented; final
+aggregate acceptance is pending. Raw STA violations remain recorded. This is
+not whole-chip or analog signoff. All numbers below are **measured** on
+`2504a31` plus receipt-bound sources, with the pinned tools and commands listed.
+
+`physical-hold01-audited` adds two physical `buf_1` cells at `_6400_/D` and
+`_7545_/D` to the previously reviewed twenty-five drive substitutions. These
+ordinary VBUS-to-data holds are not eligible for D77. All fifteen PVT/RC cases
+have zero class-budget failures. Cell area is **217,592.6144 µm²**, including
+CTS/ties, excluding PDN/pads/fillers: **+26.3424 µm²** from the two buffers.
+Worst full-period setup slack is **+3.299665 ns**. Raw boundary hold is
+**−3.826381 ns**, `dnRx` → `_7547_/D`; raw removal is **−2.533133 ns**,
+`vbus` → `_6357_/RN`. D77 evaluates these exact asynchronous pins structurally
+and through their positive interstage/downstream checks; it does not erase them.
+
+`async-physical04` qualifies all **four sampler chains and fourteen release
+chains**, with **3,422** interstage/downstream checks per corner and eleven
+actual mapped-graph faults rejected. Every non-exempt remaining raw negative
+is an ordinary application input under the historical zero-delay port model.
+The actual production `SocResetSlot` drives all **73** request/payload bits
+directly from flops on the same `mainClock` as USB. Its authenticated source-cell
+minimum CLK-to-Q contract gives worst standalone bus hold **+0.123681 ns**
+across all fifteen cases (`bus-hold01`). That hold-only result does not supply
+an unmeasured upstream setup maximum.
+
+The separate `bus-physical01` fixture composes the exact mapped production slot
+and USB graphs, checks every cell/pin connection, retains the original USB
+constraints, and places, clocks and routes both together. Obsolete bus-port
+delays are removed because the nets are internal. Production owner is constant
+one. Slot reset/readiness signals remain explicit fixture boundaries; this
+measurement does not sign off their upstream reset sequencing.
+
+| Routed bus direction | Worst delay ns | Budget ns | Worst setup slack ns | Worst hold slack ns |
+| --- | ---: | ---: | ---: | ---: |
+| Slot request/payload → USB | 13.207504 | 24.96 | +27.351143 | +0.846525 |
+| USB response → slot | 13.396587 | 24.96 | +27.121695 | +0.804226 |
+
+Worst request delay is `source_slot_$auto$ff.cc:337:slice$263/Q` → `_6965_/D`;
+worst response delay is `_7696_/Q` →
+`source_slot_$auto$ff.cc:337:slice$461/D`. The application clock is the unchanged
+**41.6 ns** timing fixture, with budget **0.60 × 41.6 = 24.96 ns**. Queries
+enumerate each request/response launch and both endpoint polarities. Independent
+review accepted the scoped boundary evidence after the durable auditor checked
+all **348** queries per corner, explicit absent captures, path identities,
+clock domains, finite values, electrical limits and connected parasitics.
+Thirteen focused composition/audit tests pass, including wrong clock, launch,
+capture, missing/duplicate query, nonfinite timing and over-budget controls.
+Its placement differs from
+the standalone candidate: the two scopes do not establish a single closed
+whole-system physical implementation.
+
+Commands and receipts:
+
+```text
+python tools/physical/run.py openroad -exit build/plan03/usb-closure/physical-hold01/run.tcl
+python tools/env/run.py run -- python scratch/plan03_hold_corners.py
+python tools/env/run.py run -- python scratch/plan03_bus_hold.py
+python tools/env/run.py run -- python tools/physical/usb_bus_fixture.py --usb build/t19/boundary-frozen-fast-01/fast/usb/timing/usb/mapped.json --slot build/plan03/usb-closure/source-slot01/mapped.json --binding build/plan03/usb-closure/bus-source-qualified01/result.json --output build/plan03/usb-closure/bus-physical01
+python tools/env/run.py run -- python scratch/plan03_bus_physical_prepare.py
+python tools/physical/run.py openroad -exit build/plan03/usb-closure/bus-physical01/run.tcl
+python tools/env/run.py run -- python scratch/plan03_bus_extract.py
+python tools/physical/run.py openroad -exit build/plan03/usb-closure/bus-physical01/extract-{min,nom,max}/run.tcl
+python tools/env/run.py run -- python scratch/plan03_bus_timing.py
+python tools/env/run.py run -- python tools/physical/usb_bus_audit.py --physical build/plan03/usb-closure/bus-physical01 --output build/plan03/usb-closure/bus-audit01
+```
+
+The extraction notation represents three actual separate commands. Detailed
+scripts, logs and hashes are under the named output directories. Analog
+metastability, pad/board electrical constraints, reset pulse/glitch guarantees
+and final whole-chip timing remain tape-out obligations. Fast/full CI has not
+yet been rerun for this follow-up.
+
+## Approved PLAN03 follow-up, 2026-11-22
+
+**The three historical class-delay failures below are resolved in a measured
+routed candidate. Boundary validation still fails; this is not signoff.**
+No production RTL or timing limit changed. Twenty-five explicitly listed
+same-family cell drive-strength substitutions preserve every original state,
+reset, clock and data connection. Logical functions, pin roles and sequential
+reset/clock semantics match in all fifteen pinned Liberty views. The manifest,
+route recipe, netlist, source bindings and extracted parasitics are sealed in
+`build/plan03/usb-closure/physical-size03-receipt02.json`.
+
+The updated analysis enumerates each launch separately for both endpoint
+polarities, then subtracts that launch's clock arrival. Expected and executed
+launch/capture inventories are audited. This supersedes the historical
+worst-absolute-arrival selection caveat for this new candidate only. All fifteen
+PVT/RC cases retain the original constraints and boundary contracts.
+
+All figures in the following table are **measured**, on base `2504a31` plus
+receipt-hashed sources, using the commands below. Each worst class occurs at
+SS/125 C/3 V with maximum RC. Class budgets are unchanged.
+
+| Class | Worst ns | Target / ceiling ns | Start → end |
+| --- | ---: | ---: | --- |
+| appClock.FF | 12.623340 | 24.96 / 24.96 | `_7470_/Q` → `_6982_/D` |
+| appClock.IR | 9.637960 | 24.96 / 24.96 | `bus_bits_origin[1]` → `_6965_/D` |
+| appClock.RO | 4.832788 | 24.96 / 24.96 | `_6965_/Q` → `bus_rdata[1]` |
+| appClock.IO | 7.805121 | 24.96 / 24.96 | `vbus` → `pullupEnable` |
+| usbClock.CC | 24.815976 | 50 / 50 | `_7045_/Q` → `_6878_/D` |
+| usbClock.CC_reset | 14.503531 | 12.5 / 15 | `_7280_/Q` → `_7209_/D` |
+| usbClock.CP | 15.829469 | 37.5 / 37.5 | `_7057_/Q` → `_7709_/D` |
+| usbClock.FP | 11.888180 | 12.5 / 12.5 | `_6520_/Q` → `_7709_/D` |
+| usbClock.CF | 14.325232 | 12.5 / 15 | `_7513_/Q` → `_7273_/D` |
+| usbClock.FC | 14.897831 | 12.5 / 15 | `_7633_/Q` → `_7209_/D` |
+| usbClock.FF | 14.434520 | 12.5 / 15 | `_6398_/Q` → `_7356_/D` |
+| usbClock.IR | 11.412242 | 12.5 / 15 | `vbus` → `_7273_/D` |
+| usbClock.RO | 12.056031 | 12.5 / 15 | `_7700_/Q` → `pullupEnable` |
+| usbClock.IO | 7.805121 | 12.5 / 15 | `vbus` → `pullupEnable` |
+| aonClock.FF | 2.609730 | 24.96 / 24.96 | `_7632_/Q` → `_7699_/D` |
+| aonClock.RO | 4.041196 | 24.96 / 24.96 | `_7237_/Q` → `usbClockRequest` |
+| aonClock.IO | 7.805121 | 24.96 / 24.96 | `vbus` → `pullupEnable` |
+
+Measured routed cell area: **217,566.272 µm²**, including CTS/ties and excluding
+PDN/pads/fillers. The measured difference from the historical candidate is
+**+417.088 µm²** (217,566.272 − 217,149.184), with the same 5,841 cells.
+Worst full-period setup slack is **+3.212165 ns**. Reported internal hold/reset
+violations are zero; that does not qualify asynchronous boundary phase.
+Raw boundary hold remains **−3.811670 ns**, `dnRx` → `_7547_/D`; removal remains
+**−2.490135 ns**, `vbus` → `_6357_/RN`. The latter is the engine reset-release
+chain's second flop, which the existing three-wrapper-chain inventory does not
+fully qualify. Ordinary bus boundary timing also requires its upstream contract.
+
+Executed measurement and audit commands (all output remains under `build/`):
+
+```text
+python tools/physical/run.py openroad -exit build/plan03/usb-closure/physical-size03/run.tcl
+python tools/env/run.py run -- python scratch/plan03_physical_corners_audited.py
+python tools/env/run.py run -- python tools/physical/usb_validate.py --physical build/plan03/usb-closure/physical-size03-audited --snapshot build/t19/boundary-frozen-fast-01/fast/usb --output build/plan03/usb-closure/physical-size03-audited/validation
+python tools/env/run.py run -- python tools/physical/usb_netlist.py --physical build/plan03/usb-closure/physical-size03-audited --output build/plan03/usb-closure/physical-size03-audited/netlist-audit
+python tools/env/run.py run -- python tools/physical/usb_sdc_audit.py --physical build/plan03/usb-closure/physical-size03-audited --validation build/plan03/usb-closure/physical-size03-audited/validation --output build/plan03/usb-closure/physical-size03-audited/sdc-audit
+python tools/env/run.py run -- python tools/physical/usb_seal.py --physical build/plan03/usb-closure/physical-size03-audited --validation build/plan03/usb-closure/physical-size03-audited/validation --sdc-audit build/plan03/usb-closure/physical-size03-audited/sdc-audit --netlist-audit build/plan03/usb-closure/physical-size03-audited/netlist-audit --output build/plan03/usb-closure/physical-size03-receipt02.json
+python tools/env/run.py run -- python tools/physical/usb_seal.py --verify build/plan03/usb-closure/physical-size03-receipt02.json
+```
+
+The corner driver runs `sta -no_init -exit <case>/run.tcl` for each of the
+fifteen cases. Exact Tcl, extraction inputs and Liberty hashes are in the seal.
+Fresh production wrapper emission matched the reused mapped HDL byte-for-byte.
+Independent review verified all **478** final bound files. An earlier seal
+included its still-open stdout log; it is preserved, and the corrected seal is
+outside the inventoried directory. Focused physical-tool tests pass.
+
+No physical-flow acceptance or CI pass was claimed for that candidate. The
+[boundary contract](usb-boundary-qualification-proposal.md)
+was subsequently approved as D77; current work is reported above. Historical evidence
+below is retained unchanged and does not describe the new candidate.
+
+## Historical validation
+
 D63 subsequently authorizes merging the USB branch for collaborative follow-up.
 That authorization supersedes the earlier no-merge instruction, not the failed
 validation result or any signoff requirement. See the

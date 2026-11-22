@@ -1,6 +1,7 @@
 """Acceptance bookkeeping faults; no hardware job or CI invocation."""
 import importlib.util
 import json
+import copy
 from pathlib import Path
 import tempfile
 import unittest
@@ -18,6 +19,63 @@ def claims():
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_controls_need_exact_inventory_and_closed_claims(self):
+        proofs=evidence.inventory(claims())
+        def controls():
+            return dict(status='unresolved',cases={role:dict(status='unresolved',jobs=[
+                *[dict(variant=v,result='covered' if v=='cover' else 'fault_rejected',
+                       solver_status='PASS' if v=='cover' else 'FAIL') for v in variants],
+                dict(variant='correct',result='unresolved',rerun=False,reason='Triage budget stop; positive proof remains required')])
+                for role,variants in [('in',['cover','corrupt','withheld']),('out',['cover','corrupt'])]})
+        good=controls();joint=acceptance.packet_control_shape(good,proofs)
+        command=dict(name='packet-controls',returncode=1,child_status='unresolved',joint_qualification=joint)
+        self.assertTrue(acceptance.command_accepted(command))
+        self.assertFalse(acceptance.command_accepted(dict(command,name='formal')))
+        self.assertFalse(acceptance.command_accepted(dict(command,returncode=0)))
+        bad=controls();bad['cases']['in']['jobs'].pop(2)
+        with self.assertRaises(ValueError):acceptance.packet_control_shape(bad,proofs)
+        bad=controls();bad['cases']['out']['jobs'][-1]['rerun']=True
+        with self.assertRaises(ValueError):acceptance.packet_control_shape(bad,proofs)
+        bad=controls();bad['cases']['out']['jobs'][0]['solver_status']='TIMEOUT'
+        with self.assertRaises(ValueError):acceptance.packet_control_shape(bad,proofs)
+        incomplete=copy.deepcopy(proofs);incomplete['closed'].pop()
+        with self.assertRaises(ValueError):acceptance.packet_control_shape(good,incomplete)
+
+    def test_sampling_cover_metadata_matches_authenticated_log(self):
+        faults={'lookahead':1,'outputs':128,'spacing':1024,'outputs-phase':128,'spacing-phase':1024}
+        log='\n'.join(f'USB_SAMPLING_FAULT {n} violations={v}' for n,v in faults.items())
+        log+='\nUSB_SAMPLING_COVER before_reset=63 after_reset=63 reset_release_after_traffic=1\n'
+        good=dict(faults=faults,cover_masks=[['63','63']]);evidence.sampling_markers(good,log)
+        for covers in ([[]],[],[['63']],[['63','127']],[['63','63','63']]):
+            with self.assertRaises(ValueError):evidence.sampling_markers(dict(good,cover_masks=covers),log)
+        with self.assertRaises(ValueError):evidence.sampling_markers(dict(good,faults={**faults,'outputs':16}),log)
+        with self.assertRaises(ValueError):evidence.sampling_markers(good,log+'USB_SAMPLING_FAULT outputs violations=128\n')
+
+    def test_sampling_inventory_rejects_omission_and_mixing(self):
+        with tempfile.TemporaryDirectory(dir=evidence.ROOT/'build',prefix='sampling-inventory-') as name:
+            directory=Path(name);a=directory/'proof.log';b=directory/'fault.log'
+            for path in (a,b):path.write_text('PASS')
+            hashes={str(p):evidence.digest(p) for p in (a,b)}
+            evidence.require_inventory(hashes,{a,b},'test')
+            for bad in ({str(a):hashes[str(a)]},{**hashes,str(directory/'other'):hashes[str(a)]},
+                        {str(a):hashes[str(a)],str(b):'0'*64}):
+                with self.assertRaises(ValueError):evidence.require_inventory(bad,{a,b},'test')
+            required=evidence.context_artifacts(directory)
+            self.assertTrue({directory/'equivalence.log',directory/'wrong-next-cursor.log',directory/'fault-cut.json'}<=required)
+            with self.assertRaises(ValueError):evidence.require_inventory(hashes,required,'context')
+
+    def test_sampling_source_inventory_is_complete(self):
+        proof={'source_sha256':{'build/test/usb_regs.json':'unused'}}
+        with self.assertRaisesRegex(ValueError,'Incomplete sampling proof source'):evidence.sampling_source_inventory(proof)
+        proof['source_sha256']['build/other/usb_regs.json']='unused'
+        with self.assertRaisesRegex(ValueError,'mixed sampling regmap'):evidence.sampling_source_inventory(proof)
+
+    def test_missing_sampling_models_are_not_trusted(self):
+        with tempfile.TemporaryDirectory(dir=evidence.ROOT/'build',prefix='sampling-artifacts-') as name:
+            directory=Path(name)
+            (directory/'canonical.json').write_text('{}')
+            with self.assertRaisesRegex(ValueError,'Missing sampling witness artifact'):evidence.sampling_artifacts(directory)
+
     def test_partial_inventory_retains_exact_blocker(self):
         rows=claims();rows[2].update(kind='proved at small model',packet_bytes=8)
         rows[8]=dict(role='out',property='integrity',kind='unresolved')

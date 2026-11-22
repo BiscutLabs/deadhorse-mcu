@@ -84,7 +84,7 @@ def legacy_commands():
 
 
 def main():
-    if not sys.argv[1:] or sys.argv[1] == '--tier':
+    if not sys.argv[1:] or '--scope' not in sys.argv[1:]:
         import ci_tiers
         return ci_tiers.main(sys.argv[1:], legacy_commands())
     if sys.argv[1:3] == ['--scope', 't13']:
