@@ -27,9 +27,49 @@ clocked design that relies on clock gating for its power modes and on scan
 for production test needs both, so the approved choice is
 `gf180mcu_fd_sc_mcu7t5v0`, subject to the shuttle accepting it at 3.3 V.
 
+## PLAN03 measured logic and estimated chip budget
+
+Measured on main `736ed5c`, unchanged production RTL, with the commands and
+per-block/domain allocation in [production measurements](../spec/soc-production-measurements.md).
+Whole mapped standard-cell logic is **3.322808384 mm2 at the 8 MHz trial** and
+**3.3165169408 mm2 at the 9 MHz trial**. This includes real USB and observation
+logic, excludes six SRAM/ROM interfaces, and is not a placed-area result.
+The main/AON/USB allocation and explicit shared rows reconcile exactly to it.
+
+| Budget item | Area, mm2 | Provenance |
+| --- | ---: | --- |
+| Built standard-cell logic, larger trial | 3.322808384 | Measured, `python scratch/plan03_area_partition.py`; pinned GF180 SS/125 C/3.0 V |
+| Two-hart JTAG debug | 0.150000 | Assumed digital allowance, inclusive of eventual scan overhead; replace in T32 |
+| Clock/reset/power controller | 0.100000 | Assumed digital allowance, inclusive of eventual scan overhead; replace in T33 |
+| Boot-ROM realization | 0.500000 | Assumed digital allowance; content/implementation dependent, not a guarantee for arbitrary 64 KiB contents; T36/T38 |
+| SRAM wrappers and memory BIST | 0.050000 | Assumed digital allowance, inclusive of eventual scan overhead; T35 |
+| Scan/test control and insertion glue | 0.050000 | Assumed digital allowance; T37 |
+| Scan-flop uplift on built logic | 0.378579802 | Estimated from measured 19,162 mapped FFs and pinned same-drive dff-to-sdff cell areas; T37 must measure actual insertion |
+| Digital subtotal at existing 0.55 utilization | 8.275251247 | Estimated: sum of digital rows / 0.55; includes 3.723863061 mm2 whitespace/routing reserve |
+| Performance SRAM, 16 KiB | 2.486616848 | Estimated: 16 x 301.300 x 515.810 um2 / 1e6 from pinned 1024x8 LEF |
+| Retained SRAM, 3 KiB logical | 0.621654212 | Estimated: four 1024x8 macros, 4 KiB physical; unused 256 words do not enlarge the address map |
+| Analog oscillator/POR/supply-monitor macros | 0.500000 | Assumed physical allowance; T34 characterization/layout must replace it |
+| Pad interface and in-core keepout | 0.500000 | Assumed core allowance; full external ring is outside this core budget and must fit the die in T38 |
+| SRAM halo/channels and other physical glue | 0.400000 | Assumed physical allowance, separate from standard-cell utilization |
+| Total core use | **12.783522307** | Estimated, `python scratch/plan03_area_budget02.py` |
+| Headroom to 12.92 mm2 | **0.136477693** | Estimated: 12.92 - 12.783522307, approximately 1.06% |
+
+Pinned SRAM LEF SHA-256 is
+`35bcf13111ab5029860ca7a2ef473fbf21b4938d6c6244b53b4480bd35f2776a`;
+measured dimensions are 301.300 by 515.810 um. Scan uplift is estimated by
+substituting each actual mapped dffq/dffrnq/dffsnq with the characterized
+same-drive scan variant; no scan RTL or ATPG result is implied. The unbuilt
+digital allowances include their eventual scan overhead.
+
+Independent review recomputed the cell inventories, library areas, arithmetic
+and headroom. This narrow planning margin is **not physical fit or tape-out
+approval**. Macro timing, ROM contents, real analog layouts, pad ring, CTS,
+routing and scan/BIST implementation must replace the allowances in T32-T38.
+No SRAM macro swap or new peripheral RTL was implemented by PLAN03.
+
 ## Historical area budget (not a revised fit result)
 
-T20 rebuilds this budget from measured block areas; see
+The table below predates the PLAN03 budget above; see
 [16-soc-integration.md](16-soc-integration.md) for the current inventory.
 
 The following component estimates do not establish whole-chip fit.

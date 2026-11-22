@@ -91,7 +91,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | --- | --- | --- | --- | --- | --- |
 | [x] | PLAN01 | [Reconcile decisions](tasks/PLAN01-reconcile.md) | Codex | User approvals | [Report](tasks/reports/PLAN01.md); documentation only |
 | [x] | PLAN02 | [General-purpose MCU scope](tasks/PLAN02-general-mcu.md) | Codex | User direction D69 | [Report](tasks/reports/PLAN02.md); documentation checks and independent review pass; no RTL or CI |
-| [!] | PLAN03 | [SoC consolidation and tape-out planning](tasks/PLAN03-soc-consolidation.md) | Codex | D72–D77; existing T20–T30 evidence | B2/ADC retirement and B3 fast verified; twelve T14/T17 deferrals retained. B4 stopped: integrated USB fails class budgets in both main-clock configurations. [Measured paths](../spec/soc-production-screen.md), [report](tasks/reports/PLAN03.md). Remaining B4, B5/B6 and full tier open |
+| [~] | PLAN03 | [SoC consolidation and tape-out planning](tasks/PLAN03-soc-consolidation.md) | Codex | D72–D77; existing T20–T30 evidence | B2/ADC retirement and B3 fast verified; twelve T14/T17 deferrals retained. B4 mapping regression resolved; production timing/area and fixed/hard-float measurements and transitive seal independently accepted. [Measured paths](../spec/soc-production-measurements.md), [report](tasks/reports/PLAN03.md). B5/B6 in progress; full tier open |
 | [x] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | Codex | none | [Report](tasks/reports/T08.md); clean rebuild and runtime smoke pass |
 | [x] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | Codex | T08 | [Report](tasks/reports/T01.md); local gate and fresh-context review pass |
 | [x] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | Codex | T01, T08 | [Report](tasks/reports/T02.md); exact QEMU matches, historical summary preserved, local gate passes |
@@ -185,6 +185,12 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-22: PLAN03 B4 independent review verified all 3,613 sealed source/evidence files and 23 tracked executed-producer snapshots. Mapped/digital measurement checkpoint accepted; complete T20 system proofs and chip physical qualification are not implied. Proceed to the authorized B5 attempts and B6 briefs.
+
+- 2026-11-22: PLAN03 B4 approved mapping follow-up resolves both-frequency USB register failures without RTL/limit changes. Main measured 64.830223/65.965767 ns at 8/9 MHz; USB has only the existing 13.485458 ns FF warning. Production loops measure fixed 3879.791667 mean/4350 worst and hard-float 7809.833333/9007 cycles, both trials. Exact target-ISS floating results resolve an uncontracted host-oracle mismatch. Plan08 estimated budget is 12.783522307 mm2 including scan/BIST and named allowances; headroom 0.136477693 mm2. Independent numerical review passes; transitive seal and report updates remain before B5. Physical boundary/CTS/macro qualification and full CI remain open.
+
+- 2026-11-22: User approved carrying the existing USB synthesis measures into full-SoC mapping and remeasuring. Resume PLAN03 B4 on main with production RTL, behavior and acceptance limits unchanged. Preserve the failed screen; freshly bind mapped certificates and independently review the integrated result before acceptance.
 
 - 2026-11-22: PLAN03 B4 stopped at the user's both-frequency timing rule. Fresh complete production mapping, source/context and mapped USB certificates, and applied-pair audits identify four failing USB classes at main 8 MHz and five at main 9 MHz. Main RR meets 75 ns at 8 MHz (measured 70.504395 ns), misses 66.666667 ns at 9 MHz (70.190018 ns). Independent review verifies the failures and final 2238-file evidence seal. Propose carrying the existing standalone USB mapping measures into integrated synthesis; no RTL change shown necessary. Remaining B4 measurements, B5/B6 and full CI are open. Earlier completed work was pushed to main at e18e2e8 after the fast pass.
 

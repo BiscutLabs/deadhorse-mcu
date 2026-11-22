@@ -1,5 +1,9 @@
 # PLAN03 B4 production mapping screen
 
+The approved mapping follow-up resolves the register-path regression; see
+[production measurements](soc-production-measurements.md). This file preserves
+the original failed experiment.
+
 ## Outcome and scope
 
 Stopped, 2026-11-22: the production SoC's mapped USB paths fail existing class

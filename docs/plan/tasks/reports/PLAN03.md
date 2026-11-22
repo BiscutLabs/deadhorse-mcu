@@ -2,9 +2,9 @@
 
 ## Outcome
 
-Blocked at B4 by the explicit stop condition: mapped USB paths exceed their
-existing limits in both production main-clock configurations; B2, ADC retirement
-and B3 fast CI passed their required checks and independent review.
+In progress: B2, ADC retirement and B3 fast passed; the approved B4 mapping
+repair and production measurements pass independent review, with evidence
+sealing complete and B5/B6 still open. No RTL or acceptance limit changed in B4.
 
 ## What changed
 
@@ -52,9 +52,18 @@ and B3 fast CI passed their required checks and independent review.
 
 ## Checks run
 
+- B4 production mapping, certificates, applied constraints, area allocation and
+  actual production workload checks: measured commands, complete class/path
+  tables and preserved diagnostics are in [production measurements](../../../spec/soc-production-measurements.md).
+  Both main trials pass register budgets; USB FF warns within its approved ceiling.
+  Both 120-window workloads pass checksums, stack bounds, real boot/release and
+  negative controls. Target-ISS comparison checks all floating results; it does
+  not claim full production architectural lockstep. Independent review verified all 3,613 files in b4-seal02 and all 23 tracked
+  executed-producer snapshots; B4 mapped/digital evidence is accepted.
+
 All commands below use `python tools/env/run.py run --` and the pinned tools.
 
-- B4 production screening: fresh production emission at 8/9 MHz, full flattened
+- Earlier, superseded pre-approval B4 production screening: fresh production emission at 8/9 MHz, full flattened
   logic mapping, actual source/mapped USB certification and exact applied-pair
   audit completed. USB fails both configurations; main register paths pass
   8 MHz and fail 9 MHz. Stop before further changes, per the assignment.
@@ -257,13 +266,14 @@ file/test inventory is `build/plan03/adc-retirement-inventory.json`.
 - Measured baseline: 82 tests, 24 suites, 1100 seconds, command/commit above.
 - Estimated pad demand after ADC retirement: 40 − 2 = 38 output-capable and
   10 − 1 = 9 input-only pads, against unchanged 40/12 logical capacities.
-- B4 measured mapped logic area: 3.2919833856 / 3.2880144640 mm2 for the
-  8/9 MHz configurations, excluding six SRAM/ROM model interfaces. Main RR
-  worst delays: 70.504395 / 70.190018 ns, against estimated 60% budgets
-  75 / 66.666667 ns. USB fails four/five classes respectively. Commands,
-  source bindings and preliminary scope are in the production screen report.
-  Per-block/domain accounting, macro-inclusive budget and integrated workload
-  measurements remain open; no I0 result is called a production measurement.
+- B4 measured mapped logic area: 3.322808384 / 3.3165169408 mm2 at 8/9 MHz.
+  Main paths 64.830223 / 65.965767 ns pass estimated 75/66.666667 ns budgets.
+  USB's worst ordinary class is a 13.485458 ns warning within 15 ns.
+- Production fixed mean/worst 3879.791667/4350 cycles; hard-float
+  7809.833333/9007 cycles, both builds. Measured commands and exact scope are
+  in the production measurement report; estimated overhead 0% / 0.3789156%.
+- Plan08 total estimated 12.783522307 mm2, headroom 0.136477693 mm2 against
+  12.92 mm2. Named allowances, macro geometry and scan arithmetic remain explicit.
 
 ## Deviations from the brief
 
@@ -279,15 +289,12 @@ induction proofs and every fault result. This does not accept PLAN03 or CI.
 
 ## Open issues
 
-B4 is stopped under the assignment's both-frequency timing rule. The proposed
-next step is to carry the existing USB-specific mapping measures into the
-production synthesis flow and remeasure under unchanged limits; no RTL change
-is shown necessary. Remaining B4 measurements/budget, B5 debt register/triage
-and B6 reconciliation/T32–T38 briefs remain open. T20 is open. No new peripheral
-block work or full CI has run. B3's fast pass retains twelve explicit T14/T17
-deferrals and bounded proof scopes; it does not close whole-chip signoff.
-Earlier completed work was pushed to main at e18e2e8 after independent
-verification and the frozen fast pass.
+B4's mapped/digital measurements and transitive seal are independently accepted. B5 debt register/triage and B6 reconciliation
+and T32-T38 briefs are next. T20's inherited system/formal and physical obligations
+must remain explicit; a measurement pass does not waive them. No new peripheral
+RTL or full CI ran. B3 fast retains twelve explicit T14/T17 deferrals. The broader
+boundary, macro, reset, CTS and physical checks belong to the remaining briefs.
+Earlier completed work was pushed to main at e18e2e8 after the frozen fast pass.
 
 USB qualification is scoped: the optional partial-header/new-SETUP diagnostic
 is unresolved; standalone USB internal timing and the two-way bus fixture use
