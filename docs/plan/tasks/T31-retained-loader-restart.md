@@ -1,5 +1,9 @@
 # T31 Retained locked-image restart
 
+Withdrawn by D73 (2026-11-21). The text below is historical, unimplemented
+proposal material. The recovery loader's existing feature set and reset/lock
+policy remain frozen; no extension is authorized.
+
 ## Goal and authorization boundary
 
 Continue assigned RTL on main without CI. Prepare the narrowly scoped optional

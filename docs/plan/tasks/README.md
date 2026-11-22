@@ -8,6 +8,7 @@ PLAN01 is documentation only; no other task is started by this revision.
 | --- | --- | --- | --- |
 | PLAN01 | [Decision reconciliation](PLAN01-reconcile.md) | User approval conversation | Assigned documentation work |
 | PLAN02 | [General-purpose MCU scope](PLAN02-general-mcu.md) | User decision D69 | Documentation only; no CI or RTL changes |
+| PLAN03 | [SoC consolidation and tape-out planning](PLAN03-soc-consolidation.md) | User decisions D72–D76 | Assigned on main; ordered B1–B6; no new peripheral RTL |
 | T08 | [Pinned Linux environment](T08-environment.md) | None | Brief ready; commands not yet run |
 | T01 | [Scaffold and CI](T01-scaffold.md) | T08 | After pinned environment |
 | T02 | [Historical flight-loop CI](T02-flight-loop-ci.md) | T01, T08 | Historical workload only |
@@ -39,7 +40,7 @@ PLAN01 is documentation only; no other task is started by this revision.
 | T28 | [Lite-first performance release](T28-boot-release.md) | T25/T26/T27 interfaces | Continued RTL; reviewed digital handoff from validated loader START; no CI |
 | T29 | [Bounded QSPI command interface](T29-qspi-command.md) | Plans04/07, T28 interfaces | Continued RTL; reviewed command subset, no CI |
 | T30 | [Native QSPI read path](T30-qspi-xip.md) | Plans03/07, T29 interfaces | Continued RTL; reviewed native read/arbitration contract; no CI |
-| T31 | [Retained locked-image restart](T31-retained-loader-restart.md) | T18/T25/T28/T30 interfaces | Contract preparation assigned; reset-policy approval required before RTL; no CI |
+| T31 | [Retained locked-image restart](T31-retained-loader-restart.md) | D73 | Withdrawn; recovery loader frozen, no extension without a new decision |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |
