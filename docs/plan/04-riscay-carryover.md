@@ -75,8 +75,10 @@ manifest mapping original files to adapted files. No live RISCay/chisel-async
 dependency in the new build. T06 reproduces the old baseline in an isolated
 checkout; it is not the import task and does not authorize async integration.
 
-Reset behavior is adapted to D37, not copied unchanged: performance reset
-preserves AON and independent actuator state; lite watchdog resets the MCU.
+Reset behavior is adapted to D37/D69, not copied unchanged: performance reset
+preserves AON and peripherals serving surviving owners; lite watchdog resets
+the MCU. Generic PWM uses an explicit reset/output-disable contract, without
+dedicated actuator failsafe state; current stub reset wiring is unchanged.
 Supply monitor gains selectable thresholds/safe startup (D38); old threshold
 and hold-cycle values are not frozen. Shared peripheral ownership, DMA and
 sleep access are new work with their own tests.

@@ -1,5 +1,13 @@
 # Performance core: faithful Ibex conversion
 
+T20 decision D66's shared-MAC accumulation experiment is rejected and the
+original RTL restored. The grouped carry adder proved exactly equivalent and
+passed the unchanged performance checks, but prevented fused MAC compression
+and worsened measured integrated timing from 70.011482 to 79.044106 ns. See
+the T20 report for commands, archived sources and independent review. The
+inherited T13 proof status and clock-frequency decision remain unchanged;
+no CI was run.
+
 T11 converts pinned Ibex `38c070939183cc10940b66c8e9e04eeca6b65470`
 to clocked Chisel before any F extension. This directory is
 qualified under the user's focused-verification instruction. Faithful baseline

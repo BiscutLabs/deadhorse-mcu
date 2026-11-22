@@ -10,6 +10,21 @@ sys.path.insert(0, str(ROOT))
 import yaml
 from hw.regmap.regmap import UniqueLoader, load as load_regmap
 
+# Independent logical-function inventory from the reviewed T20 pin contract.
+# Keeping this closed prevents a smaller/omitted interface from faking a fit.
+PIN_CONTRACT = {
+    'uart_tx': (3, 'output'), 'uart_rx': (3, 'input'),
+    'spi_sclk': (1, 'output'), 'spi_mosi': (1, 'output'),
+    'spi_miso': (1, 'input'), 'spi_cs_n': (2, 'output'), 'imu_drdy': (1, 'input'),
+    'i2c_host': (2, 'open_drain'), 'i2c_recovery': (2, 'open_drain'),
+    'qspi_sclk': (1, 'output'), 'qspi_dq': (4, 'bidirectional'), 'qspi_cs_n': (2, 'output'),
+    'actuator': (9, 'output'), 'usb_data': (2, 'bidirectional'),
+    'usb_vbus': (1, 'input'), 'usb_pullup': (1, 'output'),
+    'jtag_tck': (1, 'input'), 'jtag_tms': (1, 'input'), 'jtag_tdi': (1, 'input'),
+    'jtag_tdo': (1, 'output'), 'gpio': (3, 'bidirectional'), 'timer': (4, 'bidirectional'),
+    'adc_sclk': (1, 'output'), 'adc_cs_n': (1, 'output'), 'adc_miso': (1, 'input'),
+}
+
 
 def check(ok, message):
     if not ok:
@@ -30,7 +45,7 @@ def name(value):
 
 
 def validate(data):
-    keys(data, ('schema', 'name', 'clocks', 'resets', 'masters', 'regions', 'interrupts', 'pins'))
+    keys(data, ('schema', 'name', 'clocks', 'resets', 'masters', 'regions', 'interrupts', 'pins', 'pin_budget'), ('groups', 'fabrics', 'flight_io', 'pwm', 'dma', 'pinmux', 'watchdog', 'boot_control', 'qspi', 'qspi_xip'))
     check(type(data['schema']) is int and data['schema'] == 1, 'Unsupported schema')
     name(data['name'])
     check(isinstance(data['clocks'], dict) and data['clocks'], 'Missing clocks')
@@ -77,6 +92,151 @@ def validate(data):
             if set(a['domains']) & set(b['domains']):
                 check(a['base'] + a['size'] <= b['base'] or
                       b['base'] + b['size'] <= a['base'], 'Overlapping regions')
+    if 'groups' in data or 'fabrics' in data:
+        check('groups' in data and 'fabrics' in data, 'Incomplete fabric configuration')
+        check(isinstance(data['groups'], dict) and isinstance(data['fabrics'], dict),
+              'Fabric configuration must be mappings')
+        regions = {r['name']: r for r in data['regions']}
+        apertures = dict(regions)
+        for n, g in data['groups'].items():
+            name(n); keys(g, ('base', 'size', 'members'))
+            check(n not in apertures, 'Duplicate group/endpoint')
+            check(number(g['base'], 0, 0xffffffff) and number(g['size'], 4, 1 << 32)
+                  and g['size'] & (g['size'] - 1) == 0 and g['base'] % g['size'] == 0
+                  and g['base'] + g['size'] <= 1 << 32, 'Invalid group aperture')
+            check(isinstance(g['members'], list) and 1 <= len(g['members']) <= 8
+                  and all(isinstance(m, str) for m in g['members'])
+                  and len(set(g['members'])) == len(g['members']), 'Invalid group members')
+            for member in g['members']:
+                check(member in regions, 'Unknown group member')
+                r = regions[member]
+                check(g['base'] <= r['base'] and r['base'] + r['size'] <= g['base'] + g['size'],
+                      'Group does not contain member')
+            apertures[n] = g
+        check(set(data['fabrics']) == {'main', 'aon'}, 'Missing domain fabric')
+        for members in data['fabrics'].values():
+            check(isinstance(members, list) and 1 <= len(members) <= 8
+                  and all(isinstance(m, str) for m in members)
+                  and len(set(members)) == len(members), 'Invalid fabric targets')
+            ranges = []
+            for member in members:
+                check(member in apertures, 'Unknown fabric target')
+                r = apertures[member]
+                size = 1 << (r['size'] - 1).bit_length()
+                check(r['base'] % size == 0 and r['base'] + size <= 0xffffffff,
+                      'Unaligned fabric aperture or sentinel mapped')
+                for base, span in ranges:
+                    check(r['base'] + size <= base or base + span <= r['base'], 'Fabric apertures overlap')
+                ranges.append((r['base'], size))
+    if 'watchdog' in data:
+        p=data['watchdog']
+        keys(p, ('parent','offset','size','count','clock','reset','owners','regmap'))
+        check(all(type(p[n]) is int for n in ('offset','size','count')), 'Invalid watchdog range')
+        check(p == dict(parent='power_reset_timer', offset=256, size=256, count=2,
+                        clock='aon', reset='aon_service', owners=['performance','lite'],
+                        regmap='hw/ip/watchdog/watchdog.regmap.yaml'), 'Watchdog binding differs from D70 contract')
+        parent=next((r for r in data['regions'] if r['name']==p['parent']),None)
+        check(parent is not None and parent['home']=='aon' and p['offset']+p['count']*p['size']<=parent['size'],
+              'Watchdog exceeds AON parent')
+        check('flight_io' in data, 'Watchdog requires AON timer metadata')
+        regs=load_regmap(ROOT/p['regmap'])
+        check(1 << regs['address_width'] == p['size'], 'Watchdog regmap width differs')
+    if 'boot_control' in data:
+        p=data['boot_control']
+        keys(p, ('parent','offset','size','clock','reset','owner','regmap'))
+        check(all(type(p[n]) is int for n in ('offset','size')), 'Invalid boot control range')
+        check(p == dict(parent='power_reset_timer', offset=768, size=256, clock='aon',
+                        reset='whole_epoch', owner='lite', regmap='hw/ip/boot_control/boot_control.regmap.yaml'),
+              'Boot control binding differs from contract')
+        check('watchdog' in data, 'Boot control requires the AON service fabric')
+        parent=next((r for r in data['regions'] if r['name']==p['parent']),None)
+        check(parent is not None and parent['home']=='aon' and p['offset']+p['size']<=parent['size'],
+              'Boot control exceeds AON parent')
+        check(1 << load_regmap(ROOT/p['regmap'])['address_width'] == p['size'], 'Boot control regmap width differs')
+    if 'qspi' in data:
+        p=data['qspi']
+        check(p==dict(region='qspi_control',clock='main',reset='main_service',reset_owner='lite',
+                      owners=['lite','performance'],regmap='hw/ip/qspi/qspi.regmap.yaml'), 'QSPI binding differs')
+        region=next((r for r in data['regions'] if r['name']==p['region']),None)
+        check(region is not None and region['home']=='main' and region['base']==0x40013000 and
+              region['size']==1 << load_regmap(ROOT/p['regmap'])['address_width'], 'QSPI aperture differs')
+    if 'qspi_xip' in data:
+        p=data['qspi_xip']
+        check(p==dict(region='xip',control='qspi_control',clock='main',reset='main_service',
+                      owner='performance',regmap='hw/ip/qspi_xip/qspi_xip.regmap.yaml'), 'XIP binding differs')
+        check('qspi' in data, 'XIP requires QSPI')
+        region=next((r for r in data['regions'] if r['name']==p['region']),None)
+        check(region is not None and region['base']==0x10000000 and region['size']==0x10000000,
+              'XIP aperture differs')
+        base=load_regmap(ROOT/data['qspi']['regmap']);extra=load_regmap(ROOT/p['regmap'])
+        check(base['address_width']==extra['address_width'], 'XIP register width differs')
+        check(not ({r['offset'] for r in base['registers']} & {r['offset'] for r in extra['registers']}),
+              'XIP registers overlap commands')
+    if 'pinmux' in data:
+        p = data['pinmux']
+        keys(p, ('parent','offset','size','clock','reset','owner','regmap','sources','channels'))
+        check(type(p['offset']) is int and type(p['size']) is int and
+              isinstance(p['channels'], list) and all(type(n) is int for n in p['channels']), 'Invalid pinmux subwindow/channel')
+        check(p == dict(parent='gpio_pinmux', offset=512, size=256, clock='main', reset='main_service',
+                        owner='performance', regmap='hw/ip/pinmux/pinmux.regmap.yaml',
+                        sources=['disconnected','gpio','timer_compare','pwm'], channels=[0,1,2]),
+              'Pinmux binding differs from contract')
+        check('flight_io' in data and 'pwm' in data, 'Pinmux requires GPIO/timer/PWM metadata')
+        parent = next((r for r in data['regions'] if r['name']==p['parent']), None)
+        check(parent is not None and parent['home']=='main' and p['offset']+p['size']<=parent['size'], 'Pinmux exceeds parent')
+        regs=load_regmap(ROOT/p['regmap'])
+        check(1 << regs['address_width'] == p['size'], 'Pinmux regmap width differs')
+    if 'dma' in data:
+        p = data['dma']
+        keys(p, ('parent', 'offset', 'size', 'clock', 'reset', 'owner', 'memory', 'regmap'))
+        check(type(p['offset']) is int and type(p['size']) is int, 'Invalid DMA subwindow')
+        check(p == dict(parent='dma', offset=0, size=256, clock='main', reset='main_service',
+                        owner='performance', memory='performance_sram', regmap='hw/ip/dma/dma.regmap.yaml'),
+              'DMA binding differs from contract')
+        check('pwm' in data, 'DMA profile requires PWM metadata')
+        parent = next((r for r in data['regions'] if r['name'] == 'dma'), None)
+        check(parent is not None and parent['home'] == 'main' and parent['size'] >= p['size'],
+              'DMA exceeds parent')
+        regs = load_regmap(ROOT / p['regmap'])
+        check(1 << regs['address_width'] == p['size'], 'DMA regmap width differs')
+    if 'pwm' in data:
+        p = data['pwm']
+        keys(p, ('parent', 'offset', 'size', 'clock', 'reset', 'owner', 'regmap'))
+        check(type(p['offset']) is int and type(p['size']) is int, 'Invalid PWM subwindow')
+        check(p == dict(parent='actuator', offset=0, size=256, clock='main',
+                        reset='main_service', owner='performance', regmap='hw/ip/pwm/pwm.regmap.yaml'),
+              'PWM binding differs from contract')
+        parent = next((r for r in data['regions'] if r['name'] == p['parent']), None)
+        check(parent is not None, 'Missing PWM parent')
+        check(parent['home'] == 'main' and parent['size'] >= p['size'], 'PWM exceeds parent')
+        regs = load_regmap(ROOT / p['regmap'])
+        check(1 << regs['address_width'] == p['size'], 'PWM regmap width differs')
+    if 'flight_io' in data:
+        profile = data['flight_io']
+        keys(profile, ('gpio', 'timers', 'aon_timer', 'adc'))
+        expected = {'gpio': ('gpio_pinmux', 0, 'main', 'performance'),
+                    'timers': ('gpio_pinmux', 256, 'main', 'performance'),
+                    'aon_timer': ('power_reset_timer', 0, 'aon', 'lite'),
+                    'adc': ('adc_loader_reserved', 0, 'aon', 'lite')}
+        parents = {r['name']: r for r in data['regions']}
+        spans = []
+        for n, p in profile.items():
+            keys(p, ('parent', 'offset', 'size', 'clock', 'owner', 'regmap'))
+            check((p['parent'], p['offset'], p['clock'], p['owner']) == expected[n],
+                  'Flight I/O binding differs from contract')
+            check(type(p['offset']) is int and type(p['size']) is int and p['size'] == 256,
+                  'Invalid flight I/O subwindow')
+            parent = parents[p['parent']]
+            check(p['offset'] + p['size'] <= parent['size'] and p['clock'] in parent['domains'],
+                  'Flight I/O exceeds parent')
+            check(p['regmap'] == f'hw/ip/{n}/{n}.regmap.yaml', 'Flight I/O regmap differs')
+            regs = load_regmap(ROOT / p['regmap'])
+            check(1 << regs['address_width'] == p['size'], 'Flight I/O regmap width differs')
+            base = parent['base'] + p['offset']
+            check(base % p['size'] == 0, 'Flight I/O misaligned')
+            for other, end in spans:
+                check(base + p['size'] <= other or end <= base, 'Flight I/O overlap')
+            spans.append((base, base + p['size']))
     check(isinstance(data['interrupts'], dict), 'Invalid interrupts')
     indices = list(data['interrupts'].values())
     check(all(number(i, 0, 14) for i in indices) and len(set(indices)) == len(indices), 'Invalid/duplicate interrupt')
@@ -84,10 +244,29 @@ def validate(data):
     check(isinstance(data['pins'], dict) and data['pins'], 'Missing pins')
     for n, p in data['pins'].items():
         name(n); keys(p, ('width', 'direction', 'clock', 'safe'))
-        check(number(p['width'], 1, 32) and p['clock'] in data['clocks'], 'Invalid pin width/clock')
+        # 'inactive' has no sampling domain: inputs ignored, outputs tied off.
+        check(number(p['width'], 1, 32) and
+              (p['clock'] in data['clocks'] or p['clock'] == 'inactive'), 'Invalid pin width/clock')
         safe = {'input': 'input', 'output': 'disabled', 'bidirectional': 'disabled', 'open_drain': 'released'}
         check(p['direction'] in safe and p['safe'] == safe[p['direction']], 'Unsafe pin default')
+    keys(data['pin_budget'], ('bidirectional', 'input_only'))
+    check(data['pin_budget'] == {'bidirectional': 40, 'input_only': 12}, 'Nominal slot capacity differs')
+    for kind, used in pin_usage(data).items():
+        check(used <= data['pin_budget'][kind], f'Pin budget exceeded: {kind}')
+    check(set(data['pins']) == set(PIN_CONTRACT), 'Logical pin function inventory differs')
+    for n, (width, direction) in PIN_CONTRACT.items():
+        p = data['pins'][n]
+        check((p['width'], p['direction']) == (width, direction), f'Logical pin contract differs: {n}')
     return data
+
+
+def pin_usage(data):
+    # Output/open-drain/bidirectional functions require output-capable pads.
+    # No mux overlap, pad reuse or optional-USB savings is assumed.
+    return {
+        'bidirectional': sum(p['width'] for p in data['pins'].values() if p['direction'] != 'input'),
+        'input_only': sum(p['width'] for p in data['pins'].values() if p['direction'] == 'input'),
+    }
 
 
 def contract_rows(text):
@@ -108,6 +287,43 @@ def check_contract(data, text):
         if len(fields) == 5 and fields[2].isdigit():
             irq_rows.append((fields[1], int(fields[2])))
     check(sorted(irq_rows) == sorted(data['interrupts'].items()), 'Contract interrupt table differs')
+
+
+def dma_endpoints(data):
+    """Resolve protocol register addresses from the authoritative register maps."""
+    regions = {r['name']: r for r in data['regions']}
+    maps = {n: load_regmap(ROOT / f'hw/ip/{n}/{n}.regmap.yaml') for n in ('uart', 'spi_host', 'pwm')}
+    def register(block, name):
+        return next(r for r in maps[block]['registers'] if r['name'] == name)
+    def address(block, instance, name):
+        offset = register(block, name)['offset']
+        check(offset % 4 == 0 and offset + 4 <= regions[instance]['size'], 'DMA endpoint outside aligned register aperture')
+        return regions[instance]['base'] + offset
+    def field(block, reg, name, access, width):
+        f = next(f for f in register(block, reg)['fields'] if f['name'] == name)
+        check((f['access'], f['lsb'], f['width']) == (access, 0, width), 'DMA endpoint data contract differs')
+    def pulse(block, reg, field):
+        f = next(f for f in register(block, reg)['fields'] if f['name'] == field)
+        check(f['access'] == 'w1p', 'DMA completion requires a pulse register')
+        return 1 << f['lsb']
+    result = dict(data=[], command=[], command_value=[], period=[], pending=address('pwm', 'actuator', 'pending'))
+    for block, instance in [('uart', f'uart{i}') for i in range(3)] + [('spi_host', 'spi_host')]:
+        field(block, 'tx_data', 'value', 'wo', 8)
+        field(block, 'rx_data', 'value', 'ro', 8)
+        for receive in (False, True):
+            result['data'].append(address(block, instance, 'rx_data' if receive else 'tx_data'))
+            result['command'].append(address(block, instance, 'command'))
+            result['command_value'].append(pulse(block, 'command', 'rx_pop') if receive else 0)
+    for i in range(9):
+        field('pwm', f'high_time{i}', 'value', 'rw', 17)
+        field('pwm', f'period{i}', 'value', 'rw', 16)
+        result['data'].append(address('pwm', 'actuator', f'high_time{i}'))
+        result['period'].append(address('pwm', 'actuator', f'period{i}'))
+        result['command'].append(address('pwm', 'actuator', 'apply'))
+        result['command_value'].append(pulse('pwm', 'apply', 'channels') << i)
+    field('pwm', 'pending', 'channels', 'ro', 9)
+    field('pwm', 'apply', 'channels', 'w1p', 9)
+    return result
 
 
 def emit(data, output):
@@ -134,10 +350,49 @@ def emit(data, output):
         header.append(f'#define DH_SOC_{n.upper()}_FAST_IRQ {i}u')
         scala.append(f'    "{n}" -> {i},')
     if data['interrupts']: scala[-1] = scala[-1].removesuffix(',')
+    scala += ['  )', '  val flightIo = Seq(']
+    if 'flight_io' in data:
+        parents = {r['name']: r for r in data['regions']}
+        markdown += ['', 'Opt-in flight I/O profile (I1 remains stubbed):', '',
+                     '| Service | Base | Size | Clock |', '| --- | --- | --- | --- |']
+        for n, p in data['flight_io'].items():
+            base = parents[p['parent']]['base'] + p['offset']
+            header += [f'#define DH_SOC_IO_{n.upper()}_BASE 0x{base:08x}u',
+                       f'#define DH_SOC_IO_{n.upper()}_SIZE 0x{p["size"]:x}u']
+            scala.append(f'    Region("{n}", BigInt("{base:x}",16), BigInt("{p["size"]:x}",16)),')
+            markdown.append(f'| {n} | 0x{base:08x} | 0x{p["size"]:x} | {p["clock"]} |')
+        scala[-1] = scala[-1].removesuffix(',')
     scala += ['  )', '}']
+    if 'pwm' in data:
+        p = data['pwm']; parent = next(r for r in data['regions'] if r['name'] == p['parent'])
+        header += [f'#define DH_SOC_PWM_BASE 0x{parent["base"] + p["offset"]:08x}u',
+                   f'#define DH_SOC_PWM_SIZE 0x{p["size"]:x}u']
+        markdown += ['', 'Opt-in PWM uses main-service reset, preserving core-only reset;',
+                     'the legacy stub profile is unchanged.']
+    if 'dma' in data:
+        p = data['dma']; parent = next(r for r in data['regions'] if r['name'] == p['parent'])
+        header += [f'#define DH_SOC_DMA_REG_SIZE 0x{p["size"]:x}u']
+        markdown += ['', 'Opt-in DMA: four finite-count channels, performance SRAM, UART/SPI bytes and PWM words;',
+                     'main-service reset. Endpoint addresses are derived from the peripheral register maps.']
+    if 'pinmux' in data:
+        p=data['pinmux'];parent=next(r for r in data['regions'] if r['name']==p['parent'])
+        header += [f'#define DH_SOC_PINMUX_BASE 0x{parent["base"]+p["offset"]:08x}u',
+                   f'#define DH_SOC_PINMUX_SIZE 0x{p["size"]:x}u']
+        header += [f'#define DH_SOC_PINMUX_{name.upper()} {i}u' for i,name in enumerate(p['sources'])]
+        markdown += ['', 'Opt-in GPIO output alternatives, same-index channels0..2: '+', '.join(p['sources'])+'.',
+                     'Input/wake and dedicated interfaces unchanged; physical map remains provisional.']
+    markdown += ['', 'Provisional simultaneous logical pin demand; not physical fit.', '',
+                 '| Pad class | Used | Nominal capacity |', '| --- | --- | --- |']
+    for kind, used in pin_usage(data).items():
+        markdown.append(f'| {kind} | {used} | {data["pin_budget"][kind]} |')
+    for n, p in data['pins'].items():
+        header.append(f'#define DH_SOC_PIN_{n.upper()}_WIDTH {p["width"]}u')
     for filename, lines in [('soc.h', header), ('SocMap.scala', scala), ('soc-map.md', markdown)]:
         (output / filename).write_text('\n'.join(lines) + '\n', encoding='utf-8')
-    (output / 'soc.json').write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+    serialized = dict(data)
+    if 'dma' in data:
+        serialized['dma_endpoints'] = dma_endpoints(data)
+    (output / 'soc.json').write_text(json.dumps(serialized, indent=2) + '\n', encoding='utf-8')
 
 
 def main():
@@ -149,6 +404,7 @@ def main():
     check_contract(data, (ROOT / 'docs/spec/soc.md').read_text(encoding='utf-8'))
     emit(data, args.output)
     print(f'PASS provisional SoC map: {len(data["regions"])} regions; not RTL or pin-fit acceptance')
+    print(f'Estimated simultaneous pin demand: {pin_usage(data)}; nominal capacities {data["pin_budget"]}')
 
 
 if __name__ == '__main__':

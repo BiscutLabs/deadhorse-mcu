@@ -28,7 +28,8 @@ SPI, I2C and UART are selectively available during sleep. Each UART selects:
 Timer deadlines, events (including GPIO, loader and internal notifications),
 and JTAG wake are supported. Optional USB resume also requests wake. Pending
 wake survives clock gating. All asynchronous input capture is reviewed CDC,
-not new latch-based storage. Deep sleep is refused while actuators are armed.
+not new latch-based storage. Enabled peripherals retain their required clocks. Application arming and
+sleep eligibility beyond those clock demands are firmware policy (D69).
 
 ## Clock sources
 
@@ -55,26 +56,27 @@ with stopped sources and qualify the mux at the cell level.
 
 | Cause | Required effect |
 | --- | --- |
-| Performance watchdog | Reset performance domain; preserve lite core, retained AON SRAM and reset reason; force actuator failsafe independently |
-| Lite watchdog | Reset whole MCU; fault path requests actuator failsafe while clock/supply are valid, then whole-chip reset disables outputs |
+| Performance watchdog | D70: reset performance core/client epoch and disable PWM outputs; preserve shared buses, DMA, other peripherals, lite core, retained AON SRAM and reset reason |
+| Lite watchdog | Reset whole MCU and disable outputs according to generic reset semantics |
 | Power-on/brownout | Whole-chip reset and disabled general-purpose outputs |
 | External reset | Whole-chip reset with qualified release |
 
 Assert reset asynchronously and release synchronously per domain only after
 supply/clock qualification. Flush or cancel crossing transactions under a
 defined protocol; stale responses must not reach the restarted core.
-Performance reset must not clear the actuator's retained failsafe configuration
-or stop its valid clock. Reset reason is retained in AON across performance reset;
+Peripheral reset scopes and clock-demand guarantees must be explicit; D69
+removes the dedicated retained actuator-failsafe requirement. Reset reason is
+retained in AON across performance reset;
 no retention guarantee is made across power loss or brownout.
 
-## Actuator fault handling
+## Generic output fault handling (D69)
 
-Hardware command timeout, watchdog faults and firmware fault request the
-configured per-channel actions. Timeout is configurable; deadline and recovery
-policy remain open for testing (D31), not fixed keyed re-arm or automatic recovery.
-The actuator has independent reset and an ungated required clock while active.
-No valid-pulse guarantee applies when its clock or supply fails. Board-defined
-inactive output levels and ESC loss-of-signal behavior must be verified.
+Retain standard watchdog reset, reset-disabled outputs and any explicitly
+briefed ordinary timer output-disable/break input. Do not build per-actuator
+fallback values, stale-command tracking or arming/recovery policy into RTL.
+Firmware and board-level supervision define application fault responses and
+validate external-device loss-of-signal behavior. No output waveform guarantee
+applies when clock or supply is invalid.
 
 ## Supply monitor
 

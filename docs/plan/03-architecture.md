@@ -1,5 +1,10 @@
 # 03 Architecture
 
+D69 update: references to the actuator resource mean a provisional generic
+timer/PWM output resource, not a flight-specific controller. Hardware provides
+ordinary MCU primitives; firmware owns protocol encoding and command/failsafe
+policy. Resource names/windows and existing RTL are not renamed by this update.
+
 The initial MCU is entirely clocked Chisel. The approved choices are in
 [10-decisions-and-risks.md](10-decisions-and-risks.md); physical feasibility
 and clock frequency remain subject to measurement. No neuromorphic IP or
@@ -28,7 +33,7 @@ flowchart LR
     BUS --- XIP
   end
   SHARED[Shared SPI, I2C, UART and bounded DMA]
-  ACT[Actuator block: independent reset]
+  ACT[General-purpose timer/PWM outputs]
   BRIDGE[Domain bridge and core mailbox]
   GW[Host gateway: bus master]
   USB[Optional USB domain and FIFO boundary]
@@ -99,7 +104,9 @@ bounded bursts and completion/error interrupts; no linked descriptors initially.
 
 Logical clock domains include AON, main/HF, optional USB, and JTAG TCK.
 Shared peripherals can remain clocked while the performance core sleeps;
-actuator reset is independent of performance reset. Final domain partitioning
+core-only reset preserves peripherals serving surviving owners. Generic PWM
+reset and output-disable behavior belongs in its peripheral contract (D69),
+without dedicated actuator failsafe state. Final domain partitioning
 must be documented at G1. Do not assert an artificial total of two crossings:
 all asynchronous crossings instantiate the same reviewed CDC implementation.
 
@@ -115,9 +122,11 @@ wake-only mode may lose the first byte. Timer, event and JTAG wake are supported
 Wake requests must be observable while destination clocks are stopped.
 
 Performance watchdog resets the performance domain, preserving AON state.
-Lite watchdog, POR and brownout reset the MCU. Actuators enter configured
-failsafe on either watchdog fault independently of performance reset, while
-clock/supply are valid. Whole-chip reset disables outputs. See
+Lite watchdog, POR and brownout reset the MCU. Generic watchdog/reset and
+output-disable mechanisms provide hardware fault handling; firmware and the
+board define application-specific failsafe behavior (D69). Whole-chip reset
+disables outputs. Existing stub reset wiring remains unchanged until a scoped
+generic peripheral implementation defines its reset contract. See
 [06-power-clock-reset.md](06-power-clock-reset.md).
 
 ## Pins and optional USB

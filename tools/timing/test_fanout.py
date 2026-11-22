@@ -1,8 +1,44 @@
 import copy
 import unittest
-from tools.timing.fanout import buffer_module, verify
+from tools.timing.fanout import buffer_module, verify, internal_reset_sources
 
 class FanoutTests(unittest.TestCase):
+    def test_internal_reset_selection_and_faults(self):
+        m=self.fixture()
+        self.assertEqual(internal_reset_sources(m,'clk'),set())
+        for c in m['cells'].values():c['connections']['RN']=[1001]
+        with self.assertRaisesRegex(ValueError,'driver'):internal_reset_sources(m,'clk')
+        m['cells']['combine']=dict(type='and2',hide_name=0,parameters={},attributes={},
+            port_directions={'A':'input','B':'input','Z':'output'},connections={'A':[3],'B':[4],'Z':[1001]})
+        self.assertEqual(internal_reset_sources(m,'clk'),{1001})
+        buffered,inserted=buffer_module(m,'clk',source_bits=internal_reset_sources(m,'clk'),prefix='reset_fanout_')
+        verify(m,buffered,inserted);self.assertTrue(inserted)
+        bad=copy.deepcopy(buffered);bad['cells']['ff0']['connections']['RN']=[3]
+        with self.assertRaisesRegex(ValueError,'logic/pin'):verify(m,bad,inserted)
+        bad=copy.deepcopy(buffered);del bad['cells']['ff0']['connections']['RN']
+        with self.assertRaisesRegex(ValueError,'logic/pin'):verify(m,bad,inserted)
+        bad=copy.deepcopy(m);bad['cells']['duplicate']=copy.deepcopy(m['cells']['combine'])
+        with self.assertRaisesRegex(ValueError,'ambiguous'):internal_reset_sources(bad,'clk')
+        bad=copy.deepcopy(m);bad['cells']['ff0']['connections']['CLK']=[1001]
+        with self.assertRaisesRegex(ValueError,'clock'):internal_reset_sources(bad,'clk')
+        bad=copy.deepcopy(m)
+        bad['cells']['clock_buffer']=dict(type='buf',hide_name=0,parameters={},attributes={},
+            port_directions={'I':'input','Z':'output'},connections={'I':[1001],'Z':[1100]})
+        bad['cells']['ff0']['connections']['CLK']=[1100]
+        with self.assertRaisesRegex(ValueError,'clock'):internal_reset_sources(bad,'clk')
+
+    def test_selected_reset_sources_leave_other_data_nets_unchanged(self):
+        original=self.fixture()
+        for cell in original['cells'].values():cell['connections']['D']=[1001]
+        buffered,inserted=buffer_module(original,'clk',source_bits={3},prefix='soc_reset_')
+        verify(original,buffered,inserted)
+        self.assertTrue(inserted)
+        self.assertTrue(all(n.startswith('soc_reset_') for n in inserted))
+        for name in original['cells']:
+            self.assertEqual(buffered['cells'][name]['connections']['D'],[1001])
+        for bits in ({2},{9999},set(),{'0'}):
+            with self.assertRaises(ValueError):buffer_module(original,'clk',source_bits=bits)
+
     def fixture(self):
         return dict(ports={'clk':{'direction':'input','bits':[2]},'reset_n':{'direction':'input','bits':[3]}},
             netnames={'unused':{'bits':[1000]}},cells={f'ff{i}':dict(type='ff',hide_name=0,

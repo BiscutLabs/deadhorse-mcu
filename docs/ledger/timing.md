@@ -1752,3 +1752,430 @@ unsupported LEF58 enclosure rules, foundry DRC/LVS and actual boundary
 implementation prevent physical signoff. Effective-SDC, graph and annotation
 audits and ten focused fault tests pass after independent review. Status stays
 failed-validation; neither T19 nor merge is accepted.
+
+## T20 I0 reset distribution and core mapping, 2026-11-20
+
+**Measured**, `72bcfac` plus receipt-bound working tree. Commands and complete
+receipts are in [T20](../plan/tasks/reports/T20.md), especially
+`hw/top/reference/timing/logic_timing.py --mapped-dir build/t20/core-map-balanced-reset --output build/t20/physical-final-timing`
+through the pinned environment. GF180 7t5v0 SS125C/3.0V, ideal clocks and no
+wire delay; existing assumed 0.5 ns input slew, 0.05 pF output loads and zero
+IO delays. This is observation-enabled I0 logic with five synchronous memory
+boundaries exposed, excluding macro timing/area and physical signoff.
+
+| Path class | Measured worst ns | Start -> end | Estimated 8 / 9 MHz budget ns |
+| --- | ---: | --- | ---: |
+| RR, entire instrumented top | 70.011482 | `_93597_/Q` -> `_91493_/D` (instruction decode bit 31 -> RVFI data bit 30) | 75 / 66.666667 |
+| Integer RF diagnostic subset | 69.443718 | `_93597_/Q` -> `_90069_/D` (x20[31]) | 75 / 66.666667 |
+| IR | 19.960014 | `memcut_3_RW0_rdata[16]` -> `_91851_/D` | 75 / 66.666667 |
+| RO | 57.486359 | `_93585_/Q` -> `memcut_4_RW0_wmode` | 75 / 66.666667 |
+| RG | 5.975131 | `_90366_/Q` -> `core.core_clock_gate_i.cell_0/E` | 75 / 66.666667 |
+
+Budget arithmetic: `0.60 x 1000 / MHz`. Full-top screening passes at 8 MHz
+and fails at 9 MHz; no RVFI path is excluded from acceptance. The integer RF
+subset covers 1,984 rows, all 31 x 32 bits and both polarities; it also fails
+9 MHz. The inherited standalone core's trace-off boundary is not substituted.
+
+591 verified reset buffers reduce direct release-flop loads from 2,582 / 280
+to eight each. Measured electrical violations fall from 2,866 to zero. All
+2,869 RN/SETN endpoints receive applicable release checks. Minimum measured
+hold slack +0.724836 ns, removal +0.490473 ns, recovery +116.902161 / +103.013268 ns
+at 8 / 9 MHz. Dynamic ICG setup/hold checks pass; TE is literal zero.
+
+Mapped logic area is measured 1,103,439.232 um2 including reset buffers and
+excluding memories. XOR balancing is a combinational mapping change only;
+state/clock/reset boundaries are preserved. Stronger buffer/hot-gate sizing
+trials worsened timing and are rejected; a tighter 60000 ps mapping target gave
+the same netlist and was not retimed. Independent review verified the evidence.
+No core RTL changes or CI runs occurred in that mapping study. D66 subsequently
+authorizes the focused MAC carry-network experiment below; T20 remains incomplete.
+
+### T20 D66 MAC carry experiment (rejected candidate)
+
+Measured on `72bcfac` plus the D65 working tree and D66 candidate, using fresh
+`EmitSocTiming`, `scratch/t20_timing_prepare.py --output
+build/t20/mac-prefix/prep`, the unchanged balanced ABC recipe in
+`build/t20/mac-prefix/map/synth.ys`, `buffer_resets.py --mapped
+build/t20/mac-prefix/map/mapped.json --output build/t20/mac-prefix/reset`, and
+`hw/top/reference/timing/logic_timing.py --mapped-dir
+build/t20/mac-prefix/reset --output build/t20/mac-prefix/timing`, all through
+the pinned `python tools/env/run.py run --` wrapper. Same GF180 7t5v0
+SS/125 C/3.0 V, ideal clocks, no wires, synchronous memory-interface cuts,
+0.5 ns input transition, 0.05 pF output load and zero IO delays as the baseline.
+
+| Class | Measured worst ns | Start | End | Budget at 8 / 9 MHz, ns |
+| --- | ---: | --- | --- | ---: |
+| RR | 79.044106 | `_91641_/Q` (instruction decode bit 30) | `_90132_/D` (`rvfi_rd_wdata[31]`) | 75 / 66.666667: fail both |
+| IR | 18.657497 | `memcut_3_RW0_rdata[16]` | `_90471_/D` | 75 / 66.666667 |
+| RO | 60.655823 | `_91632_/Q` | `memcut_4_RW0_wmode` | 75 / 66.666667 |
+| RG | 5.965534 | `_88777_/Q` | `core.core_clock_gate_i.cell_0/E` | 75 / 66.666667, gate checks also pass |
+
+Measured mapped logic area including the same 591 reset buffers is
+1,107,004.2368 um2, versus 1,103,439.232 um2 before. Memory area remains excluded.
+Electrical violations remain zero; minimum hold +0.747969 ns, removal
++0.490473 ns, recovery +116.902161 / +103.013268 ns at 8 / 9 MHz.
+These are pre-layout screening results, not physical signoff.
+
+The explicit grouped carry network prevents the original fused multiply-add
+compression: Yosys now maps the signed product separately from the accumulator.
+Independent review confirmed this in both synthesis logs and the failing path.
+The candidate worsens RR from 70.011482 to 79.044106 ns and is rejected. No
+timing limit, clock choice or observation-state exclusion changes; no CI.
+
+### T20 D67 isolated MAC mapping and unchanged control
+
+Measured on `72bcfac` plus the source-hashed D65/D67 tree with fresh emission,
+`hw/top/reference/timing/map_fused_mac.py`, the unchanged balanced ABC recipe,
+`buffer_resets.py` and `logic_timing.py`; exact commands and receipts are in
+the T20 report and `build/t20/fused-mac/{control,fa,42}`. Same GF180 SS/125 C/3 V,
+ideal clocks, no wires, memory-interface cuts, IO loads/delays and RVFI boundary
+as above. No production RTL or cycle change; no CI.
+
+| Variant | Class | Measured worst ns | Start | End |
+| --- | --- | ---: | --- | --- |
+| Original MAC control | RR | 66.563103 | `_92911_/Q` | `_90260_/D` (`rvfi_rd_wdata[31]`) |
+| Original MAC control | IR | 20.810877 | `memcut_3_RW0_rdata[24]` | `_92893_/D` |
+| Original MAC control | RO | 55.245838 | `_92902_/Q` | `memcut_3_RW0_wmode` |
+| Original MAC control | RG | 5.571865 | `_88190_/Q` | `core.core_clock_gate_i.cell_0/E` |
+| FA + prefix | RR | 66.426033 | `_90394_/Q` | `_89424_/D` (integer RF) |
+| FA + prefix | IR | 19.094036 | `memcut_3_RW0_rdata[25]` | `_90782_/D` |
+| FA + prefix | RO | 56.231403 | `_90795_/Q` | `memcut_3_RW0_wmode` |
+| FA + prefix | RG | 5.905660 | `_86124_/Q` | `core.core_clock_gate_i.cell_0/E` |
+| 4:2 + prefix | RR | 69.822578 | `_90327_/Q` | `_87726_/D` |
+| 4:2 + prefix | IR | 20.093237 | `memcut_3_RW0_rdata[25]` | `_90314_/D` |
+| 4:2 + prefix | RO | 53.731461 | `_90329_/Q` | `memcut_1_RW0_wmode` |
+| 4:2 + prefix | RG | 5.583239 | `_85656_/Q` | `core.core_clock_gate_i.cell_0/E` |
+
+All classes retain estimated budgets `0.60 * 1000 / MHz` = 75 / 66.666667 ns
+at 8 / 9 MHz. Original control and FA pass both; 4:2 fails 9 MHz RR. Measured
+area including 591 reset buffers is respectively 1,112,314.4256,
+1,113,078.3552 and 1,109,047.9680 um2, excluding memories. All three have zero
+electrical and hold/reset violations, with all 2,869 applicable reset endpoints
+covered. Control minimum measured hold +0.814248 ns, removal +0.490473 ns,
+recovery +116.902161 / +103.013268 ns, and clock-gate hold +4.729134 ns.
+
+Retain the original-MAC control flow: exact graph restoration and reversible
+private renaming preserve its arithmetic. The isolated FA transformation gains
+only estimated 0.137070 ns over that control; it is not accepted without its
+arithmetic proof. The control's improvement from historical 70.011482 ns is
+primarily a synthesis-order effect, not evidence of a better compressor.
+Independent review verifies the control graph, scripts, hashes and measured
+timing. Its estimated +0.103564 ns margin at the 9 MHz screening budget is not
+routed or macro-inclusive timing closure; Q15/Q16 remain open.
+
+## T21 functional I/O block screens — 2026-11-21
+
+Measured on main HEAD72bcfacc0916b6c00d54f5c4518ab16aa46c5a47 plus the
+uncommitted T21 source-bound emissions. Commands inside the pinned environment:
+`python3 dv/soc/check_io_timing.py` and
+`python3 hw/ip/gpio/timing/buffer_reset.py`. Slow GF180 125°C/3.0V, mapped
+pre-layout cells, no physical wire/pad timing. Existing main-9MHz trial budget
+is estimated0.60×1000/9=66.666667ns, conservative for main8 and AON profiles.
+
+| Block | Class | Measured ns | Budget ns | Start → end | Mapped area µm² |
+| --- | --- | --- | --- | --- | --- |
+| main8 | RR | 51.976086 | 66.666667 | `_5681_/Q` → `_5757_/D` | 98246.1760 |
+| main8 | IR | 9.365267 | 66.666667 | `bus_bits_addr[19]` → `_5385_/D` | 98246.1760 |
+| main8 | RO | 4.395018 | 66.666667 | `_5720_/Q` → `timeNow[26]` | 98246.1760 |
+| main9 | RR | 58.302357 | 66.666667 | `_5624_/Q` → `_5771_/D` | 98226.4192 |
+| main9 | IR | 9.365267 | 66.666667 | `bus_bits_addr[19]` → `_5405_/D` | 98226.4192 |
+| main9 | RO | 4.346962 | 66.666667 | `_5746_/Q` → `timeNow[31]` | 98226.4192 |
+| aon | RR | 25.904716 | 66.666667 | `_3240_/Q` → `_3242_/D` | 54730.7264 |
+| aon | IR | 9.365267 | 66.666667 | `bus_bits_addr[19]` → `_3141_/D` | 54730.7264 |
+| aon | RO | 4.073875 | 66.666667 | `_3307_/Q` → `bus_gnt` | 54730.7264 |
+| adc | RR | 41.680973 | 66.666667 | `_2569_/Q` → `_2595_/D` | 50974.7392 |
+| adc | IR | 9.365267 | 66.666667 | `bus_bits_addr[19]` → `_2838_/D` | 50974.7392 |
+| adc | RO | 4.071314 | 66.666667 | `_2870_/Q` → `bus_gnt` | 50974.7392 |
+| GPIO buffered | IR | 7.124507 | 66.666667 | `bus_bits_addr[19]` → `_784_/D` | 17017.1904 |
+| GPIO buffered | RO | 4.094893 | 66.666667 | `_736_/Q` → `clockHold` | 17017.1904 |
+| GPIO buffered | RR | 10.907675 | 66.666667 | `_754_/Q` → `_738_/D` | 17017.1904 |
+
+Raw GPIO screen failed65 electrical violations on reset-release fanout; its
+receipt remains failed. Verified mapped-only insertion of eight non-inverting
+buffers clears all electrical violations, preserves every original pin/clock
+and rejects a buffer-cycle fault. Corrected GPIO receipt:
+`build/t21/timing-gpio-buffered/result.json`; other block receipts:
+`build/t21/timing-first/<block>/timing/result.json`. Independent review verified
+original and exported connectivity. Production RTL hashes still match; later
+timer formal/test edits do not change the measured production emission.
+
+GPIO fixture ties clocks for a conservative all-cone logic screen, not CDC/RDC
+signoff. No gate/IO paths exist in these fixtures. Corrected GPIO ideal-boundary
+measured hold−0.102503ns and reset-removal−0.975158ns remain unqualified
+physical-flow items. No RTL delay padding or acceptance-limit change. Full
+SoC placement/pad/clock qualification and CI are not claimed; see T21 report.
+
+## T22 generic PWM block screen — 2026-11-21
+
+Measured command: `python tools/env/run.py run -- python3 hw/ip/pwm/check_timing.py --output build/t22/timing-first`.
+Dirty main based on `72bcfacc0916b6c00d54f5c4518ab16aa46c5a47`; receipt
+`build/t22/timing-first/result.json` binds production sources, emitted modules
+and flow inputs. GF180 `gf180mcu_fd_sc_mcu7t5v0`, SS/125 C/3.0 V; existing
+main-9MHz operating-point trial. Budget estimated 0.60 x 1000/9 = 66.666667 ns,
+conservative for the unchanged 8/9 MHz functional profiles. Mapped, ideal clocks,
+zero boundary delays and no placed-wire parasitics; this is not chip signoff.
+
+| Class | Measured worst ns | Budget ns | Start | End | Measured area um2 |
+| --- | --- | --- | --- | --- | --- |
+| RR | 34.134335 | 66.666667 | `_16288_/Q` | `_16771_/D` | 271822.8352 |
+| IR | 9.952121 | 66.666667 | `bus_bits_addr[19]` | `_17400_/D` | same block |
+| RO | 4.211749 | 66.666667 | `_17510_/Q` | `pinsEnable[4]` | same block |
+
+No IO or clock-gate paths exist in this block. Measured capacitance/slew
+violations: zero. Setup/electrical screen passes without RTL timing exceptions
+or added buffer repair. Hold/reset-removal were not measured by this screen;
+RDC, physical pads and routed timing remain open. No CI tier ran.
+
+## T23 DMA and native-memory control screen — 2026-11-21
+
+Measured commands (pinned environment, uncommitted `main` on `72bcfac`):
+
+```
+python tools/env/run.py run -- python3 hw/ip/dma/check_timing.py --output build/t23/timing-first
+python tools/env/run.py run -- python3 hw/ip/dma/check_memory_timing.py --output build/t23/memory-timing-first
+```
+
+Both receipts bind source, generated netlist and flow hashes. GF180 7t5v0
+SS/125C/3.0V; existing main-9MHz screen, estimated budget
+`0.60 * 1000 / 9 = 66.666667 ns`. Mapped pre-layout with ideal clocks, assumed
+zero boundary delays, 0.5ns input slew and 0.05pF output load.
+
+| Block | Class | Measured worst ns | Start | End | Measured area um² |
+| --- | --- | ---: | --- | --- | ---: |
+| DMA | RR | 43.368591 | `_10546_/Q` | `_11172_/D` | 159020.288 |
+| DMA | IR | 27.404062 | `requests[14]` | `_11057_/D` | same block |
+| DMA | RO | 4.603601 | `_11049_/Q` | `memory_bits_addr[10]` | same block |
+| Memory control | RR | 20.955997 | `_1503_/Q` | `_1405_/D` | 22920.0832 |
+| Memory control | IR | 17.464502 | `instruction_req` | `_1405_/D` | same block |
+| Memory control | RO | 21.502474 | `_1503_/Q` | `memcut_1_RW0_wmode` | same block |
+| Memory control | IO | 18.010981 | `instruction_req` | `memcut_1_RW0_wmode` | same block |
+
+All classes pass the unchanged budget; measured electrical violations zero.
+The memory projection audits synchronous read boundaries and exposes five
+memory interfaces; reinstating removed cells restores the exact original graph.
+Macro timing/area, upstream core paths, physical hold/reset-removal and placed
+wire delays are excluded. No complete-SoC timing claim; no CI tier ran.
+
+## T24 limited GPIO output pin mux — 2026-11-21
+
+Measured command on `72bcfac` plus receipt-bound local sources:
+
+```sh
+python tools/env/run.py run -- python3 hw/ip/pinmux/check_timing.py --output build/t24/timing-frozen
+```
+
+Receipt PASS, 45 source and 31 artifact hashes independently verified. GF180
+7t5v0 SS/125C/3.0V, existing main-9MHz screen. Estimated budget
+`0.60 * 1000 / 9 = 66.666667 ns`, unchanged for every class. Assumed ideal
+clocks, zero input/output delay, 0.5ns input transition, 0.05pF output load.
+
+| Class | Measured worst ns | Start | End |
+| --- | ---: | --- | --- |
+| RR | 9.887082 | `_357_/Q` | `_366_/D` |
+| IR | 7.962392 | `bus_bits_origin[0]` | `_351_/D` |
+| RO | 3.976222 | `_365_/Q` | `bus_gnt` |
+
+Measured standard-cell area6475.84 um²; electrical violations0. No IO or
+clock-gate paths. Mapped pre-layout block screening only: pad loads/delays,
+physical wiring, hold/reset-removal, actual pad fit and full-SoC qualification
+remain separate. No CI tier ran.
+
+## T25 lite-core mapped screen, 2026-11-21
+
+Measured command (pinned environment):
+`python hw/ip/lite_core/check_timing.py --output build/t25/timing-frozen`.
+Commit `72bcfacc0916b6c00d54f5c4518ab16aa46c5a47` plus receipt source hashes;
+current-source **PASS**, mapped pre-layout only. Independent contract review
+retained the conservative existing main-9MHz screen for this externally clocked
+AON block; no domain-frequency decision or budget relaxation. Estimated logic
+budget `0.60 × 1000 / 9 = 66.666667 ns`; ideal clock, no wire parasitics.
+
+| Class | Measured ns | Start → end |
+| --- | ---: | --- |
+| RR | 63.398540 | `_21186_/Q` → `_20414_/D` |
+| IR | 11.444583 | `irq` → `_21321_/D` |
+| RO | 6.308051 | `_21202_/Q` → `rvfi_ixl[0]` |
+| IO, clock gates | No path | Hart has no internal clock gate |
+
+Measured standalone area **302742.2272 µm²**, electrical violations **0**.
+The standalone hart includes exposed trace/RVFI state and output loads; area
+is not the integrated top with unused instrumentation trimmed. Library is
+the pinned GF180 `ss_125C_3v00` corner. Physical pad/hold/removal/routed timing
+and full SoC qualification remain separate. No CI tier ran. See the
+[T25 report](../plan/tasks/reports/T25.md) for functional/proof scope.
+
+## T26 watchdog reset distribution (2026-11-21)
+
+Measured on main HEAD `72bcfacc0916b6c00d54f5c4518ab16aa46c5a47` plus receipt-bound
+local sources. Commands:
+
+```
+python tools/env/run.py run -- python dv/soc/check_watchdog.py --output build/t26/frozen01
+python tools/env/run.py run -- python dv/soc/check_watchdog_review.py --output build/t26/review02
+```
+
+The first run's Watchdog/Pwm screens failed electrical limits on internal
+combined reset nets (134/1227 measured violations); those failures remain in
+frozen01. Pinmux passed there. The reviewed, default-off reset-fanout hook
+selects unique internal RN/SETN drivers, rejects clock/ambiguous nets, excludes
+primary inputs and reuses the existing all-pin-verified noninverting buffer
+trees. Fresh Watchdog/Pwm measurements include all added buffer delays and
+area; no RTL, limit, load, slew or library change. Final production bytes are
+identical to the functional snapshot.
+
+GF180 7t5v0 slow corner (125°C, 3.0V); Yosys 0.71+34, OpenSTA 3.2.0; mapped pre-layout,
+ideal clocks, no real interconnect. Budget estimated 0.60×1000/9=66.666667ns
+for every present class, using the unchanged conservative 9MHz screen without
+selecting AON frequency. Figures below are measured by the commands above.
+
+| Block | Class | Delay ns | Start | End | Area µm² |
+| --- | --- | ---: | --- | --- | ---: |
+| Watchdog | RR | 42.001823 | _4095_/Q | _3910_/D | 67530.9376 |
+| Watchdog | IR | 16.358051 | por_n | _3910_/D | — |
+| Watchdog | RO | 6.129250 | _3914_/Q | resetHold | — |
+| PWM, watchdog profile | RR | 33.290840 | _16758_/Q | _17593_/D | 288763.1936 |
+| PWM, watchdog profile | IR | 9.952121 | bus_bits_addr[19] | _18010_/D | — |
+| PWM, watchdog profile | RO | 4.268188 | _18116_/Q | pinsEnable[3] | — |
+| Pinmux, watchdog profile | RR | 9.741008 | _393_/Q | _401_/D | 7257.3312 |
+| Pinmux, watchdog profile | IR | 7.962392 | bus_bits_origin[2] | _385_/D | — |
+| Pinmux, watchdog profile | RO | 4.808930 | _412_/Q | pinsEnable[0] | — |
+
+All final electrical counts are measured 0. Watchdog/PWM add measured 57/520
+buffers and 1751.7696/15981.0560µm² versus their raw failed mappings. No IO/RG/IG
+paths were reported. Hold/removal/RDC and whole-SoC physical timing are not
+qualified by these block screens; four successful complete top emissions
+are structural build evidence only. No CI or gate completion claim.
+
+Final selector audit: the opt-in reset selector conservatively rejects any
+non-primary clock tree, including an indirect buffer/inverter ancestry.
+`python tools/env/run.py run -- python dv/soc/check_watchdog_review.py --output build/t26/guard03 --guard-only`
+checks unchanged archived transforms and all earlier evidence, then reruns the
+33 focused flow tests. It does not rerun or reinterpret STA. The measured
+Watchdog/PWM graphs have only the primary clock, so their actual buffer trees,
+netlists, constraints, area and timing remain identical.
+
+
+## T27 staged raw ADC engine, 2026-11-21
+
+Measured by `python tools/env/run.py run -- python hw/ip/adc/check_raw_timing.py --output build/t27/timing02`
+on main72bcfacc0916b6c00d54f5c4518ab16aa46c5a47 plus receipt-bound local sources.
+GF1807t5v0 slow ss_125C_3v00, Yosys0.71+34/OpenSTA3.2.0; asynchronous-reset
+standalone engine, manual-start, default half-period5. Ideal boundary and
+no placed wires. Existing budget estimated0.60*1000/9=66.666667ns for every
+class. This does not select the AON frequency or qualify pads/hold/RDC.
+
+| Variant | Class | Measured ns | Start | End | Measured area um2 |
+| --- | --- | ---: | --- | --- | ---: |
+| Legacy | RR | 42.517971 | _733_/Q | _789_/D | 11652.1216 |
+| Legacy | IR | 6.359634 | io_start | _742_/D | 11652.1216 |
+| Legacy | RO | 41.066444 | _733_/Q | io_result_bits_value[30] | 11652.1216 |
+| Legacy | IO | 3.940379 | io_start | io_launched | 11652.1216 |
+| Raw | RR | 11.264398 | _262_/Q | _251_/D | 4519.9168 |
+| Raw | IR | 5.760346 | io_allow | _233_/D | 4519.9168 |
+| Raw | RO | 7.349518 | _260_/Q | io_launched | 4519.9168 |
+| Raw | IO | 4.071531 | io_allow | io_launched | 4519.9168 |
+
+RG/IG have no paths; measured electrical violations0. Repeated area is not
+additive. Estimated engine area difference11652.1216-4519.9168=7132.2048um2;
+At that staged checkpoint, production had not switched, so no integrated
+saving was claimed. The
+inherited combinational launched signal is local to the engine, not exposed
+through the registered Adc pad boundary. Timing01's synchronous-reset fixture
+is preserved but superseded by timing02. See the T27 report for scope.
+
+
+## T27 D71 raw production ADC wrapper, 2026-11-21
+
+Measured command: `python tools/env/run.py run -- python hw/ip/adc/check_raw_timing.py --wrapper-only --output build/t27/wrapper01`.
+Main72bcfacc0916b6c00d54f5c4518ab16aa46c5a47 plus receipt-bound local
+sources. Same GF1807t5v0 ss_125C_3v00, Yosys0.71+34/OpenSTA3.2.0 and
+conservative9MHz screen; budget estimated0.60*1000/9=66.666667ns.
+Full production Adc with MMIO, shared MISO synchronizer, registered pads and
+sample publication; no scaler instantiated. Mapped pre-layout, ideal clocks,
+assumed zero boundary delays; no real wire or physical hold/RDC qualification.
+
+| Class | Measured ns | Start | End | Measured area um2 |
+| --- | ---: | --- | --- | ---: |
+| RR | 34.922482 | _1822_/Q | _1837_/D | 39676.0448 |
+| IR | 9.365267 | bus_bits_addr[19] | _2004_/D | 39676.0448 |
+| RO | 4.072706 | _2036_/Q | bus_gnt | 39676.0448 |
+
+IO/RG/IG have no paths. Measured electrical violations0; area repeats per
+class, not additive. Relative to historical T21 wrapper area50974.7392um2
+(measured by its report command), estimated difference is
+50974.7392-39676.0448=11298.6944um2. The old wrapper was not remapped in this
+continuation; this is a historical comparison, not a fresh A/B area result.
+No whole-chip area/timing or physical signoff is claimed.
+
+## T28 lite-first release block — 2026-11-21
+
+**Measured** by pinned `python hw/ip/boot_control/check_timing.py --output
+build/t28/frozen01/timing`, called from the frozen T28 focused runner on
+main HEAD72bcfacc0916b6c00d54f5c4518ab16aa46c5a47 plus source-hashed changes.
+Receipt PASS; neither CI tier run. Conservative main9MHz operating point:
+estimated budget0.60×1000/9=66.666667ns. Assumed SS125°C/3.00V, ideal clocks,
+zero I/O delays,0.5ns input slew,0.05pF output load; no routed wire delay.
+
+| Class | Measured ns | Start | End | Measured area µm² |
+| --- | --- | --- | --- | --- |
+| RR | 11.160238 | _521_/Q | _492_/D | 10793.7984 |
+| IR | 6.549746 | bus_req | _439_/D | 10793.7984 |
+| RO | 3.976222 | _478_/Q | bus_gnt | 10793.7984 |
+
+IO/RG/IG have no paths. Measured electrical violations0; repeated area is not
+additive. This is the standalone controller including adapter/generated MMIO
+and internal reset buffers, not an integrated area delta. Hold/removal arrays
+are empty in this block screen and do not certify physical reset/RDC/hold.
+Four complete top emissions prove elaboration/binding only; routed timing,
+clock/reset trees and the whole-chip area budget remain separate work.
+
+## T29 QSPI command controller — 2026-11-21
+
+**Measured** by pinned `python hw/ip/qspi/check_timing.py --output
+build/t29/frozen01/timing`, from the T29 frozen focused runner, main
+HEAD72bcfacc0916b6c00d54f5c4518ab16aa46c5a47 plus source-hashed local changes.
+Receipt PASS. Conservative9MHz profile: estimated budget0.60×1000/9=
+66.666667ns. Assumed SS125°C/3.00V, ideal clock, zero I/O delays,0.5ns input
+slew and0.05pF output load; no routed interconnect delays.
+
+| Class | Measured ns | Start | End | Measured area µm² |
+| --- | --- | --- | --- | --- |
+| RR | 18.435669 | _4697_/Q | _4863_/D | 75372.192 |
+| IR | 9.502041 | bus_bits_addr[15] | _4846_/D | 75372.192 |
+| RO | 6.308051 | _4701_/Q | csEnable[0] | 75372.192 |
+
+IO/RG/IG have no paths. Measured electrical violations0. Area repeats per
+class, not additive; it includes engine, shared synchronizers, generated
+MMIO/adapter and internal reset buffers. No integrated SoC area delta is
+claimed. Empty hold/removal arrays do not qualify physical reset/RDC/hold.
+Four complete tops emit; this does not close physical pin timing, flash-part
+compatibility, XIP or production boot. Neither CI tier ran.
+
+## T30 native flash controller and local memory control — 2026-11-21
+
+**Measured** by pinned `python hw/ip/qspi_xip/check_timing.py --output
+build/t30/frozen02/timing` and `python hw/ip/dma/check_memory_timing.py --xip
+--output build/t30/frozen02/memory-timing`, from the frozen focused T30 runner.
+Main HEAD72bcfacc0916b6c00d54f5c4518ab16aa46c5a47 plus source-hashed local
+changes; both receipts PASS. Estimated budget 0.60 × 1000/9 = 66.666667 ns.
+Assumed SS125°C/3.00V, ideal clock, zero I/O delays, 0.5 ns input slew and
+0.05 pF output load; no routed wire delays.
+
+| Block | Class | Measured ns | Logic depth | Start | End |
+| --- | --- | --- | --- | --- | --- |
+| QSPI + native scheduler | RR | 18.405830 | 15 | _7186_/Q | _7154_/D |
+| QSPI + native scheduler | IR | 12.391415 | 7 | xip_bits_addr[29] | _6965_/D |
+| QSPI + native scheduler | RO | 6.308051 | 0 | _6756_/Q | csEnable[0] |
+| Local memory control | RR | 32.613579 | 23 | _2464_/Q | _2614_/D |
+| Local memory control | IR | 27.776915 | 21 | data_bits_addr[30] | _2614_/D |
+| Local memory control | RO | 31.134016 | 23 | _2464_/Q | memcut_3_RW0_wmode |
+| Local memory control | IO | 26.297356 | 21 | data_bits_addr[30] | memcut_3_RW0_wmode |
+
+QSPI IO/RG/IG and memory-control RG/IG have no paths. Measured electrical
+violations zero. Measured area is 121987.264 µm² for the combined controller
+and 38982.3616 µm² for local-memory control. The memory projection audits five
+synchronous boundaries and restores the original graph exactly after
+reinstating the cut cells; all production decode/arbitration/drain/response
+logic remains. Macro area/delay, upstream core paths and integrated paths are
+excluded. No whole-chip area/timing or physical hold/reset qualification follows;
+the hold/removal arrays are empty. All complete profiles emit. Neither CI tier ran.

@@ -12,11 +12,11 @@ buffer depths remain targets/assumptions until the relevant task reports.
 | SPI controller | One, two chip selects | Modes 0/3, target at least 4 MHz; timestamped IMU acquisition, DMA |
 | I2C controller | One | 100/400 kHz targets, clock stretching and stuck-bus recovery |
 | I2C target | One, RISCay carryover | Recovery loader |
-| SPI ADC player | RISCay carryover | External battery voltage/current sensing; lite owner |
+| External ADC interface | RISCay carryover; lite owner | Raw sample acquisition; voltage/current conversion and calibration are firmware policy under D69. T27/D71 retire the scaled register and move conversion to firmware |
 | QSPI flash | Boot/XIP and separate logging chip selects | Bounded arbitration; no flash program/erase blocking the control loop |
 | USB | Optional full-speed CDC-ACM | Separate domain and FIFO boundary, integrated last |
 | Timers | Four capture/compare plus microsecond timebase | Timer-driven control loop; timestamp sensor events |
-| Actuator | Nine channels | Independent rates and frame boundaries; atomic publication; autonomous command timeout |
+| Timer/PWM outputs | Capacity for the first board; generic channels | Programmable periods/compare, buffered updates and DMA; no motor/servo roles or command timeout engine (D69) |
 | Basic DMA | SPI and UART | Ownership/memory checks, bounded bursts, completion/error IRQ; no linked descriptors initially |
 | GPIO/pin mux | Remaining pins | Limited alternate functions, wake, reset-disabled outputs |
 | Interrupt/debug | Both cores | Bounded interrupt service; JTAG halt/step/register/memory access |
@@ -27,25 +27,21 @@ bounded arbitration must preserve latency bounds and prevent partial ownership
 transfer. Shared peripherals may run while the performance core sleeps; HF
 requests originate through always-available control paths.
 
-### Actuators
+### General-purpose timer/PWM outputs (D69)
 
-Three motor ESCs, two tilt servos, two ailerons and two V-tail servos.
-Assignment, direction and endpoints are configurable. The published command
-set is atomic, but each channel applies it at its own frame boundary and rate.
-Do not require simultaneous output updates across servo and motor channels.
+Use conventional timer/PWM/capture/compare primitives, buffered register updates,
+DMA requests and interrupts. Ordinary output-disable/break facilities may be
+specified in the timer brief; this is not an approval for a flight command engine.
+Firmware constructs DShot waveforms, publishes application command sets,
+tracks command age and chooses arming, recovery, endpoints and failsafe behavior.
+Generic watchdog/reset containment and reset-disabled outputs remain required.
 
-Hardware command timeout has a configurable deadline and per-channel failsafe
-actions. Deadline and recovery/re-arm policy are determined through testing.
-Performance reset does not reset the actuator; either watchdog fault requests
-failsafe while clock/supply remain valid. POR/brownout disable outputs; no
-early-warning detector is included. Details and remaining register questions:
-[actuator draft](../spec/actuator-block.md).
-
-DShot300 and servo/ESC PWM remain the interface targets; DShot600 is a stretch,
-bidirectional DShot remains deferred. Selected parts do not establish accepted
-timing tolerances. Bench-validate rates, input levels, startup, loss-of-signal,
-motor current/thermal behavior and servo travel/load. Do not run analog servos
-at the control-loop rate merely because commands are computed at that rate.
+The first board uses external ESCs and servos. Their timing, loss-of-signal and
+fault behavior remain application/bench validation obligations, not dedicated
+hardware registers or motor/servo assignments. Existing logical pin/window
+reservations remain provisional until the generic PWM/DMA brief reconciles them;
+no address or pin is silently changed here. The [old actuator draft](../spec/actuator-block.md)
+is historical and superseded as an RTL contract.
 
 ### USB contract and cutoff
 

@@ -1,0 +1,16 @@
+block: pinmux
+description: Limited GPIO output alternate functions
+data_width: 32
+address_width: 8
+registers:
+- name: select
+  offset: 0x00
+  count: 3
+  fields: [{name: source, bits: [1, 0], access: rw, reset: 0}]
+- name: active
+  offset: 0x10
+  count: 3
+  fields: [{name: source, bits: [1, 0], access: ro}]
+- name: settling
+  offset: 0x20
+  fields: [{name: pads, bits: [2, 0], access: ro}]

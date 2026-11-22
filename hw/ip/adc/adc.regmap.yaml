@@ -1,0 +1,43 @@
+block: adc
+description: Owner checked raw receive-only ADC player (0x14 retired)
+data_width: 32
+address_width: 8
+registers:
+  - name: configuration
+    offset: 0x00
+    fields:
+      - {name: enable, bits: 0, access: rw, reset: 0}
+      - {name: continuous, bits: 1, access: rw, reset: 0}
+  - name: idle_gap
+    offset: 0x04
+    fields: [{name: cycles, bits: [31, 0], access: rw, reset: 100000}]
+  - name: command
+    offset: 0x08
+    fields:
+      - {name: apply, bits: 0, access: w1p}
+      - {name: start, bits: 1, access: w1p}
+      - {name: read_ack, bits: 2, access: w1p}
+  - name: status
+    offset: 0x0c
+    fields:
+      - {name: busy, bits: 0, access: ro}
+      - {name: enabled, bits: 1, access: ro}
+      - {name: continuous, bits: 2, access: ro}
+      - {name: primed, bits: 3, access: ro}
+      - {name: unread, bits: 4, access: ro}
+  - name: raw_sample
+    offset: 0x10
+    fields: [{name: value, bits: [11, 0], access: ro}]
+  - name: sample_count
+    offset: 0x18
+    fields: [{name: value, bits: [31, 0], access: ro}]
+  - name: events
+    offset: 0x1c
+    fields:
+      - {name: sample, bits: 0, access: w1c, reset: 0}
+      - {name: overrun, bits: 1, access: w1c, reset: 0}
+      - {name: config_error, bits: 2, access: w1c, reset: 0}
+      - {name: command_error, bits: 3, access: w1c, reset: 0}
+  - name: irq_enable
+    offset: 0x20
+    fields: [{name: events, bits: [3, 0], access: rw, reset: 0}]

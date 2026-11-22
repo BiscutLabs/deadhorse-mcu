@@ -1,5 +1,10 @@
 # 01 Product definition
 
+D69 (2026-11-21): this is a moderately general-purpose MCU. Flight control is
+the first reference application. Peripheral scope stays comparable to ordinary
+MCUs; no flight-specific command controller or automatic application policy
+belongs in silicon. Peripheral scope follows Deadhorse requirements.
+
 Deadhorse is a clocked, two-core RISC-V MCU on GF180MCU at nominal 3.3 V.
 It rebuilds RISCay's clocked foundation using Deadhorse conventions, with a
 simple whole-chip bus and no NoC (D43). The initial chip
@@ -15,8 +20,10 @@ contains **no neuromorphic IP and no chip-to-chip link**.
   byte-write enables and configurable banking; external QSPI boot/XIP.
 - Internal nominal 32 kHz LF source, restartable HF, external-clock divider
   and glitch-free fallback path.
-- Nine independently timed actuator channels with atomic command publication,
-  per-channel frame-boundary application and hardware command timeout.
+- General-purpose timer/PWM/capture/compare and DMA support. Application
+  protocols and command/failsafe policy are firmware responsibilities (D69).
+  The first board's output capacity remains a planning input, not fixed motor
+  or servo roles in hardware.
 - JTAG for both cores, unlocked debug, explicit test mode, scan, SRAM self-test,
   analog calibration/test access; no signed firmware.
 - On-chip supply monitor with selectable thresholds, hysteresis and qualified
@@ -69,9 +76,11 @@ The historical D18 Click option requires a later separate brief; it is not
 part of initial implementation. Deferred features do not reserve mandatory
 pads or force new implementation dependencies.
 
-## Definition of done
+## MCU qualification and first-application validation
 
-Qualified, packaged silicon runs the validated flight firmware through hover,
+MCU qualification covers the generic peripheral contracts and physical signoff.
+The first application additionally requires that qualified, packaged silicon
+runs the validated flight firmware through hover,
 transition and forward flight, and enters/leaves retained sleep on the ground.
 Before flight: independent block verification, formal checks, FPGA/system
 simulation, bench sensor/actuator tests and full physical signoff. Approval of

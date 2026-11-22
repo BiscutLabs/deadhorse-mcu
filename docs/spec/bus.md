@@ -44,7 +44,7 @@ offset decode; no duplicate handwritten register decoder is permitted.
 | Mailbox local endpoint | 0x40001000–0x40001fff | Each core's local endpoint; no remote alias |
 | Serial controllers / DMA | 0x40010000–0x4001ffff | Sleep-capable HF; endpoint ownership for all masters |
 | ADC player / I2C loader | 0x40020000–0x4002ffff | AON baseline; checked remote |
-| Actuators | 0x40030000–0x40030fff | Main-local bus, independent endpoint reset |
+| PWM output reservation | 0x40030000–0x40030fff | Main-local bus; T22 functional profile uses main-service reset, legacy stub retains its reset contract |
 | Gateway / optional USB FIFO | 0x40040000–0x40040fff | Gateway; checked access, optional USB CDC later |
 | Future bridge reservation | 0x60000000–0x6fffffff | Always error; one interrupt reservation, tied inactive |
 
@@ -163,6 +163,19 @@ software reads events/status. Mailbox capacity and exact registered flag latency
 are documented by its implementation.
 
 ## Verification boundary
+
+The optional T23 DMA controller presents registered memory/peripheral requests
+and preserves every offered request until grant, even after software abort.
+An item drains its required peripheral and memory side effects before abort
+completion; a bus error stops it without replay. RX memory write can precede
+a failed FIFO POP. Firmware owns active DMA buffers and FIFO/configuration
+changes exclusively; DMA readiness inputs are hints, not reservations.
+The initial binding assigns performance origin in hardware, admits only fixed
+UART/SPI/PWM addresses, and confines its native memory port to performance SRAM.
+The memory arbiter alternates requesting DMA and CPU service, retaining the
+prior instruction/data preference when DMA is idle. These are finite-count,
+single-item channels with transaction-level round robin, not linked descriptors.
+
 
 Independent queue/transaction models cover contention, ownership denial, delayed
 grants, backpressure inside CDC, opposite-direction traffic, reset/grant/response

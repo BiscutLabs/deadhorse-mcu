@@ -7,6 +7,7 @@ PLAN01 is documentation only; no other task is started by this revision.
 | ID | Brief | Dependencies | Readiness |
 | --- | --- | --- | --- |
 | PLAN01 | [Decision reconciliation](PLAN01-reconcile.md) | User approval conversation | Assigned documentation work |
+| PLAN02 | [General-purpose MCU scope](PLAN02-general-mcu.md) | User decision D69 | Documentation only; no CI or RTL changes |
 | T08 | [Pinned Linux environment](T08-environment.md) | None | Brief ready; commands not yet run |
 | T01 | [Scaffold and CI](T01-scaffold.md) | T08 | After pinned environment |
 | T02 | [Historical flight-loop CI](T02-flight-loop-ci.md) | T01, T08 | Historical workload only |
@@ -28,6 +29,17 @@ PLAN01 is documentation only; no other task is started by this revision.
 | T18 | [Lite I2C recovery loader](T18-i2c-recovery-loader.md) | T06, T07, T09, T14 | Pinned clocked adoption and end-to-end recovery test brief ready |
 | T19 | [USB CDC-ACM](T19-usb.md) | T05, T07, T08, T09, T14 | User assigned adoption; source assessment must resolve vendor timing/CDC exceptions before production integration |
 | T20 | [Reference SoC integration, I0–I1](T20-soc-integration.md) | T05, T07, T09, T13, T14–T19, S3 | Write `docs/spec/soc.md` first; Q15/Q16 stay open |
+| T21 | [GPIO, timers and retained ADC](T21-flight-io.md) | T05, T07, T09, T14, T20 interfaces | User assigned functional implementations; no CI; D68 split timer services approved |
+| T22 | [General-purpose PWM](T22-pwm.md) | D69, T21, T20 interfaces | User assigned continued RTL; generic PWM and request interface, DMA controller separate; no CI |
+| T23 | [Basic DMA controller](T23-dma.md) | D25, D69, T22, T20 interfaces | User assigned continued RTL; contract review before implementation; no CI |
+| T24 | [Limited GPIO output pin mux](T24-pinmux.md) | D39, D69, T21–T23 interfaces | Continued RTL; existing pads and sources, contract review before implementation; no CI |
+| T25 | [Clocked lite core adoption](T25-lite-core.md) | D1, T06, T14, T18, T20/T24 interfaces | Continued RTL; pinned baseline first, reviewed machine/boot/bus contract; no CI |
+| T26 | [Digital watchdog/reset supervision](T26-watchdog.md) | D70, T20/T22/T24/T25 interfaces | Continued RTL; external clocks retained, no CI |
+| T27 | [Raw ADC acquisition](T27-adc-raw.md) | D69, T21 | Continued RTL; D71 approved raw production migration and register retirement; no CI |
+| T28 | [Lite-first performance release](T28-boot-release.md) | T25/T26/T27 interfaces | Continued RTL; reviewed digital handoff from validated loader START; no CI |
+| T29 | [Bounded QSPI command interface](T29-qspi-command.md) | Plans04/07, T28 interfaces | Continued RTL; reviewed command subset, no CI |
+| T30 | [Native QSPI read path](T30-qspi-xip.md) | Plans03/07, T29 interfaces | Continued RTL; reviewed native read/arbitration contract; no CI |
+| T31 | [Retained locked-image restart](T31-retained-loader-restart.md) | T18/T25/T28/T30 interfaces | Contract preparation assigned; reset-policy approval required before RTL; no CI |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |
@@ -48,8 +60,8 @@ Missing tools cannot be skipped to claim success.
 
 SoC integration now has a plan ([../16-soc-integration.md](../16-soc-integration.md))
 and a brief for its first two stages (T20). Block briefs still required, in
-the order the SoC stages need them: timers and timebase; actuator block
-(final ABI after policy tests); interrupt routing and GPIO/pin mux; RISCay
+the order the SoC stages need them: generic timer/PWM outputs and required
+DMA support (D69; T21 capture/timebase already exists); remaining pin mux; RISCay
 lite-core adoption; power/clock/reset controller and watchdogs; boot ROM,
 QSPI flash and XIP; JTAG debug for both cores; DMA; analog macro layout and
 threshold controls; physical-flow/pad-ring import; production test and

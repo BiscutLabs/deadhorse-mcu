@@ -45,9 +45,9 @@ instructions, not cycles.
 | ID | Requirement | Tag |
 | --- | --- | --- |
 | R-CTL-1 | Timer-driven 1 kHz target, validated/documented 500 Hz fallback; timestamp BMI270 acquisition independently of loop cadence. | D13, D26 |
-| R-CTL-2 | Nine actuator channels, each independently configurable as servo PWM (1 to 2 ms pulse, 50 to 333 Hz, resolution 1 microsecond or better) or DShot300. DShot600 is a stretch. Standard PWM for ESCs is the fallback. | E |
-| R-CTL-3 | One atomic command publication; each channel applies a coherent published value at its own frame boundary with independent rates. | D21 |
-| R-CTL-4 | Hardware command timeout with configurable deadline/actions; watchdog and firmware faults force configured failsafe independent of performance reset while clock/supply are valid. POR/brownout disable outputs. Deadline and recovery policy remain for testing. | D31, D37 |
+| R-CTL-2 | First-application target: nine outputs serving servo/ESC PWM (1 to 2 ms pulse, 50 to 333 Hz, resolution 1 microsecond or better) or firmware-generated DShot300. DShot600 remains a stretch. Use generic timer/PWM/DMA hardware; no dedicated protocol engine. | E; D69 |
+| R-CTL-3 | Firmware publishes coherent application commands using the generic timer buffered-update/DMA contract. Independent hardware command generations/publication engine are not required. | D69 supersedes D21 hardware scope |
+| R-CTL-4 | Application firmware/board supervision define command timeout and failsafe policy. Hardware provides generic watchdog/reset/output-disable semantics; POR/brownout disable outputs. No per-actuator fallback/arming engine. | D69 supersedes actuator portions of D31/D37 |
 | R-CTL-5 | The timing reference for actuator and UART bit timing is accurate to 2 percent or better after trim, over temperature and supply. Confirm the tolerance against the actual ESCs. | A |
 
 ## Peripherals
@@ -114,7 +114,7 @@ interoperability gate exists in the initial MCU (D4, D43).
 | R-PER-10 | Limited pin alternate functions; dedicated clock/reset/JTAG; reset-disabled GPIO outputs; exact map at G1 | D39 |
 | R-PWR-5 | External clock input, divider and glitch-free fallback selection | D35 |
 | R-PWR-6 | Selectable on-chip reset thresholds, safe default, hysteresis and qualified release; no early-warning detector | D38 |
-| R-PWR-7 | Performance watchdog resets performance domain; lite watchdog/POR/brownout reset MCU; independent actuator reset | D37 |
+| R-PWR-7 | Performance watchdog resets performance domain; lite watchdog/POR/brownout reset MCU; generic peripheral reset containment and output-disable contracts, with application failsafe policy in firmware | D37, D69 |
 | R-ENV-1 | Pinned Linux container through Docker/WSL and identical CI environment | D23 |
 | R-PHY-5 | Selected library at nominal 3.3 V and wafer.space GF180MCU 1x1; qualification/date still open | D15, D42 |
 

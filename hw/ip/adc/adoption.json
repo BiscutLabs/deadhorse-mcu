@@ -1,0 +1,17 @@
+{
+  "upstream": "RISCay-MCU",
+  "commit": "4671317186003740ceb61360ba08c59bbdf10136",
+  "files": {
+    "designs/clocked/src/main/scala/riscay/clocked/ClockedSpiAdc.scala": "0e3d3eeec1001e465a36c27c1037153c199bd3ae48597a91f82f5ce6626856af",
+    "designs/clocked/src/main/scala/riscay/clocked/ClockedScaling.scala": "012d2181ebc115f36c407b1c7b92c62439d41c625764a676e74b924aa2ffc88d",
+    "soc/src/main/scala/riscay/soc/Platform.scala": "afb371a055b6cd52ef0ac185ca5e98d132ff567ac1a6f22c714b297ffdda4a9e"
+  },
+  "adaptations": [
+    "Package/import changes in arithmetic and parameter types; identity resultValue hook permits deliberate scaler corruption in formal only",
+    "Selected ClockedScaling.step and ClockedSampleScaler; unrelated elapsed-time classes not imported",
+    "ClockedSpiAdc exports existing raw shift value and primed state as read-only observations",
+    "New wrapper supplies synchronized MISO, registered pad/result boundary and manual launch scheduling; no inherited equivalence claim",
+    "T27 rawOnly path replaces the scaler with registered raw completion/data; D71 selects it in production and retires the scaled MMIO register",
+    "T27 extracts the wrapper publication registers into AdcSampleState for direct arbitrary-input control/data proofs; no inherited proof claim"
+  ]
+}

@@ -1,0 +1,78 @@
+block: aon_timer
+description: D68 split timer service
+data_width: 32
+address_width: 8
+registers:
+- name: command
+  offset: 0
+  fields:
+  - name: arm
+    bits:
+    - 3
+    - 0
+    access: w1p
+  - name: cancel
+    bits:
+    - 7
+    - 4
+    access: w1p
+- name: events
+  offset: 4
+  fields:
+  - name: pending
+    bits:
+    - 3
+    - 0
+    access: w1c
+    reset: 0
+  - name: config_error
+    bits:
+    - 7
+    - 4
+    access: w1c
+    reset: 0
+- name: irq_enable
+  offset: 8
+  fields:
+  - name: channels
+    bits:
+    - 3
+    - 0
+    access: rw
+    reset: 0
+- name: wake_enable
+  offset: 12
+  fields:
+  - name: channels
+    bits:
+    - 3
+    - 0
+    access: rw
+    reset: 0
+- name: status
+  offset: 16
+  fields:
+  - name: active
+    bits:
+    - 3
+    - 0
+    access: ro
+- name: duration
+  offset: 32
+  fields:
+  - name: ticks
+    bits:
+    - 31
+    - 0
+    access: rw
+    reset: 0
+  count: 4
+- name: remaining
+  offset: 64
+  fields:
+  - name: ticks
+    bits:
+    - 31
+    - 0
+    access: ro
+  count: 4

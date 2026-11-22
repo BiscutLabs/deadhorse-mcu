@@ -30,7 +30,7 @@ class SocBootSpec extends AnyFunSuite with ChiselSim {
     }
     bytes.mkString
   }
-  test("I0 boots faithful RV32IMFC, checks SRAM byte writes and FMUL, and prints on real UART") {
+  for(integrated<-Seq(false,true)) test(s"${if(integrated) "I1" else "I0"} boots faithful RV32IMFC, checks SRAM byte writes and FMUL, and prints on real UART") {
     val receipt=ujson.read(os.read(os.Path("build/t20/i0-firmware/result.json",os.pwd)))
     assert(receipt("status").str=="prepared_not_executed", "I0_PREPARATION_RECEIPT")
     val digest=java.security.MessageDigest.getInstance("SHA-256")
@@ -38,18 +38,31 @@ class SocBootSpec extends AnyFunSuite with ChiselSim {
       .map(b=>f"${b & 255}%02x").mkString
     assert(digest==receipt("rom_sha256").str, "I0_ROM_RECEIPT")
     simulateRaw(new DeadhorseSoc("build/t20/map/soc.json", "build/t20/i0-firmware/uart_regs.json",
-      Paths.get("build/t20/i0-firmware/boot.hex").toAbsolutePath.toString),
+      Paths.get("build/t20/i0-firmware/boot.hex").toAbsolutePath.toString,
+      i1Config=if(integrated) Some(SocI1Files.config()) else None),
       firtoolOpts=gateBinding, settings=settings) { d =>
       d.uartRx.poke(true.B)
       d.coldReset_n.poke(false.B); d.warmReset_n.poke(false.B)
       d.mainCoreReset_n.poke(false.B); d.mainServiceReset_n.poke(false.B)
-      d.mainClock.step(4)
+      d.i1.foreach { p =>
+        p.aonServiceReset_n.poke(false.B);p.usbServiceReset_n.poke(false.B)
+        p.lite.req.poke(false.B);p.lite.bits.poke(0.U.asTypeOf(p.lite.bits))
+        p.liteHalted.poke(true.B);p.resetReason.poke(0.U);p.crashCount.poke(0.U)
+        p.uartRx.foreach(_.poke(true.B));p.spiMiso.poke(false.B);p.spiTimeNow.poke(0.U)
+        p.i2cSclIn.poke(true.B);p.i2cSdaIn.poke(true.B);p.recoveryScl.poke(true.B);p.recoverySda.poke(true.B)
+        p.usbVbus.poke(false.B);p.usbDpRx.poke(false.B);p.usbDnRx.poke(false.B)
+      }
+      def tick(): Unit = {
+        d.mainClock.step();d.i1.foreach {p=>p.aonClock.step();p.usbClock.step()}
+      }
+      for(_<-0 until 4) tick()
       d.coldReset_n.poke(true.B); d.warmReset_n.poke(true.B)
       d.mainCoreReset_n.poke(true.B); d.mainServiceReset_n.poke(true.B)
+      d.i1.foreach {p=>p.aonServiceReset_n.poke(true.B);p.usbServiceReset_n.poke(true.B)}
       val samples = ArrayBuffer.empty[Boolean]
       var retired = 0; var sawMultiply = false
       for(_ <- 0 until 3000) {
-        d.mainClock.step()
+        tick()
         samples += d.uartTx.peek().litToBoolean
         if(d.rvfi("rvfi_valid").asInstanceOf[Bool].peek().litToBoolean) {
           retired += 1

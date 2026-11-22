@@ -250,6 +250,8 @@ if {[info exists reset_groups]} {
 }
 set f [open $path_report w]
 puts $f "class\tdelay_ns\tstart\tend\tcell_depth\tlogic_depth\tpoints"
+set register_names {}
+foreach reg $regs {dict set register_names [get_full_name $reg] 1}
 foreach {kind ends} $groups {
     lassign $ends from to
     if {![llength $from] || ![llength $to]} {continue}
@@ -277,8 +279,8 @@ foreach {kind ends} $groups {
                 }
             }
             set depth [dict size $cells]
-            foreach reg $regs {
-                if {[dict exists $cells [get_full_name $reg]]} {incr depth -1}
+            foreach name [dict keys $cells] {
+                if {[dict exists $register_names $name]} {incr depth -1}
             }
             puts $f "$kind\t$delay\t[get_full_name [get_property $path startpoint]]\t[get_full_name [get_property $path endpoint]]\t[dict size $cells]\t$depth\t[join $trace {; }]"
         }

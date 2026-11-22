@@ -169,12 +169,12 @@ def mapping_target_ps(cfg, operating_point):
     return min(budget_ps, 62500.0) if operating_point == 'main-9mhz' else budget_ps
 
 
-def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default', usb_cadence=None, usb_equivalence=None):
-    return _measure(top,sources,clock,output,liberty,combinational,operating_point=operating_point,usb_cadence=usb_cadence,usb_equivalence=usb_equivalence)
+def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default', usb_cadence=None, usb_equivalence=None, reset_fanout=False):
+    return _measure(top,sources,clock,output,liberty,combinational,operating_point=operating_point,usb_cadence=usb_cadence,usb_equivalence=usb_equivalence,reset_fanout=reset_fanout)
 
 
 def _measure(top, sources, clock, output, liberty=None, combinational=False,
-             reference_options=None, *, operating_point='default', usb_cadence=None, usb_equivalence=None):
+             reference_options=None, *, operating_point='default', usb_cadence=None, usb_equivalence=None, reset_fanout=False):
     # Shared numerical flow. The production entry above always checks isolation.
     # Only dv/core/reference_timing.py supplies authenticated reference options;
     # such receipts are explicitly benchmarks, never production acceptance.
@@ -282,6 +282,26 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
         f'write_verilog -noattr -noexpr "{output / "mapped.v"}"', '']))
     synthesis = run(['yosys', '-Q', '-T', '-s', str(synth)], output, 'synthesis')
     design = json.loads((output / 'mapped.json').read_text())
+    if reset_fanout:
+        if operating_point=='usb-48mhz':raise ValueError('USB already has its qualified fanout flow')
+        from tools.timing.fanout import BUFFER, buffer_module, internal_reset_sources
+        if BUFFER not in library_cells:raise ValueError('Reset buffer absent from pinned library')
+        selected=internal_reset_sources(design['modules'][top],clock)
+        (output/'reset-unbuffered.json').write_text(json.dumps(design))
+        inserted=[]
+        if selected:
+            design['modules'][top],inserted=buffer_module(design['modules'][top],clock,
+                source_bits=selected,prefix='reset_fanout_')
+        mapping['reset_fanout_tree']=dict(cell=BUFFER,limit=8,inserted=len(inserted),sources=sorted(selected),
+            verification='all original pins resolve identically; primary inputs and clocks not selected')
+        (output/'reset-buffered.json').write_text(json.dumps(design))
+        buffer_script=output/'reset-buffer.ys'
+        buffer_script.write_text('\n'.join([
+            f'read_json "{output / "reset-buffered.json"}"','check -assert',
+            f'stat -liberty "{liberty}"',f'write_json "{output / "mapped.json"}"',
+            f'write_verilog -noattr -noexpr "{output / "mapped.v"}"','']))
+        synthesis=run(['yosys','-Q','-T','-s',str(buffer_script)],output,'reset-buffer')
+        design=json.loads((output/'mapped.json').read_text())
     if usb_cadence and top in ('UsbEngine','Usb','UsbSieTiming'):
         from tools.timing.usb_enable_fanout import replicate, prove_pair
         design['modules'][top], replication = replicate(design['modules'][top],top)

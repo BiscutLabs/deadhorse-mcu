@@ -1,5 +1,11 @@
 # 16 SoC integration
 
+D69 update (2026-11-21): replace the unimplemented actuator controller with
+generic timer/PWM outputs and timer-triggered DMA support. Flight-specific
+protocol and failsafe policy stays in firmware. The dated inventory below is
+historical; T21 delivered GPIO, capture/compare and ADC acquisition. No new
+peripheral breadth is implied.
+
 Written 2026-11-20, after T05–T19 delivered the first set of blocks. This
 document is the plan for putting them together into one chip. It does not
 start implementation, freeze the architecture or mark a gate complete.
@@ -61,7 +67,7 @@ the FPU and must be rebuilt by T20.
 | --- | --- | --- | --- |
 | I0 Skeleton | Performance core, boot ROM model, SRAM model with the macro interface, local memory path, main fabric, UART | Program boots from ROM, prints over UART in simulation; ISA lockstep still passes inside the SoC | T20 |
 | I1 Existing peripherals | SPI, I2C, mailbox and domain bridge, AON bus with retained-SRAM model and recovery loader, USB (stub by default, real block as a build variant), stubs for everything else | SPI IMU and I2C barometer models read by firmware; mailbox round trip to a lite-core stand-in; recovery load over I2C; USB loopback on the real-USB variant | T20 |
-| I2 Flight I/O | Timers, actuator block, interrupt routing, GPIO and pin mux | Timer-driven control loop closes against the airframe model in simulation, with actuator outputs checked by the independent checker | Block briefs, then T20 checks |
+| I2 Reference application I/O | Generic timer/PWM outputs, required DMA support, interrupt routing, GPIO and pin mux | Timer-driven control loop closes against the airframe model in simulation, with actuator outputs checked by the independent checker | Block briefs, then T20 checks |
 | I3 Always-on domain | Lite core, power/clock/reset control, watchdogs, sleep and wake | Lite boots first and releases the performance core; reset containment and sleep/wake tests from 06 | Block briefs |
 | I4 Boot and debug | Boot ROM content, QSPI flash and XIP, DMA, JTAG for both cores | Two-image boot and recovery; debug halt/step/memory access; DMA with ownership checks | Block briefs |
 | I5 Chip | Pad wrapper, test mode and scan, analog macro views, FPGA build | Pad-level simulation; FPGA bring-up of the I2 flight loop | Physical and analog briefs |
@@ -133,7 +139,7 @@ approved contracts; each ends by replacing its stub in the reference SoC.
 | Order | Brief | Stage | Notes |
 | --- | --- | --- | --- |
 | 1 | Timers and microsecond timebase | I2 | Loop tick, capture for sensor timestamps |
-| 2 | Actuator block | I2 | From the [actuator draft](../spec/actuator-block.md); timeout and publication policy questions (Q13) stay open and must be parameters |
+| 2 | Generic timer/PWM outputs and required DMA support | I2 | D69 replaces the specialized actuator draft; standard buffered updates and DMA requests. Coordinate with the DMA brief rather than add a private DShot engine |
 | 3 | Interrupt routing and GPIO/pin mux | I2 | Pin mux reset-disabled outputs (D39) |
 | 4 | Lite core adoption from RISCay | I3 | D1; boot order and retained SRAM |
 | 5 | Power, clock and reset controller, watchdogs | I3 | D37 containment, glitch-free clock selection (D35), wake capture |

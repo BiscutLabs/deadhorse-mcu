@@ -1,0 +1,48 @@
+block: dma
+description: Checked finite-count DMA channels
+data_width: 32
+address_width: 8
+registers:
+- name: start
+  offset: 0x00
+  fields: [{name: channels, bits: [3, 0], access: w1p}]
+- name: abort
+  offset: 0x04
+  fields: [{name: channels, bits: [3, 0], access: w1p}]
+- name: busy
+  offset: 0x08
+  fields: [{name: channels, bits: [3, 0], access: ro}]
+- name: events
+  offset: 0x0c
+  fields:
+  - {name: done, bits: [3, 0], access: w1c, reset: 0}
+  - {name: error, bits: [7, 4], access: w1c, reset: 0}
+  - {name: config_error, bits: [11, 8], access: w1c, reset: 0}
+  - {name: aborted, bits: [15, 12], access: w1c, reset: 0}
+- name: irq_enable
+  offset: 0x10
+  fields: [{name: events, bits: [15, 0], access: rw, reset: 0}]
+- name: address
+  offset: 0x20
+  count: 4
+  fields: [{name: value, bits: [31, 0], access: rw, reset: 0}]
+- name: count
+  offset: 0x30
+  count: 4
+  fields: [{name: value, bits: [15, 0], access: rw, reset: 0}]
+- name: endpoint
+  offset: 0x40
+  count: 4
+  fields: [{name: value, bits: [4, 0], access: rw, reset: 0}]
+- name: remaining
+  offset: 0x50
+  count: 4
+  fields: [{name: value, bits: [15, 0], access: ro}]
+- name: current
+  offset: 0x60
+  count: 4
+  fields: [{name: value, bits: [31, 0], access: ro}]
+- name: fault
+  offset: 0x70
+  count: 4
+  fields: [{name: phase, bits: [3, 0], access: ro}]

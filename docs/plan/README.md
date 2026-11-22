@@ -1,5 +1,9 @@
 # Deadhorse MCU plan
 
+Current hardware/application boundary: [D69](10-decisions-and-risks.md) keeps
+conventional MCU peripherals in silicon and flight-specific protocols/policy in
+firmware. It supersedes the earlier dedicated actuator-controller proposal.
+
 Approved planning baseline v0.9, reconciled 2026-11-13. The
 [decision register](10-decisions-and-risks.md) records all user approvals and
 the questions deliberately deferred to testing. This documentation revision
@@ -17,7 +21,7 @@ is subsequently assigned.
 
 | Doc | Contents |
 | --- | --- |
-| [01-product-definition.md](01-product-definition.md) | What we are building, for which airframe, and what is out of scope |
+| [01-product-definition.md](01-product-definition.md) | General MCU scope, first reference application and exclusions (D69) |
 | [02-requirements.md](02-requirements.md) | Numbered requirements, each marked measured, estimated or assumed |
 | [03-architecture.md](03-architecture.md) | Target block architecture, clock domains, cores, bus, address ownership |
 | [04-riscay-carryover.md](04-riscay-carryover.md) | What is reused from RISCay-MCU, what is replaced, and the import method |

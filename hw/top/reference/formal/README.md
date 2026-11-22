@@ -1,4 +1,65 @@
-# I0 local-memory control composition
+# SoC control composition
+
+## Inactive logical pads
+
+`SocInactiveFormal.scala` binds the real `SocInactivePads` to unconstrained
+inputs. Six assertions require safe QSPI, actuator, JTAG, GPIO, timer and ADC outputs and
+enables at every sample, with no reset masking and no assumptions. An input
+cover checks all input bits high; four faults independently enable actuator,
+GPIO, timer or ADC outputs.
+This is an unbounded proof of static tie-offs, not of implemented peripherals.
+
+Run `python tools/env/run.py run -- python3 hw/top/reference/formal/check_inactive.py --output build/t20/i1/inactive-proof-fresh`.
+The runner preserves assertions with firtool optimization disabled and static
+assert lint disabled so the actual fault reaches the solver. It requires the
+six-assertion/zero-assumption inventory and each fault identity.
+`build/t20/i1/pin-contract-proof/result.json` records ABC PDR PASS, cover PASS,
+and all intended counterexamples, source/artifact hashes and timings. Earlier
+emission/lowering failures remain archived; they are not negative witnesses.
+
+## I1 glue
+
+After `dv/soc/prepare_i1.py`, run the following focused command separately for
+`error`, `slot`, `memory` and `nested`, always using a fresh output directory:
+
+```sh
+python tools/env/run.py run -- python3 hw/top/reference/formal/check_i1_control.py --block slot --output build/t20/i1/slot-fresh
+```
+
+These are ABC PDR unbounded safety proofs; Z3 supplies cover witnesses and
+actual faulty-subclass counterexamples. The job cap remains 120 seconds;
+covers/fault search use 32 steps. Exact assertion inventories, cover counts,
+harness hashes and mandatory hierarchical fault identities are checked.
+Receipts bind sources and all emitted/solver artifacts. Current results and
+commands are in [the SoC formal ledger](../../../../docs/ledger/soc-formal.md).
+
+| Job | Contract checked | Fault |
+| --- | --- | --- |
+| error | Registered error response once per accepted request; real destination drain credit matches outstanding work | Invert endpoint response-valid |
+| slot | Accepted request owns its response, at most one downstream dispatch with unchanged payload, reset cancellation, truthful quiet, finite error-backend completion | Invert slot response-valid |
+| memory | Full-size retained memory permissions, response latency, zero write/error reply, exclusive bus/loader port and completion only after an allowed loader write | Invert loader completion |
+| nested | Real child fabric cannot acknowledge quiet with activity, isolation or pending endpoint work | Force quiet high |
+
+Premises are explicit: both reset inputs start low and may change arbitrarily
+thereafter. Error/slot/memory use a generated one-outstanding requester that
+holds request and payload through acceptance; this is an environment restriction
+even though no Chisel `assume` is used. The slot's downstream endpoint is the
+real finite error target. Nested uses the production 128-edge fabric and a
+legal endpoint model whose response delay is chosen arbitrarily from 0–255
+edges. Nested makes no upstream request-stability or admission assumption.
+Its short covers show ordinary response/drain, not watchdog expiry. The long
+delayed-response scenario is separately simulated by `SocNestedSpec`.
+
+`async2sync` proves sampled reset behavior, not subcycle electrical reset
+timing. Stopped-clock cancellation is separately simulated. Memory geometry is
+the production 768-word array; control proof does not establish memory contents,
+byte-lane integrity or retention. Those receive independent byte-array simulation.
+The memory read-result cone is still present; no RAM-pruning claim is made.
+Loader permission withdrawal may quarantine until reset and is not a proved
+unconditional completion. Full top decode/IRQ/reset order, every independent
+bridge-reset phase and CDC structural composition remain open.
+
+## I0 local memory
 
 Run after `dv/soc/prepare_i0.py`, in the pinned environment:
 

@@ -8,7 +8,7 @@ import subprocess
 LIB = 'gf180mcu_fd_sc_mcu7t5v0__'
 
 
-def size(module, liberty, output):
+def size(module, liberty, output, *, replacements=None):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
     loads = {}
@@ -31,13 +31,21 @@ def size(module, liberty, output):
     result = copy.deepcopy(module)
     changed = {}
     library_cells = set(re.findall(r'\bcell\s*\(\s*"?([^\s"()]+)', Path(liberty).read_text()))
+    if replacements is not None and (not replacements or not set(replacements)<=set(module['cells'])):
+        raise ValueError('Missing explicit sizing cell')
     for name, cell in result['cells'].items():
         family = cell['type'].removeprefix(LIB)
         buffer = family in ('buf_1','clkbuf_1')
         gate = re.fullmatch(r'(?:and[234]|nand[234]|or[234]|nor[234]|aoi(?:21|22|211|221|222)|oai(?:21|22|211|221|222)|mux[24]|inv)_1',family)
         replacement = LIB+'buf_4' if buffer else cell['type'][:-1]+'2'
-        if not (buffer or gate) or replacement not in library_cells:
-            continue
+        if replacements is not None:
+            if name not in replacements:continue
+            replacement=replacements[name]
+            if (not re.fullmatch(r'(?:buf|clkbuf|inv|(?:x?nor|x?or|nand|and)[234]|mux[24]|aoi\d+|oai\d+)_[1248]',family)
+                or replacement.rsplit('_',1)[0]!=cell['type'].rsplit('_',1)[0]
+                or replacement==cell['type'] or replacement not in library_cells):
+                raise ValueError('Explicit sizing must select a characterized same-family combinational cell')
+        elif not (buffer or gate) or replacement not in library_cells:continue
         if any(len(bits) != 1 for bits in cell['connections'].values()):
             raise ValueError('Non-scalar USB sizing cell')
         outputs = [p for p,d in cell['port_directions'].items() if d=='output']
@@ -45,8 +53,9 @@ def size(module, liberty, output):
             raise ValueError('Unexpected USB combinational sizing cell')
         q = cell['connections'][outputs[0]][0]
         if any(b in clocks for bs in cell['connections'].values() for b in bs):
+            if replacements is not None:raise ValueError('Explicit sizing touches clock topology')
             continue
-        if loads.get(q, 0) >= (3 if buffer else 2):
+        if replacements is not None or loads.get(q, 0) >= (3 if buffer else 2):
             changed[name] = cell['type']
             cell['type'] = replacement
     recovered = copy.deepcopy(result)
@@ -54,6 +63,9 @@ def size(module, liberty, output):
         recovered['cells'][name]['type'] = old
     if recovered != module:
         raise ValueError('USB sizing changed connectivity or state')
+    for old in set(changed.values()):
+        if len({result['cells'][n]['type'] for n,t in changed.items() if t==old})!=1:
+            raise ValueError('One proof per original type requires a unique replacement type')
     proofs = {}
     for old in sorted(set(changed.values())):
         representative = next(n for n,t in changed.items() if t==old)
@@ -96,8 +108,8 @@ def size(module, liberty, output):
                 raise ValueError('USB buffer equivalence/control failed: '+label)
             proofs[label] = 'fault_rejected' if fault else 'proved'
     receipt = dict(cells={n:{'from':old,'to':result['cells'][n]['type']} for n,old in changed.items()}, jobs=proofs,
-        policy='Weak positive buffer branches with >=3 loads use buf_4; listed combinational size-1 gates with >=2 loads use same-family size-2',
+        policy=('Explicit measured-path cell choices' if replacements is not None else 'Weak positive buffer branches with >=3 loads use buf_4; listed combinational size-1 gates with >=2 loads use same-family size-2'),
         proof='Actual Liberty functions equal for every input; restoring types exactly recovers the input netlist',
-        scope='USB only; actual clock trees excluded; all state, connections and asynchronous reset topology unchanged; pre-layout only')
+        scope=('Explicit T20 mapping experiment' if replacements is not None else 'USB only')+'; actual clock trees excluded; all state, connections and asynchronous reset topology unchanged; pre-layout only')
     (output/'result.json').write_text(json.dumps(receipt, indent=2)+'\n')
     return result, receipt

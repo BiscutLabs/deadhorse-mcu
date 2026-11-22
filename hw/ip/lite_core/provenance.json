@@ -1,0 +1,54 @@
+{
+  "project": "RISCay-MCU",
+  "commit": "4671317186003740ceb61360ba08c59bbdf10136",
+  "license": "Apache-2.0",
+  "derivatives": [
+    {
+      "source": "designs/clocked/src/main/scala/riscay/clocked/ClockedCore.scala",
+      "destination": "src/main/scala/deadhorse/lite_core/LiteCore.scala",
+      "changes": "Adopted ISA state and Execute helper; registered sequencer, start, machine CSR/trap/IRQ/WFI and RVFI extension. Baseline equivalence does not qualify this extension."
+    }
+  ],
+  "files": [
+    {
+      "source": "shared/src/main/scala/riscay/Architecture.scala",
+      "blob": "9dd2cc91d486d34c91d95876698bb32f4abee9e7",
+      "destinations": [
+        "src/main/scala/deadhorse/lite_core/Architecture.scala"
+      ],
+      "changes": "Namespace only; baseline behavior unchanged."
+    },
+    {
+      "source": "designs/clocked/src/main/scala/riscay/clocked/ClockedCore.scala",
+      "blob": "eb2814cdc9d694eaa8f993657b59245d471c5861",
+      "destinations": [
+        "src/main/scala/deadhorse/lite_core/ClockedCore.scala"
+      ],
+      "changes": "Namespace and redundant package import removal only; baseline behavior unchanged."
+    },
+    {
+      "source": "verification/src/test/scala/riscay/Reference.scala",
+      "blob": "437edcaa560cdd94b16987e1b946518bcfad501b",
+      "destinations": [
+        "src/test/scala/deadhorse/lite_core/Reference.scala"
+      ],
+      "changes": "Namespace only; baseline behavior unchanged."
+    },
+    {
+      "source": "verification/src/test/scala/riscay/CorePrograms.scala",
+      "blob": "7eeda2ceaa1712575c9b05745d7c03f046834594",
+      "destinations": [
+        "src/test/scala/deadhorse/lite_core/CorePrograms.scala"
+      ],
+      "changes": "Namespace only; baseline behavior unchanged."
+    },
+    {
+      "source": "LICENSE",
+      "blob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+      "destinations": [
+        "LICENSE"
+      ],
+      "changes": "Copied license unchanged."
+    }
+  ]
+}

@@ -109,6 +109,38 @@ class SocMemorySpec extends AnyFunSuite with ChiselSim {
       }
     }
   }
+  test("current-request arbitration serves contention and excludes the MMIO response edge") {
+    simulateRaw(new SocLocalMemory(SocTestFiles.description, SocTestFiles.memoryRom), settings=settings) { d =>
+      reset(d)
+      drive(d.instruction, 0); drive(d.data, 4)
+      // Reset gives instruction first choice; a completed fetch gives data next choice.
+      assert(high(d.instruction.gnt) && !high(d.data.gnt))
+      d.clk.step()
+      assert(high(d.instruction.rvalid) && d.instruction.rdata.peek().litValue == SocTestFiles.romWord(0))
+      assert(!high(d.instruction.gnt) && high(d.data.gnt))
+      d.clk.step(); d.data.req.poke(false.B)
+      assert(high(d.data.rvalid) && d.data.rdata.peek().litValue == SocTestFiles.romWord(1))
+      assert(high(d.instruction.gnt) && !high(d.data.gnt))
+      d.clk.step(); d.instruction.req.poke(false.B)
+      drive(d.data, SocTestFiles.description.region("uart0").base)
+      assert(high(d.data.gnt) && !high(d.instruction.gnt))
+      d.clk.step(); d.data.req.poke(false.B)
+      d.peripheral.gnt.poke(true.B); d.clk.step(); d.peripheral.gnt.poke(false.B)
+      // Hold the next request from before completion through the public reply.
+      drive(d.data, 8)
+      assert(!high(d.data.gnt))
+      d.peripheral.rvalid.poke(true.B); d.peripheral.rdata.poke(0x1234.U)
+      d.clk.step(); d.peripheral.rvalid.poke(false.B)
+      assert(high(d.data.rvalid) && d.data.rdata.peek().litValue == 0x1234)
+      assert(!high(d.data.gnt), "NEW_ACCEPT_OVERLAPS_MMIO_RESPONSE")
+      d.clk.step()
+      assert(!high(d.data.rvalid) && high(d.data.gnt))
+      d.clk.step(); d.data.req.poke(false.B)
+      assert(high(d.data.rvalid) && d.data.rdata.peek().litValue == SocTestFiles.romWord(2))
+      d.clientReset_n.poke(false.B)
+      d.epochReady.expect(false.B); d.instruction.gnt.expect(false.B); d.data.gnt.expect(false.B)
+    }
+  }
   test("stalled MMIO retains payload, allows fetch, and drains across a short core reset") {
     simulateRaw(new SocLocalMemory(SocTestFiles.description, SocTestFiles.memoryRom), settings = settings) { d =>
       reset(d)

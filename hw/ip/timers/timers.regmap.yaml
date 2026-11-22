@@ -1,0 +1,127 @@
+block: timers
+description: D68 split timer service
+data_width: 32
+address_width: 8
+registers:
+- name: control
+  offset: 0
+  fields:
+  - name: run
+    bits: 0
+    access: rw
+    reset: 0
+- name: preload
+  offset: 4
+  fields:
+  - name: value
+    bits:
+    - 31
+    - 0
+    access: rw
+    reset: 0
+- name: command
+  offset: 8
+  fields:
+  - name: apply
+    bits:
+    - 3
+    - 0
+    access: w1p
+  - name: load_time
+    bits: 4
+    access: w1p
+- name: time_value
+  offset: 12
+  fields:
+  - name: value
+    bits:
+    - 31
+    - 0
+    access: ro
+- name: events
+  offset: 16
+  fields:
+  - name: pending
+    bits:
+    - 3
+    - 0
+    access: w1c
+    reset: 0
+  - name: overrun
+    bits:
+    - 7
+    - 4
+    access: w1c
+    reset: 0
+  - name: config_error
+    bits:
+    - 11
+    - 8
+    access: w1c
+    reset: 0
+  - name: imu
+    bits: 12
+    access: w1c
+    reset: 0
+  - name: load_error
+    bits: 13
+    access: w1c
+    reset: 0
+- name: irq_enable
+  offset: 20
+  fields:
+  - name: events
+    bits:
+    - 13
+    - 0
+    access: rw
+    reset: 0
+- name: imu_capture
+  offset: 24
+  fields:
+  - name: value
+    bits:
+    - 31
+    - 0
+    access: ro
+- name: channel_mode
+  offset: 32
+  fields:
+  - name: mode
+    bits:
+    - 1
+    - 0
+    access: rw
+    reset: 0
+  - name: output_enable
+    bits: 2
+    access: rw
+    reset: 0
+  count: 4
+- name: deadline
+  offset: 64
+  fields:
+  - name: value
+    bits:
+    - 31
+    - 0
+    access: rw
+    reset: 0
+  count: 4
+- name: captured
+  offset: 96
+  fields:
+  - name: value
+    bits:
+    - 31
+    - 0
+    access: ro
+  count: 4
+- name: status
+  offset: 112
+  fields:
+  - name: armed
+    bits:
+    - 3
+    - 0
+    access: ro

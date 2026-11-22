@@ -1,0 +1,63 @@
+block: watchdog
+description: AON windowed watchdog
+data_width: 32
+address_width: 8
+registers:
+- name: period
+  offset: 0
+  fields:
+  - name: ticks
+    bits: [31, 0]
+    access: rw
+    reset: 0
+- name: window
+  offset: 4
+  fields:
+  - name: ticks
+    bits: [31, 0]
+    access: rw
+    reset: 0
+- name: warning
+  offset: 8
+  fields:
+  - name: ticks
+    bits: [31, 0]
+    access: rw
+    reset: 0
+- name: start
+  offset: 12
+  fields:
+  - name: key
+    bits: [31, 0]
+    access: wo
+- name: feed
+  offset: 16
+  fields:
+  - name: key
+    bits: [31, 0]
+    access: wo
+- name: status
+  offset: 20
+  fields:
+  - name: flags
+    bits: [3, 0]
+    access: ro
+- name: remaining
+  offset: 24
+  fields:
+  - name: ticks
+    bits: [31, 0]
+    access: ro
+- name: crashes
+  offset: 28
+  fields:
+  - name: count
+    bits: [31, 0]
+    access: ro
+- name: events
+  offset: 32
+  fields:
+  - name: error
+    bits: 0
+    access: w1c
+    reset: 0

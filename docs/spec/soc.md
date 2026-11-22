@@ -172,8 +172,11 @@ separate 4 MHz SPI target. No new peripheral clock is silently introduced.
 Cold reset (POR/brownout) asserts every reset, including the loader lock reset.
 Warm whole-chip reset (external/lite watchdog) resets ordinary main/AON/USB
 state and memory handshakes but preserves the loader lock. Performance-only
-reset leaves AON loader, lock and SRAM contents intact and does not clear
-actuator failsafe state. The actuator is still an inactive stub in I1.
+reset leaves AON loader, lock and SRAM contents intact. The legacy actuator
+endpoint is still an inactive stub in I1 and has no functional failsafe state.
+D69 places application failsafe policy in firmware; a scoped generic PWM
+brief must define its reset/output-disable contract. Existing stub reset wiring
+is unchanged by this planning decision.
 Distinguish core-only reset from the reset of the main fabric/shared-HF
 endpoints. Core-only reset must not reset a peripheral serving a surviving
 owner. Retain accepted-transaction bookkeeping until old work drains and
@@ -204,6 +207,24 @@ Both bridge transports/permit reset on either service-domain reset, while
 surviving-source accepted-request records stay under their own domain reset.
 SRAM contents do not clear implicitly. The actuator stub's functional reset
 combines cold/warm only, not performance resets.
+
+The opt-in T22 PWM profile replaces that inactive endpoint with generic outputs
+at the same reserved address and pins. Its validated `pwm` metadata defines a
+256-byte register window, performance ownership and main-service reset. Cold,
+warm or main-service reset asynchronously disables outputs and clears all PWM
+state; core-only and AON-service reset preserve active and queued configurations.
+The existing I1 and T21 profiles remain unchanged. See the
+[PWM contract](../../hw/ip/pwm/README.md). IRQ10 and main-clock demand are bound;
+DMA requests remain local in that profile. The opt-in T23 `SocDmaFiles` profile
+additionally binds UART/SPI and PWM requests to four finite-count DMA channels.
+The low 256 bytes of the reserved DMA window become performance-owned MMIO;
+IRQ8 and main-clock demand are connected. The controller accesses performance
+SRAM through the optional third native memory master, and fixed peripheral
+registers through the main fabric with hardware-assigned performance origin.
+Addresses and command masks derive from validated register maps. Cold/warm and
+main-service reset jointly cancel DMA and its endpoints; core/AON reset preserves
+transfers. SRAM contents survive. See the [DMA contract](../../hw/ip/dma/README.md)
+for abort/partial-error behavior and the software FIFO ownership requirement.
 
 Core fetch-ready requires released reset, initialized local memory and drain
 of any old local response epoch. Fabric target admission requires owning reset
@@ -268,6 +289,32 @@ Provisional main fast-interrupt assignment (checked against `soc.yaml`):
 | gpio_pinmux | 9 | inactive stub |
 | actuator | 10 | inactive stub |
 | power_reset_timer | 11 | inactive timer-group stub |
+| adc_loader_reserved | 12 | inactive in I1; ADC in flight I/O profile |
+
+### Opt-in functional flight I/O profile (T21, D68)
+
+`EmitSocIo` selects the `flight_io` subwindows in soc.yaml. Generated C and
+Scala maps include their bases and sizes; I1 retains its error targets and
+inactive outputs. GPIO occupies 0x40012000..0x400120ff, main timers
+0x40012100..0x400121ff, AON timers 0x40000000..0x400000ff and ADC
+0x40020000..0x400200ff. All padding errors. Main services require performance
+origin; AON services require lite origin. The outer local timeout remains
+128 receiving edges, including the nested GPIO/timer fabric.
+
+In this profile GPIO outputs/input IRQs, timer capture/compare and IMU DRDY
+sampling use main clock. GPIO wake samples independently in AON through the
+shared CDC block. ADC pins use AON. The `inactive` bundle name and base pin
+metadata describe the original I1 profile, not these functional bindings.
+QSPI, actuators and JTAG remain inactive in both profiles. Main timer `timeNow`
+supplies SPI timestamps; the external SPI timestamp input is ignored here.
+
+Fast IRQ9 is GPIO, IRQ11 ORs main timer IRQ with synchronized AON timer IRQ,
+and IRQ12 is synchronized ADC IRQ. AON IRQ ORs mailbox, AON timer, ADC and
+GPIO wake. AON timer wake, GPIO wake and ADC IRQ request main service. Main
+timers hold main clock while RUN is set; AON deadlines do not need main
+clock. Fabric demand bridges the registered peripheral clock-hold latency.
+Main service reset clears main registers and GPIO wake transport; AON reset
+clears ADC/AON timers and GPIO wake transport but preserves main GPIO values.
 
 Indices 12–14 are reserved inactive. Timer/software/external standard
 inputs and watchdog NMI stay inactive until their sources exist. The AON
@@ -301,7 +348,94 @@ sharing and the remaining GPIO count; final pad numbers are frozen at G1.
 Do not claim physical fit from logical names alone. I1 keeps
 unimplemented alternate functions inactive rather than inventing a pin mux.
 
+I1 now exposes the defined inactive QSPI, actuator, JTAG and IMU DRDY logical
+boundary through `SocI1Pins.inactive`; see the
+[stub contract](../../hw/top/stubs/README.md). QSPI has separate DQ input,
+output and per-bit enable signals, separate SCLK enable, and two inactive-high
+selects with disabled enables. All nine actuator outputs/enables and JTAG
+TDO/enable are zero. JTAG inputs and IMU DRDY are ignored: no capture, debug,
+interrupt or wake function is implied. Static tie-offs are independent of all
+clocks/resets; there is no input-to-output logic or retained actuator state.
+The map's `inactive` clock label denotes an unsampled function, not a new
+clock domain. Elaboration checks these port widths against the generated map.
+The GPIO/ADC/timer logical contract is now defined below. No package pad number
+or final physical fit is claimed.
+
+D71 raw ADC ABI: the functional ADC profiles publish raw codes at
+0x40020010. The former scaled result at0x40020014 is retired; reads and
+writes error. Other offsets, ownership and AON reset scope are unchanged.
+Conversion/calibration is firmware policy; see the [ADC contract](../../hw/ip/adc/README.md).
+
+### Provisional GPIO, ADC and timer pin contract
+
+The user requested completion of these contracts on 2026-11-21. The I1
+allocation uses three GPIO pins, four timer capture/compare pins and the
+retained receive-only ADC boundary. These are logical interfaces, not new
+functional peripherals or a G1 pad freeze.
+
+| Function | Inputs | Outputs | Enables | I1 safe behavior |
+| --- | --- | --- | --- | --- |
+| GPIO | gpioIn[2:0] | gpioOut[2:0] | gpioEnable[2:0] | inputs ignored; output/enables zero; no wake |
+| Timer channels | timerIn[3:0] | timerOut[3:0] | timerEnable[3:0] | inputs ignored; output/enables zero; no capture/IRQ |
+| SPI ADC | adcMiso | adcSclk, adcCs_n | adcSclkEnable, adcCsEnable | MISO ignored; SCLK low, CS high; enables zero |
+
+All enables are active high; bidirectional interfaces separate input, output
+and enable. A timer channel uses one pin for capture or compare, not two
+independent pins. IMU DRDY remains a separate reserved timestamp input. The
+microsecond timebase is internal and adds no pin. GPIO wake/event capture and
+timer capture synchronization will use the shared CDC primitives in their
+future implementation; no asynchronous input is consumed by the inactive stub.
+GPIO/timer eventual reset ownership is the existing main/AON register-window
+contract; ADC is AON/lite-owned. Static inactive outputs require no clock/reset
+and cannot assert IRQ, wake or clock demand. All corresponding MMIO accesses
+continue to error in the existing GPIO, power/reset/timer and ADC windows.
+
+The ADC wire inventory comes from the pinned clocked RISCay
+`ClockedSpiAdc.scala` at `4671317186003740ceb61360ba08c59bbdf10136`, inspected
+in the T06 checkout under `build/riscay-mcu/`: MISO, SCLK and one CS, without
+MOSI or ready. This does not select an external ADC part, establish simultaneous
+voltage/current acquisition, or import its functional RTL.
+
+Estimated simultaneous digital pin demand (all existing baseline functions,
+real USB, and these inactive reservations):
+
+| Pad class | Estimated allocation arithmetic | Cited slot capacity | Remaining |
+| --- | --- | --- | --- |
+| Bidirectional-capable | UART TX 3 + SPI outputs 4 + I2C 4 + QSPI 7 + actuator 9 + USB data/pullup 3 + JTAG TDO 1 + ADC outputs 2 + timer 4 + GPIO 3 = 40 | 40 | 0 |
+| Input-only | UART RX 3 + SPI MISO 1 + IMU DRDY 1 + JTAG inputs 3 + VBUS 1 + ADC MISO 1 = 10 | 12 | 2 |
+
+Capacities are the historical slot figures in plan 08, not a freshly verified
+pad ring. Dedicated external clock/reset and the two analog pads are separate
+as in that source; I1's three externally supplied service clocks and multiple
+test reset controls are simulation/integration controls, not a package pinout.
+This explicit allocation totals 40 bidirectional/10 input-only functions and
+exceeds the earlier plan-07 bidirectional estimate by `40 - 32 = 8`.
+It does not change the slot limit or waive a fit
+check. No sharing or mux savings are assumed. `soc.yaml` and its checker account
+for every logical pin against the 40/12 nominal capacities and reject overflow.
+USB PHY pad eligibility, scan/test access sharing, analog requirements, clock
+source selection and physical assignment remain G1/physical-flow obligations.
+
 ## Verification and acceptance boundary
+
+The integrated core fixture may relocate the same modeled SRAM to QEMU RAM
+at `0x80000000` and ROM to `0x80010000`, retaining their production capacities,
+banking, arbitration and response timing. It explicitly separates the SRAM
+image from a ROM bootstrap at `0x80010080`; padded historical images must not
+be truncated into SRAM. All allocated ELF sections, BSS and reserved stack
+must fit the real SRAM capacity. Flight sources, compiler options, scenarios,
+loop windows and round-2 comparison limits remain unchanged; only the linker
+stack placement may change. Architectural test bytes remain unchanged.
+
+An elaboration-only verification option adds registered fabric targets for
+the existing QEMU finisher (`0x00100000`), MSIP (`0x02000000`) and flight markers
+(`0x10000000/4`). MSIP supplies the core's software interrupt. These targets
+return real bus responses and cannot supply architectural instruction results.
+Test SRAM initialization matches the old responder's image/zero initialization;
+it is not a production reset guarantee. Production defaults expose none of
+these targets or initialized SRAM. RVFI is the only retirement observation.
+This fixture qualifies integration against the existing suites, not the
+production address map, gateway, physical memory or final system acceptance.
 
 Before RTL: independent review of this contract and the generated map schema.
 Then model/negative-control tests for map generation, address errors, trusted
@@ -322,16 +456,177 @@ boundary/RDC/physical and sampling/exception obligations. T19's twelve packet
 claims qualify under their mixed-size policy, not all as full-size proofs.
 The block reports retain detailed simulation/bounded-proof/physical limits.
 
+### I1 composition implementation
+
+The I1 peripheral assembly is a core-independent submodule of the same top,
+with a main-domain performance MMIO port and an AON lite stand-in port. It
+uses the existing eight-target fabrics; serial and gateway subfabric apertures
+and membership come from `soc.yaml`. The I0 fixture remains available for
+unchanged performance comparisons. Main/AON ingress clamps forbidden routes
+to a statically checked unmapped address before fabric arbitration. Legal
+payloads remain unchanged; incoming bridges cannot bounce or reach the local
+mailbox staging interface. Lite origin is assigned at the trusted boundary.
+
+Disjoint remote fabric ports share one bridge in each direction. Their requests
+are one-hot with identical captured payload; the region index is retained on
+actual bridge acceptance and demultiplexes the response, including quarantine
+drainage. Destination acceptance credits live under destination-service reset,
+not peer/transport reset. Their empty indication acknowledges bridge quiescence
+only when destination and subordinate fabric isolation has also drained.
+Parent serial/gateway quarantine receives a registered acknowledgement built
+from child request/grant/response, waiting/isolation and endpoint activity. This
+recovers a parent timeout before child acceptance without reopening orphan work.
+Independent USB reset may cancel application work; its slot must recover through
+the fabric timeout/isolation and the actual application-reset acknowledgement.
+No serial engine `quiescent` signal is used as a bus-drain acknowledgement.
+
+All integration control inputs are explicit test-controller ports in their
+stated clock domains. Fixed owner settings, inactive sleep requests and external
+running clocks preserve I1's existing policy; this is not a power controller.
+Demand collection uses the cold/warm controller reset cohort, so an AON service
+reset does not erase a surviving main-domain request. USB wake contributes to
+both main and AON demand. These outputs exclude the core's independent running
+requirement and are not permission to stop either clock.
+
+The retained loader adapter rechecks halt/lock/range at actual acceptance. A
+malformed controller that revokes permission during an advertised registered
+grant causes no write or completion; the adapter quarantines until service
+reset. Normal loader completion follows the actual synchronous RAM write.
+
 The I0 implementation now connects the production core, modeled ROM/SRAM,
 local-memory adapter, fabric and UART0. Its focused boot test exercises SRAM
 byte writes and an FPU multiply, and prints through UART0. `clockHold` currently
 exports UART demand only: the main clock must continue running externally.
-Local memory has registered exclusive grants, synchronous word banks and
+Local memory has D65 exclusive current-request grants, synchronous word banks and
 accepted-beat response metadata. The service-reset MMIO slot survives a
 client-only reset and drains before releasing a new epoch. Focused control
 properties and tests are reported in the T20 report; this does not establish
 the brief's full SoC composition or gateway-based acceptance.
 
-No integrated area/timing, lockstep, performance or pin-fit result is claimed.
+D64 permits testing a current-cycle idle-slot donation exception to registered
+grants, as specified in the reference README. Only an idle instruction slot may
+serve data early; current fetch requests prevent donation. This experiment
+retains exclusive acceptance, the existing busy/reset guards and response
+latency. Retention requires correctness, performance and integrated timing
+qualification; approval alone does not change the accepted baseline.
+
+D65 extends the approved experiment to arbitrate current requests under
+contention. A client-reset preference initially favors instruction and changes
+to favor the other client on each accepted transfer. Only one beat is accepted
+per cycle. Data acceptance requires epoch readiness, no busy transaction and no
+public data response in the current cycle. The instruction grant can assert
+as soon as epoch readiness asserts, without the prior extra grant-register
+edge. Response latency, MMIO retention and reset scopes stay unchanged.
+Qualification of the combinational grant exception remains mandatory.
+
+The T20 report records focused QEMU-compared workload performance and diagnostic
+mapped logic timing/area for D65. D67's retained control passes I0 logic screening; physical memory,
+full lockstep acceptance and pin-fit qualification remain open.
+
+The opt-in T24 profile adds the D39 limited GPIO output alternate functions
+to the functional DMA assembly. At 0x40012200, each of three main-service
+selectors chooses disconnected, same-index GPIO, timer compare or PWM. The
+pad data/enable are registered, with a disabled interval on selection changes;
+firmware must quiesce a source when truncated pulses are unacceptable. Raw
+GPIO inputs and AON wake remain connected independently of output selection.
+Dedicated timer/PWM pins and all serial/input routes remain unchanged. Core
+and AON reset preserve the selection; main-service/cold/warm reset disconnects
+it. This is a logical profile and does not resolve physical pad-fit decisions.
 The user's no-CI instruction remains active. Fast
 and full tiers must be reported unrun until authorized; no task/gate is complete.
+
+## T26 optional digital watchdog profile
+
+D70 binds performance expiry to the existing performance core/client reset
+and PWM output disable. Main service fabric, SRAM service side, DMA and
+other peripherals survive; old accepted CPU MMIO drains before epochReady
+permits new fetch or PWM break acknowledgment. Lite expiry joins warm reset
+for ordinary main/AON/USB state, while POR-only causes, counts, reset hold
+and loader lock survive. External test clocks remain the clock sources.
+
+The power_reset_timer aperture contains its unchanged AON timer at offset0,
+performance watchdog at offset0x100 and lite watchdog at offset0x200, each
+256 bytes. Owners are respectively performance and lite. Register definitions
+come from watchdog.regmap.yaml. Performance pre-warning crosses shared CDC
+to irq_nm_i; enabled watchdogs retain AON demand. Cause bits0/1 report
+performance/lite expiry. Loader crashCount is the saturating sum of both
+channel counts, registered one AON edge later. The watchdog profile overrides
+the fixture's externally supplied resetReason/crashCount; prior profiles do not.
+
+PWM requires STOP acknowledgment followed by APPLY after reset in this
+profile. A surviving DMA APPLY cannot clear the output-disable latch. Pinmux
+PWM pads disable asynchronously; GPIO/timer alternatives survive performance
+expiry. Lite-watchdog reset currently invalidates loader START/validImage
+while retaining its programming lock, so this stage does not implement
+autonomous restart of a locked image. Physical clock/reset qualification,
+oscillator selection, lite-first boot and sleep/wake remain separate work.
+
+## T28 optional lite-first release
+
+The boot-control profile extends T26 with lite-owned MMIO at0x40000300,
+size0x100, in the existing AON power_reset_timer parent. Status0x00 exposes
+boot_seen/released; full-word key0x50455246 to release_core0x04 releases
+performance only after a validated recovery START. Events0x08 records early
+or incorrect keys. The owner is the real lite hart; the stand-in bus input
+is inert in this production profile.
+
+boot_seen records a START in this whole-reset epoch, not current lite health.
+Both flags survive AON service reset; adapter/register pulses do not survive
+that reset. Whole reset asynchronously clears the release. The release enters
+only the existing performance core/client reset synchronizer, preserving
+shared service/DMA/PWM reset scopes and the memory epoch drain. Correct
+repeated keys are idempotent. A START and key on the same AON edge cannot
+release performance on that edge.
+
+External clocks and earlier profiles are unchanged. No production flash boot,
+image authentication, oscillator selection, sleep control or autonomous
+locked-image warm restart is implied. Those remain separate qualification
+and implementation work. See hw/ip/boot_control/README.md for the full contract.
+
+## T29 optional QSPI command profile
+
+The T29 profile replaces only qspi_control at0x40013000/4096 bytes, using the
+existing two chip selects, four bidirectional data pins and SCLK. It extends
+T28 with bounded mode0 serial/quad commands and registered demand. XIP remains
+an error target. No new interrupt or DMA endpoint is assigned.
+
+This profile explicitly adds idle-only keyed ownership handoff between lite0
+and performance1. Reset owner is lite. The historical I1 fixed-owner contract
+continues for older profiles and other peripherals. The endpoint rechecks
+trusted origin at admission through its single-outstanding adapter; handoff's
+response returns to its original requester and subsequent former-owner
+requests fail. Main-service reset clears the controller and disables pads;
+AON and performance-core resets preserve an already accepted flash command.
+
+The engine never holds CS for software continuation or automatically polls
+flash busy. Each frame and CS-high gap is bounded in serviced main-clock edges.
+Firmware owns part configuration, write-enable/program/erase sequencing and
+completion polling. Resetting the controller cannot undo a flash-internal
+operation already accepted. Full production boot, XIP/logging arbitration,
+flash compatibility, throughput and physical pad timing remain open. The
+authoritative command/pin contract is hw/ip/qspi/README.md.
+
+## T30 optional native flash profile
+
+The T30 profile extends T29 with a registered native local-memory connection
+to the existing XIP window. Aligned performance instruction/data reads share
+the QSPI engine with captured CS1 software commands. Native permission is
+independent of MMIO configuration ownership; DMA remains SRAM-only. The
+peripheral fabrics and their response deadlines are unchanged.
+
+Native words are little endian. A three-byte flash address rejects offsets
+outside its representable range; four-byte addressing uses the whole window.
+Disabled XIP, writes and invalid origins/addresses return zero plus error.
+Idle-only keyed configuration lives at QSPI offsets 0x100 through 0x10c.
+Raw CS0 commands are denied while XIP is enabled. Firmware configures the
+part and polls it ready before enabling reads, executing configuration code
+from ROM/SRAM. Complete frames arbitrate round robin without preemption.
+
+The local memory controller retains an accepted read across client reset,
+suppresses its orphan response and waits for both native and MMIO drains
+before epochReady. Main-service reset aborts the controller and disables pads.
+Later fetches cannot overtake an outstanding native instruction read; local
+data and DMA traffic may proceed independently. No cache or prefetch is added.
+See hw/ip/qspi_xip/README.md for the complete contract and estimated bound.
+Production image selection/recovery, flash-part compatibility, system
+performance and physical qualification remain separate.

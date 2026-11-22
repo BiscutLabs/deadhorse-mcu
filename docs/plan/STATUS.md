@@ -1,6 +1,6 @@
 # Status
 
-Single progress tracker. Last updated: 2026-11-20.
+Single progress tracker. Last updated: 2026-11-21.
 States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete,
 `[-]` withdrawn.
 Decision checks record the user's approvals, not implementation completion.
@@ -32,7 +32,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D18 | Historical lite-core option | Deferred historical option; no initial implementation |
 | [x] | D19 | FPU inclusion | Approved direction; qualification remains open |
 | [x] | D20 | FPU implementation | Approved direction; qualification remains open |
-| [x] | D21 | Actuator publication | Approved direction; qualification remains open |
+| [x] | D21 | Actuator publication | Historical approval; dedicated hardware superseded by D69; application validation remains open |
 | [x] | D22 | UART sleep modes | Approved direction; qualification remains open |
 | [x] | D23 | Tool environment | Approved direction; qualification remains open |
 | [x] | D24 | Buses and ownership | Approved direction; qualification remains open |
@@ -42,13 +42,13 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D28 | GPS and compass | Approved direction; qualification remains open |
 | [x] | D29 | Airspeed | Approved direction; qualification remains open |
 | [x] | D30 | RC | Approved direction; qualification remains open |
-| [x] | D31 | Actuator fault detection | Approved direction; qualification remains open |
-| [x] | D32 | Actuator count | Approved direction; qualification remains open |
+| [x] | D31 | Actuator fault detection | Historical approval; dedicated hardware superseded by D69; application validation remains open |
+| [x] | D32 | Actuator count | First-application capacity retained; specialized hardware roles superseded by D69; qualification remains open |
 | [x] | D33 | Actuator parts | Approved direction; qualification remains open |
 | [x] | D34 | Boot authentication | Approved direction; qualification remains open |
 | [x] | D35 | External clock | Approved direction; qualification remains open |
 | [x] | D36 | Performance SRAM access | Approved direction; qualification remains open |
-| [x] | D37 | Reset containment | Approved direction; qualification remains open |
+| [x] | D37 | Reset containment | Generic containment retained; actuator-specific failsafe state superseded by D69; qualification remains open |
 | [x] | D38 | Supply monitor | Approved direction; qualification remains open |
 | [x] | D39 | Pin multiplexing | Approved direction; qualification remains open |
 | [x] | D40 | USB boundary | Approved direction; qualification remains open |
@@ -74,12 +74,17 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D60 | USB packet stimulus E1 | Approved; exact producer guarantees required |
 | [x] | D61 | USB CDC push spacing E2 | Conditional approval; spacing must be proved |
 | [x] | D62 | USB small-model cover depth E3 | Approved depth 128 for covers only |
+| [x] | D68 | Split AON/main timer services | Approved 2026-11-21; implementation/qualification in T21 |
+| [x] | D69 | General-purpose MCU hardware boundary | Approved 2026-11-21; conventional timer/PWM/DMA, application policy in firmware; PLAN02 reconciliation |
+| [x] | D70 | Performance watchdog reset scope | Approved 2026-11-21; core/client reset and PWM disable, preserve shared services |
+| [x] | D71 | Retire hardware-scaled ADC register | Approved 2026-11-21; raw acquisition and firmware conversion, other offsets unchanged |
 
 ## Tasks
 
 | | ID | Item | Owner | Depends on | Report |
 | --- | --- | --- | --- | --- | --- |
 | [x] | PLAN01 | [Reconcile decisions](tasks/PLAN01-reconcile.md) | Codex | User approvals | [Report](tasks/reports/PLAN01.md); documentation only |
+| [x] | PLAN02 | [General-purpose MCU scope](tasks/PLAN02-general-mcu.md) | Codex | User direction D69 | [Report](tasks/reports/PLAN02.md); documentation checks and independent review pass; no RTL or CI |
 | [x] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | Codex | none | [Report](tasks/reports/T08.md); clean rebuild and runtime smoke pass |
 | [x] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | Codex | T08 | [Report](tasks/reports/T01.md); local gate and fresh-context review pass |
 | [x] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | Codex | T01, T08 | [Report](tasks/reports/T02.md); exact QEMU matches, historical summary preserved, local gate passes |
@@ -100,7 +105,18 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T17 | [I2C controller](tasks/T17-i2c-host.md) | Codex | T05, T07, T09, T14, T16 | [Report](tasks/reports/T17.md); 19 simulations, GF180 timing and fast CI active checks pass; eight I2C formal jobs remain deferred/unproved |
 | [x] | T18 | [Lite I2C recovery loader](tasks/T18-i2c-recovery-loader.md) | Codex | T06, T07, T09, T14 | [Report](tasks/reports/T18.md). Wire-to-memory recovery and warm-reset lock retention verified. |
 | [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): all twelve independent-reset packet claims qualify (five full-size, seven small-model with full-size simulation). Routed setup, hold/RDC, physical signoff and sampling/exception obligations remain. Acceptance incomplete; no CI |
-| [~] | T20 | [Reference SoC integration, I0–I1](tasks/T20-soc-integration.md) | Codex | T05, T07, T09, T13, T14–T19, S3 | [I0 boot/control milestone](tasks/reports/T20.md): core/ROM/SRAM/fabric/UART connected, 13 focused simulations and local control proof pass; integrated lockstep, I1 and measurements pending; no CI |
+| [!] | T20 | [Reference SoC integration, I0–I1](tasks/T20-soc-integration.md) | Codex | T05, T07, T09, T13, T14–T19, S3 | [Pin-contract checkpoint](tasks/reports/T20.md#gpio-adc-timer-contract-continuation-2026-11-21): GPIO/ADC/timer logical contracts and safe I1 bindings complete; focused simulations/map tests, pad proofs/faults and both top emissions pass with independent review. Physical pin fit, system/CDC and I1 timing/area remain; local main changes, no CI |
+| [x] | T21 | [GPIO, timers and retained ADC](tasks/T21-flight-io.md) | Codex | T05, T07, T09, T14, T20 interfaces | [Report](tasks/reports/T21.md): functional GPIO/ADC/D68 split timers and SoC profile complete; frozen focused checks and independent review pass; CI unrun by user instruction, physical/T20 qualification separate |
+| [x] | T22 | [General-purpose PWM](tasks/T22-pwm.md) | Codex | D69, T21, T20 interfaces | [Report](tasks/reports/T22.md): generic PWM and SoC profile implemented; frozen focused simulations, scoped proofs, setup/electrical timing and independent review pass. DMA controller, physical qualification and CI remain open |
+| [!] | T23 | [Basic DMA controller](tasks/T23-dma.md) | Codex | D25, D69, T22, T20 interfaces | [Report](tasks/reports/T23.md): RTL, frozen 62 tests/four top emissions and block timing pass; one range proof unresolved; helper approval pending; no CI |
+| [x] | T24 | [Limited GPIO output pin mux](tasks/T24-pinmux.md) | Codex | D39, D69, T21–T23 interfaces | [Report](tasks/reports/T24.md): functional RTL, frozen 71 tests/four top emissions, 18 assertions and timing pass; independently reviewed; no CI; physical qualification separate |
+| [!] | T25 | [Clocked lite core adoption](tasks/T25-lite-core.md) | Codex | D1, T06, T14, T18, T20/T24 interfaces | [Report](tasks/reports/T25.md): real AON hart/loader binding, 28 frozen tests/four top emissions, baseline/control proofs and mapped timing pass; independent review clear. Full ISA/machine formal open after capped ADDI triage; no CI |
+| [!] | T26 | [Digital watchdog/reset supervision](tasks/T26-watchdog.md) | Codex | D70, T20/T22/T24/T25 interfaces | [Report](tasks/reports/T26.md): D70 RTL, frozen functional/top checks, output-disable proofs and corrected mapped setup/electrical screens pass; independent review clear. Full-width watchdog proof unresolved; physical qualification and CI open; uncommitted on main |
+| [x] | T27 | [Raw ADC acquisition](tasks/T27-adc-raw.md) | Codex | D69, D71, T21 | [Report](tasks/reports/T27.md): raw production ADC and retired0x14 ABI complete; frozen focused tests, component proofs, wrapper timing and four whole tops independently verified. No CI; physical qualification separate; local main changes |
+| [x] | T28 | [Lite-first performance release](tasks/T28-boot-release.md) | Codex | T25/T26/T27 interfaces, plans07/16 | [Scoped digital handoff verified](tasks/reports/T28.md); production boot/physical qualification open, no CI |
+| [x] | T29 | [Bounded QSPI command interface](tasks/T29-qspi-command.md) | Codex | Plans04/07, T28 interfaces | [Command-mode RTL verified](tasks/reports/T29.md); frozen focused checks and independent review pass; XIP/boot/physical open, no CI |
+| [x] | T30 | [Native QSPI read path](tasks/T30-qspi-xip.md) | Codex | Plans03/07, T29 interfaces | [Native flash RTL verified](tasks/reports/T30.md); frozen focused checks and independent review pass; production boot/physical open, no CI |
+| [!] | T31 | [Retained locked-image restart](tasks/T31-retained-loader-restart.md) | Codex | T18/T25/T28/T30 interfaces | [Proposal reviewed](tasks/reports/T31.md); blocked before RTL on explicit reset-policy approval; no CI |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -163,6 +179,104 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 
 ## Log
 
+- 2026-11-21: User requested committing all accumulated work on main and pushing for review. This publication supersedes the historical local/uncommitted/no-push checkpoint notes. It includes the SoC/peripheral/native-flash implementation and the pending T31 proposal; it does not close unresolved task acceptance or approve T31's reset-policy change. Repository hygiene and independent snapshot review apply; neither CI tier is run. Final staging removes trailing blank lines only from existing verification scripts, with prior bytes and a hash manifest retained under build/commit-review.
+
+- 2026-11-21: T31 proposal and brief independently reviewed; documentation checks pass and prior frozen implementation hashes are unchanged. Blocked before RTL on the pending explicit decision to permit host-commanded restart of a retained verified-and-locked image after warm/AON reset. No policy change, RTL acceptance, CI, commit or push is claimed.
+
+- 2026-11-21: T31 contract preparation started under continued RTL. Independent review identified the existing explicit warm-reset image-invalidation policy; a narrow retained locked-image restart decision is pending before implementation. No RTL or CI change.
+
+- 2026-11-21: T30 native QSPI read path completed on main. Ordered instruction/data flash reads share the existing engine with queued CS1 commands; reset drains preserve shared services. Real recovery-loaded lite and performance execution, all frozen focused tests/proofs/faults, mapped controller/local-memory timing and complete profiles pass. Independent review verified final hashes, reset binding and exact memory projection. Production boot, system performance, physical qualification and inherited proof/CI work remain open; no CI, commit or push.
+
+- 2026-11-21: T30 started under continued RTL. Reviewed optional native XIP read path, bounded command/read arbitration, little-endian response and client-reset draining; preserve peripheral watchdogs and prior profiles, no CI.
+
+- 2026-11-21: T29 command-mode QSPI completed on main. Bounded serial/quad transfers, keyed idle ownership handoff and existing pad/window/reset/demand integration verified. Frozen focused wire/engine/owner/SoC regressions, safety proofs/faults, mapped GF180 screen and all complete tops pass. Independent review verified corrected edge-count/gap oracles and final source/artifact/binding evidence. XIP, production boot, flash/physical qualification and inherited acceptance remain open; no CI, commit or push.
+
+- 2026-11-21: T29 started under continued RTL on main. Reviewed bounded QSPI command-mode subset, existing pads/window, main-service reset and idle-only core ownership handoff. XIP and production boot remain separate; no CI.
+
+- 2026-11-21: T28 scoped digital release completed on main. Real recovery START and lite firmware release performance through shared reset/epoch control; independent service reset preserves release, whole reset clears it. Frozen focused tests/proofs, conservative GF180 block screen and all complete-top variants pass; independent review accepted corrected in-flight command cancellation and exact evidence/bindings. Production flash/locked-image restart, physical qualification and inherited acceptance remain open. Neither CI tier run; coupled workspace remains uncommitted.
+
+- 2026-11-21: T28 started under continued RTL. Independently reviewed lite-first performance core/client release using validated loader START, retained whole-reset-epoch flags and existing reset synchronizers. Earlier profiles, service reset containment and loader lock preserved; no clock-source choice, flash boot claim or CI.
+
+- 2026-11-21: T27 D71 functional migration complete. Production raw ADC retires0x14 while preserving other offsets, ownership/reset and event semantics. Frozen 14 tests/four suites, engine/publication/owner proofs and legacy bounded scaler check with faults/covers, firmware arithmetic/both ABI links, full-wrapper setup/electrical screen and four whole tops pass. Independent review verified 1,168 source/640 artifact hashes and exact emitted decode/bindings. No CI, physical signoff, commit or push; inherited tasks remain open.
+
+- 2026-11-21: User approved D71 retiring the unneeded scaled ADC register. T27 resumes production raw acquisition/MMIO/SoC integration and focused verification, preserving other offsets and protocol/reset semantics. No CI.
+
+- 2026-11-21: T27 staged checkpoint independently reviewed: raw engine, generic firmware conversion, ten tests/three suites, seven unbounded assertions/covers/fault and mapped setup/electrical checks pass. Frozen aggregate retains its structure failure; encoding-only repair of inherited T26 documentation and separate structure recheck pass. Production0x14 ABI retirement awaits the user decision; current wrapper/map/SoC unchanged. No CI, commit or push.
+
+- 2026-11-21: T27 started under continued RTL/D69. Independently reviewed staged raw ADC engine and firmware conversion; preserve production ABI pending explicit0x14 retirement decision. No CI or unrelated formal retries.
+
+- 2026-11-21: T26 implements D70 with core/client-only performance-watchdog reset, PWM break/STOP acknowledgment and GPIO alternate-output disable; shared services and DMA survive. Actual epochReady blocks retained pre-reset STOP from clearing the break. Measured frozen 28 tests/11 suites, four top emissions and five output-disable assertions pass; supplemental 4-test epoch suite catches the explicit bypass fault. Original reset-net electrical failures are preserved; default-off verified reset buffers bring watchdog/PWM to zero electrical violations, with unchanged timing limits. Final source/artifact chain and identical measured buffer graphs independently verified. Full-width channel proof remains unresolved after capped initial/portfolio attempts; no helpers, CI, commit or push. Physical and broader I3 work remain open. See T26 report for commands and measured numbers.
+
+- 2026-11-21: D70 explicitly approved: performance watchdog resets core/client epoch and disables PWM, preserving shared buses, DMA and other peripherals. Started T26 digital supervision on existing external clocks; no CI or production boot/sleep claim.
+
+- 2026-11-21: T25 implemented the pinned clocked RV32E adoption, registered bus adapter, minimal machine CSR/trap/IRQ/WFI and opt-in real AON hart. Loader-wire firmware exercises retained SRAM, timer/mailbox IRQs, MRET/WFI, ownership and independent resets. Independent review resolved the START/halted handoff and RVFI lane convention. Frozen 28 tests/nine suites, four complete top emissions, provenance/map/structure, full baseline named-state and adapter/control proofs pass. Fresh mapped RR 63.398540ns against unchanged66.666667ns estimate; physical qualification separate. ADDI architectural proof remains unresolved after PDR/portfolio/data-cut attempts under120s caps; full ISA/machine formal stays open. Independent review verified all current hashes and emitted bindings. No CI, commit or push; coupled work remains local on main.
+
+- 2026-11-21: User requested continued RTL after T24. Started T25 pinned clocked lite-core adoption and AON binding. Baseline equivalence precedes the already-required CSR/IRQ/WFI extension; loader-started profile preserves existing clocks, memory permissions and earlier profiles. Contract review before RTL, no CI, inherited acceptance issues remain open.
+
+- 2026-11-21: T24 implemented three registered GPIO output selectors with GPIO/timer/PWM alternatives, reset disconnect, disabled handover and clock retention. Frozen focused checks passed 71 tests in 19 suites, ten map checks, structure and four whole-SoC emissions; 18 unbounded assertions, eight covers, three actual faults and the unchanged GF180 timing screen pass. Independent review verified 1104 source/591 artifact hashes and emitted wiring, plus formal/timing manifests. Existing dedicated pins, raw GPIO input/wake and prior profiles preserved. No CI, commit or push; coupled local work remains on main and inherited T23 range proof/physical qualification remain open.
+
+- 2026-11-21: User requested continued RTL after T23. Started T24 limited output alternate functions on existing GPIO pads under D39/D69; dedicated pins/input/wake preserved, contract review before implementation, no CI. T23 proof remains separately open.
+
+- 2026-11-21: T23 implemented four DMA channels and optional SoC/SRAM binding. Frozen focused run passed 62 tests, ten map checks, structure and four whole-top emissions; DMA and memory-control GF180 screens pass the existing budget. Nine engine and seven denied-wrapper safety assertions prove; one memory-range assertion remains unresolved after portfolio/exact partition, with covers and actual faults passing. Independent RTL/formal/timing and frozen-evidence review cleared this incomplete checkpoint, verifying 1092 source and 575 artifact hashes. Helper-invariant approval requested under timeout triage. No CI, commit or push; inherited local T20/T21/T22 work preserved on main.
+
+- 2026-11-21: User requested continued RTL after T22. Started T23 basic DMA contract and integration under D25/D69; performance-owned memory and existing endpoint permissions, preserved prior profiles, independent review and focused checks. No CI.
+
+- 2026-11-21: T22 functional PWM checkpoint complete: buffered independent channels, MMIO, request/overrun interface, IRQ10/pins/clock-demand binding and explicit reset contract. Frozen simulations and four whole-SoC emissions pass; safety/update proofs, covers/faults and GF180 setup/electrical screen pass with independent source/evidence review. No CI or physical qualification; DMA controller remains separate. Work remains local on main with inherited dependencies.
+
+- 2026-11-21: User requested continued RTL under D69. Started T22 generic PWM channels in the existing reserved window/pins; contract review precedes implementation. DMA controller remains separately scoped; no CI.
+
+- 2026-11-21: PLAN02 completed: D69 reconciled across active hardware/reset requirements; specialized actuator proposal retained as superseded history. Documentation scope/link/decision checks and independent review pass. Generic PWM/DMA and ADC scaling migration need scoped implementation; no RTL, ABI, test or acceptance-limit changes, no CI, no implementation gate closed.
+
+- 2026-11-21: User approved D69: moderately general-purpose MCU, conventional peripherals rather than dedicated flight-actuator hardware. PLAN02 reconciles current planning; firmware owns protocols and application fault policy. No RTL/ABI/test changes or CI.
+
+
+- 2026-11-21: T21 functional implementation complete: GPIO, ADC and D68 main/AON timers bind through the explicit SoC profile. Frozen focused simulations, four whole-top emissions, scoped proofs/covers/faults and independent source/artifact reviews pass; GPIO mapped reset buffering clears electrical failures. No CI; physical qualification and inherited T20 issues remain open. Changes remain local with the prior uncommitted T20 dependencies.
+
+- 2026-11-21: User approved D68 split timers: preserve AON sleep deadlines and add the precise main timebase/capture/compare service in unused GPIO space. Implementation proceeds under T21; no clock choice or CI change.
+
+- 2026-11-21: User assigned functional GPIO/ADC/timer implementations after pin-contract closure. Created T21 brief; preserve I1 profile and approved AON timer semantics. Proposed main/AON timer split awaits explicit decision; GPIO and ADC proceed independently, no CI.
+
+- 2026-11-21: Completed requested GPIO/ADC/timer logical contracts and safe RTL bindings: provisional three GPIO, four shared capture/compare channels and receive-only ADC pins. Estimated simultaneous allocation 40/10 against cited 40/12 slot, not physical fit. Frozen focused integration passes, final map faults and six static-pad assertions/four actual enable faults qualify; independent review clears hashes and emitted tops. No CI, commit/push or full T20 completion; physical/system/CDC/timing work remains.
+
+- 2026-11-21: User requested GPIO/ADC/timer pin contracts and remaining integration RTL. Independently reviewed provisional 3-GPIO/4-timer/receive-only-ADC allocation against cited 40/12 slot; extending safe I1 ports and executable pin accounting, no new functional peripheral or CI.
+
+- 2026-11-21: RTL-first checkpoint completes the defined inactive QSPI/actuator/JTAG/IMU boundary in both I1 variants. Frozen focused simulations and map tests pass, static-pad proof/covers/actual fault qualify without assumptions, both whole tops emit and independent review clears the source/artifact evidence. Undefined GPIO/ADC/timer pin allocation and system/CDC/timing qualification remain; no CI or commit/push.
+
+- 2026-11-21: User requested remaining RTL first. Completing the approved I1 inactive QSPI/actuator/JTAG and IMU input boundary, with independent contract review and focused checks; no CI, no new peripheral implementation or GPIO pin-allocation decision.
+
+- 2026-11-21: User assigned continued I1 integration. Reviewed existing reset, ownership and routing contracts; implement existing blocks and honest stubs with focused integration checks. No peripheral behavior change, clock-source decision or CI; inherited qualifications remain.
+- 2026-11-21: User requested continuation after the I1 checkpoint. Reuse the independent USB wire host against the integrated fabric/MMIO boundary and extend reset recovery coverage; keep CI disabled and work on main.
+- 2026-11-21: Frozen continuation passes four focused simulations across USB wire/MMIO, both bridge directions and full-core MMIO reset, including actual data/reset wiring faults. Independent review strengthened cancellation to require an error before destination clock restart. Production RTL unchanged from prior checkpoint; no CI, commit or full T20 completion claim.
+- 2026-11-21: I1 checkpoint on main: existing serial/AON blocks, bridges/mailbox, recovery loader/retained SRAM and real-or-stub USB bound into DeadhorseSoc. Frozen focused run passes 13 simulations and emits both complete variants; four source-bound ABC PDR glue groups, covers and actual faults pass. Independent review resolved nested gateway timeout recovery and checked proof receipts. Full T20 acceptance remains incomplete; fast/full CI unrun, changes uncommitted.
+
+- 2026-11-20: D67 measured original-MAC control RR 66.563103 ns versus FA 66.426033 ns and 4:2 69.822578 ns. Retain unchanged arithmetic with verified extraction/reinsertion and reversible private naming; both trial-clock screens, electrical, hold/reset and gate checks pass. Independent review confirms graphs, hashes, scripts and timing. The earlier improvement is synthesis-order sensitive; no RTL, clock decision, CI, commit or complete T20 acceptance.
+
+- 2026-11-20: User approved D67 isolated fused-MAC synthesis experiment: compare full-adder and 4:2 compressor trees with prefix final addition, preserving FMA, production RTL, latency and all limits. Exact arithmetic proof, verified reinsertion, integrated timing and independent review required; no CI.
+
+- 2026-11-20: D66 grouped MAC carry candidate proves six leaf/333 core states equivalent with nine rejecting faults; 26 simulations and unchanged 4,350/9,007 worst-cycle measurements pass. Same GF180 mapping regresses RR 70.011482 to 79.044106 ns through loss of fused MAC compression; independently reviewed and rejected. Archived candidate and restored original core byte-for-byte. D65 remains local, 9 MHz setup unresolved. No CI, commit or push.
+
+- 2026-11-20: User approved D66 focused MAC carry-network experiment. Preserve signed multiply, ownership, interfaces and latency; requalify exact equivalence, unchanged performance and timing, with independent review. No CI or clock decision.
+
+- 2026-11-20: Reset-only mapped buffer trees verified; direct release loads reduced to eight each, all 2,869 RN/SETN endpoints checked, electrical/hold/reset and dynamic ICG checks pass. Reporting optimization reproduces baseline path bytes exactly; 32 focused timing tests pass. Two cell-sizing trials regressed and were rejected; 60000 ps mapping produced the same netlist. XOR balancing improves full-top RR to 70.011482 ns (RVFI capture), while functional RF is 69.443718 ns; both still miss 9 MHz. Independent evidence review complete; requested separate same-cycle core MAC scope. No core RTL change, CI, commit or push.
+
+- 2026-11-20: User authorized reset-distribution buffering/sizing first, followed by remeasurement and mapping/loading diagnosis of the core decode-to-register-file path. Preserve reset behavior and all timing/performance limits; focused checks and independent review only, no CI.
+
+- 2026-11-20: D65 measured worst 4,350 fixed / 9,007 hard-float cycles within unchanged limits; fourteen simulations, eleven control proofs, covers/fault and five fixture tests pass. Corrected a startup-SP checker false positive without changing bounds. Independent review verified raw windows/hashes. Integrated request/grant paths max 51.692348 ns, but whole-I0 RR 71.469757 ns misses 9 MHz's 66.666667 ns budget and 2,866 electrical violations remain at both clocks. No macro timing/area qualification, further RTL restructuring, CI, commit or push; candidate remains local.
+
+- 2026-11-20: User approved D65 current-request arbitration including contention. Retain registered fairness/responses and reject new data during response return; focused unchanged checks and independent review, no CI.
+
+- 2026-11-20: D64 idle-only donation rejected. Fourteen simulations passed; unchanged control proof found registered-MMIO-response/new-accept overlap. Fresh performance and complete RVFI/cycle traces equal baseline: worst 4,821 versus limit 4,785. Independent review verified hashes/counts and diagnosed the counterexample. Archived candidate/test and restored baseline. No timing qualification, hard-float, CI, commit/push or broader arbitration change.
+
+- 2026-11-20: User approved research recommendation's narrow same-cycle idle instruction-slot donation experiment (D64), including a grant-output exception subject to checks. Late independent review and a pinned read-only trace recount find zero idle-fetch data-wait opportunities in baseline. Test only the approved scope; no contested-request redesign or CI.
+
+- 2026-11-20: T20 two-idle qualifier passed fourteen simulations and unchanged control proof/covers/fault, but measured fixed worst 4,819 remains 34 cycles above 4,785; mean slightly worsens versus baseline. Independent source/hash/raw-window review confirmed. Archived candidate/test and restored baseline arbitration; passive bus diagnosis retained locally. Hard-float, CI, further restructuring and commit/push not run.
+
+- 2026-11-20: User approved the narrow two-consecutive-fetch-idle parking experiment. Passive request/grant trace exactly reproduces baseline RVFI and cycles; testing the qualifier with unchanged workloads, limits and checks. No CI.
+
+- 2026-11-20: Approved T20 parking experiment passed the 13 unchanged regressions, added parking/restart/reset test and control proof/covers/fault. Fresh QEMU-compared fixed workload regressed to mean 4,314.125 / worst 4,835 cycles; unchanged limit 4,785 still fails. Independent review confirmed raw counts/hashes. Rejected and archived candidate/test, restored exact prior arbitration; hard-float and further restructuring not attempted. No CI or commit/push.
+- 2026-11-20: User approved the focused registered idle-data-grant parking experiment following the 4,821-cycle performance stop. Preserve first-fetch readiness, busy/reset exclusions, fairness, all tests and the unchanged +10% limit. No bank-parallel rewrite or CI authorized by this experiment.
+- 2026-11-20: T20 integrated fixed-point measurement passes unchanged QEMU comparison and observation faults, but worst 4,821 cycles exceeds the unchanged 4,785-cycle stop threshold. Independent raw-trace/receipt review confirms result. Stopped before hard-float/arch suite and restructuring; requested approval for a narrow registered idle-grant parking experiment. Production arbitration remains unchanged; no CI.
+- 2026-11-20: T20 continuation starts integrated lockstep/performance qualification using an independently reviewed QEMU-map verification configuration of the real I0 memory/fabric path. Production defaults and round-2 limits unchanged; no CI.
 - 2026-11-20: T20 I0 boot/control milestone on main: production faithful RV32IMFC, native local ROM/banked SRAM path, retained MMIO, main fabric and UART0 connected. Thirteen focused simulations pass; eleven local-memory control assertions prove with covers and a rejecting fault. Independent review resolved reset-test and receipt gaps. Integrated lockstep, performance/timing, I1, pin fit and gateway target transport remain open. No CI; no T20 completion or gate claimed.
 - 2026-11-20: T20 initial contract/map milestone on main: documented reset scopes, memory permissions, bridge/loader/stub boundaries and inherited limits; provisional schema emits configuration and checks spec/register/IRQ consistency. Seven focused tests pass with negative controls. No connected SoC RTL, timing, solver or CI result claimed; gateway target transport remains a user question, Q15/Q16 remain open.
 

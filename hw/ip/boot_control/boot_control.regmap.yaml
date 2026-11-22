@@ -1,0 +1,16 @@
+block: boot_control
+description: Lite-owned performance core release
+data_width: 32
+address_width: 8
+registers:
+  - name: status
+    offset: 0x00
+    fields:
+      - {name: boot_seen, bits: 0, access: ro}
+      - {name: released, bits: 1, access: ro}
+  - name: release_core
+    offset: 0x04
+    fields: [{name: key, bits: [31, 0], access: wo}]
+  - name: events
+    offset: 0x08
+    fields: [{name: command_error, bits: 0, access: w1c, reset: 0}]

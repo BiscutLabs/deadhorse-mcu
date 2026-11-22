@@ -50,12 +50,13 @@ The SoC is assembled in stages I0–I5 of
 top with existing blocks and honest stubs (I0–I1); each later block brief
 replaces its own stub. Under separately assigned integration briefs: adopt/restructure RISCay clocked
 logic, integrate selected core/FPU and word-wide SRAM, bus/ownership/CDC, shared
-sleep peripherals/DMA, domain bridge and mailbox, timers, actuator and pin mux. Establish
+sleep peripherals/DMA, domain bridge and mailbox, general timer/PWM outputs and pin mux. Establish
 two-image boot/recovery, unlocked both-core JTAG and UART gateway, USB stub.
 
 Implement independent models for selected sensors/actuators, timer-driven flight
-firmware and system/FPGA tests. Resolve command-timeout/recovery and publication
-buffering before actuator ABI freeze. Include scan, SRAM self-test and analog
+firmware and system/FPGA tests. Specify generic PWM buffered-update and DMA contracts before their ABI freeze;
+application command-timeout/recovery and publication remain firmware concerns
+under D69. Include scan, SRAM self-test and analog
 test controls. Do not import neural IP or add a chip-to-chip link.
 
 **G2:** simulated flight through hover/transition/forward flight, real actuator

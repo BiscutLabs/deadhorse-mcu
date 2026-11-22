@@ -1,5 +1,26 @@
 # T11 conversion properties
 
+## T20 D66 shared-MAC revision diagnostic
+
+`check_mac_revision.py` compares archived and candidate shared-MAC emissions
+with the existing named-state induction engine, then compares the complete
+emitted faithful RV32IMFC tops. It authenticates the production SoC emission
+receipts and requires every emitted parent to remain identical. It proves
+multiplier operand equality before sharing a symbolic product; no environment
+assumptions or state exclusions are added. Existing output/reset/next-state/
+multiply-sign/gained-reset controls remain, with an additional mutation of a
+real nibble carry at all its loads. A complete result requires every fault to
+be rejected and every input hash to remain unchanged.
+
+Measured at `72bcfac` plus D65/D66 working changes, the command in the T20
+report produced `build/t20/mac-prefix/equivalence-04/result.json`: six leaf
+state elements and 333 whole-core state elements proved equivalent, with nine
+rejecting controls. Independent review checked the input/artifact hashes and
+reversed the carry mutation to recover the original candidate exactly.
+This is revision equivalence, not a new ISA proof or physical qualification.
+The candidate is rejected for slower mapped timing; its proof remains archived
+evidence and does not authorize retaining the RTL. No CI was run.
+
 The primary property is equality of every output and named next-state,
 reset, clock and enable function to the pinned reference. It is checked by
 `dv/core/equiv.py`, with state correspondence in `dv/core/module_map.json`.

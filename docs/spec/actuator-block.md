@@ -1,4 +1,18 @@
-# Actuator block
+# Historical actuator-controller proposal
+
+**Superseded as a hardware contract by D69 (2026-11-21). Do not implement this
+specialized block.** Retained below as historical application requirements and
+protocol examples. New RTL uses conventional timer/PWM/capture/compare and DMA;
+firmware owns DShot encoding, command publication/freshness, arming/recovery,
+endpoint mapping and per-actuator failsafe policy. Generic reset/watchdog and
+ordinary timer output-disable behavior remain hardware concerns.
+
+The replacement generic PWM/DMA brief has not been assigned. Existing output
+stubs, pin reservations and register windows are unchanged by this note.
+See [the current peripheral plan](../plan/07-peripherals-memory-boot.md).
+
+## Historical draft (not current RTL acceptance)
+
 
 Draft v0.2, 2026-11-13. Approved architectural behavior reconciled with
 D21/D31/D32/D33/D37; not implemented. The previous global-period register

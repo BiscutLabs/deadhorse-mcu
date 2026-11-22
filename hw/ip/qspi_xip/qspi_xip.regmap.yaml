@@ -1,0 +1,26 @@
+block: qspi_xip
+description: Additional registers for the optional native QSPI read path
+data_width: 32
+address_width: 12
+registers:
+  - name: xip_configuration
+    offset: 0x100
+    fields:
+      - {name: enable, bits: 0, access: rw, reset: 0}
+      - {name: address_bytes, bits: [3, 1], access: rw, reset: 3}
+      - {name: quad_address, bits: 4, access: rw, reset: 0}
+      - {name: quad_data, bits: 5, access: rw, reset: 0}
+      - {name: opcode, bits: [15, 8], access: rw, reset: 3}
+  - name: xip_timing
+    offset: 0x104
+    fields:
+      - {name: half_period, bits: [7, 0], access: rw, reset: 4}
+      - {name: dummy_clocks, bits: [12, 8], access: rw, reset: 0}
+  - name: xip_apply
+    offset: 0x108
+    fields: [{name: key, bits: [31, 0], access: wo}]
+  - name: xip_status
+    offset: 0x10c
+    fields:
+      - {name: enabled, bits: 0, access: ro}
+      - {name: busy, bits: 1, access: ro}

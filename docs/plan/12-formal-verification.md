@@ -76,9 +76,9 @@ tools are run on real blocks. The proof ledger records what was achieved.
 | Local bus | At most one outstanding transaction; every request answered; decode is exclusive and complete; no starvation between the instruction and data ports |
 | Interrupt controllers | A pending enabled interrupt is eventually presented; clear cannot lose a simultaneous set |
 | Watchdogs | An unserviced watchdog always resets; software cannot disable or lengthen it once started; window violations reset |
-| Power and clock controller | No lost wake-up: a wake that arrives at any point of the sleep sequence results in the main clock running; the fast clock is never stopped with a transaction or actuator frame outstanding; deep sleep is refused while the actuator block is armed |
+| Power and clock controller | No lost wake-up: a wake that arrives at any point of the sleep sequence results in the main clock running; the fast clock is never stopped with a transaction or enabled peripheral clock demand outstanding; no hardware flight-arming state (D69) |
 | Boot and programming lock | The lock clears only on power-on reset or brownout; an unvalidated image is never started; an interrupted update leaves a bootable image |
-| Actuator block | From any state, a failsafe cause puts failsafe values on the pins within the specified per-channel fault bound, with the performance bus held in reset and clock/supply valid; publication is atomic and each channel applies at its own frame boundary; no torn values; timeout and approved recovery policy are enforced; the DShot frame equals the specification's function of throttle and telemetry bit |
+| Generic timer/PWM (D69) | Buffered compare updates occur at their specified boundary without partial register values; period/pulse/capture and DMA-event behavior match the generic contract; reset/output-disable and any briefed break input work independently of software servicing. Protocol encoding and application failsafe are firmware/system-test obligations |
 | QSPI controller arbitration | An execute-in-place read never waits longer than one page transfer; boot and logging chip selects are never active together |
 
 ### Bounded proofs and covers (larger or protocol-timed)

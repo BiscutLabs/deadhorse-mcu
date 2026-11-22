@@ -1,5 +1,11 @@
 # 13 Test environment
 
+D69 scope update: the flight scenarios and actuator decoders below remain
+application regressions. Command publication, DShot encoding and failsafe policy
+are exercised in firmware using generic timer/PWM/DMA peripherals; they do not
+require a dedicated actuator hardware block. Preserve existing tests and recorded
+limits; no test/assertion is removed by this documentation reconciliation.
+
 Deadhorse tests run through the pinned environment. Use one shared file list per block and check behavior against independent models.
 
 What is proved formally is in
@@ -125,7 +131,8 @@ the same checkers decode captured signals from the board.
 1. T08 pinned Linux environment, then T07 Chisel build/formal smoke test.
 2. The target interface and the RTL-simulation adapter, with the first
    system test (boot and read an identity register).
-3. Actuator checkers, with the actuator block.
+3. Actuator signal checkers, with generic timer/PWM/DMA hardware and the
+   application firmware that generates the protocol and implements fault policy.
 4. Sensor models and the airframe model, in parallel with the flight
    firmware.
 5. The fast model, once the register map is stable.
