@@ -2,9 +2,9 @@
 
 ## Outcome
 
-In progress at B4: B2 consolidation, ADC retirement and the frozen B3 fast tier
-passed their required checks and independent review; production-SoC measurements
-are next, with B5/B6 still open.
+Blocked at B4 by the explicit stop condition: mapped USB paths exceed their
+existing limits in both production main-clock configurations; B2, ADC retirement
+and B3 fast CI passed their required checks and independent review.
 
 ## What changed
 
@@ -53,6 +53,16 @@ are next, with B5/B6 still open.
 ## Checks run
 
 All commands below use `python tools/env/run.py run --` and the pinned tools.
+
+- B4 production screening: fresh production emission at 8/9 MHz, full flattened
+  logic mapping, actual source/mapped USB certification and exact applied-pair
+  audit completed. USB fails both configurations; main register paths pass
+  8 MHz and fail 9 MHz. Stop before further changes, per the assignment.
+  [The production screen report](../../../spec/soc-production-screen.md) gives
+  exact commands, every class's measured delay/start/end, logical failure
+  identities, preliminary area and scope. Independent review verified both
+  context proofs, mapped identities, failures and all 2238 final seal hashes.
+  No whole-chip area/timing acceptance is claimed. No production RTL changed.
 
 - Final frozen B3 acceptance, base `2504a31` plus receipt-hashed changes:
   `python hw/ip/usb/check.py --output build/plan03/usb-acceptance01 --acceptance-evidence build/plan03/usb-closure/acceptance-manifest01.json`
@@ -247,9 +257,13 @@ file/test inventory is `build/plan03/adc-retirement-inventory.json`.
 - Measured baseline: 82 tests, 24 suites, 1100 seconds, command/commit above.
 - Estimated pad demand after ADC retirement: 40 − 2 = 38 output-capable and
   10 − 1 = 9 input-only pads, against unchanged 40/12 logical capacities.
-- B4 whole-SoC area, domain timing, integrated workload and revised area-budget
-  measurements have not been performed. No I0 fixture result is claimed as a
-  production-top measurement.
+- B4 measured mapped logic area: 3.2919833856 / 3.2880144640 mm2 for the
+  8/9 MHz configurations, excluding six SRAM/ROM model interfaces. Main RR
+  worst delays: 70.504395 / 70.190018 ns, against estimated 60% budgets
+  75 / 66.666667 ns. USB fails four/five classes respectively. Commands,
+  source bindings and preliminary scope are in the production screen report.
+  Per-block/domain accounting, macro-inclusive budget and integrated workload
+  measurements remain open; no I0 result is called a production measurement.
 
 ## Deviations from the brief
 
@@ -265,10 +279,15 @@ induction proofs and every fault result. This does not accept PLAN03 or CI.
 
 ## Open issues
 
-B4 production measurements/budget and review, B5 debt register/triage and B6
-reconciliation/T32–T38 briefs remain. T20 is open. No new peripheral block work
-or full CI has run. B3's fast pass retains twelve explicit T14/T17 deferrals
-and the existing bounded proof scopes; it does not close whole-chip signoff.
+B4 is stopped under the assignment's both-frequency timing rule. The proposed
+next step is to carry the existing USB-specific mapping measures into the
+production synthesis flow and remeasure under unchanged limits; no RTL change
+is shown necessary. Remaining B4 measurements/budget, B5 debt register/triage
+and B6 reconciliation/T32–T38 briefs remain open. T20 is open. No new peripheral
+block work or full CI has run. B3's fast pass retains twelve explicit T14/T17
+deferrals and bounded proof scopes; it does not close whole-chip signoff.
+Earlier completed work was pushed to main at e18e2e8 after independent
+verification and the frozen fast pass.
 
 USB qualification is scoped: the optional partial-header/new-SETUP diagnostic
 is unresolved; standalone USB internal timing and the two-way bus fixture use

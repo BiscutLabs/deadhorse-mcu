@@ -91,7 +91,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | --- | --- | --- | --- | --- | --- |
 | [x] | PLAN01 | [Reconcile decisions](tasks/PLAN01-reconcile.md) | Codex | User approvals | [Report](tasks/reports/PLAN01.md); documentation only |
 | [x] | PLAN02 | [General-purpose MCU scope](tasks/PLAN02-general-mcu.md) | Codex | User direction D69 | [Report](tasks/reports/PLAN02.md); documentation checks and independent review pass; no RTL or CI |
-| [~] | PLAN03 | [SoC consolidation and tape-out planning](tasks/PLAN03-soc-consolidation.md) | Codex | D72–D77; existing T20–T30 evidence | B2/ADC retirement and B3 frozen fast tier verified; twelve existing T14/T17 deferrals retained. B4 production measurements active; B5/B6 and full tier open. [Report](tasks/reports/PLAN03.md) |
+| [!] | PLAN03 | [SoC consolidation and tape-out planning](tasks/PLAN03-soc-consolidation.md) | Codex | D72–D77; existing T20–T30 evidence | B2/ADC retirement and B3 fast verified; twelve T14/T17 deferrals retained. B4 stopped: integrated USB fails class budgets in both main-clock configurations. [Measured paths](../spec/soc-production-screen.md), [report](tasks/reports/PLAN03.md). Remaining B4, B5/B6 and full tier open |
 | [x] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | Codex | none | [Report](tasks/reports/T08.md); clean rebuild and runtime smoke pass |
 | [x] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | Codex | T08 | [Report](tasks/reports/T01.md); local gate and fresh-context review pass |
 | [x] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | Codex | T01, T08 | [Report](tasks/reports/T02.md); exact QEMU matches, historical summary preserved, local gate passes |
@@ -185,6 +185,8 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-22: PLAN03 B4 stopped at the user's both-frequency timing rule. Fresh complete production mapping, source/context and mapped USB certificates, and applied-pair audits identify four failing USB classes at main 8 MHz and five at main 9 MHz. Main RR meets 75 ns at 8 MHz (measured 70.504395 ns), misses 66.666667 ns at 9 MHz (70.190018 ns). Independent review verifies the failures and final 2238-file evidence seal. Propose carrying the existing standalone USB mapping measures into integrated synthesis; no RTL change shown necessary. Remaining B4 measurements, B5/B6 and full CI are open. Earlier completed work was pushed to main at e18e2e8 after the fast pass.
 
 - 2026-11-22: PLAN03 B3 frozen USB acceptance and fast CI passed, independently verified against exact source/evidence hashes. Measured fast wall time 3637.986439 seconds, 34 commands; the four T14 and eight T17 deferrals remain explicitly unproved. USB's 29 tests, twelve-claim packet audit, sampling and D77 physical qualification pass within their recorded scopes. Full tier unrun. Continue with B4 production measurements; no new peripheral work. Exact commands and scope are in the PLAN03 report.
 
