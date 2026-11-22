@@ -95,7 +95,7 @@ deadhorse-mcu/
 ### Blocks expected under `hw/ip/`
 
 `perf_core`, `fpu`, `lite_core`, `dma`, `pinmux`, `bus`, `intc`, `power_reset`, `timebase_wdt`, `gpio`, `uart`,
-`spi_host`, `i2c_host`, `i2c_target`, `adc_player`, `qspi_flash`, `timers`,
+`spi_host`, `i2c_host`, `i2c_target`, `qspi_flash`, `timers`,
 `actuator`, `gateway`, `bus_bridge`, `mailbox`. No NoC or die-link block (D43).
 
 ### Expected under `hw/vendor/`

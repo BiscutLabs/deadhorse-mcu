@@ -2,7 +2,10 @@
 
 Read [../../../AGENTS.md](../../../AGENTS.md) and the assigned brief's Read first
 list before work. Progress lives only in [../STATUS.md](../STATUS.md).
-PLAN01 is documentation only; no other task is started by this revision.
+PLAN03 prepares T32-T38; writing a brief does not start implementation. D76
+requires fast CI on main before new block work and after every task, and full
+CI at each I2/I3/I4/I5 exit. Historical no-CI instructions below describe earlier
+checkpoints; current progress and evidence live only in STATUS.
 
 | ID | Brief | Dependencies | Readiness |
 | --- | --- | --- | --- |
@@ -41,6 +44,13 @@ PLAN01 is documentation only; no other task is started by this revision.
 | T29 | [Bounded QSPI command interface](T29-qspi-command.md) | Plans04/07, T28 interfaces | Continued RTL; reviewed command subset, no CI |
 | T30 | [Native QSPI read path](T30-qspi-xip.md) | Plans03/07, T29 interfaces | Continued RTL; reviewed native read/arbitration contract; no CI |
 | T31 | [Retained locked-image restart](T31-retained-loader-restart.md) | D73 | Withdrawn; recovery loader frozen, no extension without a new decision |
+| T32 | [Two-hart JTAG debug](T32-jtag-debug.md) | PLAN03; T33 interface coordination | Unimplemented; acceptance unverified |
+| T33 | [Clock/reset/power controller](T33-clock-reset-power.md) | PLAN03; T32/T34 interface coordination | Unimplemented; acceptance unverified |
+| T34 | [Analog interfaces/models](T34-analog-models.md) | PLAN03 | Unimplemented; acceptance unverified |
+| T35 | [SRAM macros and BIST](T35-sram-bist.md) | T32/T33 completed; coordinate T36 | Unimplemented; acceptance unverified |
+| T36 | [Production boot ROM](T36-boot-rom.md) | T32/T33 completed; coordinate T35 | Unverified acceptance; boot-path contract prerequisite |
+| T37 | [Test mode and scan](T37-test-scan.md) | T35/T36; coordinate T38 | Unimplemented; acceptance unverified |
+| T38 | [Chip top and pad ring](T38-chip-top-pads.md) | T35/T36; T34 interfaces; coordinate T37 | Unimplemented; acceptance unverified |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |
@@ -57,20 +67,14 @@ All newly specified commands in T07-T14, T20 and S1-S4 are explicitly unverified
 those tasks run. A written acceptance command is not an implemented tool.
 Missing tools cannot be skipped to claim success.
 
-## Further briefs still required
+## Remaining implementation order
 
-SoC integration now has a plan ([../16-soc-integration.md](../16-soc-integration.md))
-and a brief for its first two stages (T20). Block briefs still required, in
-the order the SoC stages need them: generic timer/PWM outputs and required
-DMA support (D69; T21 capture/timebase already exists); remaining pin mux; RISCay
-lite-core adoption; power/clock/reset controller and watchdogs; boot ROM,
-QSPI flash and XIP; JTAG debug for both cores; DMA; analog macro layout and
-threshold controls; physical-flow/pad-ring import; production test and
-board/silicon integration. Each new block brief ends by replacing its stub
-in the reference SoC and passing the SoC system tests. Prepare these from the
-approved contracts before assigning implementation. T19 owns the supplied USB digital implementation and
-its adoption assessment; USB electrical and shuttle qualification remain open.
-D18 and chip-to-chip work are deferred.
+T32 and T33 first in parallel; then T35/T36, then T37/T38. T34 may start any
+time after PLAN03. Each ends with the single production top and existing system
+tests. T36 explicitly resolves autonomous lite boot without extending D73's
+frozen loader. Analog layout/extraction, board/silicon work and complete stage
+application/FPGA acceptance need later briefs; no implicit new work is assigned.
+T31 is withdrawn. D18 and chip-to-chip work remain deferred.
 
 ## Writing a new brief
 

@@ -1,160 +1,113 @@
 # 16 SoC integration
 
-D69 update (2026-11-21): replace the unimplemented actuator controller with
-generic timer/PWM outputs and timer-triggered DMA support. Flight-specific
-protocol and failsafe policy stays in firmware. The dated inventory below is
-historical; T21 delivered GPIO, capture/compare and ADC acquisition. No new
-peripheral breadth is implied.
+PLAN03 reconciles the built digital MCU on main under D72–D76. This plan
+describes one production chip and the remaining qualification work; it does
+not mark an integration stage or tape-out gate complete. Current evidence and
+proof debt live in [STATUS](STATUS.md) and the [PLAN03 report](tasks/reports/PLAN03.md).
 
-Written 2026-11-20, after T05–T19 delivered the first set of blocks. This
-document is the plan for putting them together into one chip. It does not
-start implementation, freeze the architecture or mark a gate complete.
-[03-architecture.md](03-architecture.md) remains the architectural authority;
-this document says how the top level is assembled, verified and measured.
+## One production top
 
-## Where the blocks stand
+`DeadhorseSoc` contains every built production feature. `SocProduction` and
+`hw/top/reference/soc.yaml` are the single production configuration and map.
+No new opt-in profiles. Small named test configurations (minimal I0 boot,
+USB-stub substitution, CPU-boundary bus stimulus) are verification fixtures,
+not selectable production variants; they must not redefine production features.
+The old profile history is an appendix of [the SoC contract](../spec/soc.md).
 
-| Block | Task | State on 2026-11-20 | Mapped area (pre-layout) |
-| --- | --- | --- | --- |
-| Performance core, RV32IMFC faithful profile | T10–T13 | Built; open/deferred formal acceptance listed in the [T13 report](tasks/reports/T13.md#deferred-acceptance-for-s1) | 0.815 mm2 measured (T13 round 2) |
-| Bus fabric, domain bridge, mailbox | T14 | Done, four approved unproved deferrals | 0.251 mm2 estimated from measured parts |
-| Three UARTs and wake monitors | T15 | Done | 0.153 mm2 estimated from measured parts |
-| SPI host | T16 | Done | 0.064 mm2 measured |
-| I2C controller | T17 | Done, eight approved unproved deferrals | 0.047 mm2 measured |
-| Lite I2C recovery loader | T18 | Done | 0.097 mm2 measured |
-| USB CDC-ACM | T19 | Packet inventory qualified under the mixed-size policy; timing, physical and sampling/exception proofs remain open ([report](tasks/reports/T19.md)) | 0.198 mm2 measured (wrapper) |
-| Memory sizing | S3 | Done | 16 KiB + 3 KiB SRAM; macro footprint estimated 2.96 mm2 |
-| Timers and timebase | none | Not briefed | |
-| Actuator block | none | Not briefed; draft spec only | |
-| GPIO and pin mux | none | Not briefed | |
-| Interrupt routing | none | Not briefed | |
-| DMA | none | Not briefed | |
-| Boot ROM, QSPI flash and XIP | none | Not briefed | |
-| JTAG debug, both cores | none | Not briefed | |
-| Lite core (RISCay adoption) | none | Not briefed | |
-| Power, clock and reset control, watchdogs | none | Not briefed | |
-| Analog: oscillators, supply monitor | none | Not briefed | |
+Every future block replaces its own stub/interface in this top and passes
+the existing system tests. Main frequency remains an elaboration parameter.
+The local performance instruction/SRAM path stays outside the registered
+peripheral fabric. All crossings use shared CDC primitives; reset asserts
+asynchronously and releases through the shared per-domain release block.
+Map generation, register-window fit, ownership and interrupt/pin metadata
+remain sourced from soc.yaml and the peripheral register YAMLs.
 
-The logic measured so far sums to about 1.62 mm2 mapped (estimated: a sum of
-separate block measurements, not an integrated result). The chip-level
-budget in [08-physical-verification.md](08-physical-verification.md) predates
-the FPU and must be rebuilt by T20.
+## Current inventory
 
-## Approach: a growing chip, never a big-bang merge
+| Block | Owner | Production state / remaining qualification |
+| --- | --- | --- |
+| Faithful Chisel RV32IMFC performance core/shared MAC | T10–T13 | Integrated; depth160/full ISA/refinement debt retained |
+| Local ROM/performance SRAM path, main/AON fabrics, bridge/mailbox | T14/T20 | Integrated; macro/ROM realization and system composition open |
+| Three UARTs, SPI, I2C host | T15–T17 | Integrated; bounded serial scopes and four T14/eight T17 deferrals visible |
+| I2C recovery loader | T18 | Integrated, frozen by D73; T31 withdrawn |
+| USB CDC-ACM | T19 | Real production block; digital acceptance and scoped physical evidence recorded; chip-level qualification still open |
+| GPIO, four main capture/compare channels, main microsecond timebase and AON deadlines | T21 | Integrated; main service needs main clock, AON deadlines survive main stop |
+| Generic PWM and timer/DMA requests | T22 | Integrated; application protocols and policy remain firmware |
+| Basic DMA | T23 | Integrated; memory-range proof unresolved |
+| Limited pin mux and interrupt routing | T24/T20 | Integrated; complete chip connectivity/physical pin freeze open |
+| Real lite hart | T25 | Integrated; baseline/control proofs and simulation; full ISA/machine debt |
+| Both watchdogs/output disable | T26 | Integrated; full-width channel and system reset qualification debt |
+| Lite-first boot release | T28 | Integrated; production ROM policy remains T36 |
+| QSPI command/native XIP | T29/T30 | Integrated; flash/pad qualification and production boot remain |
+| Dedicated SPI ADC | D74 | Retired from production, pins/window unassigned; firmware uses general SPI/DMA |
+| JTAG both harts | T32 | Brief ready, stub awaiting implementation |
+| Clock/reset/power/sleep controller | T33 | Brief ready; explicit external digital clock/reset inputs today |
+| Analog LF/HF/POR/supply monitor | T34 | Interface/model brief ready; extracted layout later |
+| 16 KiB performance + 3 KiB retained SRAM macros/BIST | T35 | Behavioral memories today; macro footprint budgeted, not integrated |
+| Production boot ROM | T36 | Test/bootstrap content today; production CRC/A/B/golden/recovery pending |
+| Test/scan and pad-level chip | T37/T38 | Briefs ready; no chip signoff claim |
 
-1. **One top, built early.** T20 creates the reference SoC in
-   `hw/top/reference/` now, with the blocks that exist. Blocks that do not
-   exist yet appear as **stubs with their final ports**: they answer their
-   address window with bus errors, drive interrupts and wake requests
-   inactive, and hold outputs in their reset-safe state.
-2. **Each later block brief replaces its own stub.** The last deliverable of
-   every new block brief is: remove the stub, connect the block in the
-   reference SoC, and pass the SoC system tests. T20 does not wait for them.
-3. **Firmware runs end to end at every stage.** Each stage boots a program in
-   simulation and exercises the connected blocks through the four-target
-   test interface of [13-test-environment.md](13-test-environment.md).
-4. **One source of truth for the map.** Addresses, interrupt numbers, clock
-   and reset domains, bus masters and pins live in one machine-readable file,
-   `hw/top/reference/soc.yaml`, described by `docs/spec/soc.md`. Address
-   decode, the interrupt map and firmware headers are generated from it;
-   nothing restates it by hand.
-5. **Measure the chip, not just blocks.** Whole-SoC area, per-domain timing
-   and flight-loop cycles on the integrated bus are reported at every stage.
+## Integration stages and exits
 
-## Integration stages
+| Stage | Implemented portion | Remaining exit evidence / owner |
+| --- | --- | --- |
+| I0 skeleton | Core/local memories/fabric/UART boot | Complete inside-SoC ISA/target-interface qualification; T20 |
+| I1 existing peripherals | Real serial, bridge/mailbox/loader/USB and lite binding | Generated-top decode/IRQ/reset proofs and complete crossing inventory/system cases; T20 |
+| I2 application I/O | GPIO/timers/PWM/DMA/pin mux | Timer-driven application against independent airframe/output model; debt and full tier at exit |
+| I3 AON | Lite, watchdogs, boot release | T33 clock/reset/retained sleep/wake and containment; full tier at exit |
+| I4 boot/debug | QSPI command/XIP | T32 both-core debug and T36 production two-image boot/recovery; full tier at exit |
+| I5 chip | Digital top and measured planning budget | T34 interfaces and later extracted analog work, T35 SRAM/BIST, T37 test/scan, T38 pads/physical flow, FPGA/system evidence; full tier at exit |
 
-| Stage | Contents | Exit evidence | Owner |
-| --- | --- | --- | --- |
-| I0 Skeleton | Performance core, boot ROM model, SRAM model with the macro interface, local memory path, main fabric, UART | Program boots from ROM, prints over UART in simulation; ISA lockstep still passes inside the SoC | T20 |
-| I1 Existing peripherals | SPI, I2C, mailbox and domain bridge, AON bus with retained-SRAM model and recovery loader, USB (stub by default, real block as a build variant), stubs for everything else | SPI IMU and I2C barometer models read by firmware; mailbox round trip to a lite-core stand-in; recovery load over I2C; USB loopback on the real-USB variant | T20 |
-| I2 Reference application I/O | Generic timer/PWM outputs, required DMA support, interrupt routing, GPIO and pin mux | Timer-driven control loop closes against the airframe model in simulation, with actuator outputs checked by the independent checker | Block briefs, then T20 checks |
-| I3 Always-on domain | Lite core, power/clock/reset control, watchdogs, sleep and wake | Lite boots first and releases the performance core; reset containment and sleep/wake tests from 06 | Block briefs |
-| I4 Boot and debug | Boot ROM content, QSPI flash and XIP, DMA, JTAG for both cores | Two-image boot and recovery; debug halt/step/memory access; DMA with ownership checks | Block briefs |
-| I5 Chip | Pad wrapper, test mode and scan, analog macro views, FPGA build | Pad-level simulation; FPGA bring-up of the I2 flight loop | Physical and analog briefs |
+Stages overlap in implementation. A built block or passing fast tier does not
+close its stage. No stage is marked complete by PLAN03. D76 requires fast CI
+on main before new block work and after every task; the full tier runs at each
+I2/I3/I4/I5 exit. Deferrals remain explicit and unwaived.
 
-## Rules the top level must follow
+## Measurements and open clock decisions
 
-- **The performance core does not fetch through the fabric.** The fabric in
-  [../spec/bus.md](../spec/bus.md) registers request, grant and response and
-  admits one transaction at a time. Instruction fetch and performance-SRAM
-  data accesses use a local memory path with Ibex's native one-cycle grant
-  (boot ROM, performance SRAM, later XIP). Only peripheral and remote windows
-  go through the fabric. S1's cycle counts were measured with ideal memory,
-  so T20 must re-measure the flight loop on the integrated memory path and
-  report the difference.
-- **Every crossing uses the shared CDC primitives** in `hw/lib`, and a
-  structural check enumerates crossings and rejects any other kind.
-- **Resets follow 06**: asynchronous assertion, per-domain synchronous release
-  through the shared reset-release block, and the endpoint-quiescent
-  handshake required by the bus contract wherever a target can keep work
-  across reset.
-- **Stubs are honest.** A stub never returns success for an access it cannot
-  perform, and the SoC tests list which windows are still stubbed.
-- **The block's own verification stays with the block.** SoC-level formal
-  covers connectivity, address decode, interrupt wiring and reset sequencing,
-  not re-proofs of block internals.
+[Production measurements](../spec/soc-production-measurements.md) report
+measured main paths 64.830223/65.965767 ns at assumed 8/9 MHz, mapped logic
+3.322808384/3.3165169408 mm2, and every block/domain allocation and USB class.
+Commands, source hashes and scope are in that report. Main passes the
+estimated 60% budgets 75/66.666667 ns; USB retains its certified timing classes
+and approved15 ns ordinary warning ceiling, with strict FP12.5 ns.
 
-## Clock plan (open: Q15)
+Production fixed-point mean/worst3879.791667/4350 cycles and hard-float
+7809.833333/9007 cycles are measured with real boot/release and SRAM arbitration.
+Against T13 round 2, estimated worst overhead is0% and34/8973=0.3789156%.
+D75 still records the earlier accepted 4821-cycle result. No further memory
+arbitration or multiplier optimization is authorized without Q16 need.
 
-| Domain | Frequency | Source | State |
-| --- | --- | --- | --- |
-| Main (performance core, fabric, peripherals) | about 8–9 MHz | Open | The faithful core meets timing at 9 MHz (T13); 9 MHz is not an integer division of 48 MHz |
-| USB | 48 MHz | External clock, ±0.25% required by full-speed USB | Required by T19 |
-| AON | nominal 32 kHz | Internal LF oscillator | Not designed |
-| JTAG | TCK | External | Not designed |
+The [plan08 budget](08-physical-verification.md) estimates12.783522307 mm2
+against 12.92 mm2, leaving0.136477693 mm2 with named allowances. This is narrow
+planning headroom, not physical fit. Macro/ROM/analog/pad/scan and real routing
+must replace estimates before tape-out.
 
-Q15 must be decided before G1: either derive main from the 48 MHz input
-(48 / 6 = 8 MHz, one external source), or keep a separate source for main
-(internal HF or a second input) and run at 9 MHz. T20 parameterizes the main
-frequency, reports timing and loop time at both 8 and 9 MHz, and does not
-choose. The loop-rate target is related (Q16): the [T13 round-2 study](tasks/reports/T13-round2.md)
-measured worst loop counts of 4,350 fixed point and 8,973 hard float after the
-retained shared-multiplier/register-reuse optimizations, so 1 kHz with hard
-float leaves almost no time for the rest of the firmware. The historical
-[S1 checkpoint](tasks/reports/S1.md) measured an earlier candidate at 14,233
-worst hard-float cycles; it is not a replacement for T20's round-2 baseline.
+| Domain | Assumed screening rate | Source decision / physical work |
+| --- | --- | --- |
+| Main | 8 and9 MHz | Q15 open: divided external48 MHz or separate qualified source |
+| USB | 48 MHz | Existing external-reference accuracy requirement; physical qualification retained |
+| AON | Active service1 MHz; nominal sleep32 kHz planned | T33/T34 must provide qualified HF service and LF sleep; not a selected oscillator |
+| JTAG | TCK | T32 rate/CDC contract, T38 pad qualification |
 
-## Interrupts (provisional)
+Q16 remains open: at assumed9 MHz, measured worst hard-float9007 cycles
+estimates1000.777778 us before other firmware. S1's separate performance-floor
+decision is not waived by acceptable integrated overhead. The existing SPI
+host's4 MHz target and normal-speed recovery-loader service clock also need
+resolution under Q15; do not silently change peripheral timing limits.
 
-Ibex provides machine timer, software, external, non-maskable and fifteen fast
-interrupt inputs. T20 assigns peripheral interrupts to fast inputs in
-`soc.yaml`, reserves the D43 future-bridge interrupt, and routes the
-performance watchdog pre-warning (when it exists) to the non-maskable input.
-The map is provisional until G1.
+## Remaining execution order
 
-## Pins (provisional)
+After PLAN03 and a passing fast tier, T32 and T33 start first in parallel;
+T34 may start any time. T35 and T36 follow, then T37/T38. These are separately
+assigned briefs, not implementation authorization from this document. Resolve
+interface dependencies before consuming another task's unfinished design.
+T31 stays withdrawn; no further loader extension without a new decision.
 
-T20 records the provisional pin list in `soc.yaml` from the budget in
-[07-peripherals-memory-boot.md](07-peripherals-memory-boot.md): three UARTs,
-SPI with two chip selects, I2C, QSPI with boot and logging selects, nine
-actuator outputs, USB D+/D-, JTAG, external clock and reset, remaining GPIO.
-It checks that all baseline interfaces can be used at the same time. The
-exact map is frozen at G1, not by T20.
-
-## Block briefs still needed
-
-These are required before stages I2–I5 can complete. Write each from the
-approved contracts; each ends by replacing its stub in the reference SoC.
-
-| Order | Brief | Stage | Notes |
-| --- | --- | --- | --- |
-| 1 | Timers and microsecond timebase | I2 | Loop tick, capture for sensor timestamps |
-| 2 | Generic timer/PWM outputs and required DMA support | I2 | D69 replaces the specialized actuator draft; standard buffered updates and DMA requests. Coordinate with the DMA brief rather than add a private DShot engine |
-| 3 | Interrupt routing and GPIO/pin mux | I2 | Pin mux reset-disabled outputs (D39) |
-| 4 | Lite core adoption from RISCay | I3 | D1; boot order and retained SRAM |
-| 5 | Power, clock and reset controller, watchdogs | I3 | D37 containment, glitch-free clock selection (D35), wake capture |
-| 6 | Boot ROM, QSPI flash controller and XIP | I4 | Two images, CRC, recovery (D34) |
-| 7 | JTAG debug for both cores | I4 | D5, D41 |
-| 8 | DMA | I4 | D25 |
-| 9 | Analog macros and supply monitor | I5 | Long lead; start early in parallel |
-| 10 | Physical flow and pad ring | I5 | Coldfoot flow restructured (D9) |
-
-## Measurement the SoC must report
-
-- Mapped area per block and whole SoC, and the rebuilt chip budget against
-  the 12.92 mm2 core area, with unbuilt blocks as named allowances.
-- Worst path per clock domain against the existing 60% rule, and the USB
-  routed-timing status carried from T19.
-- Flight-loop cycles per iteration (mean and worst, fixed and hard float) on
-  the integrated memory path, compared with S1/T13.
-- The list of stubbed windows and every deferred proof inherited from blocks.
+System qualification remains T20 plus the stage owners: production target
+transport, all connected interrupts and decode, reset/epoch drainage and full
+CDC/RDC inventory, independent sensor/application tests and complete core
+lockstep. Record each inherited block proof's exact scope; do not promote
+simulation or bounded evidence to unbounded proof. Hardware stays general
+purpose; first-board ESC/servo signals and application safety are firmware and
+bench validation, not additional on-chip actuator controllers.

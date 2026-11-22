@@ -11,10 +11,10 @@ buffer depths remain targets/assumptions until the relevant task reports.
 | UART | Three | 8N1, inversion, target up to 921,600 baud, FIFOs; receive/wake-only/disabled sleep modes |
 | SPI controller | One, two chip selects | Modes 0/3, target at least 4 MHz; timestamped IMU acquisition, DMA |
 | I2C controller | One | 100/400 kHz targets, clock stretching and stuck-bus recovery |
-| I2C target | One, RISCay carryover | Recovery loader |
-| External ADC interface | RISCay carryover; lite owner | Raw sample acquisition; voltage/current conversion and calibration are firmware policy under D69. T27/D71 retire the scaled register and move conversion to firmware |
+| I2C target | One, RISCay carryover | Existing recovery loader frozen by D73; T31 withdrawn |
+| External ADC access | Firmware through general SPI, DMA where needed | D74 retires the dedicated ADC block; its former window and pins are unassigned |
 | QSPI flash | Boot/XIP and separate logging chip selects | Bounded arbitration; no flash program/erase blocking the control loop |
-| USB | Optional full-speed CDC-ACM | Separate domain and FIFO boundary, integrated last |
+| USB | Full-speed CDC-ACM in the production top | Separate domain and FIFO boundary; existing physical cutoff remains a future explicit decision, not an opt-in profile |
 | Timers | Four capture/compare plus microsecond timebase | Timer-driven control loop; timestamp sensor events |
 | Timer/PWM outputs | Capacity for the first board; generic channels | Programmable periods/compare, buffered updates and DMA; no motor/servo roles or command timeout engine (D69) |
 | Basic DMA | SPI and UART | Ownership/memory checks, bounded bursts, completion/error IRQ; no linked descriptors initially |
@@ -51,7 +51,8 @@ vendor timing/CDC rule conflicts; source availability is not qualification.
 
 USB protocol handling stays in its subsystem. Boundary: TX/RX byte FIFOs,
 status/control, interrupts and wake, through the reviewed CDC implementation
-into its separate clock/reset domain. Keep an identical-port stub until delivery.
+into its separate clock/reset domain. PLAN03 binds real USB in production;
+the identical-port stub is only a named test substitution.
 
 Implementer supplies source/macro licence and provenance, executable verification,
 timing constraints, reset/clock requirements, PHY/pad arrangement and area. New
@@ -99,6 +100,12 @@ initialization streaming in the memory budget; historical inner-loop state alone
 does not establish full-firmware fit.
 
 ## Boot and debug
+
+T36 implements production ROM firmware; T32 implements unlocked two-hart debug.
+The existing I2C recovery loader is frozen at its current features and reset/lock
+policy (D73); no T31 extension is authorized. Before autonomous QSPI boot, T36
+must resolve the current loader-only lite start/protected-program path without
+silently changing ownership or extending the loader.
 
 Keep the RISCay CRC/compatibility checks, A/B and golden recovery approach and
 programming lock, adapting to two images and a QSPI controller. Lite boots

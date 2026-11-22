@@ -91,7 +91,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | --- | --- | --- | --- | --- | --- |
 | [x] | PLAN01 | [Reconcile decisions](tasks/PLAN01-reconcile.md) | Codex | User approvals | [Report](tasks/reports/PLAN01.md); documentation only |
 | [x] | PLAN02 | [General-purpose MCU scope](tasks/PLAN02-general-mcu.md) | Codex | User direction D69 | [Report](tasks/reports/PLAN02.md); documentation checks and independent review pass; no RTL or CI |
-| [~] | PLAN03 | [SoC consolidation and tape-out planning](tasks/PLAN03-soc-consolidation.md) | Codex | D72–D77; existing T20–T30 evidence | B2/ADC retirement and B3 fast verified; twelve T14/T17 deferrals retained. B4 mapping regression resolved; production timing/area and fixed/hard-float measurements and transitive seal independently accepted. [Measured paths](../spec/soc-production-measurements.md), [report](tasks/reports/PLAN03.md). B5/B6 in progress; full tier open |
+| [x] | PLAN03 | [SoC consolidation and tape-out planning](tasks/PLAN03-soc-consolidation.md) | Codex | D72–D77; existing T20–T30 evidence | One production top, ADC retirement, B4 measurements, B5 debt register/triage and B6 briefs independently accepted. Frozen fast03 passes all active checks with twelve T14/T17 deferrals explicitly unproved. [Measured paths](../spec/soc-production-measurements.md), [report](tasks/reports/PLAN03.md). Full tier, T20 system qualification and chip physical acceptance remain open |
 | [x] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | Codex | none | [Report](tasks/reports/T08.md); clean rebuild and runtime smoke pass |
 | [x] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | Codex | T08 | [Report](tasks/reports/T01.md); local gate and fresh-context review pass |
 | [x] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | Codex | T01, T08 | [Report](tasks/reports/T02.md); exact QEMU matches, historical summary preserved, local gate passes |
@@ -111,27 +111,79 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T16 | [SPI host](tasks/T16-spi-host.md) | Codex | T05, T07, T09, T14, T15 | [Report](tasks/reports/T16.md): SPI acceptance, GF180 timing and independent review pass; fast 31/31 with inherited T14 deferrals, no SPI deferrals; full not run |
 | [x] | T17 | [I2C controller](tasks/T17-i2c-host.md) | Codex | T05, T07, T09, T14, T16 | [Report](tasks/reports/T17.md); 19 simulations, GF180 timing and fast CI active checks pass; eight I2C formal jobs remain deferred/unproved |
 | [x] | T18 | [Lite I2C recovery loader](tasks/T18-i2c-recovery-loader.md) | Codex | T06, T07, T09, T14 | [Report](tasks/reports/T18.md). Wire-to-memory recovery and warm-reset lock retention verified. |
-| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [Report](tasks/reports/T19.md): all twelve independent-reset packet claims qualify (five full-size, seven small-model with full-size simulation). Routed setup, hold/RDC, physical signoff and sampling/exception obligations remain. Acceptance incomplete; no CI |
-| [!] | T20 | [Reference SoC integration, I0–I1](tasks/T20-soc-integration.md) | Codex | T05, T07, T09, T13, T14–T19, S3 | [Pin-contract checkpoint](tasks/reports/T20.md#gpio-adc-timer-contract-continuation-2026-11-21): GPIO/ADC/timer logical contracts and safe I1 bindings complete; focused simulations/map tests, pad proofs/faults and both top emissions pass with independent review. Physical pin fit, system/CDC and I1 timing/area remain; local main changes, no CI |
-| [x] | T21 | [GPIO, timers and retained ADC](tasks/T21-flight-io.md) | Codex | T05, T07, T09, T14, T20 interfaces | [Report](tasks/reports/T21.md): functional GPIO/ADC/D68 split timers and SoC profile complete; frozen focused checks and independent review pass; CI unrun by user instruction, physical/T20 qualification separate |
-| [x] | T22 | [General-purpose PWM](tasks/T22-pwm.md) | Codex | D69, T21, T20 interfaces | [Report](tasks/reports/T22.md): generic PWM and SoC profile implemented; frozen focused simulations, scoped proofs, setup/electrical timing and independent review pass. DMA controller, physical qualification and CI remain open |
-| [!] | T23 | [Basic DMA controller](tasks/T23-dma.md) | Codex | D25, D69, T22, T20 interfaces | [Report](tasks/reports/T23.md): RTL, frozen 62 tests/four top emissions and block timing pass; one range proof unresolved; helper approval pending; no CI |
-| [x] | T24 | [Limited GPIO output pin mux](tasks/T24-pinmux.md) | Codex | D39, D69, T21–T23 interfaces | [Report](tasks/reports/T24.md): functional RTL, frozen 71 tests/four top emissions, 18 assertions and timing pass; independently reviewed; no CI; physical qualification separate |
-| [!] | T25 | [Clocked lite core adoption](tasks/T25-lite-core.md) | Codex | D1, T06, T14, T18, T20/T24 interfaces | [Report](tasks/reports/T25.md): real AON hart/loader binding, 28 frozen tests/four top emissions, baseline/control proofs and mapped timing pass; independent review clear. Full ISA/machine formal open after capped ADDI triage; no CI |
-| [!] | T26 | [Digital watchdog/reset supervision](tasks/T26-watchdog.md) | Codex | D70, T20/T22/T24/T25 interfaces | [Report](tasks/reports/T26.md): D70 RTL, frozen functional/top checks, output-disable proofs and corrected mapped setup/electrical screens pass; independent review clear. Full-width watchdog proof unresolved; physical qualification and CI open; uncommitted on main |
-| [x] | T27 | [Raw ADC acquisition](tasks/T27-adc-raw.md) | Codex | D69, D71, T21 | [Report](tasks/reports/T27.md): raw production ADC and retired0x14 ABI complete; frozen focused tests, component proofs, wrapper timing and four whole tops independently verified. No CI; physical qualification separate; local main changes |
-| [x] | T28 | [Lite-first performance release](tasks/T28-boot-release.md) | Codex | T25/T26/T27 interfaces, plans07/16 | [Scoped digital handoff verified](tasks/reports/T28.md); production boot/physical qualification open, no CI |
-| [x] | T29 | [Bounded QSPI command interface](tasks/T29-qspi-command.md) | Codex | Plans04/07, T28 interfaces | [Command-mode RTL verified](tasks/reports/T29.md); frozen focused checks and independent review pass; XIP/boot/physical open, no CI |
-| [x] | T30 | [Native QSPI read path](tasks/T30-qspi-xip.md) | Codex | Plans03/07, T29 interfaces | [Native flash RTL verified](tasks/reports/T30.md); frozen focused checks and independent review pass; production boot/physical open, no CI |
+| [!] | T19 | [USB CDC-ACM](tasks/T19-usb.md) | Codex | T05, T07, T08, T09, T14 | [PLAN03 closure](tasks/reports/PLAN03.md): packet inventory, sampling/spacing, applied exceptions, scoped routed/boundary qualification and aggregate pass. Whole-chip physical/analog/reset qualification and optional partial-header diagnostic remain; no tape-out signoff |
+| [!] | T20 | [Reference SoC integration, I0–I1](tasks/T20-soc-integration.md) | Codex | T13–T19/S3; D72/D75 | Production top and B4 timing/area/fixed+float measurements accepted in [PLAN03](tasks/reports/PLAN03.md); D75 retained. Full generated-top formal/CDC, target-interface and inside-SoC architectural qualification remain open; no physical signoff |
+| [x] | T21 | [GPIO and split timers; historical ADC retired](tasks/T21-flight-io.md) | Codex | T05, T07, T09, T14, T20 interfaces | [Report](tasks/reports/T21.md): focused checks reviewed; GPIO/main/AON timers now in production under PLAN03. D74 retires ADC. Whole-system/physical qualification separate |
+| [x] | T22 | [General-purpose PWM](tasks/T22-pwm.md) | Codex | D69, T21, T20 interfaces | [Report](tasks/reports/T22.md): generic PWM and production binding implemented; frozen focused simulations, scoped proofs, setup/electrical timing and independent review pass. DMA integrated in T23; its proof debt and physical qualification remain. Current fast tier under PLAN03 |
+| [!] | T23 | [Basic DMA controller](tasks/T23-dma.md) | Codex | D25, D69, T22, T20 interfaces | [Report](tasks/reports/T23.md): RTL, frozen 62 tests/four top emissions and block timing pass; one range proof unresolved; PLAN03 B5 sole-range Z3 attempt unresolved; approved helper work needed. Fast tier is tracked under PLAN03 |
+| [x] | T24 | [Limited GPIO output pin mux](tasks/T24-pinmux.md) | Codex | D39, D69, T21–T23 interfaces | [Report](tasks/reports/T24.md): functional RTL, frozen 71 tests/four top emissions, 18 assertions and timing pass; independently reviewed; production consolidation/fast tier under PLAN03; physical qualification separate |
+| [!] | T25 | [Clocked lite core adoption](tasks/T25-lite-core.md) | Codex | D1, T06, T14, T18, T20/T24 interfaces | [Report](tasks/reports/T25.md): real AON hart/loader binding, 28 frozen tests/four top emissions, baseline/control proofs and mapped timing pass; independent review clear. Full ISA/machine formal open after capped ADDI partition; destination-data claim unresolved. Fast tier tracked under PLAN03 |
+| [!] | T26 | [Digital watchdog/reset supervision](tasks/T26-watchdog.md) | Codex | D70, T20/T22/T24/T25 interfaces | [Report](tasks/reports/T26.md): D70 RTL, frozen functional/top checks, output-disable proofs and corrected mapped setup/electrical screens pass; independent review clear. Full-width watchdog proof unresolved; PLAN03 B5 partition results in debt register; physical qualification open. Fast tier tracked under PLAN03 |
+| [x] | T27 | [Historical raw ADC acquisition](tasks/T27-adc-raw.md) | Codex | D69, D71; superseded by D74 | [Historical report](tasks/reports/T27.md); completed implementation later retired from production and deleted separately under PLAN03/D74. External ADC access is firmware through general SPI/DMA |
+| [x] | T28 | [Lite-first performance release](tasks/T28-boot-release.md) | Codex | T25/T26/T27 interfaces, plans07/16 | [Scoped digital handoff verified](tasks/reports/T28.md); production boot/physical qualification open, current production consolidation/fast tier under PLAN03 |
+| [x] | T29 | [Bounded QSPI command interface](tasks/T29-qspi-command.md) | Codex | Plans04/07, T28 interfaces | [Command-mode RTL verified](tasks/reports/T29.md); frozen focused checks and independent review pass; XIP integrated by T30; production boot/physical open, current production consolidation/fast tier under PLAN03 |
+| [x] | T30 | [Native QSPI read path](tasks/T30-qspi-xip.md) | Codex | Plans03/07, T29 interfaces | [Native flash RTL verified](tasks/reports/T30.md); frozen focused checks and independent review pass; production boot/physical open, current production consolidation/fast tier under PLAN03 |
 | [-] | T31 | [Retained locked-image restart](tasks/T31-retained-loader-restart.md) | n/a | D73 | Withdrawn; loader frozen at existing feature set and reset policy. [Historical proposal](tasks/reports/T31.md) |
+| [ ] | T32 | [Two-hart JTAG debug](tasks/T32-jtag-debug.md) | unassigned | PLAN03; T33 interface coordination | Brief prepared by PLAN03; implementation and acceptance unverified |
+| [ ] | T33 | [Clock/reset/power controller](tasks/T33-clock-reset-power.md) | unassigned | PLAN03; T32/T34 interface coordination | Brief prepared by PLAN03; implementation and acceptance unverified |
+| [ ] | T34 | [Analog interfaces/models](tasks/T34-analog-models.md) | unassigned | PLAN03 | Brief prepared by PLAN03; implementation and acceptance unverified |
+| [ ] | T35 | [SRAM macros and BIST](tasks/T35-sram-bist.md) | unassigned | T32/T33 completed; coordinate T36 | Brief prepared by PLAN03; implementation and acceptance unverified |
+| [ ] | T36 | [Production boot ROM](tasks/T36-boot-rom.md) | unassigned | T32/T33 completed; coordinate T35 | Brief prepared by PLAN03; implementation and acceptance unverified |
+| [ ] | T37 | [Test mode and scan](tasks/T37-test-scan.md) | unassigned | T35/T36; coordinate T38 | Brief prepared by PLAN03; implementation and acceptance unverified |
+| [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36; T34 interfaces; coordinate T37 | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
 
 Former P0-f/P0-g now have briefs T08/T09. P0-a actuator split and P0-b parts
-are approved decisions D26-D33, not bench qualification. P0-c USB boundary is
-approved; implementer delivery/sizing remains open. P0-d die-link agreement is
-deferred. P0-e analog work has not started and still needs an assigned brief.
+are approved decisions D26-D33, not bench qualification. P0-c USB digital delivery is integrated; whole-chip physical qualification remains open. P0-d die-link agreement is
+deferred. P0-e analog work has the unimplemented T34 interface/model brief; layout/extraction remains later work.
+
+## Verification debt
+
+This is the consolidated register of unresolved, deferred or deliberately
+limited proof obligations. Historical passes retain their model/assumption
+scope. No row is waived by PLAN03 or by a passing fast tier. B5's only new
+solver work is the single focused attempt on T23/T25/T26; exact results and
+step-0 tables are in [the debt report](../spec/soc-verification-debt.md).
+
+| Property / scope | Current status | Evidence that exists | Owner | Closure plan |
+| --- | --- | --- | --- | --- |
+| Faithful-F integration, original 28 assertions/depth160 | Deferred, unresolved | Depth40/80 bounded arithmetic-abstracted checks, concrete covers/fault and selected lockstep; [ledger](../ledger/core-formal.md) | T13 | Needs approved focused proof attempt; no unchanged long sweep |
+| Complete repaired faithful-F configured ISA; changed-core no-F refinement | Deferred/unrun, not established | Local decode/CSR and unchanged-module equivalence; selected ISA/lockstep only | T13 | Complete configured sweep/refinement under a separate closure assignment; bounded evidence is not full proof |
+| Historical full-depth C.ADD and concrete multiply/divide/F arithmetic scopes | Original broad checks unresolved; narrower approved scopes only | D44 algebra/seeded faults, protocol abstractions and bounded instruction windows in core/FPU ledgers | T10–T13 | Retain approved bounded/abstracted labels with reason; further acceptance change needs decision |
+| BUS-FAIR-M0 | Deferred, unproved | Safety31/34, bounded diagnostics/covers; fast receipt preserves model identity | T14 | Needs approved helper/composition attempt |
+| BUS-FAIR-M1 | Deferred, unproved | Same exact bus partition; no reachable counterexample | T14 | Same; no unchanged retry |
+| BUS-FAIR-M2 | Deferred, unproved | Same exact bus partition; no reachable counterexample | T14 | Same; no unchanged retry |
+| BRIDGE-RETURN-DATA | Deferred, unproved | Other13 assertions prove, concrete data fault and six covers; watchdog32 model | T14 | Needs approved data/ownership composition; default-parameter qualification also open |
+| Shared CDC/mailbox/bridge production composition and physical assumptions | Limited block proofs; whole-chip wiring not fully proved | FIFO ordering/reset proofs, endpoint proofs and simulation | T20/T33/T38 | Complete generated-top crossing/RDC inventory and system composition; physical checks separate |
+| T17 WRITE-CORRECT | Deferred, unproved | Original320-edge job timed out; write fault rejected and wire tests | T17 | Focused partition/triage assignment; retain current bound |
+| T17 WRITE-COVER | Deferred, unproved | Wire simulation, no formal cover completion | T17 | Same, preserve reachability obligation |
+| T17 READ-CORRECT | Deferred, unproved | Original320-edge job timed out; wire simulation | T17 | Focused triage, no assumed success |
+| T17 READ-COVER | Deferred, unproved | Simulation, formal witness unresolved | T17 | Same |
+| T17 READ-CORRUPT | Deferred, unproved | Simulation fault tests do not replace original formal fault job | T17 | Same; qualify intended fault |
+| T17 RECOVER-CORRECT | Deferred, unproved | Original256-edge job timed out; bus-recovery simulations | T17 | Focused triage |
+| T17 RECOVER-COVER | Deferred, unproved | Simulation, formal witness unresolved | T17 | Same |
+| T17 RECOVER-CORRUPT | Deferred, unproved | Original fault job timed out | T17 | Same; qualify intended fault |
+| UART frame, SPI mode0/3 frame, I2C timeout, recovery-loader completion accounting | Bounded to each receipt's stated depth; not unbounded | Current fast block checks, independent wire models, covers/faults | T15–T18 | Retain planned bounded protocol scope with reason; do not promote to proof |
+| USB full-size packet claims beyond accepted small-model scope | Qualified mixed-size policy, not all unbounded at16 bytes | Twelve independent-reset claims: five full16, seven small8 plus source-bound full-size simulation; E1/E2 references explicit | T19 | Retain D50/small-model acceptance label; broader full-size proof is not implied |
+| USB partial-header/new-SETUP diagnostic | Unresolved optional diagnostic | Required sampling/spacing11 proofs and actual faults pass in PLAN03; complete aggregate passes its defined scope | T19 | Separate focused diagnostic if assigned; no change to accepted sampling claims |
+| USB chip-level physical/reset/analog composition | Not a digital proof closure or tape-out signoff | Exact D77 sink qualification, standalone extracted USB and separate bus fixture; mapped SoC class certificates | T33/T38 | Actual pad/macro contracts, upstream reset/clock control, whole-chip CTS/RDC/hold/analog qualification |
+| Full production decode, interrupt binding, reset order/epoch drainage and inside-SoC ISA/target interface | Open composition/acceptance | Map validation, focused SoC wire/MMIO/reset tests, real boot benchmarks and all-FP-result reference check | T20 | Focused generated-top formal/structural checks and complete architectural/system test coverage; performance is not lockstep |
+| DMA memory offer within performance SRAM | Unresolved after PLAN03 sole-range Z3 attempt | Nine other safety assertions and seven denied checks prove; BMC9/18, covers/origin/owner faults and simulation | T23 | Needs approved cursor/remaining/offer invariant work; no new assumption or unchanged retry |
+| Lite ADDI destination data | Unresolved after exact concrete partition | Eight other meaningful ADDI claims prove; five memory claims trivial; baseline state/control proofs and ISA simulation | T25 | Needs approved retirement/operand-consistency helper work and targeted fault qualification |
+| Lite other instructions, RF consistency, fetch correspondence, CSR/interrupt machine behavior | Open/unrun | Baseline exact31-state equivalence, adapter/control proofs, directed ISA/machine tests | T25 | Separate full-ISA/machine proof plan; ADDI partition is not ISA closure |
+| Full-width watchdog channel | Five of twelve claims proved; seven unresolved; singleton fault scope explicit | Original12 claims retained, original concrete covers/three actual faults, output-disable proofs and whole-top simulation | T26 | Remaining captured-settings/crash-count relation needs approved helpers; singleton fault qualification listed in debt report |
+| GPIO/timer wake and PWM elapsed-time/whole-top composition | Scoped safety proofs; broader progress/system proof open | GPIO/timebase/capture and PWM update/ownership proofs, actual simulations/faults | T20/T21/T22/T33 | Complete system cadence/wake/interrupt composition under real clock controller |
+| QSPI dynamic owner handover, native address/permission and progress, reset composition | Simulation-backed; not unbounded liveness | Engine/owner/scheduler safety proofs, independent flash tests and actual arbitration/orphan faults | T29/T30/T36 | Complete production boot/system closure; any fairness premise must be justified |
+| Production ROM boot/update policy, debug, sleep controller, SRAM/BIST, scan equivalence and pad connectivity | Not implemented or proved | Existing block contracts and scoped tests only | T32–T38 | Implement assigned briefs with properties/covers/faults; no blanket inherited proof |
+
+Separate non-proof blockers stay visible: Q15 clock/service rates, Q16 loop
+target and the S1 performance-floor decision; SRAM/ROM/analog/pad realization
+and the narrow estimated area headroom; full CI and stage/system/FPGA/physical
+acceptance. Retired ADC assertions belong to git history under D74, not active
+production verification debt. T31 is withdrawn rather than deferred work.
+
 
 ## Gates (not checked by PLAN01)
 
@@ -185,6 +237,10 @@ deferred. P0-e analog work has not started and still needs an assigned brief.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-22: PLAN03 complete within its assigned scope. Final frozen fast03 at 58833fd plus hashed B5/B6 changes passes all 34 commands in measured 3628.413506 seconds; four T14 and eight T17 deferrals remain unproved. Independent audit matches all 1485 CI source hashes, 14 child receipts and 1561 USB source/input entries. Exact command, evidence and limits are in the report. Result-only reporting changes follow the freeze; no new RTL. Full tier unrun; no integration-stage or tape-out gate closed. T32/T33 are next separately assigned briefs.
+
+- 2026-11-22: PLAN03 B5 completes one focused triage attempt per task: DMA range remains unresolved; ADDI leaves only destination data unresolved (eight meaningful proofs, five trivial memory claims); watchdog proves five of twelve, seven unresolved. Exact assumptions, caps, fault scope and step-0 data remain in the debt report. B6 publishes the one-top/stage reconciliation and unimplemented T32-T38 briefs; no new RTL. Final review and frozen fast tier precede publication.
 
 - 2026-11-22: PLAN03 B4 independent review verified all 3,613 sealed source/evidence files and 23 tracked executed-producer snapshots. Mapped/digital measurement checkpoint accepted; complete T20 system proofs and chip physical qualification are not implied. Proceed to the authorized B5 attempts and B6 briefs.
 

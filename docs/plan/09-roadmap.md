@@ -1,7 +1,7 @@
 # 09 Roadmap
 
-The user approved the architecture in D1-D42 and explicitly requested **planning
-updates only** in PLAN01. No implementation task starts as part of that update.
+PLAN03 consolidates existing digital IP and prepares the remaining briefs under
+D72-D76. Planning does not start a new implementation task or close a stage.
 Shuttle target is wafer.space GF180MCU 1x1; date and staffing remain open.
 
 ## P0 Foundation
@@ -45,13 +45,18 @@ automatic core substitution, FPU removal or relaxed acceptance limits.
 
 ## P2 SoC and FPGA
 
-The SoC is assembled in stages I0–I5 of
-[16-soc-integration.md](16-soc-integration.md). T20 builds the reference SoC
-top with existing blocks and honest stubs (I0–I1); each later block brief
-replaces its own stub. Under separately assigned integration briefs: adopt/restructure RISCay clocked
-logic, integrate selected core/FPU and word-wide SRAM, bus/ownership/CDC, shared
-sleep peripherals/DMA, domain bridge and mailbox, general timer/PWM outputs and pin mux. Establish
-two-image boot/recovery, unlocked both-core JTAG and UART gateway, USB stub.
+The SoC follows stages I0–I5 of [16-soc-integration.md](16-soc-integration.md).
+PLAN03 leaves one production DeadhorseSoc with all built digital blocks; old
+profiles are historical test evidence. ADC hardware is retired, and the I2C
+loader is frozen. No new opt-in feature configurations.
+
+After PLAN03 and a passing fast tier, execute T32 JTAG and T33 clock/reset/power
+first in parallel, then T35 SRAM/BIST and T36 production ROM, then T37 test/scan
+and T38 chip top/pads/LibreLane. T34 analog interfaces/models may start any time
+after PLAN03; layout/extraction needs a later brief. No unbriefed peripheral work.
+Existing T20 composition/system and inherited proof debt remain visible in STATUS.
+D76 requires fast CI before new block work and after every task; full CI at
+each I2/I3/I4/I5 exit. Neither approval nor a fast pass completes a stage.
 
 Implement independent models for selected sensors/actuators, timer-driven flight
 firmware and system/FPGA tests. Specify generic PWM buffered-update and DMA contracts before their ABI freeze;
@@ -70,7 +75,7 @@ this initial clocked implementation and may only start under an explicit brief.
 
 ## P3 Physical
 
-Coldfoot LibreLane flow restructured for Deadhorse; floorplan SRAM, analog, pads
+T38 imports the approved D9 LibreLane flow for Deadhorse without Coldfoot RTL; floorplan SRAM, analog, pads
 and optional USB. Include clock trees/gates, scan, CDC/reset and full timing at
 qualified corners with extraction. Analog DRC/LVS/antenna and startup/corner
 campaigns, supply monitor safe defaults/selection and extracted sleep power.

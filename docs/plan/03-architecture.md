@@ -92,7 +92,7 @@ future NoC bridge. T14 specifies and builds the fabric, bridge and mailbox.
 | Performance SRAM, XIP and actuator registers | Performance-local; authorized debug/programming access |
 | Lite SRAM, wake, clock and reset control | AON-local; checked remote access |
 | SPI, I2C controller, UARTs | One programmable owner at a time; ownership checked at the endpoint for local, remote and DMA requests |
-| ADC player and I2C loader | Lite/AON baseline, checked remote access |
+| Frozen I2C recovery loader | Lite/AON baseline, checked remote access; dedicated ADC retired by D74 |
 | USB FIFO interface | Gateway subsystem, checked access from both cores |
 
 Ownership transfer must drain or cancel outstanding transfers before granting

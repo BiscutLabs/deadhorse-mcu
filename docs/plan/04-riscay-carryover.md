@@ -39,7 +39,8 @@ supporting pieces, and none of its asynchronous work.
 | `ClockedPowerReset`, `ClockedHousekeeping` | Become the always-on domain's power, clock, watchdog and timebase block. Timebase re-specified for a 32 kHz source; a second clock domain and a glitch-free clock mux added |
 | Memory fabric protocol | Kept as the local bus protocol. Decode becomes generated from a register description |
 | SRAM wrapper | Replace performance access with word-wide byte-enabled configurable banks; qualify the macro arrangement (D36) |
-| SPI ADC player, I2C target | Kept; owned by the lite core |
+| I2C target/recovery loader | Kept, lite owner; frozen by D73 |
+| SPI ADC player | Retired by D74; external converters use general SPI/DMA and firmware |
 | LF oscillator | Redesigned for a nominal 32 kHz |
 | Fast RC oscillator | Gains a trim register and becomes the HF reference |
 
