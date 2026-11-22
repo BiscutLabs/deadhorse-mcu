@@ -30,7 +30,7 @@ def main():
         suites=['deadhorse.pinmux.PinmuxSpec','deadhorse.top.SocPinmuxSpec','deadhorse.top.SocPinmuxCoreResetSpec',
                 'deadhorse.dma.DmaEngineSpec','deadhorse.top.SocDmaMemorySpec','deadhorse.top.SocDmaSpec',
                 'deadhorse.top.SocMemorySpec','deadhorse.pwm.PwmChannelSpec','deadhorse.pwm.PwmSpec','deadhorse.top.SocPwmSpec',
-                'deadhorse.top.SocPwmCoreResetSpec','deadhorse.gpio.GpioSpec','deadhorse.adc.AdcSpec',
+                'deadhorse.top.SocPwmCoreResetSpec','deadhorse.gpio.GpioSpec',
                 'deadhorse.timers.TimersSpec','deadhorse.top.SocI1Spec','deadhorse.top.SocI1ResetSpec',
                 'deadhorse.top.SocI1CoreResetSpec','deadhorse.top.SocI1UsbSpec','deadhorse.top.SocNestedSpec']
         run([sys.executable,'tools/sbt.py','hw/testOnly '+' '.join(suites)],'simulation')

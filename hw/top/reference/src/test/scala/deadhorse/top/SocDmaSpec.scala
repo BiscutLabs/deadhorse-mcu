@@ -43,7 +43,7 @@ class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),bypa
   p.pins.usbVbus:=false.B;p.pins.usbDpRx:=false.B;p.pins.usbDnRx:=false.B
   p.pins.inactive.qspiDqIn:=0.U;p.pins.inactive.jtagTck:=false.B;p.pins.inactive.jtagTms:=false.B
   p.pins.inactive.jtagTdi:=false.B;p.pins.inactive.imuDrdy:=false.B;p.pins.inactive.gpioIn:=0.U
-  p.pins.inactive.timerIn:=0.U;p.pins.inactive.adcMiso:=false.B
+  p.pins.inactive.timerIn:=0.U
   irq:=p.fastIrq;hold:=p.mainHold;pwm:=p.pins.inactive.actuatorOut;pwmEnable:=p.pins.inactive.actuatorEnable
 }
 

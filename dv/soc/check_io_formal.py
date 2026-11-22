@@ -18,8 +18,6 @@ CASES = {
     'aon': ('AonTimerFormal', 'prove', 32, 4, 1),
     'wake': ('GpioWakeFormal', 'prove', 8, 4, 2),
     'gpio_denied': ('GpioDeniedFormal', 'prove', 16, 7, 1),
-    'adc_denied': ('AdcDeniedFormal', 'prove', 16, 7, 1),
-    'adc_scale': ('AdcScaleFormal', 'bmc', 16, 2, 1),
 }
 
 def run(output, cases):
@@ -27,11 +25,11 @@ def run(output, cases):
     if output.exists() and any(output.iterdir()):
         raise ValueError('Use fresh output; preserve prior evidence')
     output.mkdir(parents=True, exist_ok=True)
-    sources = sorted(p for parent in ('hw/lib', 'hw/ip/gpio', 'hw/ip/timers', 'hw/ip/aon_timer', 'hw/ip/adc')
+    sources = sorted(p for parent in ('hw/lib', 'hw/ip/gpio', 'hw/ip/timers', 'hw/ip/aon_timer')
                      for p in (ROOT / parent).rglob('*') if p.is_file() and p.suffix in ('.scala', '.yaml'))
     sources += [Path(__file__).resolve(), ROOT / 'tools/formal.py', ROOT / 'tools/env/lock.json',
                 ROOT/'build.sbt', ROOT/'tools/sbt.py', *sorted((ROOT/'project').glob('*')),
-                *(ROOT/f'build/t21/{n}/{n}_regs.json' for n in ('gpio','timers','aon_timer','adc'))]
+                *(ROOT/f'build/t21/{n}/{n}_regs.json' for n in ('gpio','timers','aon_timer'))]
     sources = [p for p in sources if p.is_file()]
     hashes = lambda: {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
     receipt = dict(status='running', source_sha256=hashes(), cases={},
@@ -39,7 +37,6 @@ def run(output, cases):
         'reset_n initially low, then arbitrary; one digital clock',
         'Denied jobs map origin0 to1 against owner0, covering every non-owner tag',
         'GPIO denied fixture ties clocks together; does not prove asynchronous FIFO liveness',
-        'Scaler captures one arbitrary sample at its scripted start; bounded16, not unbounded',
         'No analog synchronizer, oscillator, physical pad or whole-chip timing claim'])
     def command(argv, log):
         start = time.monotonic()
@@ -57,7 +54,7 @@ def run(output, cases):
             directory = output / case; directory.mkdir()
             entry = dict(jobs=[], status='running'); receipt['cases'][case] = entry
             added = 'set hw / Compile / unmanagedSourceDirectories ++= Seq(' + ','.join(
-                f'file("/work/hw/ip/{n}/formal")' for n in ('gpio','adc','timers')) + ')'
+                f'file("/work/hw/ip/{n}/formal")' for n in ('gpio','timers')) + ')'
             emission = command([sys.executable, 'tools/sbt.py', added,
                                 f'hw/runMain deadhorse.timers.EmitIoFormal {case} {directory}/emit'], directory/'emit.log')
             entry['emission'] = emission
@@ -95,9 +92,7 @@ def run(output, cases):
                     faults={'main8':{'d.assert__chisel3_builtin'},'main9':{'d.assert__chisel3_builtin'},
                             'aon':{'d.'+a for a in assertion_names(4)},
                             'wake':set(assertion_names(4)[1:]),
-                            'gpio_denied':set(assertion_names(7)),
-                            'adc_denied':set(assertion_names(7)),
-                            'adc_scale':{assertion_names(2)[1]}}[case]
+                            'gpio_denied':set(assertion_names(7))}[case]
                     row['failed_properties']=validate_job(directory/variant, 'cover' if variant=='cover' else 'negative' if variant=='corrupt' else 'proof',row['returncode'],result,faults if variant=='corrupt' else None)
                     row['assertion_inventory']=inventory
                     row['status']='covered' if variant=='cover' else 'fault_rejected' if variant=='corrupt' else 'proved' if mode=='prove' else 'bounded'

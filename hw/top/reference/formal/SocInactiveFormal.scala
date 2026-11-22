@@ -10,14 +10,12 @@ class BadInactivePads extends SocInactivePads {
 }
 class BadGpioPads extends SocInactivePads { override protected def gpioEnableValue: UInt=1.U(3.W) }
 class BadTimerPads extends SocInactivePads { override protected def timerEnableValue: UInt=1.U(4.W) }
-class BadAdcPads extends SocInactivePads { override protected def adcEnableValue: Bool=true.B }
 class SocInactiveFormal(variant: String) extends RawModule {
   val clock=IO(Input(Clock()));val pins=IO(new SocInactivePins)
   val d=Module(variant match {
     case "corrupt"=>new BadInactivePads
     case "gpio_fault"=>new BadGpioPads
     case "timer_fault"=>new BadTimerPads
-    case "adc_fault"=>new BadAdcPads
     case _=>new SocInactivePads
   })
   d.pins<>pins
@@ -29,14 +27,13 @@ class SocInactiveFormal(variant: String) extends RawModule {
     assert(!pins.jtagTdo && !pins.jtagTdoEnable,"I1_JTAG_SAFE")
     assert(pins.gpioOut===0.U && pins.gpioEnable===0.U,"I1_GPIO_SAFE")
     assert(pins.timerOut===0.U && pins.timerEnable===0.U,"I1_TIMER_SAFE")
-    assert(!pins.adcSclk && pins.adcCs_n && !pins.adcSclkEnable && !pins.adcCsEnable,"I1_ADC_SAFE")
     if(variant=="cover") cover(pins.qspiDqIn.andR && pins.jtagTck && pins.jtagTms && pins.jtagTdi &&
-      pins.imuDrdy && pins.gpioIn.andR && pins.timerIn.andR && pins.adcMiso)
+      pins.imuDrdy && pins.gpioIn.andR && pins.timerIn.andR)
   }
 }
 object EmitSocInactiveFormal extends App {
   require(args.length==1)
-  for(variant<-Seq("correct","cover","corrupt","gpio_fault","timer_fault","adc_fault")) {
+  for(variant<-Seq("correct","cover","corrupt","gpio_fault","timer_fault")) {
     val directory=Paths.get(args(0),variant);Files.createDirectories(directory)
     ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new SocInactiveFormal(variant)),
       Array("--target-dir",directory.toString),

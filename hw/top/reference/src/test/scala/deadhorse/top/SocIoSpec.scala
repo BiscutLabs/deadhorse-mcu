@@ -3,7 +3,6 @@ import chisel3._
 import chisel3.simulator.ChiselSim
 import chisel3.testing.HasTestingDirectory
 import deadhorse.lib.LocalBus
-import deadhorse.adc.AdcPeer
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -12,9 +11,8 @@ class SocIoSpec extends AnyFunSuite with ChiselSim {
     def getDirectory=Paths.get("build/t21/soc/simulation").toAbsolutePath
   }
   def high(x: Bool): Boolean=x.peek().litToBoolean
-  private var peer: Option[AdcPeer]=None
   def tick(d: SocI1Peripherals,n: Int=1): Unit=for(_<-0 until n) {
-    peer.foreach(_.observe());d.mainClock.step();d.pins.aonClock.step();d.pins.usbClock.step()
+    d.mainClock.step();d.pins.aonClock.step();d.pins.usbClock.step()
   }
   def drive(bus: LocalBus,addr: BigInt,write: Boolean=false,data: BigInt=0,be: Int=15,origin: Int=7): Unit = {
     bus.req.poke(true.B);bus.bits.addr.poke(addr.U);bus.bits.we.poke(write.B)
@@ -104,34 +102,6 @@ class SocIoSpec extends AnyFunSuite with ChiselSim {
       // Preserve the original raw GPIO retention obligation, including the
       // disabled bit, without adding main edges before the wake-flush check.
       assert(good(d,d.main,gpio)==6 && good(d,d.main,gpio+4)==3,"IO_GPIO_STATE_RETAINED")
-    }
-  }
-  test("ADC pin producer reaches AON MMIO and both interrupt destinations") {
-    simulateRaw(new SocAdcRetirementTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
-      reset(d);val a=BigInt(0x40020000L);val pins=d.pins.inactive
-      val h=new AdcPeer(d.pins.aonClock,pins.adcCs_n,pins.adcSclk,pins.adcMiso,pins.adcSclkEnable,d.pins.aonDemand)
-      peer=Some(h)
-      try {
-        good(d,d.pins.lite,a,true,1);good(d,d.pins.lite,a+8,true,1);good(d,d.pins.lite,a+32,true,1)
-        for((raw,i)<-Seq(1234,0xa53).zipWithIndex) {
-          h.value=0xa000|raw;val frames=h.frames;good(d,d.pins.lite,a+8,true,2)
-          var cycles=0
-          while(h.frames==frames) {tick(d);cycles+=1;assert(cycles<600,"SOC_ADC_FRAME")}
-          tick(d,40)
-          assert(good(d,d.pins.lite,a+24)==i)
-          if(i==1) {
-            assert(good(d,d.pins.lite,a+16)==raw)
-            assert(access(d,d.pins.lite,a+20)._2,"SOC_ADC_RETIRED_REGISTER")
-            assert(high(d.pins.aonIrq) && d.fastIrq.peek().litValue.testBit(12) && high(d.pins.mainDemand))
-          }
-        }
-        d.mainServiceReset_n.poke(false.B);d.pins.aonClock.step(4)
-        assert(high(d.pins.aonIrq),"ADC_SURVIVES_MAIN_RESET")
-        d.mainServiceReset_n.poke(true.B);tick(d,48)
-        assert(d.fastIrq.peek().litValue.testBit(12),"ADC_IRQ_REASSERTS_AFTER_MAIN_RESET")
-        d.pins.aonServiceReset_n.poke(false.B);d.pins.aonClock.step(2)
-        assert(!high(d.pins.aonIrq) && high(pins.adcCs_n) && !high(pins.adcCsEnable))
-      } finally {peer=None}
     }
   }
 }

@@ -3,18 +3,25 @@
 ## Inactive logical pads
 
 `SocInactiveFormal.scala` binds the real `SocInactivePads` to unconstrained
-inputs. Six assertions require safe QSPI, actuator, JTAG, GPIO, timer and ADC outputs and
+inputs. Five assertions require safe QSPI, actuator, JTAG, GPIO and timer outputs and
 enables at every sample, with no reset masking and no assumptions. An input
-cover checks all input bits high; four faults independently enable actuator,
-GPIO, timer or ADC outputs.
-This is an unbounded proof of static tie-offs, not of implemented peripherals.
+cover checks all remaining input bits high; three faults independently enable
+actuator, GPIO or timer outputs. D74 removes only the retired ADC assertion,
+cover input and fault. The remaining assertions and zero-assumption contract
+are unchanged. The scope is static tie-offs, not implemented peripherals.
 
 Run `python tools/env/run.py run -- python3 hw/top/reference/formal/check_inactive.py --output build/t20/i1/inactive-proof-fresh`.
 The runner preserves assertions with firtool optimization disabled and static
 assert lint disabled so the actual fault reaches the solver. It requires the
-six-assertion/zero-assumption inventory and each fault identity.
+five-assertion/zero-assumption inventory and each fault identity.
 `build/t20/i1/pin-contract-proof/result.json` records ABC PDR PASS, cover PASS,
-and all intended counterexamples, source/artifact hashes and timings. Earlier
+and all intended counterexamples for the historical six-assertion model,
+source/artifact hashes and timings. The D74 current-model rerun is
+`build/plan03/adc-retirement-formal/result.json`: all five assertions proved,
+cover reached, and the three retained faults rejected at the intended identities.
+Command, source scope and measured times are in the
+[SoC formal ledger](../../../../docs/ledger/soc-formal.md#plan03-d74-inactive-pad-proof-after-adc-retirement--2026-11-21).
+Earlier
 emission/lowering failures remain archived; they are not negative witnesses.
 
 ## I1 glue

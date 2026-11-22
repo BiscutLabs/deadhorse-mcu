@@ -25,8 +25,3 @@ object SocTestPorts extends PeekPokeAPI {
     d.dmaMemory.foreach {p=>p.gnt:=false.B;p.rvalid:=false.B;p.rdata:=0.U;p.err:=false.B}
   }
 }
-
-/** Temporary historical ADC integration comparison; D74 retires it after B2. */
-class SocAdcRetirementTest(d: SocDescription,c: SocI1Config) extends SocPeripheralBusTest(d,c) {
-  override protected def legacyAdcRegisterFile: Option[String]=Some("build/t21/adc/adc_regs.json")
-}

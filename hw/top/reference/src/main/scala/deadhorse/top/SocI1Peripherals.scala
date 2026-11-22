@@ -14,7 +14,6 @@ import deadhorse.usb.Usb
 import deadhorse.gpio.Gpio
 import deadhorse.timers.MainTimers
 import deadhorse.aon_timer.AonTimers
-import deadhorse.adc.Adc
 import deadhorse.pwm.Pwm
 import deadhorse.dma.Dma
 import deadhorse.pinmux.Pinmux
@@ -27,7 +26,6 @@ import deadhorse.qspi.Qspi
   * All test-controller inputs are synchronous to their declared owning domain.
   */
 class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends RawModule {
-  protected def legacyAdcRegisterFile: Option[String]=None
   protected def testBusInjection: Boolean=false
   protected def loaderHalted(halted: Bool,starting: Bool): Bool=halted && !starting
   protected def wholeWatchdogReset(performance: Bool,lite: Bool): Bool=lite
@@ -249,12 +247,11 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
       pwmIrq:=p.irq;pwmHold:=p.clockHold
   }
   stub(mf.target(mainNames.indexOf("future_bridge")),mainClock,mainUp)
-  for(n<-Seq("future_bridge")++(if(legacyAdcRegisterFile.isEmpty) Seq("unassigned_aon") else Seq.empty))
+  for(n<-Seq("future_bridge","unassigned_aon"))
     stub(af.target(aonNames.indexOf(n)),pins.aonClock,aonUp)
   val ioMainHold=WireDefault(false.B);val ioAonHold=WireDefault(false.B)
   val ioWake=WireDefault(false.B);val ioAonIrq=WireDefault(false.B)
-  val gpioIrq=WireDefault(false.B);val timerIrq=WireDefault(false.B);val adcIrq=WireDefault(false.B)
-  val legacyAdcHold=WireDefault(false.B);val legacyAdcInterrupt=WireDefault(false.B)
+  val gpioIrq=WireDefault(false.B);val timerIrq=WireDefault(false.B)
   val timeNow=WireDefault(pins.spiTimeNow)
   config.io.foreach { c =>
     def toMainLevel(value: Bool): Bool = {
@@ -273,21 +270,11 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     val aonTimer=Module(new AonTimers(c.aonTimer,base=description.ioRegion("aon_timer").base))
     aonTimer.clk:=pins.aonClock;aonTimer.reset_n:=aonUp;aonTimer.owner:=description.origin("lite").U
     aonTimer.bus<>powerFabric.get.target(0)
-    // Historical ADC regression only, removed after the B2 comparison passes.
-    // The production assembly has no ADC instance or assigned pins/window.
-    legacyAdcRegisterFile.foreach {path=>
-    val adc=Module(new Adc(path,base=description.region("unassigned_aon").base))
-    adc.clk:=pins.aonClock;adc.reset_n:=aonUp;adc.owner:=description.origin("lite").U
-    adc.bus<>af.target(aonNames.indexOf("unassigned_aon"));adc.miso:=pins.inactive.adcMiso
-    pins.inactive.adcSclk:=adc.sclk;pins.inactive.adcCs_n:=adc.cs_n
-    pins.inactive.adcSclkEnable:=adc.pinsEnable;pins.inactive.adcCsEnable:=adc.pinsEnable
-    legacyAdcHold:=adc.clockHold;legacyAdcInterrupt:=adc.irq
-    }
-    gpioIrq:=gpio.irq;timerIrq:=timers.irq || toMainLevel(aonTimer.irq);adcIrq:=toMainLevel(legacyAdcInterrupt)
+    gpioIrq:=gpio.irq;timerIrq:=timers.irq || toMainLevel(aonTimer.irq)
     ioMainHold:=gpio.clockHold || timers.clockHold || ioFabric.get.waiting.asUInt.orR
-    ioAonHold:=aonTimer.clockHold || legacyAdcHold
-    ioWake:=aonTimer.wake || gpio.wake || legacyAdcInterrupt
-    ioAonIrq:=aonTimer.irq || legacyAdcInterrupt || gpio.wake
+    ioAonHold:=aonTimer.clockHold
+    ioWake:=aonTimer.wake || gpio.wake
+    ioAonIrq:=aonTimer.irq || gpio.wake
   }
   config.pinmux.foreach {json=>
     val p=Module(new Pinmux(json,base=description.pinmuxRegion.base,watchdog=true))
@@ -383,8 +370,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   val irq=WireDefault(0.U(15.W))
   val sources=(0 until 3).map(i=>s"uart$i"->uarts(i).irq) ++ Seq("spi_host"->spi.irq,"i2c_host"->i2c.irq,"mailbox"->mailbox.irq(1),"usb"->usbIrq,"actuator"->pwmIrq,"dma"->dmaIrq) ++
     Seq("gpio_pinmux"->gpioIrq,"power_reset_timer"->timerIrq)
-  irq:=sources.map {case(n,v)=>v.asUInt<<interruptIndex(n)}.reduce(_|_) |
-    (if(legacyAdcRegisterFile.nonEmpty) adcIrq.asUInt<<12 else 0.U)
+  irq:=sources.map {case(n,v)=>v.asUInt<<interruptIndex(n)}.reduce(_|_)
   fastIrq:=irq
   val held=withClockAndReset(mainClock,(!mainUp).asAsyncReset) {
     RegNext(uarts.map(_.clockHold).reduce(_||_) || spi.clockHold || i2c.clockHold || ioMainHold || pwmHold || dmaHold || pinmuxHold || qspiHold ||

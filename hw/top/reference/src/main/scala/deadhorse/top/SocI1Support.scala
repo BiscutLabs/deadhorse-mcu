@@ -142,7 +142,7 @@ class SocRetainedMemory(description: SocDescription) extends RawModule {
   }
 }
 
-case class SocIoConfig(gpio: String, timers: String, aonTimer: String, adc: String, mainMHz: Int) {
+case class SocIoConfig(gpio: String, timers: String, aonTimer: String, mainMHz: Int) {
   require(Set(8,9).contains(mainMHz))
 }
 /** Explicit I1 test-controller and pad-facing signals. No clock controller. */

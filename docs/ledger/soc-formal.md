@@ -149,3 +149,26 @@ Stopped-clock whole-reset assertion, command cancellation at both accepted
 transport stages, legal/repeated keys and two-core loader handoff have focused
 simulation coverage. This is not an unbounded whole-SoC or analog reset proof.
 See the T28 report and hw/ip/boot_control/formal/README.md for exact scope.
+
+## PLAN03 D74 inactive-pad proof after ADC retirement — 2026-11-21
+
+**Measured** with `python tools/env/run.py run -- python
+hw/top/reference/formal/check_inactive.py --output build/plan03/adc-retirement-formal`
+at `5d47869` plus receipt-hashed retirement changes. Receipt PASS. Only the
+ADC assertion, ADC cover input and ADC fault were retired. The five remaining
+assertions require safe QSPI, PWM, JTAG, GPIO and timer values/enables at every
+sample, with no reset masking and **zero assumptions**. The existing 120-second
+job cap and four-step cover/fault depth are unchanged.
+
+| Job | Result | Engine | Measured runner seconds |
+| --- | --- | --- | --- |
+| Correct static tie-offs | Proved unbounded | ABC PDR | 0.26 |
+| All remaining inputs high | Covered | SMTBMC Z3 | 0.42 |
+| Actuator enable fault | Intended assertion failed | SMTBMC Z3 | 0.26 |
+| GPIO enable fault | Intended assertion failed | SMTBMC Z3 | 0.32 |
+| Timer enable fault | Intended assertion failed | SMTBMC Z3 | 0.27 |
+
+Fault identities remain `assert__chisel3_builtin_0`, `_2` and `_3`, respectively.
+This proves the standalone constant defaults, not functional peripherals,
+whole-SoC CDC/RDC or physical pad behavior. Current-model scope and retirement
+were independently reviewed; full SoC regression acceptance is recorded in PLAN03.

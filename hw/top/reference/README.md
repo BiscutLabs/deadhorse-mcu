@@ -344,7 +344,7 @@ All functional ADC profiles now use raw acquisition.0x40020014 is retired
 and errors on every read/write; raw_sample remains at0x40020010, with
 unchanged sequence/event offsets and lite ownership. The registered result
 is published atomically. Software conversion lives in sw/hal/adc_convert.h.
-See [the ADC contract](../../ip/adc/README.md) and [T27](../../../docs/plan/tasks/reports/T27.md)
+See the [historical T27 report](../../../docs/plan/tasks/reports/T27.md)
 for focused evidence; inherited physical/SoC acceptance remains separate.
 
 ## T28 lite-first release profile

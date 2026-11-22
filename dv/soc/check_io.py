@@ -30,7 +30,7 @@ def main():
         command([sys.executable,'dv/soc/prepare_production.py'],'prepare')
         command([sys.executable,'hw/top/reference/test_soc_map.py'],'map-tests')
         command([sys.executable,'tools/check_structure.py','--include-untracked'],'structure')
-        suites=['deadhorse.gpio.GpioSpec','deadhorse.adc.AdcSpec','deadhorse.timers.TimersSpec',
+        suites=['deadhorse.gpio.GpioSpec','deadhorse.timers.TimersSpec',
                 'deadhorse.top.SocIoSpec','deadhorse.top.SocI1Spec','deadhorse.top.SocI1ResetSpec',
                 'deadhorse.top.SocI1CoreResetSpec','deadhorse.top.SocI1UsbSpec','deadhorse.top.SocNestedSpec']
         command([sys.executable,'tools/sbt.py','hw/testOnly '+' '.join(suites)],'simulation')

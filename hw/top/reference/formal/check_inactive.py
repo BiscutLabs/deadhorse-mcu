@@ -41,13 +41,13 @@ def main():
                 f'hw/runMain deadhorse.top.EmitSocInactiveFormal {output}/emit'], 'emit', 600):
             raise RuntimeError('Emission failed')
         fault_ids = {'corrupt': 'assert__chisel3_builtin_0', 'gpio_fault': 'assert__chisel3_builtin_2',
-                     'timer_fault': 'assert__chisel3_builtin_3', 'adc_fault': 'assert__chisel3_builtin_4'}
+                     'timer_fault': 'assert__chisel3_builtin_3'}
         jobs = [('cover', 'cover', 'smtbmc z3')]+[(n, 'bmc', 'smtbmc z3') for n in fault_ids]+[('correct', 'prove', 'abc pdr')]
         for variant, mode, engine in jobs:
             files = sorted((output / 'emit' / variant).glob('*.sv'))
             inventory = {p.name: re.findall(r'(assert__\w+):', p.read_text()) for p in files}
-            if sum(map(len, inventory.values())) != 6:
-                raise RuntimeError(f'Expected six safety assertions: {inventory}')
+            if sum(map(len, inventory.values())) != 5:
+                raise RuntimeError(f'Expected five safety assertions after D74 ADC retirement: {inventory}')
             covers = sum(p.read_text().count('cover property') for p in files)
             if covers != (1 if variant == 'cover' else 0):
                 raise RuntimeError('Cover inventory mismatch')
@@ -56,7 +56,7 @@ def main():
                 '[engines]', engine, '', '[script]',
                 'read_slang --top SocInactiveFormal '+' '.join(p.name for p in files),
                 'prep -top SocInactiveFormal -flatten', 'async2sync', 'chformal -lower',
-                'select -assert-count 6 t:$assert', 'select -assert-count 0 t:$assume',
+                'select -assert-count 5 t:$assert', 'select -assert-count 0 t:$assume',
                 f'select -assert-count {covers} t:$cover', '', '[files]', *map(str, files), '']))
             code = run(['sby', '-d', str(output / variant), str(config)], variant)
             status = (output / variant / 'status').read_text().split()[0]

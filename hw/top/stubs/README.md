@@ -1,54 +1,40 @@
-# Stubs
+# Test stubs and inactive pad defaults
 
-Explicit stand-ins with final interfaces for deferred integration.
+Production `DeadhorseSoc` binds every built peripheral under D72. The named
+USB-stub test configuration substitutes an error target for USB; production
+uses the real USB block. `deadhorse.stubs.UsbStub` is a separate register-block
+fixture and is not the production USB implementation.
 
-`deadhorse.stubs.UsbStub` retains the T19 register block with its engine
-omitted. I1 instead uses its own registered all-access-error USB target, as
-required by T20; the two stub meanings are deliberately distinct.
+`SocInactivePads` supplies static safe defaults for the logical pad bundle.
+Production overrides QSPI, PWM, GPIO and timer outputs with their real blocks;
+their inputs, including IMU DRDY, connect to those blocks. JTAG remains inactive
+until its debug implementation. The standalone tie-off fixture does not claim
+functional behavior for the peripherals or physical pad cells.
 
-## Inactive I1 pad functions
-
-`SocInactivePads` supplies only the logical pad boundary already named by
-T20 and the SoC contract. It implements no peripheral, pin mux or pad cell.
-The existing registered error targets still handle the corresponding MMIO
-windows; JTAG has no bus master or interrupt connection.
-
-| Signals | Width | Inactive behavior |
+| Signals | Specified width | Standalone inactive default |
 | --- | --- | --- |
-| QSPI DQ input / output / output enable | 4 each | input ignored; output and enables zero |
+| QSPI DQ input / output / output enable | 4 each | output and enables zero |
 | QSPI SCLK / enable | 1 each | both zero |
 | QSPI CS_n / enable | 2 each | selects high; enables zero |
-| Actuator output / enable | 9 each | both zero |
+| PWM output / enable | 9 each | both zero |
 | JTAG TCK, TMS, TDI | 1 each | ignored |
 | JTAG TDO / enable | 1 each | both zero |
-| IMU DRDY | 1 | ignored until timer/event capture is briefed |
-| GPIO input / output / output enable | 3 each | inputs ignored; output and enables zero |
-| Timer capture/compare input / output / output enable | 4 each | inputs ignored; output and enables zero |
-| ADC MISO | 1 | ignored |
-| ADC SCLK / enable | 1 each | both zero |
-| ADC CS_n / enable | 1 each | select high; enable zero |
+| IMU DRDY | 1 | ignored by this fixture |
+| GPIO input / output / output enable | 3 each | output and enables zero |
+| Timer input / output / output enable | 4 each | output and enables zero |
 
-The I1 top exposes these as `inactive` within its pad bundle, in both USB
-variants. Enables are active high. Bidirectional pads use separate input,
-output and enable signals; no internal tristate primitive is inferred.
+ADC ports and their dedicated implementation are retired by D74. Their former
+pins/window are unassigned. The current allocation is in the
+[production SoC contract](../../../docs/spec/soc.md#pins-and-verification-boundary).
 
-These are static tie-offs, an explicit registered-output exception: no input
-affects an output, no state or clock is introduced, and safety does not depend
-on reset or a running clock. Actuator outputs therefore stay disabled across
-performance-only resets without inventing actuator failsafe behavior. Unused
-external inputs are not synchronized because no functional logic consumes them.
-JTAG TCK does not create a clock domain in this stub.
+Enables are active high. Bidirectional pads have separate input, output and
+enable signals; no internal tristate primitive is inferred. Static defaults
+are the existing registered-output exception: no state or clock is introduced,
+and safe inactive values do not depend on reset or running clocks. This says
+nothing about reset behavior of the real peripheral outputs that replace them.
+JTAG TCK creates no clock domain in the inactive fixture.
 
-Estimated sequential area is zero flops (static constants only); physical
-tie cells, pad cells and routing are unmeasured. The requested provisional
-contract reserves three GPIO and four shared capture/compare timer pins, plus
-the pinned receive-only ADC's MISO/SCLK/CS boundary. See the
-[SoC pin contract](../../../docs/spec/soc.md#provisional-gpio-adc-and-timer-pin-contract)
-for the estimated 40/10 allocation and reconciliation with the earlier 32/10
-estimate. Final pad numbers, alternate functions and physical fit remain open.
-No wake, capture, conversion or simultaneous voltage/current acquisition is
-implemented or claimed. Existing registered MMIO error targets remain unchanged.
-
-Verification checks the actual tie-off module with unconstrained inputs and
-a deliberately enabled actuator output, plus top-level bus/reset simulations.
-This establishes safe inactive behavior, not functional peripheral readiness.
+Estimated sequential area of the tie-off fixture is zero flops; physical tie
+cells, pad cells and routing are unmeasured. Simulation and the focused formal
+runner check unconstrained inputs and actual actuator/GPIO/timer enable faults.
+Only the ADC-specific assertion and fault were retired; the other checks remain.

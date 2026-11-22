@@ -27,8 +27,8 @@ the old profile emitters have been removed after the B2 test comparison passed.
 
 The dedicated SPI ADC is retired by D74. Firmware uses the general SPI host
 and DMA for external converters. Its former window and three logical pins are
-unassigned; IRQ12 is unassigned. Historical ADC tests remain isolated only until
-the separately authorized source/test deletion after B2 passes.
+unassigned; IRQ12 is unassigned. After the B2 comparison passed, the ADC source
+and ADC-only tests were removed in the separately authorized retirement change.
 
 ## Authoritative map
 
@@ -169,7 +169,8 @@ not govern current acceptance.
 
 ## Appendix: historical profile contracts
 
-The following is the pre-PLAN03 contract, retained verbatim as history. Its
+The following is the pre-PLAN03 contract, retained as history with retired-source
+links redirected to the historical report. Its
 profiles, stub tables, pending-work descriptions and no-CI instructions are
 superseded by the current contract and D72–D76.
 
@@ -539,7 +540,7 @@ or final physical fit is claimed.
 D71 raw ADC ABI: the functional ADC profiles publish raw codes at
 0x40020010. The former scaled result at0x40020014 is retired; reads and
 writes error. Other offsets, ownership and AON reset scope are unchanged.
-Conversion/calibration is firmware policy; see the [ADC contract](../../hw/ip/adc/README.md).
+Conversion/calibration is firmware policy; see the [historical T27 report](../plan/tasks/reports/T27.md).
 
 ### Provisional GPIO, ADC and timer pin contract
 

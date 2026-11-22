@@ -2,8 +2,8 @@
 
 ## Outcome
 
-In progress: B2 consolidation passed its comparison, cleanup checks and
-independent review; ADC retirement and B3–B6 remain.
+In progress: B2 consolidation and the separate ADC retirement passed focused
+checks and independent review; B3 fast CI is next, followed by B4–B6.
 
 ## What changed
 
@@ -25,8 +25,12 @@ independent review; ADC retirement and B3–B6 remain.
 - Preparation/emission and focused runners target production or the explicitly
   named USB-stub/minimal-I0 test configurations. After the comparison passed,
   the ten old profile emitters and unreachable profile alternatives were removed;
-  both focused memory emitters remain. ADC source is still retained pending
-  final B2 acceptance and the separate retirement commit.
+  both focused memory emitters remain. Consolidation is committed locally as
+  `5d47869`; the subsequent ADC retirement is a separate change.
+- Removed the retired ADC implementation, ports, isolated legacy test binding,
+  ADC-only runner/formal/timing references and stale links. The general SPI
+  host, DMA and software conversion helper/tests remain. Added exact error
+  checks at the retired window's base/end and for writes by either master.
 
 ## Checks run
 
@@ -74,6 +78,21 @@ All commands below use `python tools/env/run.py run --` and the pinned tools.
   again shows exact identity against the passing snapshot in all four variants.
 - Fast CI: not yet run in this task; B3 follows B2.
 - Full CI: not run in this task.
+- `python hw/top/reference/formal/check_inactive.py --output build/plan03/adc-retirement-formal`:
+  PASS at `5d47869` plus retirement changes: five remaining assertions proved
+  unbounded with ABC PDR, cover reached, and all three retained actual enable
+  faults rejected at their expected identities. Zero assumptions; original
+  caps/depth unchanged. Measured times are in the SoC formal ledger.
+- `python dv/soc/check_production.py --output build/plan03/adc-retirement`:
+  PASS at `5d47869` plus receipt-hashed retirement changes: 77 tests across
+  24 suites, no failures/skips/cancellations/pending tests; four complete top
+  emissions and minimal-I0 compilation pass. Measured runner-monotonic time:
+  simulation 1287.52 seconds, complete runner 1347.68 seconds (sbt separately
+  reports 1427 seconds for simulation).
+  `python scratch/plan03_compare_retirement.py` confirms exactly the five approved
+  runtime test-name removals, with no other differences. Independent review
+  recomputed this comparison and checked all current source hashes against the
+  frozen receipt before accepting retirement.
 
 The baseline suite inventory is below. Exact runtime test names are
 in `build/plan03/baseline/test-inventory.json`.
@@ -90,7 +109,13 @@ in `build/plan03/baseline/test-inventory.json`.
 Map-test changes are explicit: obsolete ADC owner/size cases are replaced with
 rejection of ADC binding/pin reintroduction; mandatory DMA and real-lite checks
 are added. ADC pin-width validation is retired with the approved pin removal.
-No ADC behavioral test has yet been deleted.
+After B2 passed, D74 explicitly retired the ADC integration test inherited by
+SocIoSpec, SocPwmSpec, SocPinmuxSpec and SocWatchdogSpec, plus the ADC-only pad
+fault in SocInactiveSpec. Measured remaining runtime inventory: 77 tests in
+the same 24 suites, exactly matching 82 − 5. The ADC directory's
+AdcSpec, AdcRawSpec and AdcSampleStateSpec and its ADC-specific proofs/timing
+were also retired. The pure software conversion tests remain. The pre-deletion
+file/test inventory is `build/plan03/adc-retirement-inventory.json`.
 
 ## Numbers
 
@@ -106,11 +131,13 @@ No ADC behavioral test has yet been deleted.
 None accepted. Independent reviewer `plan03_consolidation_review` accepted B2
 after comparing runtime inventories, independently recomputing all final emitted
 file hashes, and reviewing the fixture correction and cleanup. This does not
-accept CI, ADC source deletion or B3–B6.
+accept CI or B3–B6. The same independent reviewer separately accepted the ADC
+retirement after checking the actual source/test delta, proof receipt and
+frozen runtime evidence.
 
 ## Open issues
 
-Separate ADC deletion; B3 fast CI;
+B3 fast CI;
 B4 measurements and review; B5 verification-debt register/limited triage;
 B6 plan reconciliation and T32–T38 briefs. No new block work has started.
 Nothing from this task has been pushed; pushing remains conditional on fast CI.

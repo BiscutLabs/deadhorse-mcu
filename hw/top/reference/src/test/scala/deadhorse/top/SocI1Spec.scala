@@ -85,10 +85,14 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
       }
       // These were stub apertures in I1; production exposes their registers.
       // Keep the error oracle on the reserved padding in each aperture.
-      val errors=Seq(0x40000400L,0x40011100L,0x40012300L,0x40013200L,0x40020100L,
+      val errors=Seq(0x40000400L,0x40011100L,0x40012300L,0x40013200L,0x40020000L,0x40020100L,0x4002fffcL,
         0x40030100L,0x40040000L,0x40040800L,0x60000000L,0x40010500L,0x40040900L,0xffffffffL)
       for(address<-errors;bus<-Seq(d.main,d.pins.lite)) {
         val(v,e,_)=access(d,bus,address);assert(e && v==0,s"I1_STUB_OR_HOLE $address")
+      }
+      for(bus<-Seq(d.main,d.pins.lite)) {
+        val(v,e,_)=access(d,bus,0x40020000L,write=true,data=1)
+        assert(e && v==0,"RETIRED_ADC_WINDOW_WRITE")
       }
       assert(!high(d.pins.usbTxEnable) && !high(d.pins.usbPullup))
       assert(!high(d.pins.spiEnable) && d.pins.spiCs_n.peek().litValue==3)

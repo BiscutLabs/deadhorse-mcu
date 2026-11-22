@@ -31,8 +31,6 @@ object EmitIoFormal extends App {
       case "aon" => new AonTimerFormal("build/t21/aon_timer/aon_timer_regs.json",v)
       case "wake" => new deadhorse.gpio.GpioWakeFormal(v)
       case "gpio_denied" => new deadhorse.gpio.GpioDeniedFormal("build/t21/gpio/gpio_regs.json",v)
-      case "adc_denied" => new deadhorse.adc.AdcDeniedFormal("build/t21/adc/adc_regs.json",v)
-      case "adc_scale" => new deadhorse.adc.AdcScaleFormal(v)
     }),Array("--target-dir",s"${args(1)}/$v"),
       Array("--disable-all-randomization","--disable-opt","--lint-static-asserts=false",
         "--strip-debug-info","--verification-flavor=immediate","--lower-to-core"))
