@@ -30,6 +30,10 @@ no private keys, MCU certificates or firmware signatures are involved. TLS and
 artifact checksum verification remain enabled. OpenSTA and CUDD are built from
 locked source because this Ubuntu snapshot does not package OpenSTA.
 
+OpenOCD 0.12.0 is built from its locked source commit with the separately
+pinned JimTcl submodule and remote-bitbang support. T32 drives actual simulated
+JTAG pins; the environment version probe alone does not qualify debug behavior.
+
 The installed Ubuntu package inventory and tool versions are recorded and
 checked; smoke receipts live in `build/env/smoke/receipt.json`. Scala/Chisel
 primary artifacts are checksum pinned, but the full transitive sbt build,

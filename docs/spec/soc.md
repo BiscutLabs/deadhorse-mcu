@@ -13,7 +13,8 @@ fabrics, shared-CDC bidirectional bridge/permit and mailbox, three UARTs, SPI
 host, I2C host, USB CDC-ACM, GPIO, main capture/compare/timebase, AON deadlines,
 generic PWM, DMA, pinmux, both watchdog channels, real lite hart, boot-release
 control, shared QSPI command/native-XIP engine and frozen I2C recovery loader.
-JTAG, clock/power control and analog interfaces await their own briefs.
+T32 adds the two-hart JTAG debug binding (acceptance in progress). Clock/power
+control and analog interfaces await their own briefs.
 Reserved address holes are error targets, not implemented gateway/debug hardware.
 
 `SocProduction` supplies one set of generated register descriptions. Main
@@ -40,6 +41,7 @@ instruction accesses error. Legal subword memory instructions retain byte masks.
 
 | Endpoint | Base | Size | Home | Implementation |
 | --- | --- | --- | --- | --- |
+| debug_mem | 0x00010000 | 0x1000 | debug leaf | pinned PULP execution debug ROM/data/flags |
 | boot_rom | 0x00000000 | 0x10000 | main local | synchronous ROM model; production firmware pending |
 | xip | 0x10000000 | 0x10000000 | main local | native QSPI reads |
 | performance_sram | 0x20000000 | 0x4000 | main local | synchronous banked model |
@@ -80,6 +82,22 @@ Child holes remain errors. No parent or endpoint timeout changes.
 | actuator | 10 | PWM |
 | power_reset_timer | 11 | main timer or synchronized AON timer |
 
+## T32 debug binding (acceptance in progress)
+
+The reviewed contract is in hw/ip/debug/README.md. TAP uses external TCK;
+shared CDC FIFOs carry DMI to the POR-owned main-clock DM. Lite is hart0,
+performance hart1. Both have execution-debug ROM access at0x10800 (exceptions
+at0x10810). A dedicated shared-primitive leaf bridge carries lite debug memory
+traffic; the ordinary two-way permit/fabrics and reserved windows stay intact.
+SBA is a distinct origin and accesses memory only. It never impersonates a CPU.
+No 12-bit hartinfo scratch address is advertised for the nonzero debug base.
+
+Debug-only reset entry is separate from firmware boot release. Loader commands
+that mutate images/lock/START are cancelled through its existing busy-error path
+while debug requests ownership; already accepted writes finish. Ordinary boot,
+loader lock and watchdog containment are unchanged. Independent target resets
+clear that hart's DM status; reset cancellation retains transaction fences.
+
 ## Memory, ownership and transactions
 
 Instruction/data access to ROM and SRAM bypasses peripheral arbitration.
@@ -90,7 +108,7 @@ DMA is confined to performance SRAM and fixed UART/SPI/PWM register endpoints;
 its origin is assigned by hardware. Offered operations drain before abort.
 ROM aperture is a model capacity, not a measured mask-ROM allocation.
 
-Trusted origins: lite 0, performance 1, future gateway/debug 2. Existing fixed-owner
+Trusted origins: lite 0, performance 1, JTAG SBA 2. Existing fixed-owner
 peripherals check every local/remote/DMA access. QSPI alone has its existing
 idle-only keyed ownership handoff. USB ownership is constant during application
 reset release. There is no added dynamic ownership controller.
@@ -99,7 +117,9 @@ Retained SRAM contains 2048 program bytes and 1024 working bytes. CPU program
 writes are denied. Loader programming requires halted, unlocked, in-range
 aligned writes and acknowledgment after the synchronous write. Lite reads its
 program while halted or after admitted START. Remote performance accesses
-require the lite hart halted and loader idle; no debug bypass is implemented.
+require the lite hart halted and loader idle. Separate JTAG SBA writes require
+lite debug mode or not-started with no START pending, and loader idle. Ordinary
+CPU program-write checks remain unchanged.
 Service resets flush handshakes, not RAM contents. The real hart supplies halt
 status; legacy external stand-in controls are inert in production.
 

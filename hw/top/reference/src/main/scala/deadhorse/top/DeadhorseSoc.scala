@@ -14,6 +14,7 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
                    verificationFixture: Boolean = false, ramImages: Seq[String] = Seq.empty,
                    i1Config: Option[SocI1Config] = None) extends RawModule {
   protected def bootPermit(released: Bool): Bool=released
+  protected def debugRequest(request: Bool): Bool=request
   require(verificationFixture || ramImages.isEmpty, "Preloaded SRAM is verification-only")
   require(!verificationFixture || i1Config.isEmpty,"QEMU fixture is the preserved I0 configuration")
   val mainClock = IO(Input(Clock()))
@@ -28,18 +29,19 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   val i1 = i1Config.map(_=>IO(new SocI1Pins))
   val watchdogCoreReset=WireDefault(false.B);val watchdogWholeReset=WireDefault(false.B)
   val bootReleased=WireDefault(true.B)
+  val debugGrant=WireDefault(false.B);val debugFetch=WireDefault(false.B);val debugHalt=WireDefault(false.B);val debugReset=WireDefault(false.B)
   require(!i1Config.exists(_.bootControl.isDefined) || i1Config.exists(_.liteCore),
     "Production boot release requires the real lite core")
   val serviceRelease = Module(new ResetRelease)
   serviceRelease.clk := mainClock
-  serviceRelease.reset_n := coldReset_n && warmReset_n && mainServiceReset_n && !watchdogWholeReset
+  serviceRelease.reset_n := coldReset_n && warmReset_n && mainServiceReset_n && !watchdogWholeReset && !debugReset
   val coreRelease = Module(new ResetRelease)
   coreRelease.clk := mainClock
   coreRelease.reset_n := coldReset_n && warmReset_n && mainServiceReset_n && mainCoreReset_n &&
-    !watchdogWholeReset && !watchdogCoreReset && bootPermit(bootReleased)
+    !watchdogWholeReset && !watchdogCoreReset && !debugReset && (bootPermit(bootReleased) || debugGrant)
 
   val memory = Module(new SocLocalMemory(description, romImage, banks, readLatency, ramImages,
-    dmaEnabled=i1Config.exists(_.dma.isDefined),xipEnabled=i1Config.exists(_.xip)))
+    dmaEnabled=i1Config.exists(_.dma.isDefined),xipEnabled=i1Config.exists(_.xip),debugEnabled=i1Config.nonEmpty))
   memory.clk := mainClock; memory.serviceReset_n := serviceRelease.released
   memory.clientReset_n := coreRelease.released
   coreReady := memory.epochReady
@@ -53,7 +55,9 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
     t.iAddr:=memory.instruction.bits.addr; t.iValid:=memory.instruction.rvalid
     t.dReq:=memory.data.req; t.dGnt:=memory.data.gnt
   }
-  val core = Module(new IbexTop(gateTarget, WithRVFI=true, RegisteredExecution=false, WithF=true))
+  val core = Module(new IbexTop(gateTarget, WithRVFI=true, RegisteredExecution=false, WithF=true,
+    DmHaltAddr=if(i1Config.nonEmpty) description.region("debug_mem").base+0x800 else BigInt("1a110800",16),
+    DmExceptionAddr=if(i1Config.nonEmpty) description.region("debug_mem").base+0x810 else BigInt("1a110808",16)))
   core.clk_i := mainClock; core.rst_ni := coreRelease.released
   core.test_en_i := false.B; core.scan_rst_ni := true.B; core.ram_cfg_i := 0.U
   core.instr_rdata_intg_i := 0.U; core.data_rdata_intg_i := 0.U
@@ -63,7 +67,8 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   }
   core.ports("hart_id_i") := (if(verificationFixture) 0 else 1).U
   core.ports("boot_addr_i") := description.region("boot_rom").base.U
-  core.ports("fetch_enable_i") := Mux(memory.epochReady, 5.U, 10.U)
+  core.ports("fetch_enable_i") := Mux(memory.epochReady && (bootPermit(bootReleased) || core.debug_mode_o || debugFetch), 5.U, 10.U)
+  core.ports("debug_req_i"):=debugRequest(debugHalt)
   coreSleeping := core.core_sleep_o
   val rvfi = core.ports.toSeq.filter(_._1.startsWith("rvfi_")).map { case(name, signal) =>
     val out = IO(chiselTypeOf(signal)).suggestName(name)
@@ -89,6 +94,9 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
 
   if(i1Config.nonEmpty) {
     val subsystem=Module(new SocI1Peripherals(description,i1Config.get))
+    subsystem.performanceDebugMode:=core.debug_mode_o
+    subsystem.performanceReset_n:=coreRelease.reset_n
+    debugFetch:=subsystem.performanceDebugFetch;debugHalt:=subsystem.performanceHalt;debugGrant:=subsystem.performanceDebugGrant;debugReset:=subsystem.debugReset
     subsystem.mainClock:=mainClock;subsystem.coldReset_n:=coldReset_n
     subsystem.warmReset_n:=warmReset_n;subsystem.mainServiceReset_n:=mainServiceReset_n
     subsystem.main<>memory.peripheral;subsystem.pins<>i1.get

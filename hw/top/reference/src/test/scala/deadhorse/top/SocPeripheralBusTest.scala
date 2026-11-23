@@ -13,6 +13,7 @@ class SocPeripheralBusTest(d: SocDescription,c: SocI1Config)
 
 object SocTestPorts extends PeekPokeAPI {
   def idle(d: SocI1Peripherals): Unit = {
+    d.performanceDebugMode.poke(false.B);d.performanceReset_n.poke(false.B)
     d.performanceReady.foreach(_.poke(true.B))
     d.nativeXip.foreach {p=>p.req.poke(false.B);p.bits.poke(0.U.asTypeOf(p.bits))}
     d.dmaMemory.foreach {p=>
@@ -20,6 +21,7 @@ object SocTestPorts extends PeekPokeAPI {
     }
   }
   def tieIdle(d: SocI1Peripherals): Unit = {
+    d.performanceDebugMode:=false.B;d.performanceReset_n:=false.B
     d.performanceReady.foreach(_:=true.B)
     d.nativeXip.foreach {p=>p.req:=false.B;p.bits:=0.U.asTypeOf(p.bits)}
     d.dmaMemory.foreach {p=>p.gnt:=false.B;p.rvalid:=false.B;p.rdata:=0.U;p.err:=false.B}

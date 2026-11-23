@@ -189,7 +189,7 @@ class OperatingPointTests(unittest.TestCase):
 
     def test_mapping_target_is_separate_from_unchanged_sta_acceptance(self):
         for point, expected in (('default', 24960), ('main-12mhz', 50000),
-                                ('main-9p6mhz', 62500), ('main-9mhz', 62500)):
+                                ('main-9p6mhz', 62500), ('main-9mhz', 50000)):
             with self.subTest(point=point):
                 cfg = timing_config(point)
                 target = mapping_target_ps(cfg, point)

@@ -27,7 +27,40 @@ clocked design that relies on clock gating for its power modes and on scan
 for production test needs both, so the approved choice is
 `gf180mcu_fd_sc_mcu7t5v0`, subject to the shuttle accepting it at 3.3 V.
 
-## PLAN03 measured logic and estimated chip budget
+## T32 provisional physical-boundary budget: within ceiling
+
+T32's uncommitted production integration on main `9b80375` replaces the assumed
+JTAG allowance with measured whole-top logic. The same PLAN03 mapping method
+and all other allowances remain unchanged. Following the approved SBA-routing
+experiment, the user approved a broader area review. The independently checked
+[physical boundary](../spec/soc-physical-boundary.md) excludes verification-only
+RVFI observations from measurement while retaining them in every test. Complete
+bottom-up reset-buffer layers retain the same cell and fanout bound. These
+measurement refinements restore the estimate below the ceiling without a budget
+exception. This is not physical fit or final T32 acceptance.
+Commands, evidence hashes, qualifications and open checks are in the
+[T32 report](tasks/reports/T32.md).
+
+| Item | Area, mm2 | Provenance |
+| --- | ---: | --- |
+| Built functional production logic including debug, 8 MHz mapping trial | 3.480476429 | Measured, `python scratch/t32_area07_run.py` and area07 partition in the pinned environment; observers excluded only from physical measurement |
+| Separate JTAG allowance | 0 | Removed to avoid double counting; actual integration is in mapped logic |
+| Remaining digital allowances | 0.700000000 | Assumed: controller .10, ROM .50, BIST .05, scan glue .05 |
+| Scan-flop uplift on built logic | 0.410504595 | Estimated from mapped flops and library scan areas; two negative-edge flops use an explicitly estimated scan-flop plus clock-inverter implementation, to qualify in T37 |
+| Digital subtotal at unchanged 0.55 utilization | 8.347238225 | Estimated sum of digital rows / .55 |
+| Performance and retained SRAM | 3.108271060 | Estimated from unchanged pinned macro footprints below |
+| Analog, pad/keepout and halo/glue allowances | 1.400000000 | Assumed, unchanged .50 + .50 + .40 |
+| Total core use | **12.855509285** | Estimated, `python scratch/t32_area07_budget.py`; area-only ceiling check passes |
+| Headroom under unchanged 12.92 ceiling | **0.064490715** | Estimated subtraction; narrow, not placement margin qualification |
+
+This supersedes the fit estimate below for the current T32 working tree, not
+the published pre-T32 main baseline. No allowance, utilization or ceiling has
+been revised. Independent graph, arithmetic and matched endpoint reviews resolve
+the area-only stop. Original T32 validation resumes; final CI, complete timing
+and implementation acceptance remain open. Raw reset-removal, USB exception
+qualification and unbuffered core-clock pulse diagnostics remain visible.
+
+## PLAN03 baseline measured logic and estimated chip budget
 
 Measured on main `736ed5c`, unchanged production RTL, with the commands and
 per-block/domain allocation in [production measurements](../spec/soc-production-measurements.md).

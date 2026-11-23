@@ -1,0 +1,149 @@
+{
+  "upstreams": {
+    "riscv-dbg": {
+      "url": "https://github.com/pulp-platform/riscv-dbg",
+      "commit": "643607e19df3435cfd77cc56143e2637f5900a6e"
+    },
+    "common_cells": {
+      "url": "https://github.com/pulp-platform/common_cells",
+      "commit": "b5ec8905ed7828655155b0ae971023adf793c600"
+    },
+    "tech_cells_generic": {
+      "url": "https://github.com/pulp-platform/tech_cells_generic",
+      "commit": "63da15065d2270788634562bb2240514a70f76cc"
+    }
+  },
+  "parameters": {
+    "NrHarts": 2,
+    "BusWidth": 32,
+    "MaxRegisterAccessWidth": 32,
+    "DmBaseAddress": 65536,
+    "HartResetExtension": 1
+  },
+  "files": {
+    "riscv-dbg/src/dm_pkg.sv": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "src/dm_pkg.sv",
+      "snapshot_sha256": "6fdc298ce1080eed97fe82a37699148db8aaeee11efc6ce9947579043240708e",
+      "sha256": "ddd883331359926221f593a853b62a21537ecf7a9ffa7427e845ac1d03c32487",
+      "applied_sha256": "ddd883331359926221f593a853b62a21537ecf7a9ffa7427e845ac1d03c32487"
+    },
+    "riscv-dbg/src/dm_top.sv": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "src/dm_top.sv",
+      "snapshot_sha256": "b20f176d7d143f7abf11e1d0688b84720b5b6651d954529210b0fe79a4acfcff",
+      "sha256": "0fb114381f3e545fee77194b8fadca87f610676508f2d5bb26df6bd13fb8f8fe",
+      "applied_sha256": "50897e87bd233f7f33226bad2c08aa066e0149d9aa91f7e49ece272ee0b45187"
+    },
+    "riscv-dbg/src/dm_csrs.sv": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "src/dm_csrs.sv",
+      "snapshot_sha256": "e6f6367fdf22bb52c01cfb53fc6ce4e5a50345040949cc72ffc6f42d2532410b",
+      "sha256": "22212c146f39bc8eaca1e83c2706c9efe103d2248a6d66c1ecfc2bdd8f92766a",
+      "applied_sha256": "0f0f7d24fbb2ed54f6243b1c3d31922fae6ffc7c22e7557754610e24537758aa"
+    },
+    "riscv-dbg/src/dm_mem.sv": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "src/dm_mem.sv",
+      "snapshot_sha256": "d9dc1e4e2c4b8f5e3f6a886f12fe639b67e49013dba7f284cd8618b840d052d3",
+      "sha256": "d8ff03329fe98db290caa4509a56c864881ab0386da0f66c603dd476d739e778",
+      "applied_sha256": "6cf4a46abf2f7f20beb3d7921ce867acb81ae114d8999b0ec1bead321fd764f7"
+    },
+    "riscv-dbg/src/dm_sba.sv": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "src/dm_sba.sv",
+      "snapshot_sha256": "38f611084dc6f3079b982940095ff934898aaa8289b1d3bf6773f7f5763751bc",
+      "sha256": "4386f04de9145c6285948b72c404fb6a563830507ebc17c6e79620b35066cdd9",
+      "applied_sha256": "4386f04de9145c6285948b72c404fb6a563830507ebc17c6e79620b35066cdd9"
+    },
+    "riscv-dbg/src/dmi_jtag.sv": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "src/dmi_jtag.sv",
+      "snapshot_sha256": "289c3da477a5542e93d6134c6a12f334f2b946f86e3d1d200de717f96860443d",
+      "sha256": "daca061477c63298e64c25298079c3e554317bc8c4b65f499aa85fa42c11075b",
+      "applied_sha256": "ef6169da12bec23b1a46ebc7990bfa03b47b6206901b5f3bcb5b5f39c7ce01fb"
+    },
+    "riscv-dbg/src/dmi_jtag_tap.sv": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "src/dmi_jtag_tap.sv",
+      "snapshot_sha256": "af7042573aceca4639589c84a5f166399e69a6f48a2d8eabadf8ce30828ba604",
+      "sha256": "a23f93bbeee68b6beed0778cab949b56d770ad68fb07bfe51870ac413cbf0cbb",
+      "applied_sha256": "a23f93bbeee68b6beed0778cab949b56d770ad68fb07bfe51870ac413cbf0cbb"
+    },
+    "riscv-dbg/debug_rom/debug_rom.sv": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "debug_rom/debug_rom.sv",
+      "snapshot_sha256": "b8bf5e8a9ce929d7284f9332e5130b27c0a6ead14d7d0ba85c2b56884b124e1d",
+      "sha256": "3dfc5bce1021e5fcc07c31cfe2fa087eb6801d31160d7f47692880d2637e6ce6",
+      "applied_sha256": "3dfc5bce1021e5fcc07c31cfe2fa087eb6801d31160d7f47692880d2637e6ce6"
+    },
+    "riscv-dbg/debug_rom/debug_rom_one_scratch.sv": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "debug_rom/debug_rom_one_scratch.sv",
+      "snapshot_sha256": "8ac28d3d60c4620660047551b29ee076bdde734c1eeb95330ef17e288343dc9e",
+      "sha256": "ae30ed4821f5b1bc08e05c3c44db8deda5fbb7d9ec5991227d1bbccfa94e8bff",
+      "applied_sha256": "ae30ed4821f5b1bc08e05c3c44db8deda5fbb7d9ec5991227d1bbccfa94e8bff"
+    },
+    "riscv-dbg/LICENSE": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "LICENSE",
+      "snapshot_sha256": "b4bf99623999c733a2db4f188afdec2e209fd2dccf9dfbf374ff2b08e0ca9b3f",
+      "sha256": "93b73d82e2a9049adbee0a6c4c3327fdcaa5acdb2217e669e196bb3c60c2b0e1",
+      "applied_sha256": "93b73d82e2a9049adbee0a6c4c3327fdcaa5acdb2217e669e196bb3c60c2b0e1"
+    },
+    "riscv-dbg/LICENSE.SiFive": {
+      "upstream": "riscv-dbg",
+      "upstream_path": "LICENSE.SiFive",
+      "snapshot_sha256": "bbdb7a13e14d7bb8991d2725c7dd2a5d1ee011862322a802e695cd483168c1f1",
+      "sha256": "63b453c2c3f5e5d31007f55eaacc2b72e8b7a40e6ab33eae6972ba010fa7acc4",
+      "applied_sha256": "63b453c2c3f5e5d31007f55eaacc2b72e8b7a40e6ab33eae6972ba010fa7acc4"
+    },
+    "common_cells/src/fifo_v3.sv": {
+      "upstream": "common_cells",
+      "upstream_path": "src/fifo_v3.sv",
+      "snapshot_sha256": "a0bfd58ebc8f9769f38b350d102cda85ee76dbef6db3a8cdec550bc3341af45d",
+      "sha256": "0b33c4ca3d81eb0af72772aa8f064d655974627841e4ba5aca5634cbb46147ce",
+      "applied_sha256": "0b33c4ca3d81eb0af72772aa8f064d655974627841e4ba5aca5634cbb46147ce"
+    },
+    "common_cells/LICENSE": {
+      "upstream": "common_cells",
+      "upstream_path": "LICENSE",
+      "snapshot_sha256": "18d7ca27ad6fa6c636185b39fbe8fe4b4d592a4e8d02932e6a10f72f95e70d55",
+      "sha256": "6527a46225891b976fa94f634f6ee0cd22e1c7129d6f11c5c98c997627625fc7",
+      "applied_sha256": "6527a46225891b976fa94f634f6ee0cd22e1c7129d6f11c5c98c997627625fc7"
+    },
+    "tech_cells_generic/src/rtl/tc_clk.sv": {
+      "upstream": "tech_cells_generic",
+      "upstream_path": "src/rtl/tc_clk.sv",
+      "snapshot_sha256": "059b280f72ba7b24dcafb2d01db23cc5225942cc53e76c034a1e03294cdbfd8d",
+      "sha256": "52cdd2918688bcdb9f5b4f393f5a77955fb71176814c0dcb6435e8fde8f4125b",
+      "applied_sha256": "52cdd2918688bcdb9f5b4f393f5a77955fb71176814c0dcb6435e8fde8f4125b"
+    },
+    "tech_cells_generic/LICENSE": {
+      "upstream": "tech_cells_generic",
+      "upstream_path": "LICENSE",
+      "snapshot_sha256": "18d7ca27ad6fa6c636185b39fbe8fe4b4d592a4e8d02932e6a10f72f95e70d55",
+      "sha256": "6527a46225891b976fa94f634f6ee0cd22e1c7129d6f11c5c98c997627625fc7",
+      "applied_sha256": "6527a46225891b976fa94f634f6ee0cd22e1c7129d6f11c5c98c997627625fc7"
+    }
+  },
+  "patches": [
+    {
+      "path": "patches/integration.patch",
+      "sha256": "b277ca30a43f8ea5709f90edce6573f50926c0bb469c0877754e083faa87c6bc"
+    }
+  ],
+  "rtl_files": [
+    "riscv-dbg/src/dm_pkg.sv",
+    "riscv-dbg/src/dm_top.sv",
+    "riscv-dbg/src/dm_csrs.sv",
+    "riscv-dbg/src/dm_mem.sv",
+    "riscv-dbg/src/dm_sba.sv",
+    "riscv-dbg/src/dmi_jtag.sv",
+    "riscv-dbg/src/dmi_jtag_tap.sv",
+    "riscv-dbg/debug_rom/debug_rom.sv",
+    "riscv-dbg/debug_rom/debug_rom_one_scratch.sv",
+    "common_cells/src/fifo_v3.sv",
+    "tech_cells_generic/src/rtl/tc_clk.sv"
+  ]
+}

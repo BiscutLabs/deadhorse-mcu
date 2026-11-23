@@ -14,6 +14,7 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
     val RegisteredExecution: Boolean = false, val WithF: Boolean = false) extends RawModule {
   require(DbgTriggerEn, "T11 core implements the pinned debug-trigger configuration")
   override def desiredName = "ibex_core"
+  val debug_mode_o=IO(Output(Bool()))
   val clk_i=IO(Input(Clock())); val rst_ni=IO(Input(Bool()))
   val hart_id_i=IO(Input(UInt(32.W))); val boot_addr_i=IO(Input(UInt(32.W)))
   val instr_req_o=IO(Output(Bool())); val instr_gnt_i=IO(Input(Bool()))
@@ -284,6 +285,7 @@ class IbexCore(val DbgTriggerEn: Boolean = true, val WithRVFI: Boolean = true,
   csr.csr_op_en_i:=id.csr_op_en_o
   csr.irq_software_i:=irq_software_i; csr.irq_timer_i:=irq_timer_i; csr.irq_external_i:=irq_external_i
   csr.irq_fast_i:=irq_fast_i; csr.nmi_mode_i:=id.nmi_mode_o; irq_pending_o:=csr.irq_pending_o
+  debug_mode_o:=id.debug_mode_o
   csr.debug_mode_i:=id.debug_mode_o; csr.debug_mode_entering_i:=id.debug_mode_entering_o
   csr.debug_cause_i:=id.debug_cause_o; csr.debug_csr_save_i:=id.debug_csr_save_o
   csr.pc_if_i:=fetch.pc_if_o; csr.pc_id_i:=fetch.pc_id_o; csr.pc_wb_i:=wb.pc_wb_o

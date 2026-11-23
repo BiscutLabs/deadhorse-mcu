@@ -66,11 +66,13 @@ def main():
         'riscv-gcc': ['riscv64-unknown-elf-gcc', '--version'],
         'qemu': ['qemu-system-riscv32', '--version'], 'git': ['git', '--version'],
         'sv2v': ['sv2v', '--version'],
+        'openocd': ['openocd', '--version'],
     }
     for name, command in commands.items(): versions[name] = run(command)
     for name, expected in [('java', '21.'), ('sbt', lock['versions']['sbt']),
                            ('firtool', lock['versions']['firtool']), ('yowasp-yosys', '0.71'),
-                           ('sv2v', lock['versions']['sv2v'])]:
+                           ('sv2v', lock['versions']['sv2v']),
+                           ('openocd', lock['versions']['openocd'])]:
         if expected not in versions[name]: raise RuntimeError(f'{name}: unexpected version {versions[name]}')
     for tool, command in [('yowasp-yosys', 'read_slang'), ('yosys', 'sat')]:
         help_text = run([tool, '-Q', '-T', '-p', f'help {command}'])

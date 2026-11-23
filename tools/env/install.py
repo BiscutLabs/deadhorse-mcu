@@ -59,6 +59,13 @@ def main():
                     '-DCMAKE_INSTALL_PREFIX=/opt/opensta'], check=True)
     subprocess.run(['cmake', '--build', str(sources/'sta-build'), '-j2'], check=True)
     subprocess.run(['cmake', '--install', str(sources/'sta-build')], check=True)
+    # OpenOCD's JimTcl submodule is fetched independently by its exact gitlink.
+    # No network or unpinned submodule update is allowed during bootstrap.
+    shutil.copytree(sources/'jimtcl', sources/'openocd/jimtcl', dirs_exist_ok=True)
+    subprocess.run(['./bootstrap', 'nosubmodule'], cwd=sources/'openocd', check=True)
+    subprocess.run(['./configure', *LOCK['openocd_configure']], cwd=sources/'openocd', check=True)
+    subprocess.run(['make', '-j2'], cwd=sources/'openocd', check=True)
+    subprocess.run(['make', 'install'], cwd=sources/'openocd', check=True)
     shutil.rmtree(sources)
     subprocess.run(['python3', '-m', 'venv', '--system-site-packages', '/opt/yowasp'], check=True)
     wheels = []

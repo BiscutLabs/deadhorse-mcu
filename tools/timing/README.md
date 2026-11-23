@@ -144,9 +144,14 @@ adopt a production frequency.
 The follow-up `--operating-point main-9mhz` trial uses the same faithful
 emitter with period 1000/9 ns and allowance 200/3 ns (66.666667 ns).
 Use a separate output directory, such as `build/t13/faithful9/`, to preserve
-the failed 9.6 MHz receipt. It is a fresh mapping, not a relabelled result. This named trial retains the
-62500 ps ABC optimization target from the 9.6 MHz experiment: mapping at the
-looser 66666.667 ps target regressed the measured path. STA still applies the
+the failed 9.6 MHz receipt. It is a fresh mapping, not a relabelled result.
+The T32 D80 follow-up uses a 50000 ps ABC optimization target; the earlier
+62500 ps recipe and its failing receipt remain recorded. This tighter mapping
+goal changes synthesis effort, not the clock or acceptance. For DeadhorsePerfCore,
+the recipe also reloads the freshly emitted premapped JSON before ABC; its
+traversal order is part of the measured improvement. A tighter target alone
+did not reproduce it. Other targets retain their existing mapping sequence.
+STA still applies the
 9 MHz period and 66.666667 ns allowance. Mapping-target provenance is explicit
 in the receipt; no arbitrary target override is offered. Default production
 timing, other trial targets and all non-period acceptance constraints stay unchanged.

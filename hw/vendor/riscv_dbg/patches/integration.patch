@@ -1,0 +1,196 @@
+--- a/riscv-dbg/src/dm_top.sv
++++ b/riscv-dbg/src/dm_top.sv
+@@ -18,6 +18,7 @@
+ */
+ 
+ module dm_top #(
++  parameter bit HartResetExtension = 0,
+   parameter int unsigned        NrHarts          = 1,
+   parameter int unsigned        BusWidth         = 32,
+   parameter int unsigned        DmBaseAddress    = 'h1000, // default to non-zero page
+@@ -29,6 +30,9 @@
+   // Maximum width supported by Access Register commands; must be 32 or 64.
+   parameter int unsigned        MaxRegisterAccessWidth = BusWidth
+ ) (
++  input logic [NrHarts-1:0] hart_reset_i,
++  output logic [19:0] command_hart_o,
++  output logic command_busy_o,
+   input  logic                  clk_i,       // clock
+   // asynchronous reset active low, connect PoR here, not the system reset
+   input  logic                  rst_ni,
+@@ -117,10 +121,12 @@
+   assign ndmreset_o = ndmreset;
+ 
+   dm_csrs #(
++    .HartResetExtension(HartResetExtension),
+     .NrHarts(NrHarts),
+     .BusWidth(BusWidth),
+     .SelectableHarts(SelectableHarts)
+   ) i_dm_csrs (
++    .hart_reset_i,
+     .clk_i,
+     .rst_ni,
+     .next_dm_addr_i,
+@@ -206,12 +212,16 @@
+   );
+ 
+   dm_mem #(
++    .HartResetExtension(HartResetExtension),
+     .NrHarts                ( NrHarts                ),
+     .BusWidth               ( BusWidth               ),
+     .SelectableHarts        ( SelectableHarts        ),
+     .DmBaseAddress          ( DmBaseAddress          ),
+     .MaxRegisterAccessWidth ( MaxRegisterAccessWidth )
+   ) i_dm_mem (
++    .hart_reset_i,
++    .command_hart_o,
++    .command_busy_o,
+     .clk_i,
+     .rst_ni,
+     .dmactive_i              ( dmactive_o            ),
+--- a/riscv-dbg/src/dm_csrs.sv
++++ b/riscv-dbg/src/dm_csrs.sv
+@@ -16,10 +16,12 @@
+  */
+ 
+ module dm_csrs #(
++  parameter bit HartResetExtension = 0,
+   parameter int unsigned        NrHarts          = 1,
+   parameter int unsigned        BusWidth         = 32,
+   parameter logic [NrHarts-1:0] SelectableHarts  = {NrHarts{1'b1}}
+ ) (
++  input logic [NrHarts-1:0] hart_reset_i,
+   input  logic                              clk_i,           // Clock
+   input  logic                              rst_ni,          // Asynchronous reset active low
+   input  logic [31:0]                       next_dm_addr_i,  // Static next_dm word address.
+@@ -606,6 +608,11 @@
+     // WARL behavior of hartsel, depending on NrHarts.
+     // If NrHarts = 1 this is just masked to all-zeros.
+     {dmcontrol_d.hartselhi, dmcontrol_d.hartsello} &= HartSelMask;
++    // Independent target reset wins over a simultaneous resume/ackhavereset.
++    if (HartResetExtension) begin
++      havereset_d |= hart_reset_i;
++      resume_pending_d &= ~hart_reset_i;
++    end
+     // static values for dcsr
+     sbcs_d.sbversion            = 3'd1;
+     sbcs_d.sbbusy               = sbbusy_i;
+--- a/riscv-dbg/src/dm_mem.sv
++++ b/riscv-dbg/src/dm_mem.sv
+@@ -17,6 +17,7 @@
+ */
+ 
+ module dm_mem #(
++  parameter bit HartResetExtension = 0,
+   parameter int unsigned        NrHarts          =  1,
+   parameter int unsigned        BusWidth         = 32,
+   parameter logic [NrHarts-1:0] SelectableHarts  = {NrHarts{1'b1}},
+@@ -24,6 +25,9 @@
+   // Maximum width supported by Access Register commands; must be 32 or 64.
+   parameter int unsigned        MaxRegisterAccessWidth = BusWidth
+ ) (
++  input logic [NrHarts-1:0] hart_reset_i,
++  output logic [19:0] command_hart_o,
++  output logic command_busy_o,
+   input  logic                             clk_i,       // Clock
+   input  logic                             rst_ni,      // debug module reset
+   input  logic                             dmactive_i,  // debug module is active
+@@ -139,6 +143,8 @@
+ 
+   typedef enum logic [1:0] { Idle, Go, CmdExecuting } state_e;
+   state_e state_d, state_q;
++  assign command_hart_o = 20'(cmd_hartsel_q);
++  assign command_busy_o = state_q != Idle;
+ 
+   // hart ctrl queue
+   always_comb begin : p_hart_ctrl_queue
+@@ -198,6 +204,15 @@
+       cmderror_o = dm::CmdErrorException;
+     end
+ 
++    // Reset wins over command acceptance and completion, for its own hart only.
++    if (HartResetExtension &&
++        ((state_q == Idle && cmd_valid_i && hart_reset_i[hartsel]) ||
++         (state_q != Idle && hart_reset_i[cmd_hartsel_q]))) begin
++      state_d = Idle;
++      go = 1'b0;
++      cmderror_valid_o = 1'b1;
++      cmderror_o = dm::CmdErrorHaltResume;
++    end
+     if (ndmreset_i) begin
+       // Clear state of hart and its control signals when it is being reset.
+       state_d = Idle;
+@@ -262,6 +277,7 @@
+     if (!dmactive_i) begin
+       resuming_d = '0;
+     end
++    if (HartResetExtension) resuming_d &= ~hart_reset_i;
+   end
+ 
+   // VCS Xprop cannot instrument case-inside range items (see PR #150).
+@@ -367,6 +383,7 @@
+       // When harts are reset, they are not halted.
+       halted_d = '0;
+     end
++    if (HartResetExtension) halted_d &= ~hart_reset_i;
+   end
+ 
+   always_comb begin : p_abstract_cmd_rom
+@@ -541,16 +558,13 @@
+ 
+   always_ff @(posedge clk_i or negedge rst_ni) begin : p_regs
+     if (!rst_ni) begin
+-      cmd_hartsel_q <= '0;
+-    end else begin
+-      cmd_hartsel_q <= cmd_hartsel_d;
+-    end
+-    if (!rst_ni) begin
++      cmd_hartsel_q   <= '0;
+       fwd_rom_q       <= 1'b0;
+       rdata_q         <= '0;
+       state_q         <= Idle;
+       word_enable32_q <= 1'b0;
+     end else begin
++      cmd_hartsel_q   <= cmd_hartsel_d;
+       fwd_rom_q       <= fwd_rom_d;
+       rdata_q         <= rdata_d;
+       state_q         <= state_d;
+--- a/riscv-dbg/src/dmi_jtag.sv
++++ b/riscv-dbg/src/dmi_jtag.sv
+@@ -327,27 +327,14 @@
+   // ---------
+   // CDC
+   // ---------
+-  dmi_cdc i_dmi_cdc (
+-    // JTAG side (master side)
+-    .tck_i                ( tck              ),
+-    .trst_ni              ( trst_ni          ),
+-    .jtag_dmi_cdc_clear_i ( dmi_clear        ),
+-    .jtag_dmi_req_i       ( dmi_req          ),
+-    .jtag_dmi_ready_o     ( dmi_req_ready    ),
+-    .jtag_dmi_valid_i     ( dmi_req_valid    ),
+-    .jtag_dmi_resp_o      ( dmi_resp         ),
+-    .jtag_dmi_valid_o     ( dmi_resp_valid   ),
+-    .jtag_dmi_ready_i     ( dmi_resp_ready   ),
+-    // core side
+-    .clk_i,
+-    .rst_ni,
+-    .core_dmi_rst_no      ( dmi_rst_no       ),
+-    .core_dmi_req_o       ( dmi_req_o        ),
+-    .core_dmi_valid_o     ( dmi_req_valid_o  ),
+-    .core_dmi_ready_i     ( dmi_req_ready_i  ),
+-    .core_dmi_resp_i      ( dmi_resp_i       ),
+-    .core_dmi_ready_o     ( dmi_resp_ready_o ),
+-    .core_dmi_valid_i     ( dmi_resp_valid_i )
+-  );
++  // Interface-only extraction: transport CDC is the shared Chisel CdcFifo.
++  // All signals on this interface are now in TCK, including the clear level.
++  assign dmi_rst_no = ~dmi_clear;
++  assign dmi_req_o = dmi_req;
++  assign dmi_req_valid_o = dmi_req_valid;
++  assign dmi_req_ready = dmi_req_ready_i;
++  assign dmi_resp = dmi_resp_i;
++  assign dmi_resp_valid = dmi_resp_valid_i;
++  assign dmi_resp_ready_o = dmi_resp_ready;
+ 
+ endmodule : dmi_jtag

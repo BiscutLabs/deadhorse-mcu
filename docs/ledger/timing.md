@@ -1,5 +1,24 @@
 # Per-block GF180 timing ledger
 
+## T32 standalone faithful core timing, 2026-11-23
+
+D80's third mapping candidate and maintained-flow reproduction measure
+**65.141479 ns RR**, below unchanged estimated 66.666667 ns at 9 MHz; measured
+mapped area **814013.088 um2**. Command: pinned
+`python hw/ip/perf_core/check_top_timing.py --emitted build/t32/final-fast03/fast/faithful-float-emit/asic --operating-point main-9mhz --output build/t32/timing-iterations/standard-flow02`,
+base main `9b80375109826e41d28cae95b1b80c653bfc34ff` plus local T32 work.
+Recipe: 50000 ps ABC goal and DeadhorsePerfCore premapped-JSON reload;
+unchanged RTL, SS/125 C/3.0 V Liberty, output loads, 9 MHz STA and 60% limit.
+All-state transition/output/clock/reset equivalence and wrong-D control pass.
+Measured electrical violations zero, min gate slack +0.704980 ns, min data hold
++0.530017 ns; reset removal -0.975158 ns remains physical-boundary debt.
+Loops 1/2 fail at measured 70.402451/73.791389 ns and are rejected.
+[Full paths, commands, areas and scope](../plan/tasks/reports/T32-timing-followup.md).
+Frozen fast CI `build/t32/timing-fast01` passes all 34 active commands in
+measured 3850.781049 s with twelve inherited unproved deferrals, reproducing
+65.141479 ns in its faithful-core timing stage. Full tier unrun; no
+placement/signoff claim. The separate T32 reset read-data proof stays deferred.
+
 ## T13 shared integer and floating-point multiplier, 2026-11-18
 
 Measured on `f4155b0` plus the shared MAC and FPU addend reuse. The standard

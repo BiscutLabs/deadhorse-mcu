@@ -5,7 +5,12 @@ import chisel3._
 import chisel3.util._
 
 /** One instruction in flight; registered memory boundary and precise machine traps. */
-class LiteCore extends RawModule {
+class LiteDebugPort extends Bundle {
+  val request=Input(Bool());val allowEntry=Input(Bool());val stop=Input(Bool())
+  val mode=Output(Bool());val stopped=Output(Bool())
+}
+class LiteCore(withDebug: Boolean=false,debugBase: BigInt=0x10000) extends RawModule {
+  val debug=if(withDebug) Some(IO(new LiteDebugPort)) else None
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
   val start=IO(Input(Bool()));val entry=IO(Input(UInt(32.W)));val irq=IO(Input(Bool()))
   val request=IO(Decoupled(new MemoryRequest));val response=IO(Flipped(Decoupled(new MemoryResponse)))
@@ -23,7 +28,14 @@ class LiteCore extends RawModule {
     val registers=RegInit(VecInit(Seq.fill(15)(0.U(32.W))))
     val csr=RegInit(0.U.asTypeOf(new LiteMachineState));val nextCsr=WireDefault(csr)
     when(!csr.inhibitCycle) {nextCsr.cycle:=csr.cycle+1.U}
-    val pendingInterrupt=irq && csr.meie
+    val debugMode=RegInit(false.B);val debugPc=RegInit(0.U(32.W))
+    val debugScratch=RegInit(VecInit(Seq.fill(2)(0.U(32.W))))
+    val debugCause=RegInit(0.U(3.W));val ebreakMachine=RegInit(false.B)
+    val haltRequest=debug.map(d=>d.request && d.allowEntry).getOrElse(false.B)
+    val stopRequest=debug.map(_.stop).getOrElse(false.B)
+    val preciseBoundary=phase===boundary && operation===Operation.Fetch.U
+    debug.foreach {d=>d.mode:=debugMode;d.stopped:=preciseBoundary && stopRequest}
+    val pendingInterrupt=irq && csr.meie && !debugMode
     val requestValid=RegInit(false.B);val requestBits=RegInit(0.U.asTypeOf(new MemoryRequest))
     val responseReady=RegInit(false.B)
     request.valid:=requestValid;request.bits:=requestBits;response.ready:=responseReady
@@ -43,17 +55,24 @@ class LiteCore extends RawModule {
     val result=Execute.step(state,response.bits,a,b)
     val n=WireDefault(result.state);val t=WireDefault(result.trace)
     val csrInstruction=opcode==="h73".U && f3=/=0.U && f3=/=4.U
-    val csrAddress=insn(31,20);val(csrExists,csrValue)=LiteMachine.read(csr,csrAddress,irq)
+    val csrAddress=insn(31,20);val(machineCsrExists,machineCsrValue)=LiteMachine.read(csr,csrAddress,irq)
+    val debugCsrs=Seq(0x7b0.U->("h40000003".U | (debugCause.asUInt<<6) | (ebreakMachine.asUInt<<15)),
+      0x7b1.U->debugPc,0x7b2.U->debugScratch(0),0x7b3.U->debugScratch(1))
+    val isDebugCsr=debugMode && debugCsrs.map(x=>csrAddress===x._1).reduce(_||_)
+    val csrExists=machineCsrExists || isDebugCsr
+    val csrValue=Mux(isDebugCsr,MuxLookup(csrAddress,0.U(32.W))(debugCsrs),machineCsrValue)
     val csrOperand=Mux(f3(2),Cat(0.U(27.W),rs1),a)
     val csrWrites=f3(1,0)===1.U || rs1=/=0.U
     val csrIllegal= !csrExists || rd(4) || (!f3(2) && rs1(4)) || (csrWrites && csrAddress(11,10)===3.U)
     val csrNewValue=MuxLookup(f3(1,0),csrOperand)(Seq(2.U->(csrValue|csrOperand),3.U->(csrValue & ~csrOperand)))
     val isMret=insn==="h30200073".U;val isWfi=insn==="h10500073".U
+    val isDret=debugMode && insn==="h7b200073".U
+    val isDebugEbreak=insn==="h00100073".U && (debugMode || ebreakMachine)
     val special=operation===Operation.Fetch.U && !response.bits.error
     val acceptedCsr=special && csrInstruction && !csrIllegal
-    when(acceptedCsr || special && (isMret || isWfi)) {
+    when(acceptedCsr || special && (isMret || isWfi || isDret || isDebugEbreak)) {
       t:=0.U.asTypeOf(new Retirement);t.valid:=true.B;t.pc:=pc;t.instruction:=insn
-      n.operation:=Operation.Fetch.U;n.pc:=Mux(isMret,csr.mepc,pc+4.U)
+      n.operation:=Operation.Fetch.U;n.pc:=Mux(isDret,debugPc,Mux(isDebugEbreak,(debugBase+0x800).U,Mux(isMret,csr.mepc,pc+4.U)))
       n.writeback:=0.U.asTypeOf(new RegisterWrite)
       when(acceptedCsr && rd=/=0.U) {
         n.writeback.enable:=true.B;n.writeback.rd:=rd(3,0);n.writeback.data:=csrValue
@@ -66,10 +85,14 @@ class LiteCore extends RawModule {
     val usesA=Seq(0x67,0x63,0x13,0x33,0x03,0x23).map(x=>opcode===x.U).reduce(_||_) || csrInstruction && !f3(2)
     val usesB=Seq(0x63,0x33,0x23).map(x=>opcode===x.U).reduce(_||_)
     val currentA=Mux(usesA,rs1,0.U);val currentB=Mux(usesB,rs2,0.U)
-    when(start && !running && !entry(1,0).orR) {
+    when(start && !running && !haltRequest && !stopRequest && !entry(1,0).orR) {
       pc:=entry;running:=true.B;notStarted:=false.B;asleep:=false.B
     }
-    when(running && phase===boundary) {
+    when(haltRequest && !debugMode && preciseBoundary && !stopRequest) {
+      debugPc:=Mux(running,pc,entry);debugCause:=3.U;debugMode:=true.B
+      pc:=(debugBase+0x800).U;running:=true.B;asleep:=false.B
+    }
+    when(running && phase===boundary && !(preciseBoundary && (stopRequest || haltRequest && !debugMode))) {
       when(operation===Operation.Fetch.U && pendingInterrupt) {asleep:=false.B}
       when(operation===Operation.Fetch.U && pendingInterrupt && csr.mie) {
         LiteMachine.trap(nextCsr,csr,pc,"h8000000b".U)
@@ -108,13 +131,31 @@ class LiteCore extends RawModule {
         }
       }
       when(t.trap) {
-        LiteMachine.trap(nextCsr,csr,pc,t.cause)
-        pc:=csr.mtvec;operation:=Operation.Fetch.U;asleep:=false.B
+        when(debugMode) {pc:=(debugBase+0x810).U}.otherwise {
+          LiteMachine.trap(nextCsr,csr,pc,t.cause);pc:=csr.mtvec
+        }
+        operation:=Operation.Fetch.U;asleep:=false.B
       }.otherwise {
-        when(acceptedCsr && csrWrites) {LiteMachine.write(nextCsr,csr,csrAddress,csrNewValue)}
+        when(acceptedCsr && csrWrites) {
+          when(isDebugCsr) {
+            switch(csrAddress) {
+              is(0x7b0.U) {ebreakMachine:=csrNewValue(15)}
+              is(0x7b1.U) {debugPc:=Cat(csrNewValue(31,2),0.U(2.W))}
+              is(0x7b2.U) {debugScratch(0):=csrNewValue}
+              is(0x7b3.U) {debugScratch(1):=csrNewValue}
+            }
+          }.otherwise {LiteMachine.write(nextCsr,csr,csrAddress,csrNewValue)}
+        }
+        when(special && isDret) {debugMode:=false.B}
+        when(special && isDebugEbreak && !debugMode) {debugPc:=pc;debugCause:=1.U;debugMode:=true.B}
         when(special && isMret) {nextCsr.mie:=csr.mpie;nextCsr.mpie:=true.B}
-        when(special && isWfi) {asleep:= !pendingInterrupt}
+        when(special && isWfi && !debugMode) {asleep:= !pendingInterrupt}
       }
+    }
+    if(withDebug) {
+      when(response.fire && debugMode) {retired.valid:=false.B;report.valid:=false.B;order:=order}
+      assert(!debugMode || running)
+      assert(!debug.map(_.stopped).get || !requestValid && !responseReady)
     }
     csr:=nextCsr
   }

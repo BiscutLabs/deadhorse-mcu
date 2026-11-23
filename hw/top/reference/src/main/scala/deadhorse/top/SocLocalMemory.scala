@@ -13,7 +13,7 @@ import java.nio.file.Paths
 class SocLocalMemory(description: SocDescription, romImage: String,
                      banks: Int = 4, readLatency: Int = 1,
                      ramImages: Seq[String] = Seq.empty, dmaEnabled: Boolean = false,
-                     xipEnabled: Boolean = false) extends RawModule {
+                     xipEnabled: Boolean = false, debugEnabled: Boolean=false) extends RawModule {
   private val romRegion = description.region("boot_rom")
   private val ramRegion = description.region("performance_sram")
   require(banks >= 1 && isPow2(banks) && ramRegion.size % (4 * banks) == 0)
@@ -50,8 +50,11 @@ class SocLocalMemory(description: SocDescription, romImage: String,
       when(xTerminal) {xIssued:=false.B;when(xInstruction) {iBusy:=false.B}}
     }
     val xBusy=xOffered || xIssued
+    def debugAddress(address: UInt): Bool=if(debugEnabled) {
+      val r=description.region("debug_mem");address>=r.base.U && address<(r.base+r.size).U
+    } else false.B
     def xAddress(address: UInt): Bool=if(xipEnabled) {
-      val r=description.xipRegion;address>=r.base.U && address<(r.base+r.size).U
+      val r=description.xipRegion;(address>=r.base.U && address<(r.base+r.size).U) || debugAddress(address)
     } else false.B
     val iXip=xAddress(instruction.bits.addr);val dXip=xAddress(data.bits.addr)
     val iLocalPending=WireDefault(false.B)
@@ -95,9 +98,10 @@ class SocLocalMemory(description: SocDescription, romImage: String,
     val romHit = inside(romRegion.base, romRegion.size)
     val ramHit = inside(ramRegion.base, ramRegion.size)
     val xipHit=xAddress(selected.addr)
-    val denied = selected.origin =/= description.origin("performance").U || selected.addr(1, 0).orR
+    val debugMaster=if(debugEnabled) fireM && selected.origin===description.origin("gateway_debug").U else false.B
+    val denied = (selected.origin =/= description.origin("performance").U && !debugMaster) || selected.addr(1, 0).orR
     val invalid = denied || (fireI && (!romHit && !ramHit && !xipHit || selected.we)) ||
-      ((romHit || xipHit) && selected.we) || (fireM && !ramHit)
+      ((romHit || xipHit && !debugAddress(selected.addr)) && selected.we) || (fireM && !ramHit && !(debugMaster && romHit && !selected.we))
     val nativeRead=(fireI || fireD) && xipHit && !invalid
     val mmio = fireD && !romHit && !ramHit && !xipHit && !denied
     val localD = fireD && !mmio && !nativeRead

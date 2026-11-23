@@ -1,6 +1,6 @@
 # Status
 
-Single progress tracker. Last updated: 2026-11-22.
+Single progress tracker. Last updated: 2026-11-23.
 States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete,
 `[-]` withdrawn.
 Decision checks record the user's approvals, not implementation completion.
@@ -84,6 +84,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D75 | T20 integrated-loop exception | Approved historical 4,821-cycle result; production measurement still required |
 | [x] | D76 | Fast CI on main; full at integration-stage ends | Approved 2026-11-21; deferrals remain visible and unwaived |
 | [x] | D77 | USB asynchronous-boundary qualification | Approved 2026-11-22; exact CDC/RDC sink qualification required, raw diagnostics and physical debt retained |
+| [x] | D80 | T32 proof deferral and timing iterations | Approved 2026-11-23: defer epoch read-data proof; up to three adaptive timing loops, including carry-forward of improving failures; unchanged acceptance limits |
 
 ## Tasks
 
@@ -124,7 +125,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | T29 | [Bounded QSPI command interface](tasks/T29-qspi-command.md) | Codex | Plans04/07, T28 interfaces | [Command-mode RTL verified](tasks/reports/T29.md); frozen focused checks and independent review pass; XIP integrated by T30; production boot/physical open, current production consolidation/fast tier under PLAN03 |
 | [x] | T30 | [Native QSPI read path](tasks/T30-qspi-xip.md) | Codex | Plans03/07, T29 interfaces | [Native flash RTL verified](tasks/reports/T30.md); frozen focused checks and independent review pass; production boot/physical open, current production consolidation/fast tier under PLAN03 |
 | [-] | T31 | [Retained locked-image restart](tasks/T31-retained-loader-restart.md) | n/a | D73 | Withdrawn; loader frozen at existing feature set and reset policy. [Historical proposal](tasks/reports/T31.md) |
-| [ ] | T32 | [Two-hart JTAG debug](tasks/T32-jtag-debug.md) | unassigned | PLAN03; T33 interface coordination | Brief prepared by PLAN03; implementation and acceptance unverified |
+| [!] | T32 | [Two-hart JTAG debug](tasks/T32-jtag-debug.md) | Codex | PLAN03; T33 interface coordination | [Report](tasks/reports/T32.md), [timing follow-up](tasks/reports/T32-timing-followup.md): D80 defers the unproved epoch read-data claim. Mapped timing closes at measured 65.141479 ns below unchanged 66.666667 ns, with all-state equivalence and fault control. Frozen fast timing-fast01 passes all 34 active commands in measured 3850.781049 s; twelve inherited deferrals remain unproved. Full tier unrun; physical reset/clock-tree debt remains |
 | [ ] | T33 | [Clock/reset/power controller](tasks/T33-clock-reset-power.md) | unassigned | PLAN03; T32/T34 interface coordination | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [ ] | T34 | [Analog interfaces/models](tasks/T34-analog-models.md) | unassigned | PLAN03 | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [ ] | T35 | [SRAM macros and BIST](tasks/T35-sram-bist.md) | unassigned | T32/T33 completed; coordinate T36 | Brief prepared by PLAN03; implementation and acceptance unverified |
@@ -176,6 +177,7 @@ step-0 tables are in [the debt report](../spec/soc-verification-debt.md).
 | Full-width watchdog channel | Five of twelve claims proved; seven unresolved; singleton fault scope explicit | Original12 claims retained, original concrete covers/three actual faults, output-disable proofs and whole-top simulation | T26 | Remaining captured-settings/crash-count relation needs approved helpers; singleton fault qualification listed in debt report |
 | GPIO/timer wake and PWM elapsed-time/whole-top composition | Scoped safety proofs; broader progress/system proof open | GPIO/timebase/capture and PWM update/ownership proofs, actual simulations/faults | T20/T21/T22/T33 | Complete system cadence/wake/interrupt composition under real clock controller |
 | QSPI dynamic owner handover, native address/permission and progress, reset composition | Simulation-backed; not unbounded liveness | Engine/owner/scheduler safety proofs, independent flash tests and actual arbitration/orphan faults | T29/T30/T36 | Complete production boot/system closure; any fairness premise must be justified |
+| T32 SBA epoch current-request read data across independent reset | Deferred and unproved by D80; original assertion retained | Fifteen control claims, covers/faults and prior bounded data traces; production OpenOCD reset tests; mapped core equivalence is a separate claim | T32 | Resume the proposed production BridgeSource payload lemma only when assigned; no unchanged timeout rerun |
 | Production ROM boot/update policy, debug, sleep controller, SRAM/BIST, scan equivalence and pad connectivity | Not implemented or proved | Existing block contracts and scoped tests only | T32–T38 | Implement assigned briefs with properties/covers/faults; no blanket inherited proof |
 
 Separate non-proof blockers stay visible: Q15 clock/service rates, Q16 loop
@@ -237,6 +239,41 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-23: T32 timing follow-up completes its active scope: frozen timing-fast01 passes all 34 active commands in measured 3850.781049 s, including the formerly failing faithful-core timing at 65.141479 ns under unchanged 66.666667 ns. Twelve inherited T14/T17 deferrals remain unproved; D80 separately defers the SBA epoch read-data proof. No RTL change in the timing follow-up. Full tier unrun; physical reset/clock-tree/CTS debt remains. Final reporting metadata and publication review follow the frozen run.
+
+- 2026-11-23: T32 D80 third timing candidate and maintained-flow reproduction pass at measured 65.141479 ns; two local mapping trials regressed and were rejected. Exact mapped graph reproduction and all-state equivalence pass with a wrong-D control, independently reviewed. Main-9mhz mapping uses a 50000 ps optimization goal and core-only premapped JSON reload; acceptance stays 66.666667 ns. Hold minimum is measured +0.530017 ns; raw reset removal -0.975158 ns remains. Freeze and fast CI next; SBA proof remains deferred and unproved.
+
+- 2026-11-23: User deferred the remaining T32 epoch read-data proof and authorized up to three adaptive timing-improvement loops. A better but still failing candidate may seed the next loop; unchanged timing budgets, functional/electrical checks and independent review remain required. PLAN04 USB/recovery choices remain pending. No proof rerun or waiver.
+
+
+- 2026-11-22: T32 non-proof timing diagnosis stops after the general data-buffer repair also fails (measured 72.056808 ns against estimated 66.666667 ns). Independent review confirms preserved functions/ports/clock-reset pins and unchanged constraints, but worse timing and added area; both candidates remain rejected diagnostics. No RTL/maintained timing-flow change or weakened acceptance. Final handoff retains epoch-data and faithful-core timing blockers, partial fast failure, full tier unrun and no commit/push.
+
+- 2026-11-22: T32 checkpoint has two blockers: SBA epoch read-data and faithful-core 9 MHz timing. Frozen final-fast03 passes 31 commands then fails timing in measured 3788.395428 s; two remaining commands pass separately, not as CI. Reviewed verifier-only USB evidence derivation passes all collectors; four T14/eight T17 deferrals remain unproved. One identity-buffer-tree diagnostic preserves function but still exceeds the unchanged budget; continue non-proof diagnosis with a general data-buffer repair, retaining all functions/loads/limits. No candidate accepted or production RTL change. Full tier unrun; no commit/push.
+
+- 2026-11-22: T32 final-fast01 fails after measured 1528.338531 s on I2C retained-lock identity following OpenOCD additions; simulations, timing, model and solver-flow identity pass. Exact old/new lock compatibility repair passes 15 verifier tests and focused formal refresh with the same eight unproved deferrals, independently audited. No RTL/check weakening or unchanged timeout rerun. Refreeze for full fast rerun; SBA epoch-data remains open, no commit/push.
+
+- 2026-11-22: T32 focused extension closes production-bound first-entry/loader safety, covers and actual faults (ownership06), and maintains the qualified vendor-equivalence command. Actual FIFO sequence helpers prove with checked component binding; returned-data composition remains unresolved under unchanged caps. Stop the focused attempt without accepting candidate stage invariants; freeze for final fast CI. No production RTL changed in this round and no commit/push.
+
+- 2026-11-22: User directed finishing JTAG after the remaining-task list; resume T32 and the proposed focused 45-minute proof-composition attempt, retaining 120-second jobs and all original assertions/assumptions. No gate is closed by this instruction. Finish independent proof/publication review and final frozen fast CI before commit/push.
+
+- 2026-11-22: T32 current-model bindings and hardened transport proof pass independent review. Maintained fresh area/timing replay reproduces area07 exactly; raw physical negatives remain T33/T38 obligations. Refreshed USB sampling/model binding, full-size simulation and current bus topology pass; new hold/two-way STA and strict physical collector pass without altered limits. Historical placement/internal timing is labelled reused. Pause further epoch data work at the exhausted triage budget pending the separate extension reply; other formal/publication obligations and final fast/full status remain explicit. No T32 commit or push.
+
+- 2026-11-22: T32 expanded assertion-enabled debug03 passes nine production OpenOCD scenarios and the missing-halt fault in measured 665.169853 s. All 42 targeted core/debug regressions and two full-DM reset tests pass. Independent review accepts command ownership/reset proofs and edge-aware TAP extraction equivalence; original/replacement CDC equivalence is not claimed. Reviewed USB register-class screening passes with the existing FF warning; raw physical boundary/tree issues remain. Epoch read-data proof remains unresolved, final CI unrun, no T32 commit/push.
+
+- 2026-11-22: T32 reset composition found and fixed lost drain credit when BusFabric's registered grant survives withdrawal of req. Fifteen control assertions prove; all eight covers and three faults qualify, but end-to-end read data remains unresolved after three triage rungs. Fresh assertion-enabled OpenOCD debug02 qualifies seven scenarios and the missing-halt fault; focused loader ownership and stopped-AON SBA reset probes pass. Reviewed fresh area07 estimates 12.855509285 mm2 total with all allowances unchanged. Raw pulse/removal and USB timing qualification remain open; final fast/full CI unrun and no T32 commit/push.
+
+- 2026-11-22: T32 broad area review resolves the area-only stop without changing features or allowances: physical observer projection plus layer-balanced reset mapping gives measured 3.487281549 mm2 cells and estimated 12.867882231 mm2 total, 0.052117769 below ceiling. Independent exact graph/port/pin audits, fanout/depth checks and full reset/register endpoint comparison pass; no new matched-screen violations. Existing raw removal/core-clock pulse/USB qualification debt remains. Resume original JTAG validation; final CI and publication still pending.
+
+- 2026-11-22: User approved broader SoC area review to identify larger savings and replace remaining allowances with measurements, preserving all features/limits. Review production observation cones and pinned memory/ROM evidence; no unrelated task implementation or allowance reduction without evidence.
+
+- 2026-11-22: Approved T32 area experiment removes the redundant SBA routing capture/reply stage while preserving downstream fabrics and quarantine. Measured mapped logic falls from 3.726062234 to 3.708726739 mm2; estimated total falls by 0.035254912 to 13.302659552 mm2, still over budget by 0.382659552. Scoped proofs including post-grant route fault, four unit tests and fresh OpenOCD basic/reset scenarios pass; same-domain register timing screen remains within main/AON/TCK budgets. No whole-SoC reset, final timing or CI acceptance; no commit/push. Focused investigation complete, broader area decision remains.
+
+- 2026-11-22: User approved a focused T32 area-reduction investigation of debug routing and duplicated payload storage. Resume that scope only; both harts, SBA, shared CDC/reset guarantees, acceptance checks and the 12.92 mm2 ceiling remain unchanged. Prior area-stop evidence is retained.
+
+- 2026-11-22: T32 stopped on its explicit area condition: measured production logic 3.726062234 mm2 gives estimated core use 13.337914464 mm2 after replacing the JTAG allowance, with all other allowances/utilization unchanged. Initial production-TAP OpenOCD scenarios and scoped formal checks pass on intermediate snapshots; the latest reset fixes and system composition still require validation. Final fast/full tiers unrun; implementation remains uncommitted. See T32 report for commands, evidence and remaining RTL tasks.
+
+- 2026-11-22: T32 assigned: adopt pinned PULP debug for both harts, actual OpenOCD pin-level acceptance and shared CDC. Independent review binds the just-completed fast03 baseline to main 9b80375 (only reviewed PLAN03/STATUS result metadata differs); the redundant baseline-fast rerun was interrupted, never counted as a pass. Audit contracts before RTL, retain ordinary boot/loader ownership, and report remaining RTL tasks on completion.
 
 - 2026-11-22: PLAN03 complete within its assigned scope. Final frozen fast03 at 58833fd plus hashed B5/B6 changes passes all 34 commands in measured 3628.413506 seconds; four T14 and eight T17 deferrals remain unproved. Independent audit matches all 1485 CI source hashes, 14 child receipts and 1561 USB source/input entries. Exact command, evidence and limits are in the report. Result-only reporting changes follow the freeze; no new RTL. Full tier unrun; no integration-stage or tape-out gate closed. T32/T33 are next separately assigned briefs.
 

@@ -21,6 +21,7 @@ import deadhorse.lite_core.LiteHart
 import deadhorse.watchdog.Watchdog
 import deadhorse.boot_control.BootControl
 import deadhorse.qspi.Qspi
+import deadhorse.debug.{Debug,DebugSbaRouting}
 
 /** The production peripheral/bridge path, also tested at its CPU boundary.
   * All test-controller inputs are synchronous to their declared owning domain.
@@ -35,6 +36,9 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   val uartRx=IO(Input(Bool()));val uartTx=IO(Output(Bool()));val uartTxEnable=IO(Output(Bool()))
   val pins=IO(new SocI1Pins);val fastIrq=IO(Output(UInt(15.W)))
   val mainHold=IO(Output(Bool()))
+  val performanceDebugMode=IO(Input(Bool()));val performanceReset_n=IO(Input(Bool()))
+  val performanceHalt=IO(Output(Bool()));val performanceDebugGrant=IO(Output(Bool()));val performanceDebugFetch=IO(Output(Bool()))
+  val debugReset=IO(Output(Bool()))
   val supervision=config.watchdog.map(_=>IO(Output(new Bundle {
     val performanceReset=Bool();val wholeReset=Bool();val warning=Bool()
   })))
@@ -57,7 +61,12 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   def release(clock: Clock, raw: Bool): Bool = {
     val r=Module(new ResetRelease);r.clk:=clock;r.reset_n:=raw;r.released
   }
-  val warmRaw=warmReset_n && !wholeHold
+  val debugger=Module(new Debug(description.region("retained_sram").base,description.region("retained_sram").size))
+  debugger.clk:=mainClock;debugger.por_n:=coldReset_n
+  debugger.tck:=pins.inactive.jtagTck.asClock;debugger.tms:=pins.inactive.jtagTms;debugger.tdi:=pins.inactive.jtagTdi
+  pins.inactive.jtagTdo:=debugger.tdo;pins.inactive.jtagTdoEnable:=debugger.tdoEnable
+  debugReset:=debugger.ndmReset
+  val warmRaw=warmReset_n && !wholeHold && !debugger.ndmReset
   val mainRaw=coldReset_n && warmRaw && mainServiceReset_n
   val aonRaw=coldReset_n && warmRaw && pins.aonServiceReset_n
   val usbRaw=coldReset_n && warmRaw && pins.usbServiceReset_n
@@ -84,7 +93,51 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     f.allow.foreach(_:=true.B);f.admit.foreach(_:=true.B);f.quiescent.foreach(_:=false.B)
     f
   }
-  val mf=fabric(mainNames,mainRemote,3,mainClock,mainUp)
+  val mf=fabric(mainNames,mainRemote,4,mainClock,mainUp)
+  debugger.memoryReset_n:=mainUp
+  val debugMainUp=release(mainClock,coldReset_n)
+  val perfEpoch=release(mainClock,performanceReset_n)
+  val liteEntryAck=WireDefault(false.B);val liteEpoch=WireDefault(false.B)
+  val liteRequestMain=withClockAndReset(mainClock,(!debugMainUp).asAsyncReset) {
+    val pending=RegInit(false.B)
+    when(debugger.halt(0)) {pending:=true.B}
+    when(liteEntryAck && liteEpoch || !debugger.active) {pending:=false.B}
+    pending || debugger.halt(0)
+  }
+  withClockAndReset(mainClock,(!debugMainUp).asAsyncReset) {
+    val owned=RegInit(false.B);val pending=RegInit(false.B);val parked=RegInit(false.B)
+    val entered=withReset((!perfEpoch).asAsyncReset) {RegInit(false.B)}
+    when(performanceDebugMode) {entered:=true.B}
+    when(perfEpoch) {parked:=performanceDebugMode}
+    when(debugger.halt(1)) {pending:=true.B}
+    when(performanceDebugMode) {pending:=false.B}
+    when(!perfEpoch && parked) {pending:=true.B}
+    when(debugger.active && (debugger.halt(1) || pending)) {owned:=true.B}
+    when(!debugger.active) {owned:=false.B;pending:=false.B;parked:=false.B;entered:=false.B}
+    performanceDebugGrant:=owned;performanceDebugFetch:=owned && entered
+    performanceHalt:=debugger.halt(1) || pending
+  }
+  def debugSync(value: Bool,clock: Clock): Bool={
+    val q=Module(new CdcSync(1));q.clk:=clock;q.reset_n:=release(clock,coldReset_n);q.in:=value.asUInt;q.out.asBool
+  }
+  val debugActiveAon=debugSync(debugger.active,pins.aonClock)
+  val haltLite=debugSync(liteRequestMain,pins.aonClock)
+  val debugWake=debugSync(debugger.pendingTck,pins.aonClock)
+  val liteOwned=WireDefault(false.B);val litePending=WireDefault(false.B);val liteStop=WireDefault(false.B);val liteClientRaw=WireDefault(aonRaw)
+  val liteClientUp=release(pins.aonClock,liteClientRaw)
+  val liteResetSeen=release(mainClock,liteClientRaw)
+  val perfResetSeen=perfEpoch
+  liteEpoch:=liteResetSeen
+  debugger.hartReset:=Cat(!perfResetSeen,!liteResetSeen)
+  debugger.unavailable:=Cat(!perfResetSeen,!liteResetSeen)
+  debugger.ndmAck:=debugger.ndmReset && !mainUp && !debugSync(aonUp,mainClock)
+  val nativeArb=Module(new BusFabric(2,Seq(BusRegion(0,BigInt(1)<<32))))
+  nativeArb.clk:=mainClock;nativeArb.reset_n:=mainUp
+  nativeArb.allow.foreach(_:=true.B);nativeArb.admit.foreach(_:=true.B);nativeArb.quiescent.foreach(_:=false.B)
+  dmaMemory.get<>nativeArb.target(0)
+  val retainedSba=Wire(new LocalBus)
+  DebugSbaRouting.connect(debugger.system,debugger.systemRetained,retainedSba,nativeArb.master(1))
+  ingress(mf.master(3),retainedSba,Seq("retained_sram"),Some(description.origin("gateway_debug")))
   val af=fabric(aonNames,aonRemote,2,pins.aonClock,aonUp)
   def hits(addr: UInt, allowed: Seq[String]): Bool = allowed.flatMap(description.expanded).map(r =>
     addr>=r.base.U && addr<(r.base+r.size).U).reduce(_ || _)
@@ -96,20 +149,46 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     source.gnt:=target.gnt;source.rvalid:=target.rvalid;source.rdata:=target.rdata;source.err:=target.err
   }
   ingress(mf.master(0),main,mainNames,Some(description.origin("performance")))
-  val liteHart=Some(Module(new LiteHart(description.origin("lite"))))
+  val debugLeafSource=Wire(new LocalBus);val debugLeafOffer=WireDefault(false.B)
+  debugLeafSource.req:=false.B;debugLeafSource.bits:=0.U.asTypeOf(new BusPayload)
+  val liteHart=Some(Module(new LiteHart(description.origin("lite"),withDebug=true)))
   liteHart.foreach { hart =>
-      hart.clk:=pins.aonClock;hart.reset_n:=aonUp;hart.irq:=pins.aonIrq
+      hart.clk:=pins.aonClock;hart.reset_n:=liteClientUp;hart.irq:=pins.aonIrq
+      hart.debug.get.request:=haltLite || litePending;hart.debug.get.allowEntry:=liteOwned;hart.debug.get.stop:=liteStop
       if(testBusInjection) {
         ingress(af.master(0),pins.lite,aonNames,Some(description.origin("lite")))
         hart.bus.gnt:=false.B;hart.bus.rvalid:=false.B;hart.bus.rdata:=0.U;hart.bus.err:=false.B
-      } else ingress(af.master(0),hart.bus,aonNames,Some(description.origin("lite")))
+      } else {
+        val route=Module(new SocDebugRoute(description.region("debug_mem").base,description.region("debug_mem").size))
+        route.clk:=pins.aonClock;route.reset_n:=aonUp;route.bus<>hart.bus
+        ingress(af.master(0),route.ordinary,aonNames,Some(description.origin("lite")))
+        debugLeafSource<>route.debug;debugLeafOffer:=route.debug.req
+      }
       // The test-master port is inert in the real-hart profile, including its
       // claimed halted state. Only the core controls retained-memory ownership.
       if(!testBusInjection) {
         pins.lite.gnt:=false.B;pins.lite.rvalid:=false.B;pins.lite.rdata:=0.U;pins.lite.err:=false.B
       }
   }
+  val liteMode=liteHart.get.debug.get.mode
+  liteEntryAck:=debugSync(liteMode,mainClock)
+  debugger.hartMode:=Cat(performanceDebugMode,liteEntryAck)
   val liteHalted=if(testBusInjection) pins.liteHalted else liteHart.get.halted
+  val leaf=Module(new BusBridge)
+  leaf.sourceClock:=pins.aonClock;leaf.targetClock:=mainClock
+  leaf.sourceReset_n:=aonRaw;leaf.targetReset_n:=mainRaw
+  leaf.source<>debugLeafSource;leaf.offer:=debugLeafOffer
+  val leafPermit=Module(new DirectionPermit)
+  leafPermit.aonClock:=pins.aonClock;leafPermit.mainClock:=mainClock
+  leafPermit.aonReset_n:=aonRaw;leafPermit.mainReset_n:=mainRaw
+  leafPermit.requestAon:=leaf.permitRequest;leafPermit.requestMain:=false.B;leaf.permit:=leafPermit.permitAon
+  val dmArb=Module(new BusFabric(2,Seq(BusRegion(description.region("debug_mem").base,0x1000))))
+  dmArb.clk:=mainClock;dmArb.reset_n:=mainUp
+  dmArb.allow.foreach(_:=true.B);dmArb.admit.foreach(_:=true.B);dmArb.quiescent.foreach(_:=false.B)
+  dmArb.master(0)<>leaf.target;debugger.memory<>dmArb.target(0)
+  val nativeRoute=Module(new SocDebugRoute(description.region("debug_mem").base,0x1000))
+  nativeRoute.clk:=mainClock;nativeRoute.reset_n:=mainUp;nativeRoute.bus<>nativeXip.get
+  dmArb.master(1)<>nativeRoute.debug
   val toAon=Module(new BusBridge);val toMain=Module(new BusBridge)
   toAon.sourceClock:=mainClock;toAon.targetClock:=pins.aonClock
   toAon.sourceReset_n:=mainRaw;toAon.targetReset_n:=aonRaw
@@ -151,7 +230,9 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   remote(af,aonNames,aonRemote,toMain,pins.aonClock,aonUp)
   def drain(f: BusFabric,children: Seq[BusFabric],bridge: BusBridge,clock: Clock,reset: Bool): Unit = {
     val credit=Module(new SocDrainCredit);credit.clk:=clock;credit.reset_n:=reset
-    credit.accepted:=bridge.target.req && bridge.target.gnt;credit.response:=bridge.target.rvalid
+    // BusFabric captures before publishing its registered grant. Peer reset
+    // may withdraw req in between, but the committed beat must still drain.
+    credit.accepted:=bridge.target.gnt;credit.response:=bridge.target.rvalid
     // An outer timeout is not a cancellation of a nested fabric/endpoint.
     // Its poison must drain too before acknowledging that no old work remains.
     val isolated=(Seq(f)++children).map(_.isolated.asUInt.orR).reduce(_||_)
@@ -186,6 +267,11 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     f
   }
   drain(mf,Seq(serial,gateway)++ioFabric.toSeq,toMain,mainClock,mainUp)
+  drain(dmArb,Seq.empty,leaf,mainClock,mainUp)
+  debugger.systemUp:=mainUp
+  debugger.systemQuiet:=mainUp && !nativeArb.waiting.asUInt.orR &&
+    !nativeArb.isolated.asUInt.orR && !mf.waiting.asUInt.orR && !mf.isolated.asUInt.orR &&
+    !debugger.system.rvalid && !toAon.clockRequest && !toMain.targetClockHold
   val powerFabric=config.watchdog.map {json=>
     val regions=Seq(description.ioRegion("aon_timer"))++(0 until 2).map(description.watchdogRegion)++
       config.bootControl.toSeq.map(_=>description.bootControlRegion)
@@ -229,7 +315,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     pins.inactive.qspiSclk:=flash.sclk;pins.inactive.qspiSclkEnable:=flash.sclkEnable
     pins.inactive.qspiCs_n:=flash.cs_n;pins.inactive.qspiCsEnable:=flash.csEnable
     qspiHold:=flash.clockHold
-    flash.xip.foreach(_<>nativeXip.get)
+    flash.xip.foreach(_<>nativeRoute.ordinary)
   }
   val pwmIrq=WireDefault(false.B);val pwmHold=WireDefault(false.B)
   val pwmRequests=WireDefault(0.U(9.W));val pwmAck=WireDefault(0.U(9.W))
@@ -309,7 +395,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     val ram=description.region("performance_sram")
     val dma=Module(new Dma(json,description.dmaEndpoints,ram.base,ram.size,description.region("dma").base))
     dma.clk:=mainClock;dma.reset_n:=mainUp;dma.owner:=description.origin("performance").U
-    dma.bus<>serial.target(serialNames.indexOf("dma"));dmaMemory.get<>dma.memory
+    dma.bus<>serial.target(serialNames.indexOf("dma"));nativeArb.master(0)<>dma.memory
     ingress(mf.master(2),dma.peripheral,Seq("uart0","uart1","uart2","spi_host","actuator"),Some(description.origin("performance")))
     dma.requests:=Cat(pwmRequests,spi.dmaRxRequest,spi.dmaTxRequest,
       VecInit(uarts.flatMap(u=>Seq(u.dmaTxRequest,u.dmaRxRequest))).asUInt)
@@ -320,7 +406,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   i2c.bus<>serial.target(serialNames.indexOf("i2c_host"));i2c.sclIn:=pins.i2cSclIn;i2c.sdaIn:=pins.i2cSdaIn
   i2c.sleepRequest:=false.B;i2c.sleepEnable:=false.B
   pins.i2cSclLow:=i2c.sclLow;pins.i2cSdaLow:=i2c.sdaLow;pins.i2cEnable:=i2c.pinsEnable
-  val loader=Module(new RecoveryLoader)
+  val loader=Module(new RecoveryLoader(debugInterlock=true))
   loader.clk:=pins.aonClock;loader.por_n:=coldUp;loader.reset_n:=aonUp
   loader.sclIn:=pins.recoveryScl;loader.sdaIn:=pins.recoverySda
   loader.resetReason:=resetCauses;loader.crashCount:=crashCount
@@ -332,14 +418,34 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   // edge. Do not report that one handoff edge as a later halt to the loader.
   validatedStart:=acceptedLiteStart
   loader.halted:=loaderHalted(liteHalted,acceptedLiteStart)
+  loader.debugInhibit.get:=liteOwned || (debugActiveAon && (haltLite || litePending))
   liteHart.foreach {hart=>
     hart.start:=(if(testBusInjection) false.B else acceptedLiteStart)
     hart.entry:=description.region("retained_sram").base.U+loader.entry
   }
-  val retained=Module(new SocRetainedMemory(description))
+  val retained=Module(new SocRetainedMemory(description,debugAccess=true))
   retained.clk:=pins.aonClock;retained.reset_n:=aonUp
   retained.bus<>af.target(aonNames.indexOf("retained_sram"))
-  retained.halted:=liteHalted;retained.locked:=loader.locked;retained.loaderBusy:=loader.busy
+  retained.debugWriteAllowed.get:=liteMode || liteHalted && !liteOwned && !acceptedLiteStart && !loader.start
+  withClockAndReset(pins.aonClock,(!coldUp).asAsyncReset) {
+    val owned=RegInit(false.B);val resetting=RegInit(false.B)
+    val pending=RegInit(false.B);val parked=RegInit(false.B)
+    when(liteClientUp) {parked:=liteMode}
+    when(haltLite) {pending:=true.B}
+    when(liteMode) {pending:=false.B}
+    when(!liteClientUp && parked) {pending:=true.B}
+    when(!debugActiveAon) {pending:=false.B;parked:=false.B}
+    litePending:=pending
+    when(debugActiveAon && (haltLite || pending) && !loader.busy && !retained.busy && !loader.start) {owned:=true.B}
+    val tearDown=owned && !debugActiveAon && liteHalted
+    liteStop:=tearDown
+    when(tearDown && liteHart.get.debugIdle.get) {resetting:=true.B;owned:=false.B}
+    when(resetting && !liteClientUp) {resetting:=false.B}
+    when(owned && !debugActiveAon && !liteHalted) {owned:=false.B}
+    liteOwned:=owned;liteClientRaw:=aonRaw && !resetting
+  }
+  retained.debugExecute.get:=liteOwned
+  retained.halted:=liteHalted && !liteOwned;retained.locked:=loader.locked;retained.loaderBusy:=loader.busy
   retained.started:=withClockAndReset(pins.aonClock,(!aonUp).asAsyncReset) {
     val started=RegInit(false.B)
     when(acceptedLiteStart) {started:=true.B};started
@@ -374,6 +480,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   fastIrq:=irq
   val held=withClockAndReset(mainClock,(!mainUp).asAsyncReset) {
     RegNext(uarts.map(_.clockHold).reduce(_||_) || spi.clockHold || i2c.clockHold || ioMainHold || pwmHold || dmaHold || pinmuxHold || qspiHold ||
+      debugger.hold || leaf.targetClockHold || dmArb.waiting.asUInt.orR || nativeRoute.busy ||
       mf.waiting.asUInt.orR || serial.waiting.asUInt.orR || gateway.waiting.asUInt.orR,false.B)
   }
   mainHold:=held
@@ -385,9 +492,9 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   pins.loaderWake:=loaderWake
   withClockAndReset(pins.aonClock,(!coldUp).asAsyncReset) {
     pins.mainDemand:=RegNext(fromMain || toMain.clockRequest || mailbox.wakePeer(0) || pins.usbWake || ioWake ||
-      watchdogWarning || performanceHold || wholeHold,false.B)
+      watchdogWarning || performanceHold || wholeHold || debugWake || leaf.clockRequest || debugActiveAon,false.B)
     pins.aonDemand:=RegNext(fromMain || toAon.targetClockHold || af.waiting.asUInt.orR ||
       loader.clockHold || retained.busy || loaderWake || pins.usbWake || ioAonHold || ioWake ||
-      liteHart.get.clockHold || watchdogDemand,false.B)
+      liteHart.get.clockHold || watchdogDemand || debugWake || leaf.clockRequest || debugActiveAon,false.B)
   }
 }

@@ -4,13 +4,15 @@ name: deadhorse_soc
 clocks:
   main: {hz: [8000000, 9000000], source: external_test_input}
   aon: {hz: [32000, 1000000], source: external_test_input}
+  tck: {hz: [100000], source: external_test_input}
   usb: {hz: [48000000], source: external_test_input}
 resets: [cold, warm, main_core, main_service, aon_service, usb_service]
 masters:
   lite: {origin: 0, implementation: real}
   performance: {origin: 1, implementation: real}
-  gateway_debug: {origin: 2, implementation: inactive}
+  gateway_debug: {origin: 2, implementation: real}
 regions:
+  - {name: debug_mem, base: 0x00010000, size: 0x1000, home: debug leaf, domains: [main, aon], kind: model, reset: cold}
   - {name: boot_rom, base: 0x00000000, size: 0x10000, home: main local, domains: [main], kind: model, reset: main_service}
   - {name: xip, base: 0x10000000, size: 0x10000000, home: main local, domains: [main], kind: model, reset: main_service}
   - {name: performance_sram, base: 0x20000000, size: 0x4000, home: main local, domains: [main], kind: model, reset: main_service}
@@ -64,11 +66,11 @@ pin_budget: {bidirectional: 40, input_only: 12}
 pins:
   gpio: {width: 3, direction: bidirectional, clock: main, safe: disabled}
   timer: {width: 4, direction: bidirectional, clock: main, safe: disabled}
-  # Inactive is an unsampled stub, not a generated TCK/service clock.
-  jtag_tck: {width: 1, direction: input, clock: inactive, safe: input}
-  jtag_tms: {width: 1, direction: input, clock: inactive, safe: input}
-  jtag_tdi: {width: 1, direction: input, clock: inactive, safe: input}
-  jtag_tdo: {width: 1, direction: output, clock: inactive, safe: disabled}
+  # T32 TAP clock is external; its DMI transport uses shared CDC.
+  jtag_tck: {width: 1, direction: input, clock: tck, safe: input}
+  jtag_tms: {width: 1, direction: input, clock: tck, safe: input}
+  jtag_tdi: {width: 1, direction: input, clock: tck, safe: input}
+  jtag_tdo: {width: 1, direction: output, clock: tck, safe: disabled}
   uart_tx: {width: 3, direction: output, clock: main, safe: disabled}
   uart_rx: {width: 3, direction: input, clock: main, safe: input}
   spi_sclk: {width: 1, direction: output, clock: main, safe: disabled}

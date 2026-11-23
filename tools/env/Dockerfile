@@ -12,7 +12,7 @@ COPY tools/env/install.py /opt/deadhorse-env/
 RUN --mount=type=cache,target=/opt/downloads python3.12 /opt/deadhorse-env/install.py
 COPY tools/env/entrypoint.py tools/env/check.py /opt/deadhorse-env/
 # Prefer Ubuntu Python (3.12 + tkinter); use OSS CAD's own wrappers for its tools.
-ENV PATH="/opt/yowasp/bin:/opt/opensta/bin:/opt/firtool/bin:/opt/sbt/bin:/opt/oss-cad-suite/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ENV PATH="/opt/yowasp/bin:/opt/openocd/bin:/opt/opensta/bin:/opt/firtool/bin:/opt/sbt/bin:/opt/oss-cad-suite/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 CHISEL_FIRTOOL_PATH=/opt/firtool/bin
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /work

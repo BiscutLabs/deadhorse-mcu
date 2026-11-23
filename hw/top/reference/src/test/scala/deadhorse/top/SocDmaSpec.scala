@@ -18,6 +18,7 @@ class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),bypa
   val epochReady=config.watchdog.map(_=>IO(Output(Bool())))
   val watchdogReset=config.watchdog.map(_=>IO(Output(Bool())))
   val p=Module(new SocPeripheralBusTest(SocTestFiles.description,config))
+  p.performanceDebugMode:=false.B;p.performanceReset_n:=false.B
   val whole=p.supervision.map(_.wholeReset).getOrElse(false.B)
   val performance=p.supervision.map(_.performanceReset).getOrElse(false.B)
   val up=Module(new ResetRelease);up.clk:=clk;up.reset_n:=reset_n && !whole

@@ -87,6 +87,12 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | **D76** | Integration CI policy | Approved by the user 2026-11-21 (PLAN03 A5): fast CI must pass on main before new block work and after every task. Run full CI once at the end of each integration stage I2, I3, I4 and I5. Deferred and unproved items remain visible in receipts; nothing is waived. This supersedes prior no-CI instructions for PLAN03 and subsequent work. |
 | **D77** | USB asynchronous-boundary digital qualification | Approved by the user 2026-11-22: apply docs/spec/usb-boundary-qualification-proposal.md. Only uniquely identified first-stage asynchronous data D pins and asynchronous reset pins of identified reset-release chains may use structural/behavioral CDC/RDC qualification with positive interstage/downstream timing instead of synchronous phase-based hold/removal acceptance. Retain raw STA diagnostics; reject missing/mixed/downstream aliases and bypass/leakage/wrong-clock/reset-release faults. Ordinary bus and internal timing checks/limits stay unchanged. Pad/board, reset pulse/glitch and characterized metastability/MTBF remain explicit unclosed tape-out obligations; no invented phase guarantee. Approval authorizes qualification work, not a passing result or physical signoff. |
 
+## T32 timing follow-up decision
+
+| ID | Topic | Approved scope |
+| --- | --- | --- |
+| **D80** | Defer T32 proof; bounded timing iterations | Approved by the user 2026-11-23: defer the remaining T32 epoch read-data proof and focus on timing. Allow up to three adaptive improvement loops, carrying an improving candidate into the next loop even if it still exceeds the threshold. The proof remains unproved; no acceptance limit, assertion, assumption or clock constraint is waived. Preserve failure evidence and require functional qualification, electrical/gate checks and independent review before accepting a mapping change. |
+
 ## Risks and evidence still required
 
 

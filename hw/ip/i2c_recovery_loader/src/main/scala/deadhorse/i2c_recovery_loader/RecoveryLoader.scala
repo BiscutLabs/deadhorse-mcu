@@ -6,7 +6,8 @@ import chisel3._
 import chisel3.util._
 
 class RecoveryLoader(programBytes: Int = 2048, workingBytes: Int = 1024,
-                     idleCycles: Int = 262144) extends RawModule {
+                     idleCycles: Int = 262144, debugInterlock: Boolean=false) extends RawModule {
+  val debugInhibit=if(debugInterlock) Some(IO(Input(Bool()))) else None
   val clk = IO(Input(Clock()))
   val por_n = IO(Input(Bool()))
   val reset_n = IO(Input(Bool()))
@@ -53,7 +54,11 @@ class RecoveryLoader(programBytes: Int = 2048, workingBytes: Int = 1024,
     target.io.sda := sdaIn
     target.io.applicationCancel := false.B // D37 has no CPU-only lite reset.
     control.frame := target.io.frame
-    control.frameReset := target.io.frameReset
+    // T32 ownership cancellation uses the existing busy/error path. An already
+    // accepted memory operation is unaffected; only new mutating frames cancel.
+    val opcode=target.io.frame.bits.bytes(0)
+    control.frameReset := target.io.frameReset ||
+      (debugInhibit.getOrElse(false.B) && opcode>=1.U && opcode<=6.U)
     sdaLow := target.io.pullLow
     clockHold := RegNext(target.io.busy || control.busy || target.io.frame.valid, false.B)
 

@@ -158,15 +158,15 @@ def timing_config(operating_point='default'):
         if operating_point == 'main-9mhz':
             cfg['provenance'] = cfg['provenance'].replace(
                 'only the period changes;',
-                'the STA period changes; ABC retains the tighter 62500 ps mapping target;')
+                'the STA period changes; ABC uses the qualified 50000 ps mapping target;')
     return cfg
 
 
 def mapping_target_ps(cfg, operating_point):
     # Optimization target only, not the STA acceptance limit. The 9 MHz trial
-    # retains the measured 9.6 MHz mapping recipe; a looser target regressed it.
+    # uses the measured T32 tighter mapping recipe; acceptance remains 60%.
     budget_ps = cfg['period_ns'] * cfg['budget_fraction'] * 1000
-    return min(budget_ps, 62500.0) if operating_point == 'main-9mhz' else budget_ps
+    return min(budget_ps, 50000.0) if operating_point == 'main-9mhz' else budget_ps
 
 
 def measure(top, sources, clock, output, liberty=None, combinational=False, *, operating_point='default', usb_cadence=None, usb_equivalence=None, reset_fanout=False, usb_sampling=None):
@@ -259,7 +259,7 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
         mapping['fsm_recoding']=False
         mapping['identity_provenance']='Preserve source register bits for D45 pin certificates; no state recoding'
     if operating_point == 'main-9mhz':
-        mapping['target_provenance'] = ('Retain the 9.6 MHz trial mapping target; '
+        mapping['target_provenance'] = ('T32 D80 measured 50000 ps optimization target; '
                                         'STA acceptance remains period * budget_fraction.')
     abc_constraints = output / 'mapping.constr'
     abc_constraints.write_text(f'set_driving_cell {driver}\nset_load {mapping["output_load_ff"]:g}\n')
@@ -269,12 +269,20 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
                          f'upsize -D {target_ps:g}; dnsize -D {target_ps:g}; stime -p\n')
     mapping['script_sha256'] = digest(abc_script)
     mapping['constraints_sha256'] = digest(abc_constraints)
-    # Reproduce the same frontend/synthesis sequence for mapping instead of
-    # reimporting JSON: serialization changes ABC's traversal order and would
-    # gratuitously perturb the qualified mapping even for non-aliased blocks.
-    synth.write_text('\n'.join(frontend + [
+    # T32's qualified recipe includes the premapped-JSON reload: its stable
+    # traversal order is part of the measured mapping, not just the target.
+    # Keep the existing frontend sequence for all other targets.
+    reload_premap = operating_point == 'main-9mhz' and top == 'DeadhorsePerfCore'
+    mapping['premap_reload'] = reload_premap
+    mapping_frontend = frontend + [
         'check -assert', f'synth -top {top} -flatten -noabc'+(' -nofsm' if usb_cadence else ''),
-        f'dfflibmap -liberty "{liberty}"',
+        f'dfflibmap -liberty "{liberty}"']
+    if reload_premap:
+        mapping['premapped_sha256'] = digest(output/'premapped.json')
+        mapping['target_provenance'] += ' Core mapping reloads the emitted premapped JSON; traversal order is part of the recipe.'
+        mapping_frontend = [f'read_json "{output / "premapped.json"}"',
+                            f'hierarchy -check -top {top}', 'check -assert']
+    synth.write_text('\n'.join(mapping_frontend + [
         f'abc -liberty "{liberty}" -constr "{abc_constraints}" -script "{abc_script}"',
         'clean -purge', 'check -assert', f'stat -liberty "{liberty}"',
         *(['rename -enumerate'] if usb_cadence else []),

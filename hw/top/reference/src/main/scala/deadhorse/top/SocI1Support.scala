@@ -78,7 +78,9 @@ class SocResetSlot extends RawModule {
   * An invalid loader offer is not acknowledged as a write. If permission is
   * withdrawn during an advertised registered grant, quarantine until reset.
   */
-class SocRetainedMemory(description: SocDescription) extends RawModule {
+class SocRetainedMemory(description: SocDescription,debugAccess: Boolean=false) extends RawModule {
+  val debugWriteAllowed=if(debugAccess) Some(IO(Input(Bool()))) else None
+  val debugExecute=if(debugAccess) Some(IO(Input(Bool()))) else None
   private val region=description.region("retained_sram")
   require(region.size==3072)
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val bus=IO(new LocalBus)
@@ -100,20 +102,25 @@ class SocRetainedMemory(description: SocDescription) extends RawModule {
     val program=offset<2048.U
     val local=bus.bits.origin===description.origin("lite").U
     val remote=bus.bits.origin===description.origin("performance").U
-    val permitted=inRange && Mux(program,
-      !bus.bits.we && (local && (halted || started) || remote && halted && !loaderBusy),
+    val ordinaryPermitted=inRange && Mux(program,
+      !bus.bits.we && (local && (halted || started || debugExecute.getOrElse(false.B)) || remote && halted && !loaderBusy),
       !loaderBusy && (local || remote && halted))
+    val debugOwner=if(debugAccess) bus.bits.origin===description.origin("gateway_debug").U else false.B
+    val debugPermitted=inRange && debugOwner && !loaderBusy &&
+      (!bus.bits.we || debugWriteAllowed.getOrElse(false.B))
+    val permitted=ordinaryPermitted || debugPermitted
     val loaderAllowed=halted && !locked && !memOffset(1,0).orR && memOffset<2048.U
     val takeBus=state===busGrant && grant && bus.req
     val takeLoader=state===loaderGrant && ready && memValid
-    val writeBus=takeBus && permitted && bus.bits.we
+    val writeBus=takeBus && ordinaryPermitted && bus.bits.we
+    val writeDebug=takeBus && debugPermitted && bus.bits.we
     val writeLoader=takeLoader && loaderAllowed
     val readBus=takeBus && permitted && !bus.bits.we
     val address=Mux(writeLoader,memOffset>>2,offset>>2)
     val word=Mux(writeLoader,stored(memWord),stored(bus.bits.wdata))
     val mask=Mux(writeLoader,15.U,bus.bits.be)
     val readData=memory.readWrite(address,word.asTypeOf(Vec(4,UInt(8.W))),mask.asBools,
-      writeBus || writeLoader || readBus,writeBus || writeLoader).asUInt
+      writeBus || writeDebug || writeLoader || readBus,writeBus || writeDebug || writeLoader).asUInt
     grant:=false.B;ready:=false.B;valid:=false.B;done:=false.B
     when(state===idle) {
       when(memValid && loaderAllowed) {ready:=true.B;state:=loaderGrant}
@@ -136,6 +143,7 @@ class SocRetainedMemory(description: SocDescription) extends RawModule {
     memReady:=ready;memDone:=completion(done);busy:=state=/=idle
     assert(!(takeBus && takeLoader))
     assert(!writeBus || !program)
+    assert(!writeDebug || debugWriteAllowed.getOrElse(false.B) && !loaderBusy)
     assert(!writeLoader || halted && !locked && memOffset<2048.U)
     assert(done===RegNext(writeLoader,false.B))
     assert(!readBus || permitted)

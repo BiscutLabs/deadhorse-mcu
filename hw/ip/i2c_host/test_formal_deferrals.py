@@ -107,5 +107,76 @@ class RetainedDeferralTest(unittest.TestCase):
                         [dict(self.entry,solver_status='PASS')],[bad]):
             with self.subTest(entries=entries),self.assertRaises(ValueError): load(entries)
 
+    def compatible_fixture(self):
+        self.identity['environment_sha256']='f71eedeba5148822a8fd95764f3f931c6ea96f6c370d3aac1dc8ee14e8b51e2a'
+        path=self.root/'build'/'environment.json'
+        path.write_bytes((ROOT/'tools/env/lock.json').read_bytes())
+        current=dict(self.identity,environment_sha256=deferred.environment_digest(path))
+        # Exercise full original identity authentication as well as old rows
+        # whose provenance predates that field.
+        receipt=self.root/self.entry['provenance']['receipt']['path']
+        content=json.loads(receipt.read_text())
+        content['cases']['recover']['jobs'][0]['identity']=copy.deepcopy(self.identity)
+        receipt.write_text(json.dumps(content))
+        self.entry['provenance']['receipt']['sha256']=deferred.digest(receipt)
+        return path,current
+
+    def test_exact_openocd_extension_retains_timeout_and_both_environment_identities(self):
+        path,current=self.compatible_fixture()
+        content=path.read_bytes().replace(b'\r\n',b'\n')
+        for value in (content,content.replace(b'\n',b'\r\n')):
+            path.write_bytes(value)
+            result=deferred.authenticate(self.entry,current,self.sources,self.root,path)
+            self.assertEqual(result['status'],'deferred_unproved')
+            self.assertTrue(result['retained']);self.assertFalse(result['solver_rerun'])
+            self.assertEqual(result['original_identity'],self.identity)
+            binding=result['environment_compatibility']
+            self.assertEqual(binding['actual_environment_sha256'],current['environment_sha256'])
+            self.assertEqual(binding['original_environment_sha256'],self.identity['environment_sha256'])
+            self.assertNotEqual(binding['actual_environment_sha256'],binding['original_environment_sha256'])
+        with self.assertRaisesRegex(ValueError,'model/job mismatch'):
+            deferred.authenticate(self.entry,current,self.sources,self.root)
+
+    def test_lock_compatibility_rejects_changed_tools_packages_config_and_serialization(self):
+        path,current=self.compatible_fixture();original=json.loads(path.read_text())
+        mutations=[]
+        for field,value in [('base','changed'),('apt_snapshot','changed')]:
+            changed=copy.deepcopy(original);changed[field]=value;mutations.append(changed)
+        for field in ('archives','sources'):
+            changed=copy.deepcopy(original);changed[field][0]['sha256']='0'*64;mutations.append(changed)
+        changed=copy.deepcopy(original);changed['versions']['firtool']='changed';mutations.append(changed)
+        changed=copy.deepcopy(original);changed['apt_packages'].append('extra');mutations.append(changed)
+        changed=copy.deepcopy(original);changed['apt_packages'][-1]='changed';mutations.append(changed)
+        changed=copy.deepcopy(original);changed['versions']['openocd']='changed';mutations.append(changed)
+        for name in ('openocd.tar.gz','jimtcl.tar.gz'):
+            changed=copy.deepcopy(original)
+            next(a for a in changed['sources'] if a['name']==name)['commit']='0'*40
+            mutations.append(changed)
+        changed=copy.deepcopy(original);changed['openocd_configure'].append('--changed');mutations.append(changed)
+        contents=[(json.dumps(m,indent=2)+'\n').encode() for m in mutations]
+        canonical=(json.dumps(original,indent=2)+'\n').encode()
+        contents.extend([canonical[:-1],canonical.replace(b'  "schema"',b' "schema"')])
+        for index,content in enumerate(contents):
+            path.write_bytes(content)
+            # Both honest changed hashes and a forged claim of the approved
+            # hash must fail against the actual file contents.
+            for claimed in (current,dict(current,environment_sha256=deferred.environment_digest(path))):
+                with self.subTest(index=index,identity=claimed),self.assertRaisesRegex(ValueError,'model/job mismatch'):
+                    deferred.authenticate(self.entry,claimed,self.sources,self.root,path)
+
+    def test_lock_bridge_cannot_hide_a_changed_job_model_or_old_policy(self):
+        path,current=self.compatible_fixture()
+        for field,value in [('depth',128),('engine','abc pdr'),('timeout_seconds',240)]:
+            with self.subTest(field=field),self.assertRaisesRegex(ValueError,'model/job mismatch'):
+                deferred.authenticate(self.entry,dict(current,**{field:value}),self.sources,self.root,path)
+        with self.assertRaisesRegex(ValueError,'model/job mismatch'):
+            deferred.authenticate(self.entry,current,{'Model.sv':'b'*64},self.root,path)
+        changed=copy.deepcopy(self.entry);changed['identity']['environment_sha256']='b'*64
+        with self.assertRaisesRegex(ValueError,'model/job mismatch'):
+            deferred.authenticate(changed,current,self.sources,self.root,path)
+        artifact=self.root/self.entry['provenance']['log']['path'];artifact.write_bytes(b'tampered')
+        with self.assertRaisesRegex(ValueError,'hash mismatch'):
+            deferred.authenticate(self.entry,current,self.sources,self.root,path)
+
 
 if __name__=='__main__': unittest.main()

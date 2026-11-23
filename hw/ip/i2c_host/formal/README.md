@@ -72,6 +72,18 @@ the historical CRLF representation, preserving the reviewed policy identities
 on either checkout. Every other lock byte remains bound. Emitted-model and
 original-evidence hashes remain byte-exact.
 
+T32 records one exact additive environment-lock transition for OpenOCD: the
+original `f71eed...` lock and current `250c90...` lock are both authenticated.
+Removing only the pinned OpenOCD/Jim sources, OpenOCD version/configuration and
+three build packages must reconstruct the exact original lock hash. All older
+tool pins, archives, base image and package snapshot remain identical. Every
+other job/model field must still match. This is not a general environment
+exception or a claim of identical rebuilt binaries. New rows retain the actual
+current environment hash, the original identity/provenance and the explicit
+compatibility record. All eight obligations remain unproved and are not rerun.
+Tests reject other lock changes, forged current hashes, changed model/job fields
+and tampered historical evidence.
+
 The policy records original receipt, solver status and log hashes. When those
 ignored build artifacts are present, their hashes and timeout identity are
 checked. A fresh checkout may lack historical build output; its receipt lists

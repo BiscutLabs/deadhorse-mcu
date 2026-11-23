@@ -23,6 +23,7 @@ class SocI1UsbBench extends Module with UsbWirePorts {
   val pullupEnable=IO(Output(Bool()));val configured=IO(Output(Bool()))
   val wake=IO(Output(Bool()));val demand=IO(Output(Bool()));val irq=IO(Output(UInt(15.W)))
   val d=Module(new SocI1Peripherals(SocTestFiles.description,SocProduction.config(realUsb=true)))
+  d.performanceDebugMode:=false.B;d.performanceReset_n:=false.B
   SocTestPorts.tieIdle(d)
   SocInactiveTestInputs.tieOff(d.pins.inactive)
   d.mainClock:=app;d.coldReset_n:= !reset.asBool;d.warmReset_n:=true.B;d.mainServiceReset_n:=mainReset_n
