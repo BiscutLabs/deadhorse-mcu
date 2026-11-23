@@ -12,6 +12,7 @@ checkpoints; current progress and evidence live only in STATUS.
 | PLAN01 | [Decision reconciliation](PLAN01-reconcile.md) | User approval conversation | Assigned documentation work |
 | PLAN02 | [General-purpose MCU scope](PLAN02-general-mcu.md) | User decision D69 | Documentation only; no CI or RTL changes |
 | PLAN03 | [SoC consolidation and tape-out planning](PLAN03-soc-consolidation.md) | User decisions D72–D76 | Assigned on main; ordered B1–B6; no new peripheral RTL |
+| PLAN04 | [Tapeout clock/reset architecture](PLAN04-clock-reset.md) | D78/D79; production clock/wake/reset contracts | Assigned on main; acceptance unverified; implementation subset of T33 |
 | T08 | [Pinned Linux environment](T08-environment.md) | None | Brief ready; commands not yet run |
 | T01 | [Scaffold and CI](T01-scaffold.md) | T08 | After pinned environment |
 | T02 | [Historical flight-loop CI](T02-flight-loop-ci.md) | T01, T08 | Historical workload only |

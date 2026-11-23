@@ -84,6 +84,8 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D75 | T20 integrated-loop exception | Approved historical 4,821-cycle result; production measurement still required |
 | [x] | D76 | Fast CI on main; full at integration-stage ends | Approved 2026-11-21; deferrals remain visible and unwaived |
 | [x] | D77 | USB asynchronous-boundary qualification | Approved 2026-11-22; exact CDC/RDC sink qualification required, raw diagnostics and physical debt retained |
+| [x] | D78 | Tapeout clock architecture | Approved 2026-11-22: LF RC AON with strap fallback, external 48 MHz USB and divided 8 MHz main, OSC_EN standby control; Q15 resolved; implementation unverified |
+| [x] | D79 | On-die POR/brownout with bypass | Approved 2026-11-22: safe default, external reset combination and reset-sampled POR_BYPASS; implementation unverified |
 | [x] | D80 | T32 proof deferral and timing iterations | Approved 2026-11-23: defer epoch read-data proof; up to three adaptive timing loops, including carry-forward of improving failures; unchanged acceptance limits |
 
 ## Tasks
@@ -93,6 +95,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | PLAN01 | [Reconcile decisions](tasks/PLAN01-reconcile.md) | Codex | User approvals | [Report](tasks/reports/PLAN01.md); documentation only |
 | [x] | PLAN02 | [General-purpose MCU scope](tasks/PLAN02-general-mcu.md) | Codex | User direction D69 | [Report](tasks/reports/PLAN02.md); documentation checks and independent review pass; no RTL or CI |
 | [x] | PLAN03 | [SoC consolidation and tape-out planning](tasks/PLAN03-soc-consolidation.md) | Codex | D72–D77; existing T20–T30 evidence | One production top, ADC retirement, B4 measurements, B5 debt register/triage and B6 briefs independently accepted. Frozen fast03 passes all active checks with twelve T14/T17 deferrals explicitly unproved. [Measured paths](../spec/soc-production-measurements.md), [report](tasks/reports/PLAN03.md). Full tier, T20 system qualification and chip physical acceptance remain open |
+| [!] | PLAN04 | [Tapeout clock/reset architecture](tasks/PLAN04-clock-reset.md) | Codex | D78/D79; existing production clock/wake/reset contracts | [Contract audit](tasks/reports/PLAN04.md): USB resume needs the stopped clock; frozen recovery loader requires a faster service clock for ordinary I2C rates. Scope decisions pending under the user's stop rule; no PLAN04 RTL or acceptance run |
 | [x] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | Codex | none | [Report](tasks/reports/T08.md); clean rebuild and runtime smoke pass |
 | [x] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | Codex | T08 | [Report](tasks/reports/T01.md); local gate and fresh-context review pass |
 | [x] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | Codex | T01, T08 | [Report](tasks/reports/T02.md); exact QEMU matches, historical summary preserved, local gate passes |
@@ -246,6 +249,7 @@ production verification debt. T31 is withdrawn rather than deferred work.
 
 - 2026-11-23: User deferred the remaining T32 epoch read-data proof and authorized up to three adaptive timing-improvement loops. A better but still failing candidate may seed the next loop; unchanged timing budgets, functional/electrical checks and independent review remain required. PLAN04 USB/recovery choices remain pending. No proof rerun or waiver.
 
+- 2026-11-22: PLAN04 assigned on main; read-first and independent production-contract audit completed before RTL. Recorded approved C1/C2 as D78/D79, amended D6/D35/D38 and resolved Q15. Stopped at the explicit USB stopped-oscillator wake conflict; recovery-loader service rate also needs a contract decision. Architecture reconciliation, implementation and all acceptance checks remain open; no commit/push. See PLAN04 report for exact source references, estimates and pre-existing T32 fast-CI failure.
 
 - 2026-11-22: T32 non-proof timing diagnosis stops after the general data-buffer repair also fails (measured 72.056808 ns against estimated 66.666667 ns). Independent review confirms preserved functions/ports/clock-reset pins and unchanged constraints, but worse timing and added area; both candidates remain rejected diagnostics. No RTL/maintained timing-flow change or weakened acceptance. Final handoff retains epoch-data and faithful-core timing blockers, partial fast failure, full tier unrun and no commit/push.
 
