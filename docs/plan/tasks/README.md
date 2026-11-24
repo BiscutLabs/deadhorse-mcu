@@ -4,6 +4,9 @@ Read [../../../AGENTS.md](../../../AGENTS.md) and the assigned brief's Read firs
 list before work. Progress lives only in [../STATUS.md](../STATUS.md).
 PLAN03 prepares T32-T38; D88/D89 add a finite T39 core/SoC regression ahead
 of physical acceptance, with broader qualification explicitly deferred.
+T40 is scheduled after PLAN05 design changes and Phase 2 qualification. Its
+D102 scoped-test policy is a current task-specific exception, not a waiver of
+PLAN05 phase-end checks. D92-D101 remain in the concurrent PLAN05 branch.
 Writing a brief does not start implementation. D76
 requires fast CI on main before new block work and after every task, and full
 CI at each I2/I3/I4/I5 exit. Historical no-CI instructions below describe earlier
@@ -55,6 +58,7 @@ checkpoints; current progress and evidence live only in STATUS.
 | T37 | [Test mode and scan](T37-test-scan.md) | T35/T36; coordinate T38 | Unimplemented; acceptance unverified |
 | T38 | [Chip top and pad ring](T38-chip-top-pads.md) | T35/T36; T34 interfaces; current T39 evidence; coordinate T37 | Unimplemented; acceptance unverified |
 | T39 | [Focused core and SoC regression](T39-core-soc-qualification.md) | Existing T13/T25 production cores, T20/T32–T34 integration; proof debt retained | D89 finite existing-regression scope; broader qualification deferred; results in STATUS/report |
+| T40 | [DMA circular UART RX](T40-dma-circular-uart-rx.md) | D102; PLAN05 design changes and Phase 2 qualification; T23 | Scheduled after PLAN05 migration; UART RX only, +0.010 mm2 cap; scoped checks, no aggregate CI; acceptance unverified |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |

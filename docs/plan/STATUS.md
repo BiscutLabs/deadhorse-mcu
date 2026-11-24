@@ -103,6 +103,8 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D90 | T35 scoped verification | User direction 2026-11-24: SRAM/BIST and affected integration tests only, no aggregate CI; defer extensive timeout proof work, retain independent review and physical/interface stop conditions |
 | [x] | D91 | T36 scoped verification | User direction 2026-11-24: boot-ROM and affected integration checks only, no aggregate CI; defer extensive timeout proof work; retain independent review and boot-path/ownership/image-policy stop conditions |
 
+| [x] | D102 | DMA circular UART RX, shadow reload | User-approved 2026-11-24; T40 after PLAN05 design changes, +0.010 mm2 mapped-cell cap, scoped tests/no aggregate CI, one formal triage round. D92-D101 reserved in concurrent PLAN05 work; no implementation acceptance |
+
 ## Tasks
 
 Current verification receipt: [T39](tasks/reports/T39.md), the D89 finite
@@ -156,6 +158,7 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [ ] | T37 | [Test mode and scan](tasks/T37-test-scan.md) | unassigned | T35/T36; coordinate T38 | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
 | [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
+| [ ] | T40 | [DMA circular UART RX](tasks/T40-dma-circular-uart-rx.md) | unassigned | D102; PLAN05 design changes/Phase 2 qualification; T23 | Scheduled only; [planning receipt](tasks/reports/T40-planning.md). UART RX only, shadow reload, strict area cap; implementation and acceptance unverified |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -268,6 +271,8 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-24: Added D102/T40 on an isolated planning branch, scheduled after PLAN05 design changes. Reserved the maximum mapped-cell increment in the T35 baseline budget; no DMA implementation, RTL test, proof, timing run or CI. Concurrent PLAN05 files remain untouched. Planning checks/review recorded in the receipt.
 
 - 2026-11-24: T36 preflight identified the brief's explicit contract stop: loader-only lite start, no lite ROM/program-write authority and firmware/native-origin UART versus gateway-origin semantics. Prepared independently reviewed boot/recovery proposal; documentation/map checks pass. Await user decision before RTL/firmware; no CI or implementation acceptance.
 

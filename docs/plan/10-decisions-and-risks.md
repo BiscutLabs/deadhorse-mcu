@@ -112,6 +112,16 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 
 | **D91** | T36 scoped verification | User direction 2026-11-24: implement T36 under the same policies as T35. Run boot-ROM and affected integration tests only; no aggregate fast/full CI or unrelated IP tests. Defer proofs needing extensive timeout work, retaining assertions, assumptions, caps and unresolved evidence. Independent contract and final review remain required. This does not approve a new memory/ownership/image policy, loader extension, capacity increase, or physical/stage signoff; T36's explicit feasibility and stop conditions remain. |
 
+## DMA circular receive decision
+
+D92-D101 are reserved for the concurrent PLAN05 decisions on main and are
+not duplicated on this isolated planning branch. Reconcile this addition
+when PLAN05 lands; no PLAN05 decision is superseded.
+
+| ID | Decision | Approved scope |
+| --- | --- | --- |
+| **D102** | DMA circular receive, UART RX only, reload from shadow, user-approved 2026-11-24 | Schedule T40 after PLAN05 design changes. Four existing channels gain circular UART RX only, count >= 2, stable shadow reload protected by busy-write rejection, half/wrap W1C events and a small firmware ring driver. No second base/count copy, overrun detector, new endpoint or non-circular behavior change. Added mapped standard-cell area capped at 0.010 mm2 total; stop on excess before recovery optimization. Relevant DMA/SoC/driver tests and unchanged assertions only; no aggregate fast/full CI. Bounded formal evidence may be recorded; one timeout-triage round, no unchanged timeout reruns, unresolved claims remain visible. Independent review and all other limits remain. This task-specific D76 exception does not change PLAN05's phase-end checks. |
+
 ## Risks and evidence still required
 
 
