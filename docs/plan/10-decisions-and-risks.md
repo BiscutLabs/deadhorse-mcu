@@ -110,6 +110,8 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 
 | **D90** | T35 scoped verification | User direction 2026-11-24: proceed with T35 under the same proof-deferral and relevant-tests-only policy. Run SRAM/BIST and affected integration checks; no aggregate fast/full CI or unrelated IP tests. Defer proofs requiring extensive timeout work with original assertions, assumptions, caps and unresolved evidence retained. Independent contract/implementation/evidence review remains required. Existing T32/T33 deferrals carry forward without being closed. Macro-view, interface, capacity, timing, area and physical-retention stop conditions remain; no stage or physical-signoff waiver. |
 
+| **D91** | T36 scoped verification | User direction 2026-11-24: implement T36 under the same policies as T35. Run boot-ROM and affected integration tests only; no aggregate fast/full CI or unrelated IP tests. Defer proofs needing extensive timeout work, retaining assertions, assumptions, caps and unresolved evidence. Independent contract and final review remain required. This does not approve a new memory/ownership/image policy, loader extension, capacity increase, or physical/stage signoff; T36's explicit feasibility and stop conditions remain. |
+
 ## Risks and evidence still required
 
 

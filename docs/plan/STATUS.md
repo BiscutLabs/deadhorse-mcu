@@ -101,6 +101,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D89 | Focused existing-regression campaign | User direction 2026-11-24: significantly narrow T39; existing lite/core/SoC, flight/wake, debug and complete fast CI, with broader ISS/coverage work deferred, frozen code and reviewed documentation publication; no stage/proof closure |
 
 | [x] | D90 | T35 scoped verification | User direction 2026-11-24: SRAM/BIST and affected integration tests only, no aggregate CI; defer extensive timeout proof work, retain independent review and physical/interface stop conditions |
+| [x] | D91 | T36 scoped verification | User direction 2026-11-24: boot-ROM and affected integration checks only, no aggregate CI; defer extensive timeout proof work; retain independent review and boot-path/ownership/image-policy stop conditions |
 
 ## Tasks
 
@@ -151,7 +152,7 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [x] | T33 | [Clock/reset/power controller](tasks/T33-clock-reset-power.md) | Codex | PLAN04; T32/T34 coordination; D85/D86 | [Report](tasks/reports/T33.md): completed with D86 exceptions. 82 credited task cases, map/tool checks and independent review pass (commands/times in report). Initial inherited I/O scope error and failed aggregate preserved; corrected continuation explicitly selected. Difficult composition proofs remain deferred; no fast/full CI or physical/I3 signoff |
 | [x] | T34 | [Analog interfaces/models](tasks/T34-analog-models.md) | Codex | PLAN03; D87 | [Report](tasks/reports/T34.md): completed with D87 exceptions. Frozen relevant models/production POR cases, scoped reset proofs, pin audit and fault controls pass. Production HDL unchanged. Physical characterization, four-state qualification and calibration/test access remain open; neither CI tier run |
 | [x] | T35 | [SRAM macros and BIST](tasks/T35-sram-bist.md) | Codex | T32/T33 implementation with recorded deferrals; coordinate T36; D90 | [Scoped completion](tasks/reports/T35.md): production macros/BIST, 43 relevant Scala tests, four TAP scenarios and unchanged flight cycles; two proofs deferred, physical signoff open; no CI under D90 |
-| [ ] | T36 | [Production boot ROM](tasks/T36-boot-rom.md) | unassigned | T32/T33 completed; coordinate T35 | Brief prepared by PLAN03; implementation and acceptance unverified |
+| [!] | T36 | [Production boot ROM](tasks/T36-boot-rom.md) | Codex | T32/T33 implementation with recorded deferrals; T35; D91 | [Preflight report](tasks/reports/T36.md): reviewed [boot-path proposal](../spec/boot-rom-proposal.md) awaits mapping/ownership/recovery/image-policy approval; no RTL/firmware changed or acceptance claimed |
 | [ ] | T37 | [Test mode and scan](tasks/T37-test-scan.md) | unassigned | T35/T36; coordinate T38 | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
 | [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
@@ -267,6 +268,10 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-24: T36 preflight identified the brief's explicit contract stop: loader-only lite start, no lite ROM/program-write authority and firmware/native-origin UART versus gateway-origin semantics. Prepared independently reviewed boot/recovery proposal; documentation/map checks pass. Await user decision before RTL/firmware; no CI or implementation acceptance.
+
+- 2026-11-24: Assigned T36 on main with D91 scoped tests/proof deferrals and no CI. Reviewing cold-reset instruction source, ROM/start selection, memory ownership and frozen-loader recovery before implementation; existing stop conditions retained.
 
 - 2026-11-24: T35 scoped implementation complete under D90: production SRAM macros and reset-held JTAG BIST; 43 relevant Scala cases, four TAP scenarios and production flight checks pass. Five-corner mapped timing fits unchanged class budgets with the inherited USB warning; estimated chip headroom 0.220200760 mm2. Data/latency and multiclock ownership proofs remain deferred/unproved; physical signoff remains open. No fast/full CI or unrelated suites run. See [report](tasks/reports/T35.md).
 - 2026-11-24: User assigned T35 with D90 scoped verification: relevant SRAM/BIST/integration checks only, no aggregate CI, extensive timeout proofs deferred. Began pinned macro-view and independent contract review on main; existing memory maps, limits and physical stop conditions retained.
