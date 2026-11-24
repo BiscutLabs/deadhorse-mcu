@@ -101,10 +101,16 @@ USB light sleep; attached USB does not support oscillator-off host resume.
 
 ## Remaining execution order
 
-After PLAN03 and a passing fast tier, T32 and T33 start first in parallel;
-T34 may start any time. T35 and T36 follow, then T37/T38. These are separately
-assigned briefs, not implementation authorization from this document. Resolve
-interface dependencies before consuming another task's unfinished design.
+Under D88, T39 is planned next: qualify both existing production cores through
+fresh standalone and integrated architectural/differential simulation, with
+coverage/fault accounting and open proofs retained. Existing T32/T33/T34
+implementation/model evidence keeps its recorded exceptions. T39 uses current
+memory models and loader/bootstrap paths, so it does not depend on T35/T36.
+T35 and T36 follow, then T37/T38; replay affected T39 checks after those changes.
+T38 acceptance requires current core/SoC qualification. These are separately
+assigned briefs, not implementation authorization from this document. D76
+remains the execution CI policy unless separately amended for the assigned task.
+Resolve interface dependencies before consuming unfinished designs.
 T31 stays withdrawn; no further loader extension without a new decision.
 
 System qualification remains T20 plus the stage owners: production target

@@ -2,7 +2,8 @@
 
 Read [../../../AGENTS.md](../../../AGENTS.md) and the assigned brief's Read first
 list before work. Progress lives only in [../STATUS.md](../STATUS.md).
-PLAN03 prepares T32-T38; writing a brief does not start implementation. D76
+PLAN03 prepares T32-T38; D88 adds T39 core/SoC qualification ahead of physical
+acceptance. Writing a brief does not start implementation. D76
 requires fast CI on main before new block work and after every task, and full
 CI at each I2/I3/I4/I5 exit. Historical no-CI instructions below describe earlier
 checkpoints; current progress and evidence live only in STATUS.
@@ -51,7 +52,8 @@ checkpoints; current progress and evidence live only in STATUS.
 | T35 | [SRAM macros and BIST](T35-sram-bist.md) | T32/T33 completed; coordinate T36 | Unimplemented; acceptance unverified |
 | T36 | [Production boot ROM](T36-boot-rom.md) | T32/T33 completed; coordinate T35 | Unverified acceptance; boot-path contract prerequisite |
 | T37 | [Test mode and scan](T37-test-scan.md) | T35/T36; coordinate T38 | Unimplemented; acceptance unverified |
-| T38 | [Chip top and pad ring](T38-chip-top-pads.md) | T35/T36; T34 interfaces; coordinate T37 | Unimplemented; acceptance unverified |
+| T38 | [Chip top and pad ring](T38-chip-top-pads.md) | T35/T36; T34 interfaces; current T39 evidence; coordinate T37 | Unimplemented; acceptance unverified |
+| T39 | [Production-core and SoC qualification](T39-core-soc-qualification.md) | Existing T13/T25 production cores, T20/T32–T34 integration; proof debt is an input | Planned next under D88; campaign not started, acceptance unverified |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |
@@ -70,9 +72,12 @@ Missing tools cannot be skipped to claim success.
 
 ## Remaining implementation order
 
-T32 and T33 first in parallel; then T35/T36, then T37/T38. T34 may start any
-time after PLAN03. Each ends with the single production top and existing system
-tests. T36 explicitly resolves autonomous lite boot without extending D73's
+D88 places T39 verification next on the current production top, before T38
+acceptance. Existing T32/T33 implementation and T34 model evidence retain their
+recorded exceptions; T39 does not require their deferred proofs to close first.
+Then T35/T36, followed by T37/T38, replay affected T39 checks after their changes.
+Each ends with the single production top and existing system tests.
+T36 explicitly resolves autonomous lite boot without extending D73's
 frozen loader. Analog layout/extraction, board/silicon work and complete stage
 application/FPGA acceptance need later briefs; no implicit new work is assigned.
 T31 is withdrawn. D18 and chip-to-chip work remain deferred.

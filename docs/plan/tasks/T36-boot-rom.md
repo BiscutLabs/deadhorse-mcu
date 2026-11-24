@@ -86,6 +86,11 @@ the UART transport needs an unbriefed hardware gateway rather than firmware.
   cycles; replace the assumed ROM allowance with actual implementation area.
   Run two-hart JTAG boot interaction and full tier at I4 exit.
 
+D88/T39 follow-through: replay affected core/SoC qualification through the
+new production ROM and release path; preserve ISA expectations and authenticate
+new firmware/RTL hashes. The earlier T39 loader/bootstrap result does not qualify
+production boot. Retain all T36 boot/update/recovery acceptance checks.
+
 ## Stop conditions
 
 Stop for loader/lock changes, unsupported ROM capacity, a new image policy or

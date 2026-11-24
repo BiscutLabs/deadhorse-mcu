@@ -50,10 +50,15 @@ PLAN03 leaves one production DeadhorseSoc with all built digital blocks; old
 profiles are historical test evidence. ADC hardware is retired, and the I2C
 loader is frozen. No new opt-in feature configurations.
 
-After PLAN03 and a passing fast tier, execute T32 JTAG and T33 clock/reset/power
-first in parallel, then T35 SRAM/BIST and T36 production ROM, then T37 test/scan
-and T38 chip top/pads/LibreLane. T34 analog interfaces/models may start any time
-after PLAN03; layout/extraction needs a later brief. No unbriefed peripheral work.
+D88 now places [T39 core/SoC qualification](tasks/T39-core-soc-qualification.md)
+next, using the implemented production cores and T32–T34 integration with their
+recorded exceptions. Run fresh architectural and instruction-reference checks
+standalone and in the production SoC, with coverage and fault evidence.
+T35 SRAM/BIST and T36 production ROM follow, then T37 test/scan and T38 chip
+top/pads/LibreLane. Replay affected T39 checks after memory, boot and scan
+changes; T38 requires current qualification evidence, not just an earlier pass.
+T34 analog interfaces/models do not supply physical layouts; layout/extraction
+needs a later brief. No unbriefed peripheral work.
 Existing T20 composition/system and inherited proof debt remain visible in STATUS.
 D76 requires fast CI before new block work and after every task; full CI at
 each I2/I3/I4/I5 exit. Neither approval nor a fast pass completes a stage.

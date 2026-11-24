@@ -78,6 +78,11 @@ increase, caching, or arbitration micro-optimization.
   remeasure production workload cycles and area. Retention requires qualified
   voltage/power characterization, not an inferred simulation result.
 
+D88/T39 follow-through: replay the affected standalone and production-SoC
+core qualification tests after macro/wrapper/BIST integration, with new source
+hashes and preserved architectural expectations. Retain T35's own acceptance;
+a previous T39 pass on memory models does not qualify the replacement.
+
 ## Stop conditions
 
 Stop for incompatible macro license/views, latency or read/write contract

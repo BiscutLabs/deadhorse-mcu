@@ -71,6 +71,10 @@ No functional peripheral behavior changes or hidden scan exclusions.
   capture timing with gate enable, pulse, hold and reset checks. No pre-CTS
   hold RTL padding. Reconcile area/coverage with T38 and S4.
 
+D88/T39 follow-through: replay affected core/SoC checks in functional mode
+after test/scan integration. This supplements the required before/after scan
+equivalence; neither simulation nor an older T39 receipt substitutes for it.
+
 ## Stop conditions
 
 Stop for unavailable pinned ATPG/insertion capability, a proposed change to an approved S4 coverage

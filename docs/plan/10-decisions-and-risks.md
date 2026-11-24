@@ -104,6 +104,8 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 
 | **D87** | T34 scoped verification exceptions | Approved by the user 2026-11-24: finish T34 under the same proof/test/CI policy as T33. Run only relevant analog-interface/model and integration checks; do not run aggregate fast/full CI or unrelated IP tests. Defer proofs requiring extensive timeout work, retaining their original assertions, assumptions, caps and unresolved evidence. Independent review and frozen scoped evidence remain required. This task-specific D76 exception does not qualify analog circuits, physical characterization or an integration/tape-out gate. |
 
+| **D88** | Plan production-core/SoC qualification before physical integration | User direction 2026-11-24: write and add a complete task for fresh RISC-V architectural, differential simulation and integrated two-core verification, using the existing testbench as the starting point. T39 is planned next, before T38 acceptance, with affected regression replay after SRAM/ROM/scan changes. This authorization is for planning and publication, not campaign execution, core certification, proof closure, architecture changes or a new CI waiver. Existing limits and task-specific deferral scopes remain unchanged. |
+
 ## Risks and evidence still required
 
 

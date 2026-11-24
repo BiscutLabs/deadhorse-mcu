@@ -4,6 +4,9 @@
 
 Complete the I5 chip-level digital/pad assembly and import the D9 LibreLane
 flow. Start after T35/T36 and coordinate T37; T34 macro contracts are required.
+D88 also requires current T39 core/SoC qualification for physical acceptance,
+including affected replay after T35/T36/T37 changes. Preliminary physical work
+does not substitute for that qualification or authorize bypassing prerequisites.
 Read plan08, selected slot/PDK locks, soc.yaml and USB physical/boundary reports.
 Analog extracted views/layout need their separate later brief; do not invent
 signoff views or claim tape-out readiness while those are absent.
