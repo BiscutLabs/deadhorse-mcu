@@ -92,7 +92,7 @@ No UART register or behavior change is implied. Holds are independent of wake
 masks. The frozen AON recovery loader uses f_SCL <= f_AON,min / 8 (D82);
 nominal 4 kHz is estimated, not tolerance-qualified.
 
-Analog pin-level model boundary, pending T34 qualification:
+Analog pin-level model boundary (T34 digital contract; physical qualification pending):
 
 | Macro | Inputs | Outputs / safe default |
 | --- | --- | --- |
@@ -103,6 +103,15 @@ These are BlackBox boundaries; digital behavioral substitutes model supplied
 clock/startup and supply-ramp/threshold/hysteresis/release events. They do not
 implement analog circuits or establish accuracy. Numerical thresholds, encoding,
 release time and LF trim remain assumptions until T34/process/SRAM qualification.
+The [LF pin contract](../../analog/lf_rc/README.md),
+[POR pin contract](../../analog/por_brownout/README.md) and
+[characterization handoff](../../analog/characterization.md) define the detailed
+T34 boundary. Production ties LF enable high, trim to startup code0 and both
+test controls low. LF ready and POR powerOn_n are intentionally unused
+diagnostics; counted AON edges and the existing supply-reset combination remain
+the release authority. No production trim-loading/storage or analog test mux
+is implemented. Reserved LF trim codes use startup behavior in the model;
+frequency tuning and four-state/power-aware behavior remain unqualified.
 The current digital POR model assumes default 3.10 V falling / 3.20 V rising,
 1000 reference edges at assumed 1 MHz (estimated 1 ms qualified release), and
 an initial-power epoch below assumed 0.10 V. Encoding 01 selects assumed

@@ -43,9 +43,10 @@ class DeadhorseSoc(config: String,uartJson: String,romImage: String,
   val threshold=Wire(UInt(2.W))
   if(analogModels) {
     val lf=Module(new LfRcModel);lf.source:=model.get.lfClock
-    lf.power_n:=model.get.supplyMv>=100.U;lf.enable:=true.B;rc:=lf.out
+    lf.power_n:=model.get.supplyMv>=100.U;lf.enable:=true.B
+    lf.trim:=0.U;lf.test:=false.B;rc:=lf.out
     val por=Module(new PorBrownoutModel)
-    por.reference:=model.get.porReference;por.supplyMv:=model.get.supplyMv;por.threshold:=threshold
+    por.reference:=model.get.porReference;por.supplyMv:=model.get.supplyMv;por.threshold:=threshold;por.test:=false.B
     supplyReset:=por.supplyReset_n;brownout:=por.brownout
   } else {
     val lf=Module(new LfRcMacro);attach(lf.io.vdd,vdd.get);attach(lf.io.vss,vss.get)

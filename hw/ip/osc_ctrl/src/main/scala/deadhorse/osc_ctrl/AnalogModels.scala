@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.experimental.Analog
 
-/** Physical interface only. T34 supplies characterized analog views, not RTL. */
+/** Physical interface only. T34 documents models; physical views are later work. */
 class LfRcMacro extends BlackBox {
   val io=IO(new Bundle {
     val vdd=Analog(1.W);val vss=Analog(1.W)
@@ -24,9 +24,12 @@ class PorBrownoutMacro extends BlackBox {
 }
 
 /** Simulation supplies LF edges; this model does not synthesize an oscillator.
-  * enable changes only while consumers are reset. Trim accuracy is not modeled. */
+  * enable changes only while consumers are reset. The environment stops source;
+  * out is not a digital clock gate. Trim/test do not bypass qualification. All
+  * trim codes currently use the assumed startup setting, pending analog design. */
 class LfRcModel extends RawModule {
   val source=IO(Input(Clock()));val power_n=IO(Input(Bool()));val enable=IO(Input(Bool()))
+  val trim=IO(Input(UInt(6.W)));val test=IO(Input(Bool()))
   val ready=IO(Output(Bool()));val out=IO(Output(Clock()))
   // Output remains the supplied oscillator, even before ready; consumers qualify.
   out:=source
@@ -35,8 +38,9 @@ class LfRcModel extends RawModule {
     when(!enable) {count:=0.U;running:=false.B}
       .elsewhen(count===3.U) {running:=true.B}
       .otherwise {count:=count+1.U}
-    ready:=running
+    ready:=qualifiedReady(running)
   }
+  protected def qualifiedReady(value: Bool): Bool=value
 }
 
 /** Digital voltage model only. reference is an assumed 1 MHz simulation clock.
@@ -46,6 +50,7 @@ class PorBrownoutModel(releaseEdges: Int=1000) extends RawModule {
   require(releaseEdges>=1)
   val reference=IO(Input(Clock()));val supplyMv=IO(Input(UInt(12.W)))
   val threshold=IO(Input(UInt(2.W)))
+  val test=IO(Input(Bool())) // Reserved, inert: never a reset-release bypass.
   val supplyReset_n=IO(Output(Bool()));val powerOn_n=IO(Output(Bool()))
   val brownout=IO(Output(Bool()))
   // Reserved encodings retain the conservative default. T33 owns selection.

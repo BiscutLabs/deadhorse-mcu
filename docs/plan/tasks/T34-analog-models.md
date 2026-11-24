@@ -46,6 +46,12 @@ formal-timeout-triage; regmap-authoring for new registers.
 
 ## Shared acceptance and publication (unverified)
 
+User amendment D87 (2026-11-24): use relevant T34 model/interface/integration
+checks instead of aggregate fast/full CI; do not run unrelated IP tests.
+Defer proofs needing extensive timeout work and explicitly retain their debt.
+Independent review and frozen scoped evidence remain required. This amendment
+does not waive physical characterization or close any integration/signoff gate.
+
 All acceptance below is **unverified**. Proposed new checker interfaces are
 deliverables to create, not existing or passing tools. Each checker must emit
 source/tool hashes, commands, classified results, assumptions, covers and actual

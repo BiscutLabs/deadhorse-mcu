@@ -12,6 +12,7 @@ class AnalogModelSpec extends AnyFunSuite with ChiselSim {
   }
   test("approved threshold changes never bypass assertion or release qualification") {
     simulateRaw(new PorBrownoutModel(8)) {d=>
+      d.test.poke(false.B)
       d.supplyMv.poke(0.U);d.threshold.poke(0.U);d.reference.step(2)
       d.supplyMv.poke(3400.U);d.reference.step(9);d.supplyReset_n.expect(true.B)
       // A still-valid supply can remain released across either selector edge.
@@ -31,6 +32,7 @@ class AnalogModelSpec extends AnyFunSuite with ChiselSim {
     }
   }
   def freshThresholdQualification(d: PorBrownoutModel): Unit={
+      d.test.poke(false.B)
       d.supplyMv.poke(0.U);d.threshold.poke(0.U);d.reference.step(2)
       d.supplyMv.poke(3250.U);d.reference.step(6);d.supplyReset_n.expect(false.B)
       d.threshold.poke(1.U);d.supplyMv.poke(3400.U)
@@ -50,6 +52,7 @@ class AnalogModelSpec extends AnyFunSuite with ChiselSim {
     assert(failure.getMessage.contains("POR_OLD_THRESHOLD_SAMPLES_REUSED"))
   }
   def thresholdAssertion(d: PorBrownoutModel): Unit={
+    d.test.poke(false.B)
     d.supplyMv.poke(0.U);d.threshold.poke(0.U);d.reference.step(2)
     d.supplyMv.poke(3400.U);d.reference.step(9);d.supplyReset_n.expect(true.B)
     d.supplyMv.poke(3150.U);d.threshold.poke(1.U)
@@ -65,6 +68,7 @@ class AnalogModelSpec extends AnyFunSuite with ChiselSim {
   }
   test("POR model fast and slow ramps, qualified release, hysteresis and brownout") {
     simulateRaw(new PorBrownoutModel(8)) {d=>
+      d.test.poke(false.B)
       def powerOff(): Unit={
         d.supplyMv.poke(0.U);d.threshold.poke(0.U);d.reference.step(2)
         d.supplyReset_n.expect(false.B);d.powerOn_n.expect(false.B);d.brownout.expect(false.B)

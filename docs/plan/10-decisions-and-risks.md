@@ -102,6 +102,8 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 
 | **D86** | T33 completion with explicit verification exceptions | Approved by the user 2026-11-24: finish T33 while deferring proofs that cannot reasonably close without extensive timeout work. Preserve original assertions, assumptions, caps, failed/unresolved evidence and failing-closed proof entrypoints; deferred is not proved. This covers the exhausted full-width startup count and shutdown ownership attempts and the unresolved stale-response/reset/CDC/RDC composition work, whose remaining premises and mapping gaps must stay visible. Supersedes the pending helper-attempt requests with deferral for this closeout. Do not run full CI or unrelated IP tests. Use a frozen T33-specific clock/reset/wake/containment regression and structural checks instead of aggregate fast/full CI, since fast also runs unrelated IP. Independent review remains required before commit/push. This is a task-specific exception to D76, not a new default CI policy, physical qualification, or I3/tape-out gate closure. |
 
+| **D87** | T34 scoped verification exceptions | Approved by the user 2026-11-24: finish T34 under the same proof/test/CI policy as T33. Run only relevant analog-interface/model and integration checks; do not run aggregate fast/full CI or unrelated IP tests. Defer proofs requiring extensive timeout work, retaining their original assertions, assumptions, caps and unresolved evidence. Independent review and frozen scoped evidence remain required. This task-specific D76 exception does not qualify analog circuits, physical characterization or an integration/tape-out gate. |
+
 ## Risks and evidence still required
 
 

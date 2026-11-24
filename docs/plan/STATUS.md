@@ -94,6 +94,8 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D85 | Brownout threshold switching contract | Approved 2026-11-23: no unsafe release pulse; immediate assertion below new falling threshold; full new rising-threshold qualification after assertion. Physical validation remains T34 |
 | [x] | D86 | T33 verification exceptions | Approved 2026-11-24: defer extensive timeout/composition proof work; frozen T33-specific checks, no full CI or unrelated IP tests; no aggregate CI claim or physical/I3 gate closure |
 
+| [x] | D87 | T34 scoped verification exceptions | Approved 2026-11-24: relevant analog/model/integration checks only; no aggregate CI or unrelated IP tests; defer extensive timeout proofs, retain physical qualification debt |
+
 ## Tasks
 
 | | ID | Item | Owner | Depends on | Report |
@@ -136,7 +138,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [-] | T31 | [Retained locked-image restart](tasks/T31-retained-loader-restart.md) | n/a | D73 | Withdrawn; loader frozen at existing feature set and reset policy. [Historical proposal](tasks/reports/T31.md) |
 | [!] | T32 | [Two-hart JTAG debug](tasks/T32-jtag-debug.md) | Codex | PLAN03; T33 interface coordination | [Report](tasks/reports/T32.md), [timing follow-up](tasks/reports/T32-timing-followup.md): D80 defers the unproved epoch read-data claim. Mapped timing closes at measured 65.141479 ns below unchanged 66.666667 ns, with all-state equivalence and fault control. Frozen fast timing-fast01 passes all 34 active commands in measured 3850.781049 s; twelve inherited deferrals remain unproved. Full tier unrun; physical reset/clock-tree debt remains |
 | [x] | T33 | [Clock/reset/power controller](tasks/T33-clock-reset-power.md) | Codex | PLAN04; T32/T34 coordination; D85/D86 | [Report](tasks/reports/T33.md): completed with D86 exceptions. 82 credited task cases, map/tool checks and independent review pass (commands/times in report). Initial inherited I/O scope error and failed aggregate preserved; corrected continuation explicitly selected. Difficult composition proofs remain deferred; no fast/full CI or physical/I3 signoff |
-| [ ] | T34 | [Analog interfaces/models](tasks/T34-analog-models.md) | unassigned | PLAN03 | Brief prepared by PLAN03; implementation and acceptance unverified |
+| [x] | T34 | [Analog interfaces/models](tasks/T34-analog-models.md) | Codex | PLAN03; D87 | [Report](tasks/reports/T34.md): completed with D87 exceptions. Frozen relevant models/production POR cases, scoped reset proofs, pin audit and fault controls pass. Production HDL unchanged. Physical characterization, four-state qualification and calibration/test access remain open; neither CI tier run |
 | [ ] | T35 | [SRAM macros and BIST](tasks/T35-sram-bist.md) | unassigned | T32/T33 completed; coordinate T36 | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [ ] | T36 | [Production boot ROM](tasks/T36-boot-rom.md) | unassigned | T32/T33 completed; coordinate T35 | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [ ] | T37 | [Test mode and scan](tasks/T37-test-scan.md) | unassigned | T35/T36; coordinate T38 | Brief prepared by PLAN03; implementation and acceptance unverified |
@@ -252,6 +254,10 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-24: T34 scoped acceptance `build/t34/models02` passes with D87 exceptions: 12 model and four selected production tests, three reset proof jobs/six faults/two covers, nine pin-binding faults and five receipt checks. Measured aggregate 273.803 s (command in report); all 212 production emitted files match T33. Independent contract, implementation and final evidence review approved; audit `build/t34/independent-review.json`. No aggregate CI, unrelated IP tests or analog signoff.
+
+- 2026-11-24: Started T34 under user decision D87. Reuse existing LF/POR models and production bindings; relevant checks only, no aggregate CI, extensive timeout proofs deferred. No analog layout or new trim storage.
 
 - 2026-11-24 — Codex: T33 completed with D86 exceptions after independently verified focused acceptance: 52 fresh cases plus 30 authenticated completed cases from an interrupted run. One inherited unrelated I/O test ran before the selection mistake was detected; that case is not credited and closeout01 remains failed. Corrected explicit selection, preserved firmware/source hashes and five evidence-fault checks pass. Final docs record proof and physical debt; no CI tier or stage gate claimed. Publication on main follows standing authorization and review.
 - 2026-11-24 — Codex: user approved D86 to finish T33 with explicit difficult-proof deferrals and no full CI or unrelated IP tests. Resumed focused closeout; pending helper-attempt requests superseded by deferral. No assertions, assumptions, timing budgets or proof statuses changed. Physical qualification and stage gates stay open.
