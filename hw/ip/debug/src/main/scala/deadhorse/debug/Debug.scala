@@ -2,9 +2,11 @@ package deadhorse.debug
 import chisel3._
 import chisel3.util._
 import deadhorse.lib._
+import deadhorse.sram._
 
 /** POR-owned transport/module. Target service resets never reset the DM. */
-class Debug(retainedBase: BigInt=0x30000000L, retainedSize: BigInt=3072) extends RawModule {
+class Debug(retainedBase: BigInt=0x30000000L, retainedSize: BigInt=3072,
+    bistJson: Option[String]=None) extends RawModule {
   val clk=IO(Input(Clock()));val tck=IO(Input(Clock()));val por_n=IO(Input(Bool()))
   val tms=IO(Input(Bool()));val tdi=IO(Input(Bool()));val tdo=IO(Output(Bool()));val tdoEnable=IO(Output(Bool()))
   val hartReset=IO(Input(UInt(2.W)));val unavailable=IO(Input(UInt(2.W)));val hartMode=IO(Input(UInt(2.W)))
@@ -12,6 +14,11 @@ class Debug(retainedBase: BigInt=0x30000000L, retainedSize: BigInt=3072) extends
   val ndmAck=IO(Input(Bool()));val pendingTck=IO(Output(Bool()));val hold=IO(Output(Bool()))
   val memoryReset_n=IO(Input(Bool()));val memory=IO(new LocalBus);val system=IO(Flipped(new LocalBus));val systemUp=IO(Input(Bool()));val systemQuiet=IO(Input(Bool()))
   val systemRetained=IO(Output(Bool()))
+  val bist=bistJson.map(_=>IO(new Bundle {
+    val epoch_n=Input(Bool());val start=Output(Bool());val keyed=Output(Bool())
+    val busy=Input(Bool());val done=Input(Bool());val failed=Input(Bool());val rejected=Input(Bool())
+    val resetAck=Input(Bool());val failAddress=Input(UInt(32.W));val result=Input(new MarchResult)
+  }))
   val release=Module(new ResetRelease);release.clk:=clk;release.reset_n:=por_n
   val tapRelease=Module(new ResetRelease);tapRelease.clk:=tck;tapRelease.reset_n:=por_n
   val tap=Module(new DebugTap);val dm=Module(new DebugModule);val transport=Module(new DebugTransport)
@@ -31,9 +38,33 @@ class Debug(retainedBase: BigInt=0x30000000L, retainedSize: BigInt=3072) extends
   dm.io.hartinfo_i:=((info<<32)|info).U
   dm.io.ndmreset_ack_i:=ndmAck;ndmReset:=dm.io.ndmreset_o;halt:=dm.io.debug_req_o;active:=dm.io.dmactive_o
   dm.io.dmi_rst_ni:=transport.coreUp;dm.io.dmi_req_i:=transport.request.bits
-  dm.io.dmi_req_valid_i:=transport.request.valid;transport.request.ready:=dm.io.dmi_req_ready_o
-  transport.response.valid:=dm.io.dmi_resp_valid_o;transport.response.bits:=dm.io.dmi_resp_o
-  dm.io.dmi_resp_ready_i:=transport.response.ready
+  bistJson match {
+    case None =>
+      dm.io.dmi_req_valid_i:=transport.request.valid;transport.request.ready:=dm.io.dmi_req_ready_o
+      transport.response.valid:=dm.io.dmi_resp_valid_o;transport.response.bits:=dm.io.dmi_resp_o
+      dm.io.dmi_resp_ready_i:=transport.response.ready
+    case Some(json) =>
+      val custom=Module(new SramDmi(json));custom.clk:=clk
+      custom.reset_n:=release.released && transport.coreUp;custom.epoch_n:=bist.get.epoch_n
+      bist.get.start:=custom.start;bist.get.keyed:=custom.keyed
+      custom.busy:=bist.get.busy;custom.done:=bist.get.done;custom.failed:=bist.get.failed
+      custom.rejected:=bist.get.rejected;custom.resetAck:=bist.get.resetAck
+      custom.failAddress:=bist.get.failAddress;custom.result:=bist.get.result
+      withClockAndReset(clk,(!(release.released && transport.coreUp)).asAsyncReset) {
+        val pending=RegInit(false.B);val owner=RegInit(false.B)
+        val select=transport.request.bits(40,38)===7.U
+        custom.request.bits:=transport.request.bits
+        custom.request.valid:=transport.request.valid && !pending && select
+        dm.io.dmi_req_valid_i:=transport.request.valid && !pending && !select
+        transport.request.ready:= !pending && Mux(select,custom.request.ready,dm.io.dmi_req_ready_o)
+        transport.response.valid:=pending && Mux(owner,custom.response.valid,dm.io.dmi_resp_valid_o)
+        transport.response.bits:=Mux(owner,custom.response.bits,dm.io.dmi_resp_o)
+        custom.response.ready:=pending && owner && transport.response.ready
+        dm.io.dmi_resp_ready_i:=pending && !owner && transport.response.ready
+        when(transport.request.fire) {pending:=true.B;owner:=select}
+        when(transport.response.fire) {pending:=false.B}
+      }
+  }
   val mem=Module(new DebugMemory);mem.clk:=clk;mem.reset_n:=memoryReset_n
   mem.bus<>memory;mem.hartMode:=hartMode;mem.hartReset:=hartReset
   mem.commandHart:=dm.io.command_hart_o;mem.commandBusy:=dm.io.command_busy_o

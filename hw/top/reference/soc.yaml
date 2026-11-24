@@ -7,6 +7,12 @@ clocks:
   tck: {hz: [100000], source: external_test_input}
   usb: {hz: [48000000], source: osc_in}
 resets: [cold, warm, main_core, main_service, aon_service, usb_service]
+sram:
+  macro: gf180mcu_ocd_ip_sram__sram1024x8m8wm1
+  lock: hw/vendor/gf180_sram/gf180_sram.lock.json
+  performance_sram: {banks: 4, lanes: 4, rows: 1024, accessible_words: 4096}
+  retained_sram: {banks: 1, lanes: 4, rows: 1024, accessible_words: 768}
+  bist: {dmi_base: 0x70, dmi_words: 16, regmap: hw/ip/sram/sram.regmap.yaml, admission: acknowledged_ndmreset}
 masters:
   lite: {origin: 0, implementation: real}
   performance: {origin: 1, implementation: real}

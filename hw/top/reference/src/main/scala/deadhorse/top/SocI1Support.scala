@@ -78,7 +78,11 @@ class SocResetSlot extends RawModule {
   * An invalid loader offer is not acknowledged as a write. If permission is
   * withdrawn during an advertised registered grant, quarantine until reset.
   */
-class SocRetainedMemory(description: SocDescription,debugAccess: Boolean=false) extends RawModule {
+class SocRetainedMemory(description: SocDescription,debugAccess: Boolean=false,
+    sramTarget: deadhorse.sram.SramTarget=deadhorse.sram.SramTarget.Model,
+    bistEnabled: Boolean=false) extends RawModule {
+  val testPort=if(bistEnabled) Some(IO(Flipped(new deadhorse.sram.SramPort(12)))) else None
+  val testOwn=if(bistEnabled) Some(IO(Input(Bool()))) else None
   val debugWriteAllowed=if(debugAccess) Some(IO(Input(Bool()))) else None
   val debugExecute=if(debugAccess) Some(IO(Input(Bool()))) else None
   private val region=description.region("retained_sram")
@@ -88,6 +92,10 @@ class SocRetainedMemory(description: SocDescription,debugAccess: Boolean=false) 
   val loaderBusy=IO(Input(Bool()));val locked=IO(Input(Bool()))
   val memValid=IO(Input(Bool()));val memOffset=IO(Input(UInt(32.W)));val memWord=IO(Input(UInt(32.W)))
   val memReady=IO(Output(Bool()));val memDone=IO(Output(Bool()));val busy=IO(Output(Bool()))
+  testOwn.foreach {own=>withClockAndReset(clk,false.B) {
+    assert(!own || !reset_n)
+    assert(!testPort.get.enable || own && testPort.get.address<768.U)
+  }}
   protected def stored(value: UInt): UInt=value
   protected def completion(value: Bool): Bool=value
   withClockAndReset(clk,(!reset_n).asAsyncReset) {
@@ -96,7 +104,7 @@ class SocRetainedMemory(description: SocDescription,debugAccess: Boolean=false) 
     val grant=RegInit(false.B);val ready=RegInit(false.B)
     val valid=RegInit(false.B);val done=RegInit(false.B)
     val error=RegInit(false.B);val result=RegInit(0.U(32.W))
-    val memory=SyncReadMem((region.size/4).toInt,Vec(4,UInt(8.W)))
+    val memory=Module(new deadhorse.sram.SramWordBank(1024,sramTarget));memory.clk:=clk
     val offset=bus.bits.addr-region.base.U
     val inRange=bus.bits.addr>=region.base.U && bus.bits.addr<(region.base+region.size).U && !bus.bits.addr(1,0).orR
     val program=offset<2048.U
@@ -119,8 +127,15 @@ class SocRetainedMemory(description: SocDescription,debugAccess: Boolean=false) 
     val address=Mux(writeLoader,memOffset>>2,offset>>2)
     val word=Mux(writeLoader,stored(memWord),stored(bus.bits.wdata))
     val mask=Mux(writeLoader,15.U,bus.bits.be)
-    val readData=memory.readWrite(address,word.asTypeOf(Vec(4,UInt(8.W))),mask.asBools,
-      writeBus || writeDebug || writeLoader || readBus,writeBus || writeDebug || writeLoader).asUInt
+    val testing=testOwn.getOrElse(false.B)
+    memory.port.address:=Mux(testing,testPort.map(_.address).getOrElse(0.U),address)
+    memory.port.data:=Mux(testing,testPort.map(_.data).getOrElse(0.U),word)
+    memory.port.mask:=Mux(testing,testPort.map(_.mask).getOrElse(0.U),mask)
+    memory.port.write:=Mux(testing,testPort.map(_.write).getOrElse(false.B),writeBus || writeDebug || writeLoader)
+    memory.port.enable:=Mux(testing,testPort.map(p=>p.enable && p.address<768.U).getOrElse(false.B),
+      reset_n && (writeBus || writeDebug || writeLoader || readBus))
+    val readData=memory.port.result
+    testPort.foreach(_.result:=readData)
     grant:=false.B;ready:=false.B;valid:=false.B;done:=false.B
     when(state===idle) {
       when(memValid && loaderAllowed) {ready:=true.B;state:=loaderGrant}

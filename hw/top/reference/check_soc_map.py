@@ -46,7 +46,13 @@ def name(value):
 
 
 def validate(data):
-    keys(data, ('schema', 'name', 'clocks', 'resets', 'masters', 'regions', 'interrupts', 'pins', 'pin_budget', 'groups', 'fabrics', 'flight_io', 'pwm', 'dma', 'pinmux', 'watchdog', 'boot_control', 'osc_ctrl', 'power_reset', 'qspi', 'qspi_xip'))
+    keys(data, ('schema', 'name', 'clocks', 'resets', 'masters', 'regions', 'interrupts', 'pins', 'pin_budget', 'groups', 'fabrics', 'flight_io', 'pwm', 'dma', 'pinmux', 'watchdog', 'boot_control', 'osc_ctrl', 'power_reset', 'qspi', 'qspi_xip', 'sram'))
+    check(data['sram'] == dict(macro='gf180mcu_ocd_ip_sram__sram1024x8m8wm1',
+        lock='hw/vendor/gf180_sram/gf180_sram.lock.json',
+        performance_sram=dict(banks=4, lanes=4, rows=1024, accessible_words=4096),
+        retained_sram=dict(banks=1, lanes=4, rows=1024, accessible_words=768),
+        bist=dict(dmi_base=0x70, dmi_words=16, regmap='hw/ip/sram/sram.regmap.yaml',
+                  admission='acknowledged_ndmreset')), 'SRAM physical/test binding differs from T35')
     check(type(data['schema']) is int and data['schema'] == 1, 'Unsupported schema')
     name(data['name'])
     check(isinstance(data['clocks'], dict) and data['clocks'], 'Missing clocks')

@@ -13,6 +13,7 @@ final class SocI1Config(val mainMHz: Int=8,val realUsb: Boolean=true) {
   val usb="build/t20/i1/usb/usb_regs.json"
   val oscCtrl="build/t20/i1/osc_ctrl/osc_ctrl_regs.json"
   val powerReset="build/t20/i1/power_reset/power_reset_regs.json"
+  val sram="build/t20/i1/sram/sram_regs.json"
   val io: Option[SocIoConfig]=Some(SocIoConfig("build/t21/gpio/gpio_regs.json",
     "build/t21/timers/timers_regs.json","build/t21/aon_timer/aon_timer_regs.json",mainMHz))
   val pwm: Option[String]=Some("build/t22/pwm/pwm_regs.json")

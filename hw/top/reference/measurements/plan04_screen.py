@@ -100,7 +100,7 @@ def audit_clock_envelope(text,divider,strap,frozen,select):
     return '\n'.join(remaining)
 
 
-def main(base,reference,screen_name='screen'):
+def main(base,reference,screen_name='screen',sram_corner=None):
     base=(ROOT/base).resolve();base.relative_to(ROOT/'build')
     ref=(ROOT/reference).resolve();ref.relative_to(ROOT/'build')
     if not re.fullmatch(r'[a-zA-Z0-9_-]+',screen_name):raise ValueError('Invalid screen name')
@@ -120,6 +120,21 @@ def main(base,reference,screen_name='screen'):
     lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
     assert digest(lib)==cfg['sha256']
     consumed.append(lib)
+    macro_lib=None
+    if sram_corner:
+        assert 'sram_liberty' in mapping,'T35 screen requires real macro mapping'
+        assert sram_corner in ('ss_125C_3v00','ss_n40C_3v00','tt_025C_3v30','ff_125C_3v60','ff_n40C_3v60')
+        pdk_lock=ROOT/'build/riscay-mcu/physical/gf180/pdk-lock.json'
+        pdk=json.loads(pdk_lock.read_text())
+        assert pdk['revision']=='40cee970d8a9b7eaea35a34fe7d6068f05721f0a'
+        lib=lib.with_name(f'{cfg["library"]}__{sram_corner}.lib')
+        assert digest(lib)==pdk['files'][lib.name]
+        macro_lock_path=ROOT/'hw/vendor/gf180_sram/gf180_sram.lock.json'
+        macro_lock=json.loads(macro_lock_path.read_text());macro=macro_lock['macro']
+        relative=f'cells/{macro}/{macro}__{sram_corner}.lib'
+        macro_lib=ROOT/'build/vendor/gf180_sram'/relative
+        assert digest(macro_lib)==macro_lock['files'][relative]
+        consumed += [pdk_lock,lib,macro_lock_path,macro_lib,mapped/'sram-instances.json']
     input_hashes=seal()
     def flop_driver(net):
         bits=mod['netnames'][net]['bits'];assert len(bits)==1
@@ -192,6 +207,7 @@ close $tf
         dest=out/mode;dest.mkdir()
         tcl=dest/'timing.tcl'
         tcl.write_text(f'''read_liberty {lib}
+{f'read_liberty {macro_lib}' if macro_lib else ''}
 read_verilog {mapped}/mapped.v
 link_design DeadhorseSoc
 set_units -time ns -capacitance pF
@@ -345,6 +361,7 @@ puts PLAN04_SCREEN_COMPLETE
                 assumed_load_pf=cfg['output_load_pf'],load_basis='Existing block-timing output-load assumption; replace with characterized T34 macro pin capacitance',
                 scope='Clock-to-output cell delay, ideal pre-CTS clock, no wires; analog setup/hold and switching unqualified')
         summary[mode]=dict(classes=classes,electrical=electrical_checks(run.stdout),gate_checks=gate_rows,
+            sram_corner=sram_corner,
             threshold_endpoint=threshold_report,
             gate_violations=[r for r in gate_rows if float(r['slack_ns'])<0],clock_pin_count=len(actual_clocks),
             queries=query_rows,physical_diagnostics=physical_diagnostics(run.stdout),reset_endpoints=reset_report,
@@ -365,4 +382,5 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base',required=True);parser.add_argument('--usb-reference',required=True)
     parser.add_argument('--screen-name',default='screen')
-    args=parser.parse_args();main(args.base,args.usb_reference,args.screen_name)
+    parser.add_argument('--sram-corner',help='T35 paired standard-cell/SRAM corner; retain all class budgets and exception audits')
+    args=parser.parse_args();main(args.base,args.usb_reference,args.screen_name,args.sram_corner)

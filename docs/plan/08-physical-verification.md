@@ -27,7 +27,40 @@ clocked design that relies on clock gating for its power modes and on scan
 for production test needs both, so the approved choice is
 `gf180mcu_fd_sc_mcu7t5v0`, subject to the shuttle accepting it at 3.3 V.
 
-## PLAN04 mapped estimate and remaining allowances
+## T35 mapped SRAM/BIST estimate and remaining allowances
+
+This supersedes the historical estimates below for T35's frozen working sources
+on `ad3bb201` (exact hashes in `build/t35/timing03/`). Commands in the pinned
+environment: `plan04_map.py --base build/t35/timing03 --usb-reference
+build/t33/pre-fast03/fast/usb/timing/usb --stability-reference
+build/plan04/digital-timing06/stability --threshold-control --sram`, then
+`plan04_area.py --base build/t35/timing03` and
+`t35_budget.py --base build/t35/timing03`, all under
+`hw/top/reference/measurements/`.
+
+| Item | Area, mm2 | Provenance |
+| --- | ---: | --- |
+| Built production digital logic including SRAM control/BIST/custom DMI | 3.639599891 | Measured mapped standard cells; actual 20 SRAM instances excluded from this cell sum |
+| Scan-cell substitution | 0.432592698 | Estimated from measured cell inventory and same-drive scan replacement areas; T37 still qualifies insertion |
+| Remaining clock/reset/power allowance | 0.020647910 | Estimated: .10 minus measured isolated controller logic .068426579 and its estimated scan .010925510 |
+| ROM and scan glue | 0.550000000 | Assumed .50 + .05; former .05 BIST placeholder replaced by built logic, not counted again |
+| Digital subtotal at .55 utilization | 8.441528180 | Estimated sum of digital rows / assumed .55 |
+| Performance and retained SRAM | 3.108271060 | Estimated: 20 x measured pinned LEF 301.3 x 515.81 um2 / 1e6 |
+| LF RC, POR/brownout, pad keepout, SRAM halo/glue | 1.150000000 | Assumed .10 + .15 + .50 + .40, unchanged |
+| Total | **12.699799240** | Estimated planning use, not placed fit |
+| Headroom against 12.92 | **0.220200760** | Estimated subtraction |
+
+The actual mapping includes 140 measured non-inverting SRAM-load buffers;
+pin-by-pin connection equivalence and a cycle fault control protect that
+transformation. Macro pin setup/hold, clock-to-Q, pulse and period checks use
+paired SRAM/standard-cell Liberty corners, not vendor behavioral delays.
+Retained SRAM stays powered at its normal rail in sleep. The pinned vendor
+specifies CEN-high standby state retention; no reduced-voltage or power-off
+retention is introduced. Physical rail margins, clock trees and placement are
+still signoff obligations. See [T35](tasks/reports/T35.md) and the
+[physical handoff](../../phys/gf180-ws-1x1/sram.md).
+
+## PLAN04 historical mapped estimate and remaining allowances
 
 D78/D79 remove the internal HF macro. Replace the former assumed 0.50 mm2
 analog allowance with assumed 0.10 mm2 LF RC plus 0.15 mm2 POR/brownout.
@@ -241,8 +274,10 @@ Standard for a clocked design:
 - **Patterns.** Stuck-at patterns from an automatic pattern generator.
   Which generator the open flow can use, and what coverage it reaches, is
   the open part (decision D8, spike S4).
-- **SRAM.** A march routine run by the lite core from ROM, with results
-  readable through the gateway.
+- **SRAM.** T35's hardware March controller owns both memory ports while
+  both cores and functional services are reset. Keyed start and results are
+  available through the custom JTAG DMI device. T36 firmware may provide
+  additional diagnostics; it does not replace destructive-test ownership.
 - **Analog.** Oscillator frequency and supply-monitor threshold measured and
   characterized through calibration/test access on the tester or bring-up board.
   Validate threshold selection and safe default separately from oscillator trim;

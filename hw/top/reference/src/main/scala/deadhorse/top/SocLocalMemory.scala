@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.experimental.loadMemoryFromFileInline
 import deadhorse.lib.LocalBus
+import deadhorse.sram._
 import java.nio.file.Paths
 
 /** Current-request arbitration, synchronous single-port word banks and a
@@ -13,7 +14,8 @@ import java.nio.file.Paths
 class SocLocalMemory(description: SocDescription, romImage: String,
                      banks: Int = 4, readLatency: Int = 1,
                      ramImages: Seq[String] = Seq.empty, dmaEnabled: Boolean = false,
-                     xipEnabled: Boolean = false, debugEnabled: Boolean=false) extends RawModule {
+                     xipEnabled: Boolean = false, debugEnabled: Boolean=false,
+                     sramTarget: SramTarget=SramTarget.Model,bistEnabled: Boolean=false) extends RawModule {
   private val romRegion = description.region("boot_rom")
   private val ramRegion = description.region("performance_sram")
   require(banks >= 1 && isPow2(banks) && ramRegion.size % (4 * banks) == 0)
@@ -28,9 +30,15 @@ class SocLocalMemory(description: SocDescription, romImage: String,
   val peripheral = IO(Flipped(new LocalBus))
   val xip = if(xipEnabled) Some(IO(Flipped(new LocalBus))) else None
   val epochReady = IO(Output(Bool()))
+  val testPort=if(bistEnabled) Some(IO(Flipped(new SramPort(12)))) else None
+  val testOwn=if(bistEnabled) Some(IO(Input(Bool()))) else None
   protected def returned(value: UInt): UInt = value
   protected def instructionValid(value: Bool): Bool = value
   protected def xipResponseAllowed(ready: Bool): Bool = ready
+  testOwn.foreach {own=>withClockAndReset(clk,false.B) {
+    assert(!own || !serviceReset_n)
+    assert(!testPort.get.enable || own)
+  }}
 
   withClockAndReset(clk, (!serviceReset_n).asAsyncReset) {
     val dataBusy = RegInit(false.B)
@@ -120,12 +128,24 @@ class SocLocalMemory(description: SocDescription, romImage: String,
     val row = word >> bankBits
     val laneData = selected.wdata.asTypeOf(Vec(4, UInt(8.W)))
     val laneMask = selected.be.asBools
+    val testing=testOwn.getOrElse(false.B)
+    val testWord=testPort.map(_.address).getOrElse(0.U(12.W))
+    val testBank=if(banks==1) 0.U else testWord(bankBits-1,0)
     val outputs = (0 until banks).map { index =>
-      val memory = SyncReadMem((ramRegion.size / (4 * banks)).toInt, Vec(4, UInt(8.W)))
-      if(ramImages.nonEmpty) loadMemoryFromFileInline(memory, ramImages(index))
-      memory.readWrite(row, laneData, laneMask,
-        fire && ramHit && !invalid && bankIndex === index.U, (fireD || fireM) && selected.we).asUInt
+      val memory=Module(new SramWordBank((ramRegion.size/(4*banks)).toInt,sramTarget,
+        if(ramImages.nonEmpty) Some(ramImages(index)) else None))
+      memory.clk:=clk
+      memory.port.enable:=Mux(testing,testPort.map(_.enable).getOrElse(false.B) && testBank===index.U,
+        serviceReset_n && fire && ramHit && !invalid && bankIndex===index.U)
+      memory.port.address:=Mux(testing,testWord>>bankBits,row)
+      memory.port.data:=Mux(testing,testPort.map(_.data).getOrElse(0.U),selected.wdata)
+      memory.port.mask:=Mux(testing,testPort.map(_.mask).getOrElse(0.U),selected.be)
+      memory.port.write:=Mux(testing,testPort.map(_.write).getOrElse(false.B),(fireD || fireM) && selected.we)
+      memory.port.result
     }
+    // Test selection is synchronous to this clock and exclusively reset-owned.
+    val testBankQ=RegNext(testBank)
+    testPort.foreach(_.result:= (if(banks==1) outputs.head else VecInit(outputs)(testBankQ)))
     val bankQ = RegNext(bankIndex)
     val romQ = RegNext(romHit)
     val writeQ = RegNext(selected.we)

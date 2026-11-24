@@ -169,7 +169,7 @@ instruction accesses error. Legal subword memory instructions retain byte masks.
 | boot_rom | 0x00000000 | 0x10000 | main local | synchronous ROM model; production firmware pending |
 | xip | 0x10000000 | 0x10000000 | main local | native QSPI reads |
 | performance_sram | 0x20000000 | 0x4000 | main local | synchronous banked model |
-| retained_sram | 0x30000000 | 0x0c00 | aon | synchronous retained model |
+| retained_sram | 0x30000000 | 0x0c00 | aon | synchronous SRAM macro wrappers; nominal-supply retention |
 | power_reset_timer | 0x40000000 | 0x1000 | aon | AON timer, watchdogs and boot-release children |
 | mailbox | 0x40001000 | 0x0100 | each domain local | real paired endpoints |
 | uart0 | 0x40010000 | 0x0100 | main | real |
@@ -246,6 +246,24 @@ lite debug mode or not-started with no START pending, and loader idle. Ordinary
 CPU program-write checks remain unchanged.
 Service resets flush handshakes, not RAM contents. The real hart supplies halt
 status; legacy external stand-in controls are inert in production.
+
+T35 binds these memories to the pinned GF180 1024x8 macro: sixteen byte macros
+for performance SRAM and four for retained SRAM. Four byte lanes form each
+word; performance word bits [1:0] select one of four banks. Retained physical
+rows 768–1023 remain inaccessible. A read still returns on the existing edge;
+writes still return zero. Power-on contents are arbitrary and resets never
+initialize the RAM. The [SRAM contract](../../hw/ip/sram/README.md) records
+view discrepancies, operating-rail retention limits and physical obligations.
+
+Destructive March self-test is a custom JTAG DMI device at words 0x70–0x7f,
+outside the CPU address map. Its keyed start requires active DM and acknowledged
+whole-system `ndmreset`. A separate cold-owned test hold prevents reset release
+until both test agents relinquish their ports. Both cores, DMA, loader and
+functional memory controllers remain reset throughout; normal permissions and
+latencies apply again after release. TAP/DM reset cannot cancel ownership.
+Cold/pin reset aborts the test. SRAM must be reloaded before code relies on it;
+the loader lock retains its existing cold-reset-only semantics. Status lives
+outside tested memory and crosses main/AON only through shared CDC primitives.
 
 Native XIP serves aligned performance reads, little endian, with no cache or
 prefetch. Three-byte addresses reject unrepresentable offsets; four-byte mode

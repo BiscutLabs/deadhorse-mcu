@@ -1,0 +1,34 @@
+block: sram
+description: Destructive SRAM test device on custom JTAG DMI words 0x70 through 0x7f
+data_width: 32
+address_width: 6
+registers:
+  - name: command
+    offset: 0x00
+    description: Write 0x42535431 to start with DM active and acknowledged ndmreset; other values have no destructive effect
+    fields:
+      - {name: key, bits: [31, 0], access: wo}
+  - name: status
+    offset: 0x04
+    fields:
+      - {name: busy, bits: 0, access: ro}
+      - {name: done, bits: 1, access: ro}
+      - {name: failed, bits: 2, access: ro}
+      - {name: rejected, bits: 3, access: ro}
+      - {name: reset_ack, bits: 4, access: ro}
+  - name: fail_address
+    offset: 0x08
+    fields:
+      - {name: value, bits: [31, 0], access: ro}
+  - name: expected
+    offset: 0x0c
+    fields:
+      - {name: value, bits: [31, 0], access: ro}
+  - name: observed
+    offset: 0x10
+    fields:
+      - {name: value, bits: [31, 0], access: ro}
+  - name: phase
+    offset: 0x14
+    fields:
+      - {name: value, bits: [2, 0], access: ro}

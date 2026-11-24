@@ -24,11 +24,13 @@ import deadhorse.watchdog.Watchdog
 import deadhorse.boot_control.BootControl
 import deadhorse.qspi.Qspi
 import deadhorse.debug.{Debug,DebugSbaRouting}
+import deadhorse.sram._
 
 /** The production peripheral/bridge path, also tested at its CPU boundary.
   * All test-controller inputs are synchronous to their declared owning domain.
   */
-class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends RawModule {
+class SocI1Peripherals(description: SocDescription, config: SocI1Config,
+    sramTarget: SramTarget=SramTarget.Model) extends RawModule {
   protected def testBusInjection: Boolean=false
   protected def loaderHalted(halted: Bool,starting: Bool): Bool=halted && !starting
   protected def wholeWatchdogReset(performance: Bool,lite: Bool): Bool=lite
@@ -41,6 +43,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   val performanceDebugMode=IO(Input(Bool()));val performanceReset_n=IO(Input(Bool()))
   val performanceHalt=IO(Output(Bool()));val performanceDebugGrant=IO(Output(Bool()));val performanceDebugFetch=IO(Output(Bool()))
   val debugReset=IO(Output(Bool()))
+  val sramTest=IO(new SramPort(12));val sramOwn=IO(Output(Bool()));val sramReset_n=IO(Input(Bool()))
   val supervision=config.watchdog.map(_=>IO(Output(new Bundle {
     val performanceReset=Bool();val wholeReset=Bool();val warning=Bool()
   })))
@@ -63,16 +66,28 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   def release(clock: Clock, raw: Bool): Bool = {
     val r=Module(new ResetRelease);r.clk:=clock;r.reset_n:=raw;r.released
   }
-  val debugger=Module(new Debug(description.region("retained_sram").base,description.region("retained_sram").size))
+  val debugger=Module(new Debug(description.region("retained_sram").base,description.region("retained_sram").size,Some(config.sram)))
+  val bist=Module(new SramBist)
+  bist.clk:=mainClock;bist.aonClock:=pins.aonClock;bist.epoch_n:=coldReset_n && warmReset_n
+  bist.mainReset_n:=sramReset_n
+  bist.start:=debugger.bist.get.start;bist.keyed:=debugger.bist.get.keyed
+  bist.authorized:=debugger.active && debugger.ndmReset
+  sramTest<>bist.main;sramOwn:=bist.mainOwn
+  debugger.bist.get.epoch_n:=coldReset_n && warmReset_n
+  debugger.bist.get.busy:=bist.busy;debugger.bist.get.done:=bist.done
+  debugger.bist.get.failed:=bist.failed;debugger.bist.get.rejected:=bist.rejected
+  debugger.bist.get.resetAck:=bist.resetAck;debugger.bist.get.failAddress:=bist.failAddress
+  debugger.bist.get.result:=bist.result
   debugger.clk:=mainClock;debugger.por_n:=coldReset_n
   debugger.tck:=pins.inactive.jtagTck.asClock;debugger.tms:=pins.inactive.jtagTms;debugger.tdi:=pins.inactive.jtagTdi
   pins.inactive.jtagTdo:=debugger.tdo;pins.inactive.jtagTdoEnable:=debugger.tdoEnable
-  debugReset:=debugger.ndmReset
-  val warmRaw=warmReset_n && !wholeHold && !debugger.ndmReset
+  debugReset:=debugger.ndmReset || bist.resetHold
+  val warmRaw=warmReset_n && !wholeHold && !debugger.ndmReset && !bist.resetHold
   val mainRaw=coldReset_n && warmRaw && mainServiceReset_n
   val aonRaw=coldReset_n && warmRaw && pins.aonServiceReset_n
   val usbRaw=coldReset_n && warmRaw && pins.usbServiceReset_n
   val mainUp=release(mainClock,mainRaw);val aonUp=release(pins.aonClock,aonRaw)
+  bist.aonReset_n:=aonUp
   // Demand collection belongs to the external controller's whole-chip reset
   // cohort; AON service reset must not erase surviving main orphan demand.
   val controllerUp=release(pins.aonClock,coldReset_n && warmRaw)
@@ -469,7 +484,8 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     hart.start:=(if(testBusInjection) false.B else acceptedLiteStart)
     hart.entry:=description.region("retained_sram").base.U+loader.entry
   }
-  val retained=Module(new SocRetainedMemory(description,debugAccess=true))
+  val retained=Module(new SocRetainedMemory(description,debugAccess=true,sramTarget=sramTarget,bistEnabled=true))
+  retained.testPort.get<>bist.aon;retained.testOwn.get:=bist.aonOwn
   retained.clk:=pins.aonClock;retained.reset_n:=aonUp
   retained.bus<>af.target(aonNames.indexOf("retained_sram"))
   retained.debugWriteAllowed.get:=liteMode || liteHalted && !liteOwned && !acceptedLiteStart && !loader.start
@@ -526,7 +542,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   fastIrq:=irq
   val held=withClockAndReset(mainClock,(!mainUp).asAsyncReset) {
     RegNext(uarts.map(_.clockHold).reduce(_||_) || spi.clockHold || i2c.clockHold || ioMainHold || pwmHold || dmaHold || pinmuxHold || qspiHold ||
-      debugger.hold || leaf.targetClockHold || dmArb.waiting.asUInt.orR || nativeRoute.busy ||
+      debugger.hold || bist.busy || leaf.targetClockHold || dmArb.waiting.asUInt.orR || nativeRoute.busy ||
       mf.waiting.asUInt.orR || serial.waiting.asUInt.orR || gateway.waiting.asUInt.orR,false.B)
   }
   mainHold:=held

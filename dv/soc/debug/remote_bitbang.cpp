@@ -149,6 +149,10 @@ int main(int argc,char** argv) {
     if(action=="perf-reset-stopped") resetPending=true;
     else if(action=="aon-stop") stopAon();
     else if(action=="aon-run") {aonStopped=false;advance(20*aonPeriod);}
+    else if(action=="pin-reset") {
+      top->warmReset_n=0;evaluate();advance(37);
+      top->warmReset_n=1;evaluate();
+    }
     else if(action=="aon-reset" || action=="main-service-reset") {
       if(!aonStopped) throw std::runtime_error("service reset test requires stopped AON");
       if(action=="aon-reset") top->i1_aonServiceReset_n=0;else top->mainServiceReset_n=0;

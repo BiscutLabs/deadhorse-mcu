@@ -108,6 +108,8 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 
 | **D89** | Narrow T39 to a finite existing-regression campaign | User direction 2026-11-24: execute the campaign, then "narrow the scope significantly, even more than the proposed split" after architectural-suite memory-fit preflight. Use existing lite/core/SoC, flight/wake, OpenOCD and complete fast-tier checks; defer new ISS/architectural-framework integration, large seeded coverage, new state observers and exhaustive fault coverage. Keep existing assertions, assumptions, faults, seeds, limits and production memory unchanged. Run on a frozen code snapshot; publish documentation afterward with structure/link/diff checks and independent review of unchanged code identity. Any code/test/tool/firmware change requires affected replay and fresh final fast CI. Full CI is not run for this finite campaign; no stage exit, inherited proof closure, complete ISA certification or physical acceptance is claimed. See the revised T39 brief and report for the exact scope. |
 
+| **D90** | T35 scoped verification | User direction 2026-11-24: proceed with T35 under the same proof-deferral and relevant-tests-only policy. Run SRAM/BIST and affected integration checks; no aggregate fast/full CI or unrelated IP tests. Defer proofs requiring extensive timeout work with original assertions, assumptions, caps and unresolved evidence retained. Independent contract/implementation/evidence review remains required. Existing T32/T33 deferrals carry forward without being closed. Macro-view, interface, capacity, timing, area and physical-retention stop conditions remain; no stage or physical-signoff waiver. |
+
 ## Risks and evidence still required
 
 

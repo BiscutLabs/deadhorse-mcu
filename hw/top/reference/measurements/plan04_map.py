@@ -15,14 +15,14 @@ ROOT=Path(__file__).resolve().parents[4]
 sys.path.insert(0,str(ROOT))
 sys.path.insert(0,str(Path(__file__).parent/'t32'))
 from tools.timing.check import output_aliases
-from tools.timing.fanout import verify
+from tools.timing.fanout import verify,buffer_module
 from t32_layered_reset import layered
 from plan04_usb_binding import bind_source
 from t33_analog_socket import threshold_driver
 
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 
-def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control=False):
+def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control=False,sram=False):
     if not isinstance(target_ps,int) or not 0<target_ps<=62500:raise ValueError('Invalid optimization target')
     base=(ROOT/base).resolve();base.relative_to(ROOT/'build')
     ref=(ROOT/usb_ref).resolve();ref.relative_to(ROOT/'build')
@@ -30,6 +30,13 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
     lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
     assert digest(lib)==cfg['sha256']
+    sram_lib=None
+    if sram:
+        lock=ROOT/'hw/vendor/gf180_sram/gf180_sram.lock.json'
+        macro_lock=json.loads(lock.read_text());macro=macro_lock['macro']
+        relative=f'cells/{macro}/{macro}__{cfg["corner"]}.lib'
+        sram_lib=ROOT/'build/vendor/gf180_sram'/relative
+        assert digest(sram_lib)==macro_lock['files'][relative]
     files=[emit/line.strip() for line in (emit/'filelist.f').read_text().splitlines() if line.strip()]
     reference_certificate=json.loads((ref/'certificate/result.json').read_text())
     counter_ref=(ROOT/stability_reference).resolve() if stability_reference else None
@@ -42,6 +49,7 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         Path(__file__).parent/'t32/t32_packed_reset.py',ROOT/'tools/timing/fanout.py',
         ROOT/'tools/timing/check.py',ROOT/'phys/gf180-ws-1x1/block-timing.json',
         ref/'certificate/result.json',ref/'mapped.json',lib]
+    if sram:dependencies += [sram_lib,lock]
     if counter_ref:
         counter_receipt=json.loads((counter_ref/'result.json').read_text())
         assert counter_receipt['status']=='pass' and counter_receipt['top']=='OscStability'
@@ -55,6 +63,9 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     receipt=dict(status='running',commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         emitted_sha256={p.relative_to(ROOT).as_posix():digest(p) for p in files},liberty_sha256=digest(lib),
         scope='Mapped digital logic, pre-layout; six memory sockets and two uncharacterized analog macros excluded')
+    if sram:
+        receipt.update(scope='Mapped digital logic and twenty hard SRAM macros; ROM and two analog interfaces remain sockets.',
+                       sram_liberty=sram_lib.relative_to(ROOT).as_posix(),sram_liberty_sha256=digest(sram_lib))
     (out/'result.json').write_text(json.dumps(receipt,indent=2))
     def run(lines,name):
         script=out/(name+'.ys');script.write_text('\n'.join(lines)+'\n')
@@ -75,7 +86,7 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
             module['netnames'][pin]=dict(hide_name=0,bits=bits,attributes={})
         analog['modules'][name]=module
     (out/'analog-interfaces.json').write_text(json.dumps(analog))
-    run([f'read_liberty -lib {lib}',f'read_json {out}/analog-interfaces.json',
+    run([f'read_liberty -lib {lib}']+([f'read_liberty -lib {sram_lib}'] if sram else [])+[f'read_json {out}/analog-interfaces.json',
         'read_slang --keep-hierarchy -DSYNTHESIS --top DeadhorseSoc '+' '.join(map(str,files)),
         'hierarchy -check -top DeadhorseSoc','proc','chformal -remove','memory_collect',
         f'write_json {out}/hier.json'],'import')
@@ -95,6 +106,8 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     expected={f'digital.memory.outputs_memory{s}_ext.Memory':(1024,32,4,10) for s in ('','_1','_2','_3')}
     expected.update({'digital.memory.rom_ext.Memory':(16384,32,0,14),
         'digital.subsystem.retained.memory_ext.Memory':(768,32,4,10)})
+    if sram:
+        expected={'digital.memory.rom_ext.Memory':(16384,32,0,14)}
     assert {i['instance']:tuple(i['parameters'][k] for k in ('SIZE','WIDTH','WR_PORTS','ABITS')) for i in cuts}==expected
     for item in cuts:
         mod=design['modules'][item['module']]
@@ -171,6 +184,13 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         'flatten','opt_expr','opt_merge','opt_clean','check -assert',f'write_json {out}/flat.json'],'flatten')
     original=json.loads((out/'flat.json').read_text());projected=copy.deepcopy(original)
     top=projected['modules']['DeadhorseSoc'];removed={};ports=[]
+    if sram:
+        physical={n:c for n,c in top['cells'].items() if c['type']==macro}
+        assert len(physical)==20 and sum(n.startswith('digital.memory.') for n in physical)==16
+        assert sum(n.startswith('digital.subsystem.retained.') for n in physical)==4
+        for c in physical.values():
+            assert {p:len(b) for p,b in c['connections'].items()}==dict(CLK=1,CEN=1,GWEN=1,WEN=8,A=10,D=8,Q=8)
+        (out/'sram-instances.json').write_text(json.dumps(physical,indent=2)+'\n')
     for index,item in enumerate(cuts):
         name=item['instance'].removesuffix('.Memory');cell=top['cells'].pop(name)
         assert cell['type']==item['module'];removed[name]=cell
@@ -332,6 +352,26 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     try:verify(mod,faulty,inserted)
     except ValueError as e:assert 'cycle' in str(e)
     else:raise AssertionError('Reset buffer-cycle fault escaped')
+    sram_buffers=[]
+    if sram:
+        # ABC sees macros as black boxes and does not size for their relatively
+        # large pin loads. Bound non-clock macro fanout to four real loads;
+        # paired-corner STA still checks actual Liberty capacitance and slew.
+        sources={b for c in new['cells'].values() if c['type']==macro
+            for p,d in c['port_directions'].items() if d=='input' and p!='CLK'
+            for b in c['connections'][p] if isinstance(b,int)}
+        before=new
+        new,sram_buffers=buffer_module(before,'oscIn',limit=4,source_bits=sources,prefix='sram_load_')
+        verify(before,new,sram_buffers)
+        assert sram_buffers
+        fault=copy.deepcopy(new);name=sram_buffers[0]
+        fault['cells'][name]['connections']['I']=fault['cells'][name]['connections']['Z'][:]
+        try:verify(before,fault,sram_buffers)
+        except ValueError as e:assert 'cycle' in str(e)
+        else:raise AssertionError('SRAM buffer-cycle fault escaped')
+        receipt['sram_load_buffers']=dict(count=len(sram_buffers),fanout_limit=4,
+            connection_equivalence='Every original pin preserved after collapsing non-inverting buffers',
+            cycle_fault='rejected',electrical='Actual pin capacitance and slew checked by paired-corner STA')
     aliases={}
     for name in list(new['cells']):
         if name.startswith(prefix+'usb_enable_replica_'):
@@ -366,4 +406,5 @@ if __name__=='__main__':
     parser.add_argument('--target-ps',type=int,default=62500,help='ABC optimization goal only; never an STA budget')
     parser.add_argument('--stability-reference',help='Strict-48MHz mapped counter; source equivalence and exact pin preservation required')
     parser.add_argument('--threshold-control',action='store_true',help='T33 audited live AON threshold output socket')
-    args=parser.parse_args();main(args.base,args.usb_reference,args.target_ps,args.stability_reference,args.threshold_control)
+    parser.add_argument('--sram',action='store_true',help='T35: retain and audit twenty pinned hard SRAM instances; only ROM remains a memory socket')
+    args=parser.parse_args();main(args.base,args.usb_reference,args.target_ps,args.stability_reference,args.threshold_control,args.sram)

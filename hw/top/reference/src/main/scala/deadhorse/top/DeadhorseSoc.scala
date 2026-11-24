@@ -41,7 +41,9 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
     !watchdogWholeReset && !watchdogCoreReset && !debugReset && (bootPermit(bootReleased) || debugGrant)
 
   val memory = Module(new SocLocalMemory(description, romImage, banks, readLatency, ramImages,
-    dmaEnabled=i1Config.exists(_.dma.isDefined),xipEnabled=i1Config.exists(_.xip),debugEnabled=i1Config.nonEmpty))
+    dmaEnabled=i1Config.exists(_.dma.isDefined),xipEnabled=i1Config.exists(_.xip),debugEnabled=i1Config.nonEmpty,
+    sramTarget=if(gateTarget==ClockGateTarget.Asic) deadhorse.sram.SramTarget.Asic else deadhorse.sram.SramTarget.Model,
+    bistEnabled=i1Config.nonEmpty))
   memory.clk := mainClock; memory.serviceReset_n := serviceRelease.released
   memory.clientReset_n := coreRelease.released
   coreReady := memory.epochReady
@@ -92,7 +94,8 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
     core.ports(prefix + "_err_i") := bus.err
   }
 
-  val subsystem=i1Config.map(c=>Module(new SocI1Peripherals(description,c)).suggestName("subsystem"))
+  val subsystem=i1Config.map(c=>Module(new SocI1Peripherals(description,c,
+    if(gateTarget==ClockGateTarget.Asic) deadhorse.sram.SramTarget.Asic else deadhorse.sram.SramTarget.Model)).suggestName("subsystem"))
   if(i1Config.nonEmpty) {
     val peripherals=this.subsystem.get
     peripherals.performanceDebugMode:=core.debug_mode_o
@@ -102,6 +105,8 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
     peripherals.warmReset_n:=warmReset_n;peripherals.mainServiceReset_n:=mainServiceReset_n
     peripherals.main<>memory.peripheral;peripherals.pins<>i1.get
     peripherals.dmaMemory.foreach(port=>memory.dma.get<>port)
+    memory.testPort.get<>peripherals.sramTest;memory.testOwn.get:=peripherals.sramOwn
+    peripherals.sramReset_n:=serviceRelease.released
     peripherals.nativeXip.foreach(port=>memory.xip.get<>port)
     peripherals.uartRx:=uartRx
     uartTx:=peripherals.uartTx;uartTxEnable:=peripherals.uartTxEnable

@@ -35,3 +35,33 @@ The aggregate rejects missing/read-only buffer symbols, inconsistent sums,
 changed capacity baselines and unreported threshold exceedance. No formal
 proof, hardware timing or flight qualification is claimed by these models.
 See the [report](../plan/tasks/reports/S3.md) for assumptions and detailed numbers.
+
+## T35 production SRAM and destructive self-test
+
+Base `ad3bb201` plus receipt-hashed T35 sources; pinned-environment commands
+and full limitations are in [T35](../plan/tasks/reports/T35.md).
+D90 restricts verification to SRAM/BIST and affected integration, with no CI
+tier and explicit deferral of expensive timeout proofs.
+
+The production binding uses sixteen byte macros for performance SRAM and four
+for retained SRAM, with only 768 retained words exposed. Logical capacities,
+normal bus/register maps and latency stay unchanged. Canonical pinned views
+include five paired timing corners; vendor models are functional-only and
+their initialization is never relied upon.
+
+| Evidence | Result | Qualification |
+| --- | --- | --- |
+| Independent arrays, all rows/masks, full March traversal and five cell/address fault models | 12 SRAM/BIST Scala cases pass in `campaign02/unit.log` | Full 4096/768-word operation oracles; five full-size read-path faults return correct DMI address/data/phase, including all four performance banks and retained RAM |
+| Affected integration and production TAP | 31 Scala cases and all four TAP scenarios pass | Memory/boot/sleep plus BIST, ordinary debug, independent reset and in-flight reset; final source/evidence binding in `build/t35/publication-audit.json` |
+| ASIC byte/address/control input wiring | Unbounded pin proof, covers and wrong-lane fault pass | One physical word-bank binding; not macro Q behavior or full-SoC bank selection |
+| Eight-word March control | Unbounded proof, early-completion fault and good/bad completion covers pass | Full production sizes are separately simulated; no unrestricted full-size formal claim |
+| Full-depth data/latency | Unresolved at measured 121.131 s / 120 s solver cap | D90 deferred; full/partial write/read covers pass; no unchanged retry |
+| Full-size independent-clock BIST ownership | Unresolved at measured 121.129 s / 120 s solver cap | D90 deferred; missing-reset-hold fault rejected, main and remote covers reached; whole-top mux/CDC/RDC remains simulation-backed |
+| Fixed and hard-float production workloads before/after deep wake | PASS, exactly unchanged T39 cycles | Fresh DUT/model simulation with authenticated target-checksum references; not silicon or full ISA qualification |
+| Five-corner production mapping/timing | Measured worst main 69.186501 ns / 75 ns; zero slew/cap and gate-enable violations in both strap modes | Verified 140 non-inverting SRAM-load buffers; physical clock pulse/hold/reset/rail closure remains open |
+| Chip area | Estimated 12.699799240 mm2 / 12.92 mm2, headroom 0.220200760 mm2 | Measured standard-cell areas, pinned LEF dimensions and named unchanged allowances; not placed fit |
+
+Always-powered normal-rail sleep relies on the pinned vendor's CEN-high
+standby-state guarantee and operating limits. No reduced-voltage, power-off or
+brownout data retention is promised. Physical qualification, scan and pad-level
+validation remain signoff work; this ledger closes no I5 gate.
