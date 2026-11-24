@@ -27,7 +27,7 @@ object SocInactiveTestInputs extends chisel3.simulator.PeekPokeAPI {
   }
 }
 
-class SocInactiveSpec extends AnyFunSuite with ChiselSim {
+class SocInactiveSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t20/i1/inactive-simulation").toAbsolutePath
   }

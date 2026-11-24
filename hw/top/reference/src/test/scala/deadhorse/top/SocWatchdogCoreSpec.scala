@@ -6,10 +6,10 @@ import chisel3.testing.HasTestingDirectory
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
-class SocWatchdogCoreBench extends DeadhorseSoc(
+class SocWatchdogCoreBench extends SocExternalClockTest(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
   Paths.get("build/t26/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocProduction.config(realUsb=false)))
-class SocWatchdogCoreSpec extends AnyFunSuite with ChiselSim {
+class SocWatchdogCoreSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t26/core-reset-simulation").toAbsolutePath
   }

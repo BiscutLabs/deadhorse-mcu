@@ -110,18 +110,34 @@ without dedicated actuator failsafe state. Final domain partitioning
 must be documented at G1. Do not assert an artificial total of two crossings:
 all asynchronous crossings instantiate the same reviewed CDC implementation.
 
-The AON source is the internal nominal 32 kHz oscillator, with divided-HF
-selection for bursts. Main clock comes from trimmed HF or the approved external
-input through a divider and glitch-free source selection. USB has its own
-external-clock-derived domain. No seamless automatic failover is implied.
+Under D78, AON uses the on-die nominal 32 kHz LF RC oscillator. AON_CLK_SEL
+selects fallback AON_CLK_IN while reset is held; selection is fixed after
+release. External 48 MHz CMOS OSC_IN directly clocks USB; a registered
+divide-by-six supplies main at 8 MHz. There is no internal HF oscillator or
+AON fast-service mode in this tapeout. Existing shared CDC remains even between
+related main and USB clocks. OSC_EN controls external oscillator standby and
+is high during reset, with a board pull-up. No runtime switching or automatic
+failover is implied.
+
+On-die POR/brownout and the external active-low pin hold ordinary domains in
+reset (D79). POR_BYPASS permits pin-only recovery from a faulty analog macro.
+Release order is supply/pin qualification, running AON clock and counted AON
+stability, AON release, lite boot, verified external-clock startup, then main
+release. Domain release does not implement autonomous lite boot: until T36,
+the existing recovery-loader START and boot-release paths remain authoritative.
 
 Retained sleep gates the performance core. Selected SPI/I2C/UART operations may
 request HF without waking it; stop HF only after all consumers release their
 requests and transactions drain. UART receive mode can keep HF running;
 wake-only mode may lose the first byte. Timer, event and JTAG wake are supported.
 Wake requests must be observable while destination clocks are stopped.
+D81 keeps OSC_EN high whenever USB is enabled; attached USB resume uses light
+sleep. Oscillator-off sleep requires USB disabled (and therefore detached) and takes the
+external part's millisecond startup plus stability qualification (plan06).
+D82 limits frozen-loader recovery SCL to the minimum qualified AON rate / 8.
 
-Performance watchdog resets the performance domain, preserving AON state.
+Performance watchdog resets the performance core/client epoch and disables
+PWM outputs, preserving shared buses, DMA, peripherals and AON state (D70).
 Lite watchdog, POR and brownout reset the MCU. Generic watchdog/reset and
 output-disable mechanisms provide hardware fault handling; firmware and the
 board define application-specific failsafe behavior (D69). Whole-chip reset

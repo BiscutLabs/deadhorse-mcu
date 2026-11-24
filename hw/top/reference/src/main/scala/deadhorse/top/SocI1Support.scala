@@ -153,8 +153,18 @@ class SocRetainedMemory(description: SocDescription,debugAccess: Boolean=false) 
 case class SocIoConfig(gpio: String, timers: String, aonTimer: String, mainMHz: Int) {
   require(Set(8,9).contains(mainMHz))
 }
-/** Explicit I1 test-controller and pad-facing signals. No clock controller. */
+/** Clock-boundary handshake. Internal to the production clock/reset wrapper. */
+class SocClockControlPins extends Bundle {
+  val reset_n=Input(Bool());val coreIdle=Input(Bool());val stable=Input(Bool())
+  val closed=Input(Bool());val jtagWake=Input(Bool())
+  val oscillatorOn=Output(Bool());val gateRequest=Output(Bool());val authorized=Output(Bool())
+  val qualify=Output(Bool());val count=Output(UInt(16.W));val fault=Output(Bool())
+  val threshold=Output(UInt(2.W))
+}
+
+/** Digital assembly boundary; production derives clocks/resets in its wrapper. */
 class SocI1Pins extends Bundle {
+  val clockControl=new SocClockControlPins
   val inactive=new SocInactivePins
   val aonClock=Input(Clock());val usbClock=Input(Clock())
   val aonServiceReset_n=Input(Bool());val usbServiceReset_n=Input(Bool())

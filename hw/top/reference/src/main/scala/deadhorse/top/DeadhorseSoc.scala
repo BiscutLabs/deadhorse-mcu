@@ -92,26 +92,27 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
     core.ports(prefix + "_err_i") := bus.err
   }
 
+  val subsystem=i1Config.map(c=>Module(new SocI1Peripherals(description,c)).suggestName("subsystem"))
   if(i1Config.nonEmpty) {
-    val subsystem=Module(new SocI1Peripherals(description,i1Config.get))
-    subsystem.performanceDebugMode:=core.debug_mode_o
-    subsystem.performanceReset_n:=coreRelease.reset_n
-    debugFetch:=subsystem.performanceDebugFetch;debugHalt:=subsystem.performanceHalt;debugGrant:=subsystem.performanceDebugGrant;debugReset:=subsystem.debugReset
-    subsystem.mainClock:=mainClock;subsystem.coldReset_n:=coldReset_n
-    subsystem.warmReset_n:=warmReset_n;subsystem.mainServiceReset_n:=mainServiceReset_n
-    subsystem.main<>memory.peripheral;subsystem.pins<>i1.get
-    subsystem.dmaMemory.foreach(port=>memory.dma.get<>port)
-    subsystem.nativeXip.foreach(port=>memory.xip.get<>port)
-    subsystem.uartRx:=uartRx
-    uartTx:=subsystem.uartTx;uartTxEnable:=subsystem.uartTxEnable
-    clockHold:=subsystem.mainHold
-    core.ports("irq_fast_i"):=subsystem.fastIrq
-    subsystem.supervision.foreach {w=>
+    val peripherals=this.subsystem.get
+    peripherals.performanceDebugMode:=core.debug_mode_o
+    peripherals.performanceReset_n:=coreRelease.reset_n
+    debugFetch:=peripherals.performanceDebugFetch;debugHalt:=peripherals.performanceHalt;debugGrant:=peripherals.performanceDebugGrant;debugReset:=peripherals.debugReset
+    peripherals.mainClock:=mainClock;peripherals.coldReset_n:=coldReset_n
+    peripherals.warmReset_n:=warmReset_n;peripherals.mainServiceReset_n:=mainServiceReset_n
+    peripherals.main<>memory.peripheral;peripherals.pins<>i1.get
+    peripherals.dmaMemory.foreach(port=>memory.dma.get<>port)
+    peripherals.nativeXip.foreach(port=>memory.xip.get<>port)
+    peripherals.uartRx:=uartRx
+    uartTx:=peripherals.uartTx;uartTxEnable:=peripherals.uartTxEnable
+    clockHold:=peripherals.mainHold
+    core.ports("irq_fast_i"):=peripherals.fastIrq
+    peripherals.supervision.foreach {w=>
       watchdogCoreReset:=w.performanceReset;watchdogWholeReset:=w.wholeReset
       core.ports("irq_nm_i"):=w.warning
     }
-    subsystem.performanceReady.foreach(_:=memory.epochReady)
-    subsystem.performanceReleased.foreach(bootReleased:=_)
+    peripherals.performanceReady.foreach(_:=memory.epochReady)
+    peripherals.performanceReleased.foreach(bootReleased:=_)
   } else {
   val uartRegion = description.region("uart0")
   val fixtureRegions = if(verificationFixture) Seq(BigInt(0x100000),BigInt(0x2000000),BigInt(0x10000000)) else Seq.empty
@@ -138,15 +139,21 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   }
 }
 
-/** Single production assembly. Test substitution may replace USB only. */
-class DeadhorseSoc(config: String, uartJson: String, romImage: String,
+/** Complete digital assembly with externally driven clocks for focused tests.
+  * Every production feature remains present; this is not a chip profile. */
+class SocDigitalAssembly(config: String, uartJson: String, romImage: String,
     gateTarget: ClockGateTarget=ClockGateTarget.Model, readLatency: Int=1, banks: Int=4,
     i1Config: Option[SocI1Config]=Some(SocProduction.config()))
   extends SocCoreAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config=i1Config) {
   require(i1Config.exists(c => c.io.nonEmpty && c.pwm.nonEmpty && c.dma.nonEmpty &&
     c.pinmux.nonEmpty && c.liteCore && c.watchdog.nonEmpty && c.bootControl.nonEmpty &&
-    c.qspi.nonEmpty && c.xip), "DeadhorseSoc requires every production feature")
+    c.qspi.nonEmpty && c.xip), "The complete digital assembly requires every production feature")
 }
+
+class SocExternalClockTest(config: String,uartJson: String,romImage: String,
+    gateTarget: ClockGateTarget=ClockGateTarget.Model,readLatency: Int=1,banks: Int=4,
+    i1Config: Option[SocI1Config]=Some(SocProduction.config()))
+  extends SocDigitalAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config)
 
 /** Named minimal boot/performance fixture; never a production feature profile. */
 class SocMinimalI0(config: String, uartJson: String, romImage: String,

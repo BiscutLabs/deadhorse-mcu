@@ -37,7 +37,7 @@ def main(output):
         commands=[sys.executable,'tools/sbt.py']
         for mhz in (8,9):
             for usb in ('stub','usb'):
-                commands.append(f'hw/runMain deadhorse.top.EmitSoc {out.relative_to(ROOT)}/soc-{mhz}-{usb} {"production" if usb=="usb" else "usb-stub-test"} {mhz}')
+                commands.append(f'hw/runMain deadhorse.top.EmitSocExternalClockTest {out.relative_to(ROOT)}/soc-{mhz}-{usb} {"production" if usb=="usb" else "usb-stub-test"} {mhz}')
         run(commands,'whole-soc')
         if snapshot()!=receipt['source_sha256']:raise RuntimeError('Frozen implementation changed')
         receipt['status']='pass'

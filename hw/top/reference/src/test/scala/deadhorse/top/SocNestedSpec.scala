@@ -26,7 +26,7 @@ class SocNestedBench extends RawModule {
   drain.targetRequest:=target.req;drain.targetResponse:=target.rvalid;quiet:=drain.quiescent
 }
 
-class SocNestedSpec extends AnyFunSuite with ChiselSim {
+class SocNestedSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t20/i1/nested-simulation").toAbsolutePath
   }

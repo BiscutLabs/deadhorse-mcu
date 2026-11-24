@@ -1,0 +1,7 @@
+{
+  "path": "/opt/oss-cad-suite/share/yosys/python3/smtio.py",
+  "source_sha256": "3ab59d7fa9808e8f529870868dca27477b5d61f727508c94310e4c19cb59f75e",
+  "patched_sha256": "523b54ec6bf5494ec26729792c901cb35ce9ca065678f4f43e4329420e668dc2",
+  "scope": "Elapsed log timestamps only; no solver, status parser, model, bound or timeout changes",
+  "upstream": "Yosys smtio.py from the OSS CAD archive pinned in lock.json"
+}

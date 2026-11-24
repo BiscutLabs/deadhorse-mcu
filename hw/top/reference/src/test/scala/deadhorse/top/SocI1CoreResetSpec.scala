@@ -8,7 +8,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.mutable.ArrayBuffer
 
 /** Test-only public MMIO offer observation and actual reset-wiring fault. */
-class SocI1CoreResetBench(corrupt: Boolean) extends DeadhorseSoc(
+class SocI1CoreResetBench(corrupt: Boolean) extends SocExternalClockTest(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
   Paths.get("build/t20/i0-firmware/boot.hex").toAbsolutePath.toString,
   i1Config=Some(SocProduction.config(realUsb=false))) {
@@ -18,7 +18,7 @@ class SocI1CoreResetBench(corrupt: Boolean) extends DeadhorseSoc(
   if(corrupt) memory.serviceReset_n:=coreRelease.released
 }
 
-class SocI1CoreResetSpec extends AnyFunSuite with ChiselSim {
+class SocI1CoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t20/i1/core-reset-simulation").toAbsolutePath
   }
@@ -52,7 +52,8 @@ class SocI1CoreResetSpec extends AnyFunSuite with ChiselSim {
       p.usbVbus.poke(false.B);p.usbDpRx.poke(false.B);p.usbDnRx.poke(false.B)
       val samples=ArrayBuffer.empty[Boolean]
       def tick(): Unit = {
-        SocInactiveTestInputs.drive(p.inactive,samples.size&65535)
+        // No JTAG operation in this core-reset test; keep the real TAP reset.
+        SocInactiveTestInputs.drive(p.inactive,(samples.size&65535& ~48)|32)
         SocInactiveTestInputs.check(p.inactive)
         d.mainClock.step();p.aonClock.step();p.usbClock.step()
         samples+=d.uartTx.peek().litToBoolean

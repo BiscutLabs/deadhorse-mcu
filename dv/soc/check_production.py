@@ -36,9 +36,11 @@ def main():
         run('structure',[sys.executable,'tools/check_structure.py','--include-untracked'])
         run('simulation',[sys.executable,'tools/sbt.py','hw/testOnly deadhorse.top.*'])
         command=[sys.executable,'tools/sbt.py']
+        for variant in ('production','usb-stub-test'):
+            command.append(f'hw/runMain deadhorse.top.EmitSoc {out.relative_to(ROOT)}/chip-8-{variant} {variant} 8')
         for mhz in (8,9):
             for variant in ('production','usb-stub-test'):
-                command.append(f'hw/runMain deadhorse.top.EmitSoc {out.relative_to(ROOT)}/soc-{mhz}-{variant} {variant} {mhz}')
+                command.append(f'hw/runMain deadhorse.top.EmitSocExternalClockTest {out.relative_to(ROOT)}/soc-{mhz}-{variant} {variant} {mhz}')
         run('whole-soc',command)
         from dv.soc import fixture
         fixture.prepare(out/'minimal-i0-inputs')

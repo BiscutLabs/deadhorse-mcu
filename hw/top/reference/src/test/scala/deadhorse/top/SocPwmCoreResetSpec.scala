@@ -6,7 +6,7 @@ import chisel3.testing.HasTestingDirectory
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
-class SocPwmCoreResetBench extends DeadhorseSoc(
+class SocPwmCoreResetBench extends SocExternalClockTest(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
   Paths.get("build/t22/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocProduction.config(realUsb=false))) {
   // Observe an actual MMIO acceptance, not private PWM state.
@@ -14,7 +14,7 @@ class SocPwmCoreResetBench extends DeadhorseSoc(
   applied:=memory.peripheral.req && memory.peripheral.gnt && memory.peripheral.bits.we &&
     memory.peripheral.bits.addr==="h40030000".U
 }
-class SocPwmCoreResetSpec extends AnyFunSuite with ChiselSim {
+class SocPwmCoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t22/core-reset-simulation").toAbsolutePath
   }

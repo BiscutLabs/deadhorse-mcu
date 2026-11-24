@@ -5,7 +5,7 @@ import chisel3.testing.HasTestingDirectory
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
-class SocQspiSpec extends AnyFunSuite with ChiselSim {
+class SocQspiSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t29/soc-simulation").toAbsolutePath
   }

@@ -9,8 +9,11 @@ available RISCay oscillator/POR/monitor provenance. No Coldfoot IP import.
 
 ## Deliverables
 
-1. Pin-level contracts for nominal 32 kHz LF, restartable HF oscillator, POR
-   and supply monitor with selectable thresholds. List supplies/grounds,
+1. Pin-level contracts for nominal 32 kHz LF RC and POR/brownout with
+   selectable thresholds. D78 removes the internal HF oscillator; D79 requires
+   safe POR default, hysteresis and qualified release, with POR_BYPASS fallback.
+   Reuse PLAN04 interfaces/models where accepted rather than replacing them
+   silently. List supplies/grounds,
    enables, trims, ready/clock-valid/reset outputs, test/calibration signals,
    encodings and safe hardware defaults before flash/software initialization.
 2. Clocked digital behavioral adapters/models for simulation, with documented
@@ -22,12 +25,16 @@ available RISCay oscillator/POR/monitor provenance. No Coldfoot IP import.
    jitter/duty cycle, startup/restart, leakage/active power, slow/noisy supply
    ramps, threshold/hysteresis accuracy and switching, reset minimum pulses,
    invalid supply, loading and brownout. State measurement methods and corners.
-   Carry plan06's assumed targets unchanged: LF within 5% after trim and <1 uA;
-   HF12/24 MHz within2% after trim and startup<100 us; wake<200 us; whole-chip
-   sleep<50 uA at25 C. These are targets, not simulated silicon results.
+   Carry plan06's assumed LF targets: within 5% after trim and <1 uA; whole-chip
+   sleep<50 uA at25 C. External oscillator startup is a board-part requirement;
+   oscillator-off wake takes milliseconds plus qualification, while light sleep
+   keeps OSC_EN high. No internal HF or former 200 us deep-wake target remains.
+   These are targets, not simulated silicon results.
 4. Map interface models into the single SoC with T33; list trim/calibration
    loading and test access. Propose later layout/extraction/DRC/LVS briefs with
-   measured macro dimensions/views; retain the explicit plan08 area allowance.
+   measured macro dimensions/views; plan08 assumes 0.10 mm2 LF RC and 0.15 mm2
+   POR/brownout. Demonstrate safe threshold defaults before firmware or flash
+   settings; numerical encodings/limits remain assumptions until characterized.
 
 ## Read first
 

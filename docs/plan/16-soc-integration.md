@@ -41,8 +41,8 @@ remain sourced from soc.yaml and the peripheral register YAMLs.
 | QSPI command/native XIP | T29/T30 | Integrated; flash/pad qualification and production boot remain |
 | Dedicated SPI ADC | D74 | Retired from production, pins/window unassigned; firmware uses general SPI/DMA |
 | JTAG both harts | T32 | Brief ready, stub awaiting implementation |
-| Clock/reset/power/sleep controller | T33 | Brief ready; explicit external digital clock/reset inputs today |
-| Analog LF/HF/POR/supply monitor | T34 | Interface/model brief ready; extracted layout later |
+| Clock/reset/power/sleep controller | PLAN04/T33 | D78 external 48 MHz, /6 main, LF AON; PLAN04 oscillator/POR subset in progress; T33 full reset/reason/threshold/retained sleep remains |
+| Analog LF RC and POR/brownout | PLAN04/T34 | No internal HF; interface/models then extracted layout later; safe-default POR and strap fallbacks |
 | 16 KiB performance + 3 KiB retained SRAM macros/BIST | T35 | Behavioral memories today; macro footprint budgeted, not integrated |
 | Production boot ROM | T36 | Test/bootstrap content today; production CRC/A/B/golden/recovery pending |
 | Test/scan and pad-level chip | T37/T38 | Briefs ready; no chip signoff claim |
@@ -63,7 +63,7 @@ close its stage. No stage is marked complete by PLAN03. D76 requires fast CI
 on main before new block work and after every task; the full tier runs at each
 I2/I3/I4/I5 exit. Deferrals remain explicit and unwaived.
 
-## Measurements and open clock decisions
+## Measurements and selected clock architecture
 
 [Production measurements](../spec/soc-production-measurements.md) report
 measured main paths 64.830223/65.965767 ns at assumed 8/9 MHz, mapped logic
@@ -78,23 +78,26 @@ Against T13 round 2, estimated worst overhead is0% and34/8973=0.3789156%.
 D75 still records the earlier accepted 4821-cycle result. No further memory
 arbitration or multiplier optimization is authorized without Q16 need.
 
-The [plan08 budget](08-physical-verification.md) estimates12.783522307 mm2
-against 12.92 mm2, leaving0.136477693 mm2 with named allowances. This is narrow
+The [plan08 budget](08-physical-verification.md), including T32 and PLAN04's
+approved analog allowances, estimates 12.605509285 mm2 against 12.92 mm2,
+leaving 0.314490715 mm2 with named allowances. This is narrow
 planning headroom, not physical fit. Macro/ROM/analog/pad/scan and real routing
 must replace estimates before tape-out.
 
 | Domain | Assumed screening rate | Source decision / physical work |
 | --- | --- | --- |
-| Main | 8 and9 MHz | Q15 open: divided external48 MHz or separate qualified source |
+| Main | 8 MHz selected; historical 9 MHz screening retained as evidence | D78 registered /6 from OSC_IN; generated-clock timing required |
 | USB | 48 MHz | Existing external-reference accuracy requirement; physical qualification retained |
-| AON | Active service1 MHz; nominal sleep32 kHz planned | T33/T34 must provide qualified HF service and LF sleep; not a selected oscillator |
+| AON | Nominal 32 kHz | D78 LF RC or reset-held external fallback; D82 slow recovery I2C; no fast-service source |
 | JTAG | TCK | T32 rate/CDC contract, T38 pad qualification |
 
 Q16 remains open: at assumed9 MHz, measured worst hard-float9007 cycles
 estimates1000.777778 us before other firmware. S1's separate performance-floor
 decision is not waived by acceptable integrated overhead. The existing SPI
-host's4 MHz target and normal-speed recovery-loader service clock also need
-resolution under Q15; do not silently change peripheral timing limits.
+host's 4 MHz target remains unresolved at selected main 8 MHz; do not silently
+change that limit. D82 separately approves slow recovery I2C under the frozen
+loader's eight-service-edges-per-SCL requirement. PLAN04/D81 adds oscillator-on
+USB light sleep; attached USB does not support oscillator-off host resume.
 
 ## Remaining execution order
 

@@ -21,7 +21,9 @@ OSC_IN directly supplying USB, and registered divide-by-six main at 8 MHz.
 Remove internal HF oscillator. Preserve shared crossings despite related clocks.
 OSC_EN is high during/after reset, with board pull-up, and controls standby.
 AON_CLK_SEL sampled during reset selects RC or fallback AON_CLK_IN, then holds.
-POR_BYPASS sampled during reset permits external-pin-only reset/release.
+Per the subsequent approved D84 amendment, POR_BYPASS is a static board strap,
+default low and fixed while powered, directly selecting external-pin-only
+reset/release. It is not reset-latched; AON_CLK_SEL remains reset-sampled.
 
 Specify release order: POR/brownout and pin release, AON oscillator running,
 AON stability count and domain release, lite boot, external oscillator stable,
@@ -69,11 +71,14 @@ Prove each with a negative control: reset-high OSC_EN until completed sleep;
 no OSC_EN fall under request/hold; gate opens only after fresh stability;
 no lost wake in any state; glitch-free reset behavior and exact divider ratio;
 POR blocks domain release unless bypassed and bypass makes POR irrelevant;
-straps remain fixed after reset release.
+AON_CLK_SEL remains fixed after reset release. Per D84, POR_BYPASS is an
+external static powered-session contract; prove reset routing in both choices.
 
 Production tests: slow/fast POR ramps, reset-high OSC_EN, both clock/bypass
 straps; brownout whole-chip reset and recorded cause, hysteresis rejection;
-each sleep/wake source including USB with stopped oscillator and JTAG pulse;
+each sleep/wake source, with D81's approved USB amendment: attached/enabled USB
+keeps OSC_EN high and resumes from main-clock-only light sleep; deep oscillator-off
+sleep requires USB disabled (and therefore detached). Exercise JTAG wake;
 never-start/late oscillator fault and closed gate; retained main state and
 unchanged flight-loop benchmark after wake. Measure domain worst paths, OSC_IN
 counter, AON controller and all new digital area with generated 8 MHz main.

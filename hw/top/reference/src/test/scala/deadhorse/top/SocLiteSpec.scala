@@ -6,7 +6,7 @@ import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
 /** Real loader wires, actual RV32E execution and public bus/pad observations. */
-class SocLiteSpec extends AnyFunSuite with ChiselSim {
+class SocLiteSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t25/soc-simulation").toAbsolutePath
   }

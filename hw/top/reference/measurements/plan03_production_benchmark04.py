@@ -5,7 +5,7 @@ root=Path.cwd();sys.path[:0]=[str(root/'dv/soc'),str(root/'dv/core'),str(root)]
 import fixture
 spec=importlib.util.spec_from_file_location('metrics',root/'tools/spikes/s1_core/performance.py')
 metrics=importlib.util.module_from_spec(spec);spec.loader.exec_module(metrics)
-base=root/'build/plan03/production-performance04';base.mkdir(exist_ok=False)
+base=root/(sys.argv[1] if len(sys.argv)>1 else 'build/plan03/production-performance04');base.mkdir(parents=True,exist_ok=False)
 source=root/'sw/flight/loop-measurement';ram=0x20000000;marker=ram+0x3800
 def run(args,out,name,timeout=600):
     p=subprocess.run(list(map(str,args)),cwd=root,text=True,capture_output=True,timeout=timeout)

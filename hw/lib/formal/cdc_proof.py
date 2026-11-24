@@ -4,10 +4,15 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def main():
@@ -19,14 +24,18 @@ def main():
     out = (ROOT / args.output).resolve(); out.relative_to(ROOT / 'build')
     if (out / 'result.json').exists(): raise ValueError('Retain prior evidence; use fresh output')
     out.mkdir(parents=True, exist_ok=True)
+    source_paths = [ROOT/'hw/lib/src/main/scala/deadhorse/lib/Cdc.scala', Path(__file__),
+                    ROOT/'hw/lib/formal/CdcFormal.scala', ROOT/'tools/sbt.py', ROOT/'build.sbt']
+    snapshot = lambda: {str(p.relative_to(ROOT)): digest(p) for p in source_paths}
+    tool_paths = {name: shutil.which(name) for name in ('sby', 'yosys', 'yosys-abc', 'z3')}
+    if not all(tool_paths.values()): raise ValueError('Missing pinned CDC proof tool')
     receipt = dict(status='running', width=args.width, depth=args.depth, runs=[],
         assumptions=['both resets asserted initially; subsequently arbitrary',
                      'observer history initialized to zero (monitor-only)',
                      'ideal digital sampling; no analog metastability model'],
         clock_model='actual independent unconstrained clocks; SBY multiclock, no async2sync',
         engine='abc pdr', cover_depth=48, timeout_seconds=120,
-        source_sha256={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in [ROOT/'hw/lib/src/main/scala/deadhorse/lib/Cdc.scala',Path(__file__),ROOT/'hw/lib/formal/CdcFormal.scala']})
+        source_sha256=snapshot(), tool_sha256={name:digest(path) for name,path in tool_paths.items()})
     started=time.monotonic()
     def run(cmd, label, timeout=180):
         begin=time.monotonic()
@@ -54,7 +63,11 @@ def main():
                 'clk2fflogic','chformal -lower',
                 f"select -assert-count {(2 if top=='CdcSideFormal' else 9) if is_cover else (3 if top=='CdcSideFormal' else 11)} t:${'cover' if is_cover else 'assert'}",'',
                 '[files]',*map(str,sources),'']))
+            proof_inputs = {str(p.relative_to(out)):digest(p) for p in [config,*sources]}
             code,record=run(['sby','-d',str(out/variant),str(config)],variant)
+            record['input_sha256'] = proof_inputs
+            if any(digest(out/p)!=h for p,h in proof_inputs.items()):
+                raise RuntimeError('CDC model input changed during solver run')
             status_file=out/variant/'status'
             status=status_file.read_text().split()[0] if status_file.exists() else 'ERROR'
             record['status']=status
@@ -64,12 +77,18 @@ def main():
             if (is_cover or is_fault) and not list((out/variant).glob('engine_*/trace*.vcd')):
                 raise RuntimeError('Missing concrete witness')
             print(f'PASS CDC {variant}: {status}',flush=True)
+        if snapshot()!=receipt['source_sha256']:
+            raise RuntimeError('CDC source changed during proof run')
+        if any(digest(tool_paths[n])!=h for n,h in receipt['tool_sha256'].items()):
+            raise RuntimeError('CDC tool changed during proof run')
         receipt['status']='pass'
     except Exception as exc:
         receipt.update(status='unresolved' if 'TIMEOUT' in str(exc) else 'failed',error=str(exc))
         print(str(exc),file=sys.stderr)
     finally:
         receipt['seconds']=time.monotonic()-started
+        receipt['artifact_sha256']={str(p.relative_to(out)):digest(p)
+            for p in sorted(out.rglob('*')) if p.is_file() and p != out/'result.json'}
         (out/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
     return 0 if receipt['status']=='pass' else 1
 

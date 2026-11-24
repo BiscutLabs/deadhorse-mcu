@@ -125,9 +125,35 @@ Use limited register-selectable alternate functions; general-purpose outputs
 disabled at reset. Dedicated external clock/reset and JTAG pins remain.
 The initial chip has no chip-to-chip QSPI pads or required LF crystal driver.
 
-The provisional budget is 32 bidirectional and 10 input-only functions before
-final muxing, test access and USB PHY review. Dedicated clock/reset and analog
-pads are counted separately. The pinout remains provisional.
+PLAN04's estimated simultaneous logical demand is 39 output-capable and 12
+input-only pads, against assumed capacities 40 and 12. This adds OSC_EN and
+the three AON/fallback strap inputs to the T32 inventory. OSC_IN reuses the
+dedicated clock pad; external reset and analog pads remain separately counted.
+This is an inventory estimate, not pad placement or electrical qualification.
+
+| Dedicated clock/control function | Direction | Reset/startup contract |
+| --- | --- | --- |
+| OSC_IN | Clock input | External 48 MHz CMOS, USB directly and main /6 |
+| OSC_EN | Output | High during reset, board pull-up; controls true oscillator standby |
+| AON_CLK_IN | Clock input | First-silicon external AON fallback |
+| AON_CLK_SEL | Strap input | Sample while reset held, freeze before domain release |
+| POR_BYPASS | Static strap input | D84: default low, fixed while powered; directly bypass on-die POR/brownout for pin-only recovery |
+
+The board oscillator must support 48 MHz, 3.3 V CMOS output, true standby with
+microamp current (output-enable alone is insufficient), and total frequency
+tolerance well within USB full-speed +/-0.25%. An **assumed** 5 ms maximum
+startup/resume is based on the [SiT8008B datasheet](https://www.sitime.com/datasheet/SiT8008).
+Its 3.3 V standby specification is 2.1 microamps typical, 4.3 microamps maximum;
+these are vendor specifications, not project measurements. A
+[48 MHz, 3.3 V, +/-20 ppm standby option](https://www.sitime.com/parts/sit8008bi-71-33s-48000000)
+illustrates feasibility; no board part is selected or qualified by this plan.
+Recheck the actual ordered part's startup, output loading and temperature range.
+Plan06 includes startup margin and separate oscillator-on/off sleep contracts.
+
+D81 retains the oscillator whenever USB is enabled. D82 keeps recovery I2C on
+AON and requires host SCL <= minimum qualified AON frequency / 8 (estimated
+nominal 4 kHz). This restriction is on the dedicated recovery target, not the
+general main-clock I2C controller.
 
 Freeze the exact map at G1 against the selected slot and simultaneous interfaces.
 Three UARTs are a baseline capability; GPS/RC/telemetry pin assignments and the

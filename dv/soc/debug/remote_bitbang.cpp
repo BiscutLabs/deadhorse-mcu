@@ -1,5 +1,5 @@
 // Production TAP pin driver. No DMI or architectural-state backdoor.
-#include "VDeadhorseSoc.h"
+#include "VSocExternalClockTest.h"
 #include "verilated.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -45,7 +45,7 @@ int main(int argc,char** argv) {
   const unsigned aonPeriod=argc==5 && std::string(argv[4])=="32000"?31250:1000;
   if(argc==5 && std::string(argv[4])!="32000" && std::string(argv[4])!="1000000") return 2;
   auto context=std::make_unique<VerilatedContext>();context->commandArgs(argc,argv);
-  auto top=std::make_unique<VDeadhorseSoc>(context.get());
+  auto top=std::make_unique<VSocExternalClockTest>(context.get());
   top->mainClock=0;top->i1_aonClock=0;top->i1_usbClock=0;
   top->coldReset_n=0;top->warmReset_n=1;top->mainServiceReset_n=1;top->mainCoreReset_n=1;
   top->i1_aonServiceReset_n=1;top->i1_usbServiceReset_n=1;

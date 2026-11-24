@@ -4,10 +4,13 @@ import hashlib
 import importlib.util
 import io
 import json
+import re
+import runpy
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -20,6 +23,35 @@ def module(name):
 installer = module('install')
 launcher = module('run')
 checker = module('check')
+timestamp_patcher = module('patch_smtio')
+
+
+class TimestampTests(unittest.TestCase):
+    def test_actual_timestamp_survives_backward_wall_clock_with_original_control(self):
+        manifest=json.loads(Path(__file__).with_name('smtio-monotonic.json').read_text())
+        paths=[(Path(manifest['path']),True),
+               (Path('/opt/deadhorse-env/smtio-unpatched.py'),False)]
+        for path,expected in paths:
+            with self.subTest(patched=expected),patch('time.time',side_effect=[250.0,240.0]), \
+                    patch('time.monotonic',side_effect=[1000.0,1005.0]):
+                namespace=runpy.run_path(str(path))
+                state=SimpleNamespace(start_time=namespace['time']())
+                prefix=namespace['SmtIo'].timestamp(state)
+            # Original SBY prefix grammar remains unchanged; the real CDC job
+            # separately exercises its parser and solver/witness pipeline.
+            parsed=bool(re.match(r'^## [0-9: ]+ Status: PASSED',prefix+'Status: PASSED'))
+            self.assertEqual(parsed,expected)
+            self.assertIn('0:00:05' if expected else '-1:59:50',prefix)
+
+    def test_patch_hash_guards_and_exact_installed_result(self):
+        manifest=json.loads(Path(__file__).with_name('smtio-monotonic.json').read_text())
+        original=Path('/opt/deadhorse-env/smtio-unpatched.py').read_bytes()
+        actual=Path(manifest['path']).read_bytes()
+        self.assertEqual(timestamp_patcher.patched(original,manifest),actual)
+        with self.assertRaisesRegex(ValueError,'Unexpected upstream'):
+            timestamp_patcher.patched(original+b'\n',manifest)
+        with self.assertRaisesRegex(ValueError,'Unexpected patched'):
+            timestamp_patcher.patched(original,dict(manifest,patched_sha256='0'*64))
 
 
 class EnvironmentTests(unittest.TestCase):

@@ -5,14 +5,19 @@
 Complete I3 digital clock/reset/sleep control after PLAN03, parallel with T32.
 Use the production watchdogs, boot release, shared reset-release/CDC/clock-gate
 wrappers and plan06; T34 behavioral macro interfaces may be agreed in parallel.
-Q15 clock source/frequency stays a parameter; this task does not decide it.
+D78 resolves Q15: external 48 MHz OSC_IN directly clocks USB and registered
+/6 main at 8 MHz; AON is LF RC with a reset-held external fallback. There is
+no internal HF oscillator. PLAN04 delivers the oscillator controller, divider,
+macro interface models, POR/pin reset hookup and strap binding; credit only
+the evidence actually delivered in its report, not this assignment.
 
 ## Deliverables
 
-1. Reviewed clock/reset-domain and reason-register contract. Glitch-free main
-   selection between internal HF and external input, with divider. Use qualified
-   shared clock-control cells/wrappers, not combinational clock muxing. Define
-   safe switching with running/stopped sources and reset/test overrides.
+1. Complete the reviewed clock/reset-domain and reset-reason register contract
+   around PLAN04's OSC_IN divider/controller. No internal/external main source
+   mux or runtime AON switching. Finish reset/test overrides and qualify the
+   shared ICG and reset-held fallback at cell level. Do not redo accepted
+   PLAN04 work; list remaining physical obligations explicitly.
 2. POR, brownout, external and both watchdog reset causes; asynchronous assert,
    synchronized per-domain release only after supply/clock qualification.
    D37/D70 performance reset resets the core/client epoch and disables PWM,
@@ -22,9 +27,12 @@ Q15 clock source/frequency stays a parameter; this task does not decide it.
    gating. Hold wake capture and HF requests in AON. Timers, GPIO, UART modes,
    USB resume and JTAG wake must survive stopped main; enabled peripherals keep
    their needed clocks. Retained sleep is clock gating, not power gating.
-4. Interface behavioral HF/LF/POR/supply-monitor models pending T34; explicit
-   enable/trim/ready/valid contracts. No PLL, automatic seamless failover or
-   analog silicon accuracy claim. Update reset/clock demand graph and soc.yaml.
+4. Complete brownout threshold selection with safe default and glitch-safe
+   changes, reset-reason recording and retained-sleep entry/exit beyond PLAN04's
+   oscillator controller. Use T34 LF RC and POR/brownout interfaces/models;
+   no internal HF macro, PLL, seamless failover or analog accuracy claim.
+   D81 keeps the oscillator on while USB is enabled; test attached light sleep.
+   D82 keeps the frozen loader on LF AON with rate-qualified recovery SCL.
 
 ## Read first
 
@@ -35,6 +43,15 @@ reference-model-testing, chisel-formal-properties, gf180-synth-timing-check,
 formal-timeout-triage; regmap-authoring for new registers.
 
 ## Shared acceptance and publication (unverified)
+
+D86 closeout exception (user, 2026-11-24): defer proof obligations requiring
+extensive timeout work, with their exact unresolved status and evidence in
+STATUS/report/ledgers. Keep proof entrypoints and assertions unchanged. Run
+the frozen T33-specific regression and structural checks, not full CI or
+unrelated IP tests; neither aggregate CI tier is claimed. This overrides the
+aggregate CI requirement below for this closeout only. Independent review
+and physical/stage-gate obligations remain. Completion must be labelled
+"completed with D86 exceptions".
 
 All acceptance below is **unverified**. Proposed new checker interfaces are
 deliverables to create, not existing or passing tools. Each checker must emit
@@ -67,7 +84,7 @@ behavior changes or application-specific output policy.
 
 - `python dv/soc/power/check.py --output build/t33/power`: actual production
   sleep/wake and reset at every grant/response phase, coincident wake/sleep,
-  stopped source, divider/source switch, UART receive/wake-only/disabled, USB
+  stopped external source, divider/reset-held AON selection, UART receive/wake-only/disabled, USB
   resume and JTAG wake; independent event/epoch oracle. Reset containment must
   preserve shared DMA/traffic and disable PWM for performance watchdog expiry.
 - Unbounded controller proofs for no lost captured wake, no gate while required
@@ -82,6 +99,6 @@ behavior changes or application-specific output policy.
 
 ## Stop conditions
 
-Stop for Q15 selection, altered D70 containment, new power-gated mode, changed
+Stop for altered D78/D79 architecture, altered D70 containment, new power-gated mode, changed
 timing/assumptions or a required analog behavior not covered by the reviewed
 interface. Record physical qualification still owed after digital acceptance.

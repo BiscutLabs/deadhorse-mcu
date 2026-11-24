@@ -2,7 +2,7 @@
 
 PLAN03 / D72: `DeadhorseSoc` is the single production assembly. This contract
 describes digital integration, not a pad-level or physically qualified chip.
-Q15 (clock source/frequency) and Q16 (application loop rate) remain open.
+Q15 is resolved by D78; Q16 (application loop rate) remains open.
 The profile history below is historical evidence, not selectable chip features.
 
 ## Assembly
@@ -18,7 +18,8 @@ control and analog interfaces await their own briefs.
 Reserved address holes are error targets, not implemented gateway/debug hardware.
 
 `SocProduction` supplies one set of generated register descriptions. Main
-frequency remains an elaboration parameter evaluated at 8 and 9 MHz. Production
+frequency is selected at 8 MHz by D78; historical 9 MHz fixtures retain their
+measurement scope. Production
 uses real USB; the named USB-stub simulation configuration retains every other
 production feature. `SocMinimalI0` is a named minimal boot/performance fixture.
 Bus-driven tests substitute stimulus at the CPU boundary; real-core tests use
@@ -30,6 +31,120 @@ The dedicated SPI ADC is retired by D74. Firmware uses the general SPI host
 and DMA for external converters. Its former window and three logical pins are
 unassigned; IRQ12 is unassigned. After the B2 comparison passed, the ADC source
 and ADC-only tests were removed in the separately authorized retirement change.
+
+## PLAN04 clock/reset implementation contract (acceptance pending)
+
+OSC_IN is the dedicated 48 MHz clock pad and clocks USB directly. A registered
+/6 divider with equal high/low phases supplies main at 8 MHz through the shared
+ICG. The timing flow must declare a generated clock, retaining all existing
+main/USB CDC. OSC_EN is an AON-controlled output with reset value one and a
+board pull-up. No internal HF oscillator remains. AON uses nominal 32 kHz LF RC
+or reset-sampled AON_CLK_IN selected by AON_CLK_SEL; no runtime switching.
+POR_BYPASS ignores on-die POR/brownout, leaving the external active-low pin as
+the supply-reset authority. D84 makes it a static board strap with default low,
+fixed from power application until removal. It directly selects reset without
+depending on initialized state. Watchdog/debug containment is preserved.
+
+The production `DeadhorseSoc` boundary supplies OSC_IN, OSC_EN, AON_CLK_IN,
+AON_CLK_SEL, static POR_BYPASS and external reset, the existing peripheral/JTAG
+pad functions, and analog power pins. `SocExternalClockTest` preserves the
+complete digital assembly with independently driven clocks/resets solely for
+focused tests (including historical 9 MHz trials); it is not a chip profile.
+The named analog-model test configuration substitutes only the LF/POR macros
+with their digital models. Main/USB service reset waits for first qualification;
+later oscillator-off sleep retains service state and requires fresh gate
+authorization on wake. `bootDone` is never permission to open the clock gate.
+Internal status/cause outputs are T33 integration/verification signals, not
+additional assigned pads. Existing loader START/core boot permission remains.
+
+Fallback bootstrap requires the board to hold external reset, establish valid
+AON_CLK_IN and stable straps, and supply selected-clock sampling edges before
+releasing reset. AON_CLK_SEL sampling cannot itself be held reset by the failed POR
+or clock it bypasses. Normal POR-only startup samples with the RC running while
+raw POR holds reset. Functional domain release waits for frozen strap selection
+and counted AON stability. Undefined power-up with bypass asserted but no valid
+external reset is outside that board contract. An AON_CLK_SEL change after release
+must have no effect until the next reset-held sampling sequence.
+
+POR/brownout asserts ordinary resets asynchronously; release uses the shared
+per-domain primitives, AON first, then qualified external-clock domains. Keep
+separate cold and warm causes: POR/brownout clears the frozen loader lock.
+Normal-mode external pin and lite-watchdog reset preserve it. Under D83,
+bypass-mode external reset is cold for loader lock, retained watchdog history
+and debug POR state; its recorded cause is external pin, not POR.
+Performance watchdog retains
+D70 core/client reset plus PWM disable, preserving shared services. Latched POR,
+brownout and pin causes feed the T33 reset-reason register described below. AON release
+permits existing loader START; autonomous lite ROM boot remains T36 work.
+
+The controller owns a new child at AON parent offset 0x400 (0x100 bytes),
+leaving existing child registers unchanged. It accepts sleep request, wake
+enables, startup delay, stable count and UART wake configuration; reports state,
+sticky fault and last wake cause. Before stop it requires qualified performance
+WFI and all main holds released, then a source-clock gate-closed acknowledgement.
+USB's separate enabled-level request is unmaskable and retains OSC_EN (D81).
+Enabled USB uses light sleep. USB must be disabled before oscillator-off sleep; physical detachment alone does not release its clock request.
+
+Existing UART wake monitors are reused. Controller-owned wake polarity must
+match the UART's existing ACTIVE.invert. Firmware configures while disarmed,
+allows at least four AON edges to settle, arms, then requests wake-only sleep.
+No UART register or behavior change is implied. Holds are independent of wake
+masks. The frozen AON recovery loader uses f_SCL <= f_AON,min / 8 (D82);
+nominal 4 kHz is estimated, not tolerance-qualified.
+
+Analog pin-level model boundary, pending T34 qualification:
+
+| Macro | Inputs | Outputs / safe default |
+| --- | --- | --- |
+| LF RC | VDD/VSS, enable, trim, test controls | AON clock and ready; enabled at reset, nominal 32 kHz assumed, safe trim before firmware |
+| POR/brownout | VDD/VSS, threshold selection, test controls | active-low supply reset, initial-power epoch (`powerOn_n`) and sticky brownout indication; safe default threshold, hysteresis and qualified release before firmware |
+
+These are BlackBox boundaries; digital behavioral substitutes model supplied
+clock/startup and supply-ramp/threshold/hysteresis/release events. They do not
+implement analog circuits or establish accuracy. Numerical thresholds, encoding,
+release time and LF trim remain assumptions until T34/process/SRAM qualification.
+The current digital POR model assumes default 3.10 V falling / 3.20 V rising,
+1000 reference edges at assumed 1 MHz (estimated 1 ms qualified release), and
+an initial-power epoch below assumed 0.10 V. Encoding 01 selects assumed
+3.20/3.30 V; other encodings use the default. These are simulation parameters,
+not qualified operating-voltage guarantees; the T33 selection contract follows.
+
+## T33 power/reset completion contract (acceptance pending)
+
+The [clock/reset boundary inventory](soc-power-reset.md) lists reset cohorts,
+crossing protocols and the physical qualification still required.
+
+The lite-owned power/reset child at 0x40000500 adds read-only reason bits
+0 POR, 1 brownout, 2 external pin, 3 performance watchdog, 4 lite watchdog.
+It samples the existing AON cause sources, retaining their cold-epoch semantics:
+normal cold reset provisionally reports POR until held brownout is classified;
+POR_BYPASS initialization reports pin. Performance reset preserves the sources.
+The frozen loader's watchdog-only reason and crash-count ABI is unchanged.
+
+Threshold shadow0x04, keyed apply0x08 (full-word0x42524f57), active0x0c and
+W1C invalid-command event0x10 follow the power_reset register YAML. Only00/01
+apply; reserved selections and invalid keys leave the active value unchanged.
+One active selector flop with a tied-low high bit avoids digital decode hazards.
+Service reset restores the existing safe00 setting. D85 requires the macro to
+prevent unsafe release pulses across changes, assert immediately below the new
+falling limit and fully qualify any subsequent release at the new rising limit.
+Still-valid supply may stay released. During incomplete release qualification,
+the model restarts counting on a selection change; no old-setting samples are
+reused. Voltage/time numbers remain assumptions and analog validation is T34.
+
+Internal lite-watchdog, JTAG system and AON-service resets flush functional
+transports immediately. Their stretched indication is synchronized in the
+retained AON policy epoch before configuration defaults and unmaskable sleep
+cancellation are applied. MMIO reopens only after configuration reset completes.
+A wake preceding that synchronized indication captures old coherent settings;
+a reset-forced start uses defaults; existing STARTING settings remain captured.
+They preserve the oscillator policy/source qualification epoch so the
+main-clock debug module can service the DMI write that clears ndmreset. Cold
+and external-pin resets still clear the clock epoch; actual oscillator-off
+requires fresh qualification. A failed-start fault remains sticky within that
+epoch and is not bypassed by an internal reset. D70 performance reset scope,
+loader cold/warm cohorts and shared transaction drainage remain unchanged.
+No new clock domain, runtime source selection or power-gated mode is introduced.
 
 ## Authoritative map
 
@@ -63,7 +178,7 @@ instruction accesses error. Legal subword memory instructions retain byte masks.
 | future_bridge | 0x60000000 | 0x10000000 | each domain | reserved; always error |
 
 Child offsets: AON timer 0, performance watchdog 0x100, lite watchdog 0x200,
-boot release 0x300 in the AON parent; GPIO 0, main timers 0x100, pinmux 0x200 in
+boot release 0x300, oscillator control 0x400 and power/reset control 0x500 in the AON parent; GPIO 0, main timers 0x100, pinmux 0x200 in
 the GPIO parent. QSPI native configuration extends the command map at 0x100.
 Child holes remain errors. No parent or endpoint timeout changes.
 
@@ -171,10 +286,11 @@ Selections reset disconnected; switching includes the existing disabled interval
 Dedicated timer/PWM pins remain, and input/wake routes are independent. Firmware
 must quiesce sources when a truncated pulse is unacceptable. Serial, recovery,
 QSPI, USB and dedicated JTAG/external-clock/reset logical groups retain their
-contracts. JTAG TDO stays disabled until debug implementation.
+contracts. The implemented T32 TAP drives JTAG TDO and its output enable.
 
-Estimated simultaneous digital demand after D74 is 38 output-capable and 9
-input-only pads: previous 40/10 minus ADC 2/1. Historical slot capacities remain
+Estimated simultaneous digital demand after PLAN04 is 39 output-capable and 12
+input-only pads: D74's 38/9 plus OSC_EN (1 output) and the three fallback/strap
+inputs. OSC_IN reuses the dedicated clock pad. Nominal slot capacities remain
 40/12; dedicated clock/reset/analog are separate. This is allocation arithmetic,
 not measured pad-ring fit or USB electrical qualification. Scan sharing and
 final physical assignment remain open.

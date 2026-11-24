@@ -7,7 +7,7 @@ import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.mutable.ArrayBuffer
 
-class SocBootSpec extends AnyFunSuite with ChiselSim {
+class SocBootSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory = new HasTestingDirectory {
     def getDirectory = Paths.get("build/t20/i0-simulation").toAbsolutePath
   }
@@ -37,7 +37,7 @@ class SocBootSpec extends AnyFunSuite with ChiselSim {
       .digest(java.nio.file.Files.readAllBytes(Paths.get("build/t20/i0-firmware/boot.hex")))
       .map(b=>f"${b & 255}%02x").mkString
     assert(digest==receipt("rom_sha256").str, "I0_ROM_RECEIPT")
-    simulateRaw(if(integrated) new DeadhorseSoc("build/t20/map/soc.json", "build/t20/i0-firmware/uart_regs.json",
+    simulateRaw(if(integrated) new SocExternalClockTest("build/t20/map/soc.json", "build/t20/i0-firmware/uart_regs.json",
       Paths.get("build/t20/i0-firmware/boot.hex").toAbsolutePath.toString,
       i1Config=Some(SocProduction.config(realUsb=false))) else new SocMinimalI0(
         "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",

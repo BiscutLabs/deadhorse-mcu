@@ -18,15 +18,26 @@ class SocWatchdogSpec extends SocIoSpec {
     good(d,d.main,gpio,true,2);good(d,d.main,gpio+4,true,2)
     good(d,d.main,mux,true,3);good(d,d.main,mux+4,true,1)
     good(d,d.main,dma+0x20,true,0x20000100L);good(d,d.main,dma+0x30,true,1)
-    good(d,d.main,dma+0x40,true,8);good(d,d.main,pwm+0x18,true,1);good(d,d.main,dma,true,1)
-    var waitMemory=0
-    while(!high(d.dmaMemory.get.req)) {tick(d);waitMemory+=1;assert(waitMemory<1500,"WATCHDOG_DMA_PENDING")}
+    good(d,d.main,dma+0x40,true,8);good(d,d.main,pwm+0x18,true,1)
     good(d,d.pins.lite,0x30000800L,true,0x12345678)
     assert(d.pins.inactive.gpioEnable.peek().litValue==3)
     assert(access(d,d.pins.lite,perf,true,500)._2,"WATCHDOG_SOC_OWNER")
-    good(d,d.main,perf,true,500);good(d,d.main,perf+8,true,250);good(d,d.main,perf+12,true,0x57445354L)
+    good(d,d.main,perf,true,500);good(d,d.main,perf+8,true,250)
+    // Establish the real PWM request before arming the watchdog: its warning
+    // already breaks PWM and prevents a new request. Then stop main while AON
+    // advances, preserving the native fabric's 128-running-cycle deadline.
+    good(d,d.main,dma,true,1)
+    var waitMemory=0
+    while(!high(d.dmaMemory.get.req)) {tick(d);waitMemory+=1;assert(waitMemory<1500,"WATCHDOG_DMA_PENDING")}
+    good(d,d.main,perf+12,true,0x57445354L)
     var n=0
-    while(!high(d.supervision.get.warning)) {tick(d);n+=1;assert(n<500,"WATCHDOG_SOC_NMI")}
+    while(!high(d.supervision.get.warning)) {
+      d.pins.aonClock.step();n+=1
+      // The NMI observation crosses back to main. Supply sparse main edges
+      // for that synchronizer without spending 250 native-fabric wait cycles.
+      if(n%16==0) d.mainClock.step()
+      assert(n<500,"WATCHDOG_SOC_NMI")
+    }
     assert(high(d.pins.mainDemand) && high(d.pins.aonDemand))
     // Main stopped: AON expiry must still disable dedicated and muxed PWM.
     n=0
@@ -44,16 +55,17 @@ class SocWatchdogSpec extends SocIoSpec {
     assert(good(d,d.main,dma+0x20)==0x20000100L && good(d,d.main,dma+0x30)==1)
     assert(high(d.dmaMemory.get.req),"WATCHDOG_PRESERVE_DMA_REQUEST")
     assert(good(d,d.main,pwm+0x40)==999 && good(d,d.main,pwm+0xc0)==1000)
-    assert(good(d,d.pins.lite,0x30000800L)==0x12345678)
-    assert(good(d,d.main,perf+28)==1 && good(d,d.main,perf+20)==8)
     // Complete the real DMA's pre-fault memory read only after watchdog release.
     d.dmaMemory.get.gnt.poke(true.B);tick(d);d.dmaMemory.get.gnt.poke(false.B)
     d.dmaMemory.get.rdata.poke(750.U);d.dmaMemory.get.rvalid.poke(true.B);tick(d)
     d.dmaMemory.get.rvalid.poke(false.B);tick(d,150)
     assert(good(d,d.main,dma+8)==0 && (good(d,d.main,dma+12)&1)==1,"WATCHDOG_DMA_COMPLETES")
     assert(good(d,d.main,pwm+0xc0)==750 && good(d,d.main,pwm+8)==0,"WATCHDOG_DMA_CANNOT_RESTART")
+    assert(good(d,d.pins.lite,0x30000800L)==0x12345678)
+    assert(good(d,d.main,perf+28)==1 && good(d,d.main,perf+20)==8)
     good(d,d.main,pwm+4,true,1);good(d,d.main,pwm,true,1)
     assert(good(d,d.main,pwm+8)==1 && d.pins.inactive.gpioEnable.peek().litValue==3)
+    assert((good(d,d.pins.lite,0x40000500L)&8)!=0,"POWER_PERFORMANCE_RESET_REASON")
   }
   test("performance watchdog preserves shared state and disables all PWM routes while main is stopped") {
     simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,profile))(performanceScope)
@@ -76,6 +88,7 @@ class SocWatchdogSpec extends SocIoSpec {
       tick(d,40);assert(!high(d.supervision.get.wholeReset))
       assert(good(d,d.main,dma+0x30)==0 && good(d,d.pins.lite,lite+28)==1)
       assert(good(d,d.pins.lite,0x30000800L)==0x76543210)
+      assert((good(d,d.pins.lite,0x40000500L)&16)!=0,"POWER_LITE_RESET_REASON")
     }
   }
 }

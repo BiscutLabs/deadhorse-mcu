@@ -16,10 +16,13 @@ from isolation import reject_sources
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source',required=True); parser.add_argument('--output',required=True)
+    parser.add_argument('--domain',choices=('main','aon','usb'),help='D78 production period; omitted preserves the existing fixture')
     args=parser.parse_args(); source=local(args.source); output=output_dir(args.output)
     receipt=output/'result.json'; receipt.write_text('{"status":"running"}\n')
     reject_sources([source])
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
+    if args.domain:
+        cfg=dict(cfg,period_ns={'main':125.0,'aon':31250.0,'usb':1000.0/48}[args.domain])
     library=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
     if hashlib.sha256(library.read_bytes()).hexdigest()!=cfg['sha256']: raise ValueError('Library hash mismatch')
     cell='gf180mcu_fd_sc_mcu7t5v0__icgtp_1'
@@ -52,6 +55,9 @@ def main():
     status='pass' if delay<=budget and slack>=0 and violations==0 else 'fail'
     receipt.write_text(json.dumps(dict(status=status,kind='single-cell pre-layout screening',
         source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),library_sha256=cfg['sha256'],
+        tool_sha256={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in
+            (Path(__file__),ROOT/'hw/lib/formal/clock_gate_timing.tcl',ROOT/'phys/gf180-ws-1x1/block-timing.json')},
+        clock_contract=args.domain or 'existing fixture',
         constraints=cfg,metrics_ns=values,clock_delay_ns=delay,minimum_enable_slack_ns=slack,
         electrical_violations=violations,cell_count=1,cell_area_um2=area,budget_ns=budget),indent=2)+'\n')
     if status!='pass': raise RuntimeError('Clock-gate timing/electrical checks failed')

@@ -26,6 +26,16 @@ class SocDescription(path: String) {
     require(p("clock").str=="aon" && p("reset").str=="whole_epoch" && p("owner").str=="lite")
     Region("boot_control",region(p("parent").str).base+BigInt(p("offset").num.toLong),BigInt(p("size").num.toLong))
   }
+  def powerResetRegion: Region = {
+    val p=document("power_reset")
+    require(p("clock").str=="aon" && p("reset").str=="aon_service" && p("owner").str=="lite")
+    Region("power_reset",region(p("parent").str).base+BigInt(p("offset").num.toLong),BigInt(p("size").num.toLong))
+  }
+  def oscControlRegion: Region = {
+    val p=document("osc_ctrl")
+    require(p("clock").str=="aon" && p("reset").str=="whole_epoch" && p("owner").str=="lite")
+    Region("osc_ctrl",region(p("parent").str).base+BigInt(p("offset").num.toLong),BigInt(p("size").num.toLong))
+  }
   def qspiRegion: Region = {
     val p=document("qspi")
     require(p("clock").str=="main" && p("reset").str=="main_service" && p("reset_owner").str=="lite")

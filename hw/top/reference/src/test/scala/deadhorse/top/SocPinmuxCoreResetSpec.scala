@@ -6,7 +6,7 @@ import chisel3.testing.HasTestingDirectory
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
-class SocPinmuxCoreResetBench extends DeadhorseSoc(
+class SocPinmuxCoreResetBench extends SocExternalClockTest(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
   Paths.get("build/t24/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocProduction.config(realUsb=false))) {
   // Observe an actual MMIO acceptance, not private selector state.
@@ -14,7 +14,7 @@ class SocPinmuxCoreResetBench extends DeadhorseSoc(
   applied:=memory.peripheral.req && memory.peripheral.gnt && memory.peripheral.bits.we &&
     memory.peripheral.bits.addr==="h40012208".U
 }
-class SocPinmuxCoreResetSpec extends AnyFunSuite with ChiselSim {
+class SocPinmuxCoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t24/core-reset-simulation").toAbsolutePath
   }

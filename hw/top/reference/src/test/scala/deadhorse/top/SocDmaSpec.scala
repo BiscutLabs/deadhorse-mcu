@@ -18,6 +18,11 @@ class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),bypa
   val epochReady=config.watchdog.map(_=>IO(Output(Bool())))
   val watchdogReset=config.watchdog.map(_=>IO(Output(Bool())))
   val p=Module(new SocPeripheralBusTest(SocTestFiles.description,config))
+  // This focused fixture supplies continuous external clocks; clock-source
+  // policy is exercised by the production wrapper tests, not this bus driver.
+  p.pins.clockControl.reset_n:=true.B;p.pins.clockControl.coreIdle:=false.B
+  p.pins.clockControl.stable:=false.B;p.pins.clockControl.closed:=false.B
+  p.pins.clockControl.jtagWake:=false.B
   p.performanceDebugMode:=false.B;p.performanceReset_n:=false.B
   val whole=p.supervision.map(_.wholeReset).getOrElse(false.B)
   val performance=p.supervision.map(_.performanceReset).getOrElse(false.B)
@@ -48,7 +53,7 @@ class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),bypa
   irq:=p.fastIrq;hold:=p.mainHold;pwm:=p.pins.inactive.actuatorOut;pwmEnable:=p.pins.inactive.actuatorEnable
 }
 
-class SocDmaSpec extends AnyFunSuite with ChiselSim {
+class SocDmaSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t23/soc-simulation").toAbsolutePath
   }

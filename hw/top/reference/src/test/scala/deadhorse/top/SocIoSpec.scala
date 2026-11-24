@@ -6,7 +6,7 @@ import deadhorse.lib.LocalBus
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
-class SocIoSpec extends AnyFunSuite with ChiselSim {
+class SocIoSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t21/soc/simulation").toAbsolutePath
   }

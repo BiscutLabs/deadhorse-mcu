@@ -40,6 +40,14 @@ def main():
     if lock_bytes != (INSTALLED / 'lock.json').read_bytes():
         raise RuntimeError('image lock differs from repository; rebuild')
     lock = json.loads(lock_bytes)
+    patch_bytes=(ROOT/'tools/env/smtio-monotonic.json').read_bytes()
+    if patch_bytes!=(INSTALLED/'smtio-monotonic.json').read_bytes():
+        raise RuntimeError('Installed logging patch manifest differs; rebuild')
+    logging_patch=json.loads(patch_bytes)
+    for path,expected in ((Path(logging_patch['path']),logging_patch['patched_sha256']),
+                          (INSTALLED/'smtio-unpatched.py',logging_patch['source_sha256'])):
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=expected:
+            raise RuntimeError('SMT elapsed-time logging patch checksum mismatch')
     if sys.version_info[:2] != (3, 12): raise RuntimeError('Python 3.12 required')
     import tkinter
     import yaml
@@ -83,6 +91,7 @@ def main():
     source = out / 'smoke.c'; source.write_text('int answer(void) { return 42; }\n')
     run(['riscv64-unknown-elf-gcc', '-march=rv32imc', '-mabi=ilp32', '-c', str(source), '-o', str(out/'smoke.o')])
     receipt = {'status': 'pass', 'lock_sha256': hashlib.sha256(lock_bytes).hexdigest(),
+               'logging_patch':logging_patch,
                'python': sys.version, 'versions': versions, 'solver_controls': solver_status,
                'apt_sha256': hashlib.sha256(inventory.encode()).hexdigest(),
                'scope': 'Environment presence and smoke only; no Chisel project or hardware qualification'}

@@ -16,13 +16,16 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t20/i1/simulation").toAbsolutePath
   }
+  implicit val commonSettings: svsim.CommonSettingsModifications=SocDebugLint.settings(outputDirectory.getDirectory)
   def high(x: Bool): Boolean=x.peek().litToBoolean
   private var beforeMain: () => Unit=()=>()
   private var afterMain: () => Unit=()=>()
   private var aonPeriod=1
   private var sample=0
   def tick(d: SocI1Peripherals,n: Int=1): Unit=for(_<-0 until n) {
-    SocInactiveTestInputs.drive(d.pins.inactive,sample&65535)
+    // T32's live TAP is tested separately. Park TCK low/TMS high before
+    // applying this non-debug sweep; preserve every pad-safety assertion.
+    SocInactiveTestInputs.drive(d.pins.inactive,(sample&65535& ~48)|32)
     SocInactiveTestInputs.check(d.pins.inactive)
     beforeMain();d.mainClock.step();afterMain();sample+=1
     if(sample%aonPeriod==0) d.pins.aonClock.step()
@@ -85,7 +88,12 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
       }
       // These were stub apertures in I1; production exposes their registers.
       // Keep the error oracle on the reserved padding in each aperture.
-      val errors=Seq(0x40000400L,0x40011100L,0x40012300L,0x40013200L,0x40020000L,0x40020100L,0x4002fffcL,
+      // PLAN04/T33 assign children 0x400/0x500; child 0x600 remains reserved.
+      assert(good(d,d.pins.lite,0x40000408L)==512,"OSCILLATOR_CHILD_DEFAULT")
+      assert(access(d,d.main,0x40000408L)._2,"OSCILLATOR_CHILD_OWNER")
+      assert(good(d,d.pins.lite,0x4000050cL)==0,"POWER_THRESHOLD_DEFAULT")
+      assert(access(d,d.main,0x4000050cL)._2,"POWER_CHILD_OWNER")
+      val errors=Seq(0x40000600L,0x40011100L,0x40012300L,0x40013200L,0x40020000L,0x40020100L,0x4002fffcL,
         0x40030100L,0x40040000L,0x40040800L,0x60000000L,0x40010500L,0x40040900L,0xffffffffL)
       for(address<-errors;bus<-Seq(d.main,d.pins.lite)) {
         val(v,e,_)=access(d,bus,address);assert(e && v==0,s"I1_STUB_OR_HOLE $address")

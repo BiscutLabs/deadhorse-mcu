@@ -42,7 +42,7 @@ def main(output):
             run('emit-'+variant,[sys.executable,'tools/sbt.py',
                 f'hw/runMain deadhorse.top.EmitDebugSoc {emit.relative_to(ROOT)} {variant}'])
             run('compile-'+variant,[sys.executable,'dv/soc/debug/compile.py','--emitted',str(emit),'--output',str(folder/'sim')])
-            binary=folder/'sim/obj/VDeadhorseSoc'
+            binary=folder/'sim/obj/VSocExternalClockTest'
             cases=[('basic',False,1000000),('basic',True,1000000),('basic',False,32000),('reset',False,1000000),('errors',False,1000000),('independent_reset',False,1000000),('counters',False,1000000),('inflight_reset',False,1000000),('loader',False,1000000)] if variant=='correct' else [('basic',False,1000000)]
             for script,sleep,aon in cases:
                 label=script+('-sleep' if sleep else '')+('-aon32k' if aon==32000 else '')

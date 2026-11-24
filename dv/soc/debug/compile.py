@@ -17,14 +17,14 @@ def compile_sim(emitted,output):
     for name in ('remote_bitbang.cpp','compile.py'):
         shutil.copyfile(ROOT/'dv/soc/debug'/name,archive/name)
     cmd=['verilator','--cc','--exe','--build','--assert','-DENABLE_INITIAL_MEM_','-DENABLE_INITIAL_REG_',
-         '-j','4','-Wno-fatal','--top-module','DeadhorseSoc','--Mdir',str(output/'obj'),*map(str,sources)]
+         '-j','4','-Wno-fatal','--top-module','SocExternalClockTest','--Mdir',str(output/'obj'),*map(str,sources)]
     start=time.monotonic()
     with (output/'compile.log').open('w') as log:
         p=subprocess.run(cmd,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT)
     receipt.update(command=cmd,returncode=p.returncode,seconds=time.monotonic()-start)
     if p.returncode==0 and hashes()==receipt['source_sha256']:
         receipt['status']='compiled'
-        receipt['binary_sha256']=hashlib.sha256((output/'obj/VDeadhorseSoc').read_bytes()).hexdigest()
+        receipt['binary_sha256']=hashlib.sha256((output/'obj/VSocExternalClockTest').read_bytes()).hexdigest()
     else:receipt['status']='failed'
     (output/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
     return 0 if receipt['status']=='compiled' else 1

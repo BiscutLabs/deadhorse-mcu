@@ -6,7 +6,9 @@ import deadhorse.lib._
 import deadhorse.bus.{BusFabric,BusRegion}
 import deadhorse.bus_bridge.{BusBridge,DirectionPermit}
 import deadhorse.mailbox.Mailbox
-import deadhorse.uart.Uart
+import deadhorse.uart.{Uart,UartWake}
+import deadhorse.osc_ctrl.{OscCtrl,OscSleepTransfer}
+import deadhorse.power_reset.PowerReset
 import deadhorse.spi_host.SpiHost
 import deadhorse.i2c_host.I2cHost
 import deadhorse.i2c_recovery_loader.RecoveryLoader
@@ -272,9 +274,13 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   debugger.systemQuiet:=mainUp && !nativeArb.waiting.asUInt.orR &&
     !nativeArb.isolated.asUInt.orR && !mf.waiting.asUInt.orR && !mf.isolated.asUInt.orR &&
     !debugger.system.rvalid && !toAon.clockRequest && !toMain.targetClockHold
+  // Elaboration-only references for passive public-interface test monitors.
+  // These accessors add no hardware ports, wires or behavior.
+  private var constructedWatchdogs=Seq.empty[Watchdog]
+  def watchdogBlocks: Seq[Watchdog]=constructedWatchdogs
   val powerFabric=config.watchdog.map {json=>
     val regions=Seq(description.ioRegion("aon_timer"))++(0 until 2).map(description.watchdogRegion)++
-      config.bootControl.toSeq.map(_=>description.bootControlRegion)
+      config.bootControl.toSeq.map(_=>description.bootControlRegion)++Seq(description.oscControlRegion,description.powerResetRegion)
     val f=Module(new BusFabric(1,regions.map(r=>BusRegion(r.base,r.size,128))))
     f.clk:=pins.aonClock;f.reset_n:=aonUp
     f.allow.foreach(_:=true.B);f.admit.foreach(_:=true.B);f.quiescent.foreach(_:=false.B)
@@ -284,6 +290,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
       val w=Module(new Watchdog(json,description.watchdogRegion(index).base,description.origin(owner)))
       w.clk:=pins.aonClock;w.por_n:=coldUp;w.reset_n:=aonUp;w.bus<>f.target(index+1);w
     }
+    constructedWatchdogs=channels
     performanceHold:=channels(0).resetHold;wholeHold:=wholeWatchdogReset(channels(0).resetHold,channels(1).resetHold)
     watchdogWarning:=channels(0).warn
     watchdogDemand:=channels.map(w=>w.active || w.resetHold).reduce(_||_)
@@ -303,12 +310,38 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     }
     f
   }
+  val powerReset=Module(new PowerReset(config.powerReset,description.powerResetRegion.base))
+  powerReset.clk:=pins.aonClock;powerReset.reset_n:=aonUp
+  powerReset.bus<>powerFabric.get.target(5)
+  powerReset.causes:=Cat(resetCauses(1,0),pins.resetReason(2,0))
+  pins.clockControl.threshold:=powerReset.threshold
+  val oscillator=Module(new OscCtrl(config.oscCtrl,description.oscControlRegion.base))
+  oscillator.clk:=pins.aonClock
+  oscillator.reset_n:=aonUp && pins.clockControl.reset_n
+  val oscillatorPolicyUp=release(pins.aonClock,coldReset_n && warmReset_n && pins.clockControl.reset_n)
+  oscillator.epochReset_n:=oscillatorPolicyUp
+  // OscCtrl resynchronizes the stretched reset as retained-policy data and
+  // keeps MMIO closed until its synchronous configuration reset completes.
+  oscillator.bus<>powerFabric.get.target(4)
+  val oscillatorSafetyHold=WireDefault(false.B)
+  oscillator.mainHold:=oscillatorSafetyHold
+  oscillator.oscillatorHold:=pins.usbClockRequest
+  oscillator.coreIdle:=syncMain(pins.clockControl.coreIdle)
+  oscillator.gateClosed:=pins.clockControl.closed;oscillator.stable:=pins.clockControl.stable
+  pins.clockControl.oscillatorOn:=oscillator.oscillatorOn
+  pins.clockControl.gateRequest:=oscillator.gateRequest
+  pins.clockControl.authorized:=oscillator.authorized
+  pins.clockControl.qualify:=oscillator.qualify;pins.clockControl.count:=oscillator.count
+  pins.clockControl.fault:=oscillator.fault
   drain(af,powerFabric.toSeq,toAon,pins.aonClock,aonUp)
   gateway.master(0)<>mf.target(mainNames.indexOf("gateway"))
   stub(gateway.target(gatewayNames.indexOf("gateway_reserved")),mainClock,mainUp)
   val qspiHold=WireDefault(false.B)
+  private var constructedQspi=Option.empty[Qspi]
+  def qspiBlock: Option[Qspi]=constructedQspi
   config.qspi.foreach {json=>
     val flash=Module(new Qspi(json,description.qspiRegion.base,withXip=true))
+    constructedQspi=Some(flash)
     flash.clk:=mainClock;flash.reset_n:=qspiServiceReset(mainUp,aonUp);flash.bus<>serial.target(serialNames.indexOf("qspi_control"))
     flash.dqIn:=pins.inactive.qspiDqIn
     pins.inactive.qspiDqOut:=flash.dqOut;pins.inactive.qspiDqEnable:=flash.dqEnable
@@ -337,6 +370,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     stub(af.target(aonNames.indexOf(n)),pins.aonClock,aonUp)
   val ioMainHold=WireDefault(false.B);val ioAonHold=WireDefault(false.B)
   val ioWake=WireDefault(false.B);val ioAonIrq=WireDefault(false.B)
+  val timerWake=WireDefault(false.B);val gpioWake=WireDefault(false.B)
   val gpioIrq=WireDefault(false.B);val timerIrq=WireDefault(false.B)
   val timeNow=WireDefault(pins.spiTimeNow)
   config.io.foreach { c =>
@@ -360,6 +394,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     ioMainHold:=gpio.clockHold || timers.clockHold || ioFabric.get.waiting.asUInt.orR
     ioAonHold:=aonTimer.clockHold
     ioWake:=aonTimer.wake || gpio.wake
+    timerWake:=aonTimer.wake;gpioWake:=gpio.wake
     ioAonIrq:=aonTimer.irq || gpio.wake
   }
   config.pinmux.foreach {json=>
@@ -376,11 +411,22 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
   pins.aonIrq:=withClockAndReset(pins.aonClock,(!aonUp).asAsyncReset) {
     RegNext(mailbox.irq(0) || ioAonIrq,false.B)
   }
+  val uartSleep=Module(new OscSleepTransfer)
+  uartSleep.aon:=pins.aonClock;uartSleep.main:=mainClock
+  uartSleep.aonReset_n:=aonUp;uartSleep.mainReset_n:=mainUp
+  uartSleep.requested:=oscillator.sleepPreparing;uartSleep.modes:=oscillator.uartModes
+  val uartWake=(0 until 3).map {i=>
+    val monitor=Module(new UartWake)
+    monitor.clk:=pins.aonClock;monitor.reset_n:=controllerUp
+    monitor.rx:=(if(i==0) uartRx else pins.uartRx(i-1))
+    monitor.invert:=oscillator.uartPolarity(i);monitor.armed:=oscillator.uartWakeArmed(i)
+    monitor.clear:=oscillator.wakeClear;monitor.wake
+  }
   val uarts=(0 until 3).map { i =>
     val name=s"uart$i";val u=Module(new Uart(config.uart,base=description.region(name).base))
     u.clk:=mainClock;u.reset_n:=mainUp;u.owner:=description.origin("performance").U
     u.bus<>serial.target(serialNames.indexOf(name));u.rx:=(if(i==0) uartRx else pins.uartRx(i-1))
-    u.sleepRequest:=false.B;u.sleepMode:=0.U
+    u.sleepRequest:=uartSleep.applied;u.sleepMode:=uartSleep.appliedModes(2*i+1,2*i)
     if(i==0) {uartTx:=u.tx;uartTxEnable:=u.txEnable}
     else {pins.uartTx(i-1):=u.tx;pins.uartTxEnable(i-1):=u.txEnable}
     u
@@ -490,6 +536,10 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config) extends
     wake
   }
   pins.loaderWake:=loaderWake
+  oscillator.wake:=Cat(debugWake || pins.clockControl.jtagWake,mailbox.wakePeer(0),
+    pins.usbWake,VecInit(uartWake).asUInt,gpioWake,timerWake)
+  oscillatorSafetyHold:= !uartSleep.settled || fromMain || toMain.clockRequest || mailbox.wakePeer(0) ||
+    watchdogWarning || performanceHold || wholeHold || debugWake || leaf.clockRequest || debugActiveAon
   withClockAndReset(pins.aonClock,(!coldUp).asAsyncReset) {
     pins.mainDemand:=RegNext(fromMain || toMain.clockRequest || mailbox.wakePeer(0) || pins.usbWake || ioWake ||
       watchdogWarning || performanceHold || wholeHold || debugWake || leaf.clockRequest || debugActiveAon,false.B)

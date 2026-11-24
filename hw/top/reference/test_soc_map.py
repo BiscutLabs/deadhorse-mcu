@@ -25,10 +25,17 @@ class SocMapTests(unittest.TestCase):
             'duplicate origin': lambda m: m['masters']['lite'].update(origin=1),
             'boolean origin': lambda m: m['masters']['lite'].update(origin=False),
             'duplicate region': lambda m: m['regions'].append(copy.deepcopy(region(m))),
-            'overlap': lambda m: m['regions'][1].update(base=0),
+            'overlap': lambda m: m['regions'][1].update(base=0x10000),
             'wrap': lambda m: region(m).update(base=0xfffffffc),
             'unaligned': lambda m: region(m).update(base=2),
             'unknown clock': lambda m: region(m).update(domains=['missing']),
+            'main wrong divider rate': lambda m: m['clocks']['main'].update(hz=[9000000]),
+            'main wrong source': lambda m: m['clocks']['main'].update(source='external_test_input'),
+            'USB divided source': lambda m: m['clocks']['usb'].update(source='osc_in_div6'),
+            'AON fast service': lambda m: m['clocks']['aon'].update(hz=[1000000]),
+            'oscillator reset off': lambda m: m['pins']['osc_en'].update(safe='disabled'),
+            'missing dedicated clock': lambda m: m['pins']['osc_in'].pop('pad_class'),
+            'hide input in dedicated pad': lambda m: m['pins']['aon_clk_in'].update(pad_class='dedicated_clock'),
             'unknown reset': lambda m: region(m).update(reset='missing'),
             'watchdog scope': lambda m: m['watchdog'].update(reset='main_service'),
             'watchdog owner': lambda m: m['watchdog'].update(owners=['lite','performance']),
@@ -37,6 +44,12 @@ class SocMapTests(unittest.TestCase):
             'boot scope': lambda m: m['boot_control'].update(reset='aon_service'),
             'boot owner': lambda m: m['boot_control'].update(owner='performance'),
             'boot overlap': lambda m: m['boot_control'].update(offset=512),
+            'power reset owner': lambda m: m['power_reset'].update(owner='performance'),
+            'power reset overlap': lambda m: m['power_reset'].update(offset=1024),
+            'power reset main domain': lambda m: m['power_reset'].update(clock='main'),
+            'oscillator owner': lambda m: m['osc_ctrl'].update(owner='performance'),
+            'oscillator overlap': lambda m: m['osc_ctrl'].update(offset=768),
+            'oscillator main reset': lambda m: m['osc_ctrl'].update(reset='main_service'),
             'qspi scope': lambda m: m['qspi'].update(reset='main_core'),
             'qspi owner': lambda m: m['qspi'].update(reset_owner='performance'),
             'PWM reset mismatch': lambda m: m['pwm'].update(reset='warm'),
@@ -108,7 +121,7 @@ class SocMapTests(unittest.TestCase):
         self.assertEqual(table['pending'], 0x4003000c)
 
     def test_pin_accounting_counts_simultaneous_interfaces_without_sharing(self):
-        self.assertEqual(soc.pin_usage(self.model), {'bidirectional': 38, 'input_only': 9})
+        self.assertEqual(soc.pin_usage(self.model), {'bidirectional': 39, 'input_only': 12})
         for direction, bucket in [('input', 'input_only'), ('output', 'bidirectional'),
                                   ('bidirectional', 'bidirectional'), ('open_drain', 'bidirectional')]:
             model=copy.deepcopy(self.model)
@@ -117,9 +130,9 @@ class SocMapTests(unittest.TestCase):
 
     def test_direction_contract_rejects_a_fault_that_still_fits_both_capacities(self):
         model=copy.deepcopy(self.model)
-        model['pins']['qspi_sclk'].update(direction='input', safe='input')
-        self.assertEqual(soc.pin_usage(model), {'bidirectional': 37, 'input_only': 10})
-        with self.assertRaisesRegex(ValueError, 'Logical pin contract differs: qspi_sclk'):
+        model['pins']['spi_miso'].update(direction='output', safe='disabled')
+        self.assertEqual(soc.pin_usage(model), {'bidirectional': 40, 'input_only': 11})
+        with self.assertRaisesRegex(ValueError, 'Logical pin contract differs: spi_miso'):
             soc.validate(model)
 
     def test_xip_binding_rejects_reset_or_owner_drift(self):
@@ -131,6 +144,12 @@ class SocMapTests(unittest.TestCase):
     def test_duplicate_yaml_keys_are_rejected(self):
         with self.assertRaises(ValueError):
             yaml.load('schema: 1\nschema: 2\n', Loader=soc.UniqueLoader)
+
+    def test_reset_strap_contract_is_not_silently_changed(self):
+        for pin,mode in [('por_bypass','reset_sampled'),('aon_clk_sel','static_powered')]:
+            model=copy.deepcopy(self.model);model['pins'][pin]['strap']=mode
+            with self.assertRaisesRegex(ValueError,'Strap contract differs'):
+                soc.validate(model)
 
     def test_interrupt_contract_drift_is_rejected(self):
         self.model['interrupts']['uart0'] = 13

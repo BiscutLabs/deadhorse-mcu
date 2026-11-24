@@ -1,0 +1,41 @@
+block: osc_ctrl
+description: AON external oscillator startup and sleep control
+data_width: 32
+address_width: 8
+registers:
+  - name: sleep
+    offset: 0x00
+    fields: [{name: request, bits: 0, access: w1p}]
+  - name: wake_enable
+    offset: 0x04
+    fields: [{name: sources, bits: [7, 0], access: rw, reset: 0}]
+  - name: startup_delay
+    offset: 0x08
+    fields: [{name: ticks, bits: [15, 0], access: rw, reset: 512}]
+  - name: stable_count
+    offset: 0x0c
+    fields: [{name: edges, bits: [15, 0], access: rw, reset: 256}]
+  - name: status
+    offset: 0x10
+    fields:
+      - {name: state, bits: [1, 0], access: ro}
+      - {name: oscillator_on, bits: 2, access: ro}
+      - {name: gate_requested, bits: 3, access: ro}
+  - name: events
+    offset: 0x14
+    fields: [{name: startup_fault, bits: 0, access: w1c, reset: 0}]
+  - name: last_wake
+    offset: 0x18
+    fields: [{name: sources, bits: [7, 0], access: ro}]
+  - name: policy
+    offset: 0x1c
+    fields: [{name: deep, bits: 0, access: rw, reset: 0}]
+  - name: uart_polarity
+    offset: 0x20
+    fields: [{name: inverted, bits: [2, 0], access: rw, reset: 0}]
+  - name: uart_mode
+    offset: 0x24
+    fields: [{name: modes, bits: [5, 0], access: rw, reset: 0}]
+  - name: startup_timeout
+    offset: 0x28
+    fields: [{name: ticks, bits: [15, 0], access: rw, reset: 4096}]

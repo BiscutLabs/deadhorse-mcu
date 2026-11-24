@@ -38,7 +38,7 @@ class SocI1ResetBench extends RawModule {
   accepted:=d.accepted;dispatched:=d.dispatched
 }
 
-class SocI1ResetSpec extends AnyFunSuite with ChiselSim {
+class SocI1ResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t20/i1/reset-simulation").toAbsolutePath
   }

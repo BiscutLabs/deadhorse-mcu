@@ -10,6 +10,8 @@ COPY tools/env/lock.json /opt/deadhorse-env/
 RUN python3.12 -c "import json, subprocess; p=json.load(open('/opt/deadhorse-env/lock.json'))['apt_packages']; subprocess.run(['apt-get','install','-y','--no-install-recommends',*p],check=True)"
 COPY tools/env/install.py /opt/deadhorse-env/
 RUN --mount=type=cache,target=/opt/downloads python3.12 /opt/deadhorse-env/install.py
+COPY tools/env/patch_smtio.py tools/env/smtio-monotonic.json /opt/deadhorse-env/
+RUN python3.12 /opt/deadhorse-env/patch_smtio.py
 COPY tools/env/entrypoint.py tools/env/check.py /opt/deadhorse-env/
 # Prefer Ubuntu Python (3.12 + tkinter); use OSS CAD's own wrappers for its tools.
 ENV PATH="/opt/yowasp/bin:/opt/openocd/bin:/opt/opensta/bin:/opt/firtool/bin:/opt/sbt/bin:/opt/oss-cad-suite/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"

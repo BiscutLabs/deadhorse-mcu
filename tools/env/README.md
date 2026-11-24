@@ -40,6 +40,13 @@ primary artifacts are checksum pinned, but the full transitive sbt build,
 Chisel elaboration, simulation/formal integration and compatibility qualification
 belong to T07. Version checks do not prove hardware correctness or GF180 timing.
 
+`smtio-monotonic.json` pins a logging-only patch to the archived Yosys Python
+helper. Its elapsed timestamp uses a monotonic clock so a backward host clock
+step cannot hide solver status from SBY. The original and patched file hashes
+are checked at build and runtime. Solver behavior, status parsing, bounds and
+timeouts are unchanged. Tests inject a backward wall-clock step and retain the
+unpatched timestamp as a negative control.
+
 The locked OSS CAD release supplies Icarus 14 development and native Yosys
 0.71+34; these differ from the historical Icarus 13/Yosys 0.33 measurements.
 Ubuntu's historical Yosys is also available explicitly as `/usr/bin/yosys`.

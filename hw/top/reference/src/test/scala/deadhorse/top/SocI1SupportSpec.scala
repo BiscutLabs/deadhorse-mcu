@@ -6,7 +6,7 @@ import chisel3.testing.HasTestingDirectory
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
-class SocI1SupportSpec extends AnyFunSuite with ChiselSim {
+class SocI1SupportSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t20/i1/support-simulation").toAbsolutePath
   }

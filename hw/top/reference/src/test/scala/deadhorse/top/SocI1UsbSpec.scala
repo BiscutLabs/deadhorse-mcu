@@ -46,7 +46,7 @@ class SocI1UsbBench extends Module with UsbWirePorts {
   txReady:=false.B;rxData:=0.U;rxValid:=false.B;configured:=false.B
 }
 
-class SocI1UsbSpec extends AnyFunSuite with ChiselSim {
+class SocI1UsbSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t20/i1/usb-wire-simulation").toAbsolutePath
   }

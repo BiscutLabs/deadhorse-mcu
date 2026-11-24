@@ -37,7 +37,7 @@ def main():
         commands=[sys.executable,'tools/sbt.py']
         for mhz in (8,9):
             for usb in ('stub','usb'):
-                commands.append(f'hw/runMain deadhorse.top.EmitSoc {out.relative_to(ROOT)}/soc-{mhz}-{usb} {"production" if usb=="usb" else "usb-stub-test"} {mhz}')
+                commands.append(f'hw/runMain deadhorse.top.EmitSocExternalClockTest {out.relative_to(ROOT)}/soc-{mhz}-{usb} {"production" if usb=="usb" else "usb-stub-test"} {mhz}')
         run(commands,'whole-soc')
         run([sys.executable,'hw/ip/watchdog/formal/check.py','--output',str(out.relative_to(ROOT)/'output-formal'),'--cases','break','pad'],'output-formal')
         run([sys.executable,'hw/ip/watchdog/check_timing.py','--output',str(out.relative_to(ROOT)/'timing')],'timing')

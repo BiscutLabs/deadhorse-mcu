@@ -6,7 +6,7 @@ import deadhorse.lib.LocalBus
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
-class SocDmaMemorySpec extends AnyFunSuite with ChiselSim {
+class SocDmaMemorySpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t23/memory-simulation").toAbsolutePath
   }

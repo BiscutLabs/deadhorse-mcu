@@ -27,7 +27,44 @@ clocked design that relies on clock gating for its power modes and on scan
 for production test needs both, so the approved choice is
 `gf180mcu_fd_sc_mcu7t5v0`, subject to the shuttle accepting it at 3.3 V.
 
-## T32 provisional physical-boundary budget: within ceiling
+## PLAN04 mapped estimate and remaining allowances
+
+D78/D79 remove the internal HF macro. Replace the former assumed 0.50 mm2
+analog allowance with assumed 0.10 mm2 LF RC plus 0.15 mm2 POR/brownout.
+Fresh production mapping on `2c33976` plus receipt-hashed PLAN04 sources gives
+the following estimate. Commands (pinned environment):
+`python hw/top/reference/measurements/plan04_map.py --base build/plan04/production-timing12 --usb-reference build/t32/timing-fast01/fast/usb/timing/usb --stability-reference build/plan04/digital-timing06/stability`,
+then `plan04_area.py --base build/plan04/production-timing12` and
+`plan04_budget.py --base build/plan04/production-timing12` in the same directory.
+The method and double-counting boundary were independently reviewed; final
+review of this refreshed snapshot remains part of PLAN04 acceptance.
+
+| Item | Area, mm2 | Provenance |
+| --- | ---: | --- |
+| Built production digital logic | 3.539272666 | Measured, mapped pre-layout, no wires; includes PLAN04 and debug |
+| Scan-cell substitution | 0.419276614 | Estimated from measured 21,221 flops and library areas; two negative-edge cells require T37 qualification |
+| Remaining clock/reset/power allowance | 0.034947443 | Estimated: original .10 minus isolated built logic .056339808 and its scan estimate .008712749 |
+| ROM, BIST and scan glue | 0.600000000 | Assumed: .50 + .05 + .05, unchanged |
+| Digital subtotal at .55 utilization | 8.351812224 | Estimated sum of digital rows / assumed .55 |
+| Performance and retained SRAM | 3.108271060 | Estimated pinned macro footprints, unchanged 16 + 4 macros |
+| LF RC, POR/brownout, pad keepout, SRAM halo/glue | 1.150000000 | Assumed: .10 + .15 + .50 + .40 |
+| Total | **12.610083284** | Estimated, not physical fit |
+| Headroom against 12.92 | **0.309916716** | Estimated: ceiling minus total |
+
+The isolated controller cost reduces the original allowance; it is not added
+again to whole-top mapped area. Isolated-to-integrated optimization differences
+mean the remaining T33 allowance is an estimate, not an exact area partition.
+Clock-tree synthesis, routing and actual macro placement remain unqualified.
+Raw pulse-width diagnostics include negative slack from unbuffered clock gates
+driving thousands of loads outside characterized slew/load ranges; these are
+retained physical-flow issues, not passing clock checks.
+
+Estimated pad demand becomes 39 output-capable and 12 input-only functions
+against assumed 40/12 capacities: add OSC_EN and AON_CLK_IN/AON_CLK_SEL/
+POR_BYPASS. OSC_IN reuses the dedicated clock pad. Pad placement, ESD, supply
+pads and electrical qualification remain T38 work.
+
+## T32 provisional physical-boundary budget: before PLAN04 allowance update
 
 T32's uncommitted production integration on main `9b80375` replaces the assumed
 JTAG allowance with measured whole-top logic. The same PLAN03 mapping method
@@ -139,16 +176,15 @@ and analog process options before treating historical Coldfoot data as qualified
 | Macro | Starting point | Work |
 | --- | --- | --- |
 | LF oscillator, 32 kHz, trimmable | RISCay schematic (7.7 Hz) | Redesign, trim DAC, layout, extraction, mismatch and noise, corner campaign |
-| HF reference, trimmable, restartable | RISCay schematic | Trim DAC, layout, extraction, glitch-free stop and start at the extracted level, duty cycle and jitter (it is now the main clock) |
-| Supply monitor and reset hold | RISCay schematic | Selectable thresholds with safe hardware default, hysteresis, qualified release, layout/extraction, slow ramps, mismatch and test access; no separate early-warning detector |
-| External clock fallback | Dedicated clock pad | Divider, glitch-free source selection and switching qualification; no LF crystal driver required |
+| POR/brownout and reset hold | RISCay schematic | Assumed 0.15 mm2 allowance; selectable thresholds with safe hardware default, hysteresis, qualified release, layout/extraction, slow ramps, mismatch and test access; no separate early-warning detector |
+| External OSC_IN and AON fallback | Dedicated OSC_IN plus AON_CLK_IN pad | Registered /6 main, reset-held AON selection and shared ICG qualification; no internal HF macro or LF crystal driver |
 | USB pad arrangement | Standard 3.3 V bidirectional pads with external series resistors and pull-up | With the USB implementer: validate drive, slew and input thresholds against the full-speed electrical spec |
 | Pad ring, ESD, power pads | Coldfoot's wafer.space ring | Re-assign per the pad budget |
 
-The clockless plan's mutex, C-elements and matched-delay cells are no longer
-needed. One new demand appears: the HF oscillator is now a clock source for
-synchronous logic, so its duty cycle and cycle-to-cycle jitter enter timing
-closure.
+LF RC has an assumed 0.10 mm2 allowance. The external oscillator's duty cycle
+and cycle-to-cycle jitter enter timing closure, including the generated main
+clock. Characterize the actual board part and pad path; no internal HF analog
+deliverable remains in this tapeout.
 
 RISCay's LF design requires the GF180 high-resistance poly option. Confirm the
 shuttle includes it before investing in the redesign (open question Q5).
@@ -193,7 +229,7 @@ Keep control-loop publication separate from each channel's frame boundary.
 | IMU frame read | Under 150 microseconds |
 | UART receive service before FIFO overflow at 921,600 baud | 16 bytes, about 170 microseconds |
 | Interrupt latency, pin to first handler instruction | Under 50 microseconds |
-| Wake from deep sleep to first main-domain instruction | Under 200 microseconds |
+| Wake from oscillator-off sleep | External startup plus AON delay/stability count and CDC/release, milliseconds under D78; plan06 assumptions, not the former 200 microsecond target |
 
 ## Production test (R-PHY-4)
 

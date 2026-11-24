@@ -19,7 +19,7 @@ object SocTestFiles {
   }
 }
 
-class SocMemorySpec extends AnyFunSuite with ChiselSim {
+class SocMemorySpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   // ChiselSim otherwise randomizes memories after $readmemh, overwriting ROM.
   // RAM comparisons only follow explicit writes; formal RAM remains arbitrary.
   private val settings = Settings.defaultRaw[SocLocalMemory].copy(

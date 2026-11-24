@@ -12,7 +12,7 @@ checkpoints; current progress and evidence live only in STATUS.
 | PLAN01 | [Decision reconciliation](PLAN01-reconcile.md) | User approval conversation | Assigned documentation work |
 | PLAN02 | [General-purpose MCU scope](PLAN02-general-mcu.md) | User decision D69 | Documentation only; no CI or RTL changes |
 | PLAN03 | [SoC consolidation and tape-out planning](PLAN03-soc-consolidation.md) | User decisions D72–D76 | Assigned on main; ordered B1–B6; no new peripheral RTL |
-| PLAN04 | [Tapeout clock/reset architecture](PLAN04-clock-reset.md) | D78/D79; production clock/wake/reset contracts | Assigned on main; acceptance unverified; implementation subset of T33 |
+| PLAN04 | [Tapeout clock/reset architecture](PLAN04-clock-reset.md) | D78/D79/D81/D82; production clock/wake/reset contracts | Assigned on main; acceptance unverified; oscillator control and POR subset of T33 |
 | T08 | [Pinned Linux environment](T08-environment.md) | None | Brief ready; commands not yet run |
 | T01 | [Scaffold and CI](T01-scaffold.md) | T08 | After pinned environment |
 | T02 | [Historical flight-loop CI](T02-flight-loop-ci.md) | T01, T08 | Historical workload only |
@@ -46,8 +46,8 @@ checkpoints; current progress and evidence live only in STATUS.
 | T30 | [Native QSPI read path](T30-qspi-xip.md) | Plans03/07, T29 interfaces | Continued RTL; reviewed native read/arbitration contract; no CI |
 | T31 | [Retained locked-image restart](T31-retained-loader-restart.md) | D73 | Withdrawn; recovery loader frozen, no extension without a new decision |
 | T32 | [Two-hart JTAG debug](T32-jtag-debug.md) | PLAN03; T33 interface coordination | Unimplemented; acceptance unverified |
-| T33 | [Clock/reset/power controller](T33-clock-reset-power.md) | PLAN03; T32/T34 interface coordination | Unimplemented; acceptance unverified |
-| T34 | [Analog interfaces/models](T34-analog-models.md) | PLAN03 | Unimplemented; acceptance unverified |
+| T33 | [Clock/reset/power controller](T33-clock-reset-power.md) | PLAN04; T32/T34 interface coordination | Remaining full reset sequencing/reason, threshold selection and retained sleep beyond PLAN04; acceptance unverified |
+| T34 | [Analog interfaces/models](T34-analog-models.md) | PLAN04 interfaces | LF RC plus POR/brownout only; no internal HF; acceptance unverified |
 | T35 | [SRAM macros and BIST](T35-sram-bist.md) | T32/T33 completed; coordinate T36 | Unimplemented; acceptance unverified |
 | T36 | [Production boot ROM](T36-boot-rom.md) | T32/T33 completed; coordinate T35 | Unverified acceptance; boot-path contract prerequisite |
 | T37 | [Test mode and scan](T37-test-scan.md) | T35/T36; coordinate T38 | Unimplemented; acceptance unverified |

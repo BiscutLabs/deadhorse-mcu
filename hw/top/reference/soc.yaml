@@ -1,11 +1,11 @@
 schema: 1
 name: deadhorse_soc
-# One production configuration (D72); clock source and pad freeze remain open.
+# One production configuration (D72/D78); physical pad freeze remains open.
 clocks:
-  main: {hz: [8000000, 9000000], source: external_test_input}
-  aon: {hz: [32000, 1000000], source: external_test_input}
+  main: {hz: [8000000], source: osc_in_div6}
+  aon: {hz: [32000], source: lf_rc_or_reset_strap}
   tck: {hz: [100000], source: external_test_input}
-  usb: {hz: [48000000], source: external_test_input}
+  usb: {hz: [48000000], source: osc_in}
 resets: [cold, warm, main_core, main_service, aon_service, usb_service]
 masters:
   lite: {origin: 0, implementation: real}
@@ -64,6 +64,11 @@ flight_io:
 pin_budget: {bidirectional: 40, input_only: 12}
 # Logical simultaneous production functions; outputs disabled at reset.
 pins:
+  osc_in: {width: 1, direction: input, clock: usb, safe: input, pad_class: dedicated_clock}
+  osc_en: {width: 1, direction: output, clock: aon, safe: high}
+  aon_clk_in: {width: 1, direction: input, clock: aon, safe: input}
+  aon_clk_sel: {width: 1, direction: input, clock: aon, safe: input, strap: reset_sampled}
+  por_bypass: {width: 1, direction: input, clock: aon, safe: input, strap: static_powered}
   gpio: {width: 3, direction: bidirectional, clock: main, safe: disabled}
   timer: {width: 4, direction: bidirectional, clock: main, safe: disabled}
   # T32 TAP clock is external; its DMI transport uses shared CDC.
@@ -108,6 +113,24 @@ boot_control:
   reset: whole_epoch
   owner: lite
   regmap: hw/ip/boot_control/boot_control.regmap.yaml
+
+power_reset:
+  parent: power_reset_timer
+  offset: 1280
+  size: 256
+  clock: aon
+  reset: aon_service
+  owner: lite
+  regmap: hw/ip/power_reset/power_reset.regmap.yaml
+
+osc_ctrl:
+  parent: power_reset_timer
+  offset: 1024
+  size: 256
+  clock: aon
+  reset: whole_epoch
+  owner: lite
+  regmap: hw/ip/osc_ctrl/osc_ctrl.regmap.yaml
 
 # Shared command and native XIP controller.
 qspi:

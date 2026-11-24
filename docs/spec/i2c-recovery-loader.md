@@ -92,6 +92,11 @@ The address-only wake probe is captured by the external AON wake controller.
 
 ## Clock, wake and reset
 
+D83 exception for first-silicon POR_BYPASS mode: external pin reset is cold
+and clears the programming lock along with other cold-only chip state. Normal
+mode retains the warm-pin lock policy below; watchdog containment is unchanged.
+The loader RTL is unchanged; the production reset controller selects the cohort.
+
 The pinned ClockedFabric samples the wire on an ungated front clock and asserts
 that the phase-related work clock is running at frame or read-bank capture.
 Use one qualified active service clock for the adopted endpoint, with the
@@ -100,6 +105,17 @@ eight service edges per SCL period and never stretches SCL. Its default idle
 limit is 262144 service edges with no observed transition during an active
 transfer. On timeout release SDA and discard the partial transaction. The
 integration must keep the service clock running until active work drains.
+PLAN04/D82 binds this service directly to nominal 32 kHz AON with no fast
+service mode. The host must limit SCL to the minimum qualified AON frequency
+divided by eight. Estimated nominal ceiling: 32000 / 8 = 4000 Hz. If the
+assumed -5% RC limit is qualified, the corresponding estimated ceiling is
+3800 Hz; until characterization this is not a guaranteed limit. The fallback
+external AON clock obeys the same ratio. No loader RTL, assertion, timeout or
+clock-stretching behavior changes. Recovery remains accessible while OSC_EN
+is low, because this target never depends on OSC_IN.
+
+The following stopped-HF probe description is historical upstream context,
+not a requirement to stop or restart the production loader's AON clock:
 For a stopped HF source the programmer sends START, the write address 0x35
 and STOP with no opcode or data. Either ACK or NACK is valid on that probe,
 which must leave the image and lock untouched. The programmer waits the

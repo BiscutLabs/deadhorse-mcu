@@ -7,6 +7,17 @@ from tools.timing.check import CONFIG, timing_config, mapping_target_ps, validat
 
 
 class UsbBoundaryTests(unittest.TestCase):
+    def test_gate_inputs_require_dynamic_checks_or_known_static_ties(self):
+        from tools.timing.check import clock_gate_inputs
+        module={'cells':{'gate':{'type':'gf180mcu_fd_sc_mcu7t5v0__icgtp_1',
+            'connections':{'E':[3],'TE':['0']}}}}
+        self.assertEqual(clock_gate_inputs(module),(['gate/E'],{'gate/TE':0}))
+        module['cells']['gate']['connections']['TE']=[4]
+        self.assertEqual(clock_gate_inputs(module),(['gate/E','gate/TE'],{}))
+        for bits in ([],['x'],['z'],[3,4]):
+            module['cells']['gate']['connections']['TE']=bits
+            with self.assertRaises(ValueError):clock_gate_inputs(module)
+
     def test_liberty_envelope_interpolation_and_out_of_range_rejection(self):
         from tools.timing.usb_boundary import table_range
         body='index_1("0, 2"); index_2("0, 2"); values("1, 3", "5, 7");'
@@ -206,7 +217,9 @@ class OperatingPointTests(unittest.TestCase):
         self.assertEqual(timing_config(), original)
         for point, period, budget in (('main-12mhz', 1000 / 12, 50),
                                       ('main-9p6mhz', 1000 / 9.6, 62.5),
-                                      ('main-9mhz', 1000 / 9, 200 / 3)):
+                                      ('main-9mhz', 1000 / 9, 200 / 3),
+                                      ('main-8mhz', 125, 75),
+                                      ('aon-32khz', 31250, 18750)):
             with self.subTest(point=point):
                 trial = timing_config(point)
                 self.assertAlmostEqual(trial['period_ns'], period)

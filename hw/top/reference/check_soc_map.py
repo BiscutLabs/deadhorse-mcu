@@ -13,6 +13,8 @@ from hw.regmap.regmap import UniqueLoader, load as load_regmap
 # Independent logical-function inventory from the reviewed T20 pin contract.
 # Keeping this closed prevents a smaller/omitted interface from faking a fit.
 PIN_CONTRACT = {
+    'osc_in': (1, 'input'), 'osc_en': (1, 'output'),
+    'aon_clk_in': (1, 'input'), 'aon_clk_sel': (1, 'input'), 'por_bypass': (1, 'input'),
     'uart_tx': (3, 'output'), 'uart_rx': (3, 'input'),
     'spi_sclk': (1, 'output'), 'spi_mosi': (1, 'output'),
     'spi_miso': (1, 'input'), 'spi_cs_n': (2, 'output'), 'imu_drdy': (1, 'input'),
@@ -44,13 +46,17 @@ def name(value):
 
 
 def validate(data):
-    keys(data, ('schema', 'name', 'clocks', 'resets', 'masters', 'regions', 'interrupts', 'pins', 'pin_budget', 'groups', 'fabrics', 'flight_io', 'pwm', 'dma', 'pinmux', 'watchdog', 'boot_control', 'qspi', 'qspi_xip'))
+    keys(data, ('schema', 'name', 'clocks', 'resets', 'masters', 'regions', 'interrupts', 'pins', 'pin_budget', 'groups', 'fabrics', 'flight_io', 'pwm', 'dma', 'pinmux', 'watchdog', 'boot_control', 'osc_ctrl', 'power_reset', 'qspi', 'qspi_xip'))
     check(type(data['schema']) is int and data['schema'] == 1, 'Unsupported schema')
     name(data['name'])
     check(isinstance(data['clocks'], dict) and data['clocks'], 'Missing clocks')
     for n, c in data['clocks'].items():
         name(n); keys(c, ('hz', 'source'))
-        check(c['source'] == 'external_test_input', 'Unimplemented clock source')
+        expected = {'main': ('osc_in_div6', [8000000]),
+                    'aon': ('lf_rc_or_reset_strap', [32000]),
+                    'usb': ('osc_in', [48000000]),
+                    'tck': ('external_test_input', [100000])}
+        check(n in expected and (c['source'], c['hz']) == expected[n], 'Clock source/rate differs from D78 contract')
         check(isinstance(c['hz'], list) and c['hz'] and
               all(number(h, 1, 100000000) for h in c['hz']), 'Invalid frequency')
     check(isinstance(data['resets'], list) and data['resets'], 'Missing resets')
@@ -153,6 +159,23 @@ def validate(data):
         check(parent is not None and parent['home']=='aon' and p['offset']+p['size']<=parent['size'],
               'Boot control exceeds AON parent')
         check(1 << load_regmap(ROOT/p['regmap'])['address_width'] == p['size'], 'Boot control regmap width differs')
+    if 'osc_ctrl' in data:
+        p = data['osc_ctrl']
+        check(p == dict(parent='power_reset_timer', offset=1024, size=256, clock='aon',
+                        reset='whole_epoch', owner='lite', regmap='hw/ip/osc_ctrl/osc_ctrl.regmap.yaml'),
+              'Oscillator controller binding differs from PLAN04')
+        check(1 << load_regmap(ROOT / p['regmap'])['address_width'] == p['size'],
+              'Oscillator controller regmap width differs')
+    if 'power_reset' in data:
+        p = data['power_reset']
+        check(p == dict(parent='power_reset_timer', offset=1280, size=256, clock='aon',
+                        reset='aon_service', owner='lite', regmap='hw/ip/power_reset/power_reset.regmap.yaml'),
+              'Power/reset controller binding differs from T33')
+        check('osc_ctrl' in data and 'watchdog' in data, 'Power/reset requires production causes and clock control')
+        parent = next(r for r in data['regions'] if r['name'] == p['parent'])
+        check(p['offset'] + p['size'] <= parent['size'], 'Power/reset exceeds AON parent')
+        check(1 << load_regmap(ROOT / p['regmap'])['address_width'] == p['size'],
+              'Power/reset regmap width differs')
     if 'qspi' in data:
         p=data['qspi']
         check(p==dict(region='qspi_control',clock='main',reset='main_service',reset_owner='lite',
@@ -242,12 +265,16 @@ def validate(data):
     check(set(data['interrupts']) <= seen, 'Interrupt source missing')
     check(isinstance(data['pins'], dict) and data['pins'], 'Missing pins')
     for n, p in data['pins'].items():
-        name(n); keys(p, ('width', 'direction', 'clock', 'safe'))
+        name(n); keys(p, ('width', 'direction', 'clock', 'safe'), ('pad_class', 'strap'))
+        check(p.get('strap') == {'aon_clk_sel': 'reset_sampled', 'por_bypass': 'static_powered'}.get(n),
+              'Strap contract differs from D84')
+        check(p.get('pad_class') == ('dedicated_clock' if n == 'osc_in' else None),
+              'Only OSC_IN uses the dedicated clock pad')
         # 'inactive' has no sampling domain: inputs ignored, outputs tied off.
         check(number(p['width'], 1, 32) and
               (p['clock'] in data['clocks'] or p['clock'] == 'inactive'), 'Invalid pin width/clock')
         safe = {'input': 'input', 'output': 'disabled', 'bidirectional': 'disabled', 'open_drain': 'released'}
-        check(p['direction'] in safe and p['safe'] == safe[p['direction']], 'Unsafe pin default')
+        check(p['direction'] in safe and p['safe'] == ('high' if n == 'osc_en' else safe[p['direction']]), 'Unsafe pin default')
     keys(data['pin_budget'], ('bidirectional', 'input_only'))
     check(data['pin_budget'] == {'bidirectional': 40, 'input_only': 12}, 'Nominal slot capacity differs')
     for kind, used in pin_usage(data).items():
@@ -264,7 +291,8 @@ def pin_usage(data):
     # No mux overlap, pad reuse or optional-USB savings is assumed.
     return {
         'bidirectional': sum(p['width'] for p in data['pins'].values() if p['direction'] != 'input'),
-        'input_only': sum(p['width'] for p in data['pins'].values() if p['direction'] == 'input'),
+        'input_only': sum(p['width'] for p in data['pins'].values()
+                          if p['direction'] == 'input' and p.get('pad_class') != 'dedicated_clock'),
     }
 
 

@@ -1,10 +1,12 @@
 # Production SoC physical measurement boundary
 
-The single production `DeadhorseSoc` keeps its RVFI retirement observation ports
-for architectural tests, lockstep and debug checking. They are verification
-observations, not MCU features or pad signals. The performance core already
-permits excluding these observers for physical measurement. No production
-feature profile or separate functional RTL is introduced.
+PLAN04's single production `DeadhorseSoc` wraps the complete digital assembly
+with the physical clock/reset and analog socket boundary. RVFI retirement
+observations remain on that unchanged digital assembly and its named
+`SocExternalClockTest` fixture for architectural tests, lockstep and debug
+checking; they are not chip pads. The performance core already permits
+excluding these observers for physical measurement. No production feature
+profile or separate functional RTL is introduced.
 
 The T32 physical measurement projection removes **only** the explicitly
 inventoried `rvfi_*` output ports. Every input and every other output remains,
@@ -23,6 +25,23 @@ restoring observer ports exactly recovers the instrumented source graph.
 The same six synchronous memory model interfaces remain excluded for the pinned
 macro/ROM budget; all interfaces are preserved and each cut reverses exactly.
 This does not replace ROM firmware or SRAM wrapper qualification.
+
+PLAN04 mapping inventories the same six synchronous memory sockets and adds
+the two explicitly specified analog sockets. Their fixed enable/trim/threshold
+connections and port directions are checked. The retained USB mapping and
+strict 48 MHz oscillator counter are authenticated against freshly emitted
+production hierarchy by named-state/output equivalence, actual fault controls
+and complete mapped cell/pin correspondence. The counter mapping changes no
+register latency or state. All remaining production top outputs, including
+clock/reset status, remain in the measured graph.
+
+T33 extends that analog socket audit for the live brownout threshold selector.
+Only its low bit is dynamic: it must resolve to the production AON selector
+flip-flop; its reserved high bit remains zero. The selector remains in the
+measured digital graph, with an explicit output socket and the existing assumed
+load. Its digital clock-to-output delay is reported separately; no analog
+setup/hold requirement is invented. Other analog controls keep their constant
+checks. The reversible projection and mapped identity checks still apply.
 
 T32 also measures a reset-tree packing refinement. It retains the existing
 GF180 buf_4 cell and maximum fanout eight, with complete bottom-up layers.

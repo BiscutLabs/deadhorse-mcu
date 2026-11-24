@@ -12,7 +12,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 CONFIG = ROOT / 'phys/gf180-ws-1x1/block-timing.json'
-OPERATING_POINTS = ('default', 'main-12mhz', 'main-9p6mhz', 'main-9mhz', 'usb-48mhz')
+OPERATING_POINTS = ('default', 'main-12mhz', 'main-9p6mhz', 'main-9mhz', 'usb-48mhz', 'main-8mhz', 'aon-32khz')
 
 # Reference adapters and primitives are verification-only.
 sys.path.insert(0, str(ROOT / 'dv/core'))
@@ -52,6 +52,20 @@ def electrical_checks(log):
 
 def result_status(delay, budget, electrical):
     return 'pass' if delay <= budget and electrical['max_capacitance_and_slew_violations'] == 0 else 'fail'
+
+
+def clock_gate_inputs(module):
+    dynamic=[];static={}
+    for name,cell in module['cells'].items():
+        if cell['type']!='gf180mcu_fd_sc_mcu7t5v0__icgtp_1':continue
+        for pin in ('E','TE'):
+            bits=cell['connections'].get(pin,[])
+            if len(bits)!=1:raise ValueError('Invalid clock-gate input')
+            identity=name+'/'+pin
+            if bits[0] in ('0','1'):static[identity]=int(bits[0])
+            elif isinstance(bits[0],int):dynamic.append(identity)
+            else:raise ValueError('Unknown clock-gate input tie')
+    return dynamic,static
 
 
 def protocol_cycles(kind):
@@ -147,8 +161,13 @@ def timing_config(operating_point='default'):
         raise ValueError('Unsupported timing operating point')
     cfg = json.loads(CONFIG.read_text())
     if operating_point != 'default':
-        frequency_mhz = {'main-12mhz': 12.0, 'main-9p6mhz': 9.6, 'main-9mhz': 9.0, 'usb-48mhz': 48.0}[operating_point]
+        frequency_mhz = {'main-12mhz': 12.0, 'main-9p6mhz': 9.6, 'main-9mhz': 9.0, 'usb-48mhz': 48.0,
+                         'main-8mhz': 8.0, 'aon-32khz': 0.032}[operating_point]
         cfg['period_ns'] = 1000.0 / frequency_mhz
+        if operating_point in ('main-8mhz', 'aon-32khz'):
+            cfg['provenance'] = ('D78 PLAN04 nominal clock characterization; unchanged 60% rule, '
+                                 'electrical loads and IO assumptions. LF accuracy remains unqualified.')
+            return cfg
         cfg['provenance'] = (f'User-authorized T13 {frequency_mhz:g} MHz trial: only the period changes; '
                              'the budget fraction and other constraints are unchanged. '
                              'Default configuration provenance: ' + cfg['provenance'])
@@ -349,8 +368,7 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     if not areas:
         raise ValueError('Missing mapped area')
     tcl = output / 'timing.tcl'
-    gate_pins=[name+'/'+pin for name,cell in module['cells'].items()
-               if cell['type']=='gf180mcu_fd_sc_mcu7t5v0__icgtp_1' for pin in ('E','TE')]
+    gate_pins,gate_static=clock_gate_inputs(module)
     if any(re.search(r'[{}\s]',pin) for pin in gate_pins):
         raise ValueError('Unsupported clock-gate instance name')
     certificate=None
@@ -482,6 +500,7 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     if boundary_audit and not boundary_audit['output_checks_pass']:
         screening.update(status='fail',numerical_status='fail')
     report = dict(**screening,top=top,unresolved=pending,
+                  mapped_sha256=digest(output/'mapped.json'),mapped_verilog_sha256=digest(output/'mapped.v'),
                   sampling_qualification=sampling_qualification,exception_qualification=exception_qualification,
                   async_boundary_qualification=async_qualification,async_boundary_diagnostics=async_diagnostics,
                   acceptance_hold_reset_violations=acceptance_hold_reset,
@@ -494,7 +513,7 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
                   domain_scope=('All mapped registers and glue; app/AON screened at conservative 41.6 ns, USB at 1000/48 ns. USB pads/reset releases use the explicit conditional boundary contract; other IO retains every-domain zero delays. Asynchronous inter-domain paths excluded from synchronous STA; peer-domain reset sinks are inventoried and remain RDC-unqualified, with zero-phase diagnostics retained' if domain_clocks else None),
                   mapping=mapping, electrical=electrical,usb_boundary_contract=usb_boundary,boundary_audit=boundary_audit,
                   boundary='usb-three-clock-domains' if domain_clocks else 'combinational' if combinational else 'root-clock-with-icg' if gate_pins else 'single-clock',
-                  clock_gate_checks=gate_checks,
+                  clock_gate_checks=gate_checks,clock_gate_static_inputs=gate_static,
                   budget_ns=budget, worst=worst,
                   protocol_certificate=certificate,pre_enable_edge_audit=pre_edges,
                   hold_reset_checks=short_reset_checks,hold_reset_violations=short_reset_violations,

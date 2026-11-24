@@ -5,12 +5,12 @@ import chisel3.testing.HasTestingDirectory
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
-class SocBootReleaseBench(bypass: Boolean=false) extends DeadhorseSoc(
+class SocBootReleaseBench(bypass: Boolean=false) extends SocExternalClockTest(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
   Paths.get("build/t28/firmware/boot.hex").toAbsolutePath.toString,i1Config=Some(SocProduction.config(realUsb=false))) {
   override protected def bootPermit(released: Bool): Bool=if(bypass) true.B else released
 }
-class SocBootReleaseSpec extends AnyFunSuite with ChiselSim {
+class SocBootReleaseSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
     def getDirectory=Paths.get("build/t28/soc-simulation").toAbsolutePath
   }
