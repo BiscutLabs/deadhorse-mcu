@@ -101,13 +101,15 @@ USB light sleep; attached USB does not support oscillator-off host resume.
 
 ## Remaining execution order
 
-Under D88, T39 is planned next: qualify both existing production cores through
-fresh standalone and integrated architectural/differential simulation, with
-coverage/fault accounting and open proofs retained. Existing T32/T33/T34
-implementation/model evidence keeps its recorded exceptions. T39 uses current
-memory models and loader/bootstrap paths, so it does not depend on T35/T36.
+Under D88/D89, T39 runs a finite existing-regression campaign: standalone
+core/lite checks, production clocks/reset and flight/wake, two-hart debug and
+complete fast CI. New ISA/ISS frameworks, broad seeded coverage and complete
+state observers are deferred; open proofs retain their original owners.
+Existing T32/T33/T34 implementation/model evidence keeps its exceptions.
+T39 uses current memory models and loader/bootstrap paths, so it does not
+depend on T35/T36.
 T35 and T36 follow, then T37/T38; replay affected T39 checks after those changes.
-T38 acceptance requires current core/SoC qualification. These are separately
+T38 acceptance requires current scoped core/SoC evidence with its limits. These are separately
 assigned briefs, not implementation authorization from this document. D76
 remains the execution CI policy unless separately amended for the assigned task.
 Resolve interface dependencies before consuming unfinished designs.

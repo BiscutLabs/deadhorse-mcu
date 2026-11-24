@@ -1134,3 +1134,19 @@ other source and extra-source hashes remain identical. Prior unchanged-module
 proofs are not claimed as new runs. Selected full lockstep suites pass freshly.
 Fast tier **PASS**, all 26 commands, measured 824.220 s (13m 44s), including 14 RTL tests. **Full tier not run.**
 See [repair report](../plan/tasks/reports/T13-bus-error.md) for commands and independent review.
+
+## T39 focused simulation regression — 2026-11-24
+
+D89 simulation evidence only; no new proof or inherited proof closure.
+At code `fa21f70fafb9b9bf48cdfc2f97b5ce0a17ff496f`, freshly emitted faithful
+floating core passes `python dv/core/lockstep.py --candidate
+build/t39/faithful-inputs01/candidate --isa rv32imfc --suite arch,flight-float
+--output build/t39/faithful-lockstep01`: measured 51 pinned RV32UI/UM/UC cases,
+six project FP-mode cases, 21,776 architectural-case and 191,201 flight
+retirements. Eight checker trace faults are rejected; these are not RTL faults.
+Production fixed/hard-float before/after-wake and two-hart OpenOCD regressions
+also pass. The [report](../plan/tasks/reports/T39.md) records exact commands,
+source binding, full fast-tier status and limitations: standalone debug
+parameters, incomplete direct FCSR observation, historical flight checksum
+references and independent test clocks for OpenOCD. Broad ISA/ISS qualification
+and all previously unresolved T13/T32 proof obligations remain open.

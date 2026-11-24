@@ -106,3 +106,17 @@ assumptions, depths and120-second caps remain. No helper or unchanged retry.
 Exact per-assertion times, model sizes, fault limitations, historical evidence
 audits and next scoped work are in [the debt report](../spec/soc-verification-debt.md).
 Indices6 and9–12 are trivial ADDI memory predicates, not ISA coverage.
+
+## T39 focused simulation regression — 2026-11-24
+
+D89 simulation evidence only; no new proof or original assertion discharge.
+At code `fa21f70fafb9b9bf48cdfc2f97b5ce0a17ff496f`, the exact `tools/sbt.py
+hw/testOnly` command in the [report](../plan/tasks/reports/T39.md) passes
+measured 29 cases: LiteBaseline 3, LiteHart 4, LiteMachine 3, LiteDebug 3,
+SocLite 2, SocBootRelease 2 and SocClockReset 12, with no failed/skipped cases.
+Fresh XML/source receipts are in `build/t39/focused01/result.json`.
+Existing corruption/START/release-binding controls remain. Loader/boot fixtures
+retain their USB-stub/external-clock diagnostic scope; SocClockReset uses the
+production clock/reset wrapper with behavioral analog models. Lite IRQ oracle
+alignment still follows the DUT boundary. New external RV32E ISS qualification,
+full ISA/machine proof and all prior unresolved obligations remain open.

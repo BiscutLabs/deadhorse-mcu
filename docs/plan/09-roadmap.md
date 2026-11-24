@@ -50,13 +50,15 @@ PLAN03 leaves one production DeadhorseSoc with all built digital blocks; old
 profiles are historical test evidence. ADC hardware is retired, and the I2C
 loader is frozen. No new opt-in feature configurations.
 
-D88 now places [T39 core/SoC qualification](tasks/T39-core-soc-qualification.md)
-next, using the implemented production cores and T32–T34 integration with their
-recorded exceptions. Run fresh architectural and instruction-reference checks
-standalone and in the production SoC, with coverage and fault evidence.
+D88/D89 place [T39 focused core/SoC regression](tasks/T39-core-soc-qualification.md)
+before physical acceptance, using the implemented cores and T32–T34 integration
+with their recorded exceptions. Run existing standalone core, lite, production
+clock/reset, flight/wake, debug and complete fast-tier checks. New ISA/ISS
+frameworks, broad seeded coverage and full state observers remain deferred;
+this finite pass does not establish complete architectural qualification.
 T35 SRAM/BIST and T36 production ROM follow, then T37 test/scan and T38 chip
 top/pads/LibreLane. Replay affected T39 checks after memory, boot and scan
-changes; T38 requires current qualification evidence, not just an earlier pass.
+changes; T38 requires current scoped evidence with its limitations, not just an earlier pass.
 T34 analog interfaces/models do not supply physical layouts; layout/extraction
 needs a later brief. No unbriefed peripheral work.
 Existing T20 composition/system and inherited proof debt remain visible in STATUS.

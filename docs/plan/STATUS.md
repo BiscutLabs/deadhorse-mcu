@@ -98,11 +98,14 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 
 | [x] | D88 | Plan core/SoC qualification | User direction 2026-11-24: prepare T39 for fresh standalone and integrated RISC-V verification ahead of T38 acceptance; planning only, no campaign or new CI/proof waiver |
 
+| [x] | D89 | Focused existing-regression campaign | User direction 2026-11-24: significantly narrow T39; existing lite/core/SoC, flight/wake, debug and complete fast CI, with broader ISS/coverage work deferred, frozen code and reviewed documentation publication; no stage/proof closure |
+
 ## Tasks
 
-Next planned verification task: [T39](tasks/T39-core-soc-qualification.md),
-standalone and production-SoC core qualification before T38 acceptance.
-The brief is prepared; the campaign has not started (D88).
+Current verification receipt: [T39](tasks/reports/T39.md), the D89 finite
+existing-regression campaign. Broader ISA/ISS coverage and inherited proof debt
+remain explicitly deferred; affected checks must replay after memory/boot/scan
+changes before T38 acceptance. No integration-stage exit is claimed.
 
 | | ID | Item | Owner | Depends on | Report |
 | --- | --- | --- | --- | --- | --- |
@@ -149,7 +152,7 @@ The brief is prepared; the campaign has not started (D88).
 | [ ] | T36 | [Production boot ROM](tasks/T36-boot-rom.md) | unassigned | T32/T33 completed; coordinate T35 | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [ ] | T37 | [Test mode and scan](tasks/T37-test-scan.md) | unassigned | T35/T36; coordinate T38 | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
-| [ ] | T39 | [Production-core and SoC qualification](tasks/T39-core-soc-qualification.md) | unassigned | Existing T13/T25 cores and T20/T32–T34 integration; open proof debt retained | D88 brief prepared, campaign not started; standalone and integrated ISA/reference/coverage/fault checks; [planning receipt](tasks/reports/T39-planning.md) |
+| [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -262,6 +265,9 @@ production verification debt. T31 is withdrawn rather than deferred work.
 
 ## Log
 
+- 2026-11-24: T39 completes D89's finite campaign at code `fa21f70`: measured 29 focused Scala cases, 51 pinned RV32UI/UM/UC plus six project FP cases, fixed/hard-float production flight before/after wake and nine positive OpenOCD scenarios plus missing-halt fault pass. Complete fast03 passes 34 commands in measured 4766.942 s, with twelve inherited unproved T14/T17 deferrals. Commands, partial attempts and limitations in [report](tasks/reports/T39.md). Independent review and post-run documentation/code-identity checks pass; no RTL/test/tool/firmware changes. Full tier not run; broad ISA/ISS qualification, inherited debt and stage/physical acceptance remain open.
+- 2026-11-24: D89 narrows T39 to existing core/lite/SoC, flight/wake, debug and complete fast-tier regressions. New external ISS/framework, broad seeded coverage and state observers are explicitly deferred. Frozen-code execution passes; final documentation review in progress. No RTL/test/limit changes or stage/proof closure.
+- 2026-11-24: User assigned T39 execution. Began baseline fast CI on main; stopped the partial pre-fast01 run after independent review identified its stale pre-T33 USB production binding. Refreshing that binding against the current measured production top before restarting. No campaign pass, proof closure or CI waiver claimed.
 - 2026-11-24: D88 assigns preparation/publication of T39. Added the complete core/SoC verification brief and placed it before T38 acceptance, with affected replay after T35/T36/T37. Documentation structure/link and diff checks plus independent review pass; [planning receipt](tasks/reports/T39-planning.md). Documentation work only; no campaign, RTL change, CI-policy extension, new proof result or gate closure.
 
 - 2026-11-24: T34 scoped acceptance `build/t34/models02` passes with D87 exceptions: 12 model and four selected production tests, three reset proof jobs/six faults/two covers, nine pin-binding faults and five receipt checks. Measured aggregate 273.803 s (command in report); all 212 production emitted files match T33. Independent contract, implementation and final evidence review approved; audit `build/t34/independent-review.json`. No aggregate CI, unrelated IP tests or analog signoff.

@@ -106,6 +106,8 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 
 | **D88** | Plan production-core/SoC qualification before physical integration | User direction 2026-11-24: write and add a complete task for fresh RISC-V architectural, differential simulation and integrated two-core verification, using the existing testbench as the starting point. T39 is planned next, before T38 acceptance, with affected regression replay after SRAM/ROM/scan changes. This authorization is for planning and publication, not campaign execution, core certification, proof closure, architecture changes or a new CI waiver. Existing limits and task-specific deferral scopes remain unchanged. |
 
+| **D89** | Narrow T39 to a finite existing-regression campaign | User direction 2026-11-24: execute the campaign, then "narrow the scope significantly, even more than the proposed split" after architectural-suite memory-fit preflight. Use existing lite/core/SoC, flight/wake, OpenOCD and complete fast-tier checks; defer new ISS/architectural-framework integration, large seeded coverage, new state observers and exhaustive fault coverage. Keep existing assertions, assumptions, faults, seeds, limits and production memory unchanged. Run on a frozen code snapshot; publish documentation afterward with structure/link/diff checks and independent review of unchanged code identity. Any code/test/tool/firmware change requires affected replay and fresh final fast CI. Full CI is not run for this finite campaign; no stage exit, inherited proof closure, complete ISA certification or physical acceptance is claimed. See the revised T39 brief and report for the exact scope. |
+
 ## Risks and evidence still required
 
 
