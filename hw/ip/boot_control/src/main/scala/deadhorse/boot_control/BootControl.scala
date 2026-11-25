@@ -6,7 +6,7 @@ import deadhorse.lib._
 class BootControl(json: String,base: BigInt=0,owner: Int=1) extends RawModule {
   val clk=IO(Input(Clock()));val epochReset_n=IO(Input(Bool()));val reset_n=IO(Input(Bool()))
   val quiet=IO(Input(Bool()));val debugOwned=IO(Input(Bool()));val bus=IO(new LocalBus)
-  val bootMode=IO(Input(Bool()))
+  val bootMode=IO(Input(Bool()));val performanceHold=IO(Input(Bool()))
   val released=IO(Output(Bool()));val held=IO(Output(Bool()));val draining=IO(Output(Bool()))
   protected def permitted(origin: UInt): Bool=origin===owner.U
   val up=epochReset_n && reset_n
@@ -25,7 +25,13 @@ class BootControl(json: String,base: BigInt=0,owner: Int=1) extends RawModule {
   regs.hw("status_held_d"):=state.held.asUInt
   regs.hw("status_released_d"):=state.released.asUInt
   regs.hw("status_draining_d"):=state.draining.asUInt
-  regs.hw("events_command_error_set"):=state.error.asUInt
+  val context=Module(new BootResetContext);context.clk:=clk;context.epochReset_n:=epochReset_n
+  context.performanceHold:=performanceHold
+  context.commit:=regs.hw("context_commit_key_we").asBool
+  context.commitKey:=regs.hw("context_commit_key_wdata")==="h434f4e54".U
+  regs.hw("status_fresh_performance_reset_d"):=context.freshPerformanceReset.asUInt
+  regs.hw("status_context_ready_d"):=context.contextReady.asUInt
+  regs.hw("events_command_error_set"):=(state.error || context.error).asUInt
   regs.hw("boot_mode_uart_recovery_d"):=bootMode.asUInt
   released:=state.released;held:=state.held;draining:=state.draining
 }

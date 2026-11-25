@@ -10,7 +10,7 @@ ROOT=Path(__file__).resolve().parents[4]
 sys.path.insert(0,str(ROOT))
 from tools.formal import assertion_names,validate_job
 
-def main(output):
+def main(output, selected=None):
     out=(ROOT/output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
     paths=[p for parent in ('hw/lib','hw/ip/boot_control') for p in (ROOT/parent).rglob('*')
            if p.is_file() and p.suffix in ('.scala','.py','.yaml')]
@@ -21,7 +21,8 @@ def main(output):
         commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True,cwd=ROOT).strip(),
         assumptions=['Initial epoch reset low; independent service/epoch resets and inputs arbitrary thereafter; one AON clock',
                      'Owner case drives denied origins 0,2..7; control case has no command protocol assumption',
-                     'Strap qualification and pad arbitrary; only initial whole reset asserted, arbitrary thereafter'])
+                     'Strap qualification and pad arbitrary; only initial whole reset asserted, arbitrary thereafter',
+                     'Owner case performanceHold tied low; denied-origin context-ready and release must remain clear; context case hold/commit/key arbitrary'])
     def command(argv,log):
         begin=time.monotonic()
         with log.open('w') as f:
@@ -29,10 +30,15 @@ def main(output):
             except subprocess.TimeoutExpired:code=124
         return dict(command=argv,returncode=code,seconds=time.monotonic()-begin,log=str(log.relative_to(out)))
     try:
-        for case,top,asserts,covers,variants in [
+        cases=[
                 ('control','LiteBootStateFormal',4,3,('correct','early','key','cover')),
-                ('owner','BootOwnerFormal',2,2,('correct','owner','cover')),
-                ('strap','BootModeStrapFormal',2,2,('correct','raw','cover'))]:
+                ('owner','BootOwnerFormal',3,2,('correct','owner','cover')),
+                ('strap','BootModeStrapFormal',2,2,('correct','raw','cover')),
+                ('context','BootResetContextFormal',3,3,('correct','stale','key','cover'))]
+        if selected is not None:
+            assert selected and set(selected)<= {c[0] for c in cases}
+            cases=[c for c in cases if c[0] in selected]
+        for case,top,asserts,covers,variants in cases:
             directory=out/case;directory.mkdir();entry=dict(jobs=[]);receipt['cases'][case]=entry
             entry['emission']=command([sys.executable,'tools/sbt.py',
                 'set hw / Compile / unmanagedSourceDirectories += file("/work/hw/ip/boot_control/formal")',
@@ -55,8 +61,7 @@ def main(output):
                 entry['jobs'].append(row)
                 if solver=='TIMEOUT':row['status']='unresolved'
                 else:
-                    faults={'early':set(assertion_names(4)),
-                            'key':set(assertion_names(4)),'owner':set(assertion_names(2)),'raw':set(assertion_names(2))}.get(v)
+                    faults=set(assertion_names(asserts)) if v in ('early','key','owner','raw','stale') else None
                     row['failed_properties']=validate_job(directory/v,
                         'proof' if mode=='prove' else 'cover' if mode=='cover' else 'negative',row['returncode'],solver,faults)
                     row['status']='proved' if mode=='prove' else 'covered' if mode=='cover' else 'fault_rejected'
@@ -70,4 +75,4 @@ def main(output):
     print(receipt['status'].upper(),receipt.get('error',''))
     return 0 if receipt['status']=='pass' else 1
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--output',required=True);a=p.parse_args();sys.exit(main(a.output))
+    p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--cases',help='Comma-separated focused case selection; default runs all');a=p.parse_args();sys.exit(main(a.output,a.cases.split(',') if a.cases else None))

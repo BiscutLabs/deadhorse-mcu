@@ -9,7 +9,7 @@ object EmitSoc extends App {
   require(Set("production","usb-stub-test").contains(args(1)) && args(2)=="8")
   val c=SocProduction.config(args(2).toInt,args(1)=="production")
   ChiselStage.emitSystemVerilogFile(new DeadhorseSoc("build/t20/map/soc.json",c.uart,
-    "build/t20/i0-firmware/boot.hex",gateTarget=ClockGateTarget.Asic,i1Config=Some(c)),
+    "build/t36/rom/rom.hex",gateTarget=ClockGateTarget.Asic,i1Config=Some(c)),
     Array("--target-dir",args(0)),Array("--disable-all-randomization","--strip-debug-info",
       "--preserve-values=named","--verification-flavor=immediate","--lower-to-core"))
 }

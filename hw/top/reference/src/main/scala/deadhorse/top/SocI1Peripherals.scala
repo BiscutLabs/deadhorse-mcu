@@ -323,7 +323,7 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config,
       // Pending reset-halt cannot block the release needed for debug acquisition.
       // It still inhibits application start; actual ownership blocks commands.
       boot.debugOwned:=liteOwned || (!liteBootHeld && (haltLite || litePending))
-      boot.bootMode:=bootStrap.value
+      boot.bootMode:=bootStrap.value;boot.performanceHold:=performanceHold
       boot.bus<>f.target(3)
       liteBootHeld:=boot.held;liteBootDraining:=boot.draining;liteBootReleased:=boot.released
       performanceReleased.get:=true.B

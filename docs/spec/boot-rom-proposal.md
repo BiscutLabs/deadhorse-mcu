@@ -1,7 +1,9 @@
 # Production boot contract — PLAN05
 
 Approved architectural replacement under D92–D101 (user 2026-11-24).
-Implementation and acceptance remain unverified. This replaces the former
+Implementation and scoped boot tests now exist; final PLAN05 publication checks
+are recorded in the T36 report. D104 temporarily accepts maximum-image load
+latency above250ms, with T42 retaining that target. This replaces the former
 lite-first proposal, not historical evidence. Phase1 contracts require
 independent review before RTL; exact firmware recovery encodings require review
 before tests. See [PLAN05](../plan/tasks/PLAN05-dormant-coprocessor.md).
@@ -135,7 +137,7 @@ whole-chip reset qualification is pending and frozen before AON clients release.
 Main-only or AON service reset does not resample it; a new whole-chip reset does.
 A board strap must remain stable through whole-chip reset qualification.
 
-## T36 concrete ABI (independently reviewed; acceptance pending)
+## T36 concrete ABI (independently reviewed; scoped acceptance in T36 report)
 
 This section fixes independently reviewed implementation choices for Phase3;
 it is not a completed implementation or a new memory-capacity decision.
@@ -212,7 +214,9 @@ current-epoch committed context or fail-closed, never reselects. A clear bit
 follows the cold path. Read-only status bit4 is `contextReady`, cleared by
 whole/AON reset and preserved across performance-only reset. The performance
 owner sets it by writing key0x434f4e54 to boot-control offset0x14 only after
-the context is complete; other origins or keys error without effect. This
+the context is complete. A wrong key has no effect and sets the existing
+command_error event; denied origins/partial writes return the existing bus
+error without effect. This
 metadata prevents surviving RAM from a previous whole-chip epoch being accepted
 if the performance watchdog interrupts cold context preparation. It neither
 grants access nor changes C3's write rule. Reset dominates a simultaneous key.

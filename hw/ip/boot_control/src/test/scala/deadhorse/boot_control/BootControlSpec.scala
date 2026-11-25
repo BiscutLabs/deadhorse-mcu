@@ -12,7 +12,7 @@ class BootControlSpec extends AnyFunSuite with ChiselSim {
   def exercise(d: BootControl): Unit={
     def high(v: Bool)=v.peek().litToBoolean
     d.epochReset_n.poke(false.B);d.reset_n.poke(false.B);d.quiet.poke(false.B);d.debugOwned.poke(false.B)
-    d.bootMode.poke(false.B)
+    d.bootMode.poke(false.B);d.performanceHold.poke(false.B)
     d.bus.req.poke(false.B);d.bus.bits.poke(0.U.asTypeOf(d.bus.bits));d.clk.step(3)
     d.epochReset_n.poke(true.B);d.reset_n.poke(true.B)
     def access(a: Int,w: Boolean=false,v: Long=0,be: Int=15,origin: Int=1): (BigInt,Boolean)={
@@ -35,7 +35,7 @@ class BootControlSpec extends AnyFunSuite with ChiselSim {
     assert(!high(d.released),"BOOT_OWNER")
     for(be<-1 to 14) assert(access(4,true,key,be=be)._2,"BOOT_PARTIAL")
     assert(!access(4,true,key,be=0)._2 && !high(d.released))
-    for(a<-Seq(1,20,256)) assert(access(a,true,key)._2)
+    for(a<-Seq(1,24,256)) assert(access(a,true,key)._2)
     wr(4,0);assert(!high(d.released) && rd(8)==1,"BOOT_KEY");wr(8,1)
     d.debugOwned.poke(true.B);wr(4,key)
     assert(!high(d.released) && rd(8)==1,"BOOT_DEBUG_CONFLICT")
@@ -68,6 +68,22 @@ class BootControlSpec extends AnyFunSuite with ChiselSim {
     wr(4,key);assert(high(d.released))
     d.epochReset_n.poke(false.B);d.clk.step();assert(high(d.held) && !high(d.released))
     d.epochReset_n.poke(true.B);d.clk.step(4);assert(rd(0)==1)
+    // C4 metadata cannot authorize access or change lite reset state.
+    assert(rd(20)==0)
+    for(o<-0 to 7 if o!=1) assert(access(20,true,0x434f4e54L,origin=o)._2,"CONTEXT_OWNER")
+    for(be<-1 to 14) assert(access(20,true,0x434f4e54L,be=be)._2,"CONTEXT_PARTIAL")
+    assert(!access(20,true,0x434f4e54L,be=0)._2 && rd(0)==1)
+    wr(20,0);assert(rd(0)==1 && rd(8)==1,"CONTEXT_KEY");wr(8,1)
+    wr(0,31);assert(rd(0)==1,"CONTEXT_READ_ONLY")
+    wr(20,0x434f4e54L);assert(rd(0)==17 && high(d.held),"CONTEXT_READY")
+    d.performanceHold.poke(true.B);d.clk.step(2);assert(rd(0)==25,"CONTEXT_FRESH_RESET")
+    d.performanceHold.poke(false.B);d.reset_n.poke(false.B);d.clk.step(2)
+    d.reset_n.poke(true.B);d.clk.step(4);assert(rd(0)==25,"CONTEXT_SERVICE_RETENTION")
+    // A stale watchdog hold spanning a whole reset is not a new warm reset.
+    d.performanceHold.poke(true.B);d.epochReset_n.poke(false.B);d.clk.step(2)
+    d.epochReset_n.poke(true.B);d.clk.step(4);assert(rd(0)==1,"CONTEXT_NEW_EPOCH")
+    d.performanceHold.poke(false.B);d.clk.step();d.performanceHold.poke(true.B);d.clk.step()
+    assert(rd(0)==9,"CONTEXT_NEW_EDGE")
   }
   test("performance-owned lite hold/release, drain, keys, canceled transport and retained epoch") {
     simulateRaw(new BootControl("build/t28/boot_control/boot_control_regs.json"))(exercise)

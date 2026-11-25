@@ -1143,3 +1143,21 @@ PLAN05 BOOT_MODE readback: performance reads bit0 of boot-control offset0x10
 whole-chip reset qualification is pending and frozen before AON clients release.
 Main-only or AON service reset does not resample it; a new whole-chip reset does.
 A board strap must remain stable through whole-chip reset qualification.
+
+### PLAN05 C4 retained boot context
+
+The performance-owned boot-control window adds status bit3
+`fresh_performance_reset`, bit4 `context_ready`, and write-only full-word
+`context_commit` at0x40000314 (key0x434f4e54). The AON/whole reset epoch clears
+both flags; performance-only reset and register-service reset preserve them.
+Only a new performance-watchdog hold edge after release sets bit3, avoiding a
+stale watchdog hold across whole-chip reset. The commit key sets bit4 after ROM
+writes its CRC-protected retained context. Wrong keys set command_error without
+effect; denied origins/partial writes return bus errors. These flags never grant
+program-memory access or release either core. See the reviewed
+[boot contract](boot-rom-proposal.md) for C4 fail-closed behavior.
+
+Production emission uses the built performance ROM at reset entry0x80. Named
+focused test configurations retain their explicit diagnostic firmware; none is
+the production boot image. The initialized ROM participates in mapped production
+area/timing rather than remaining an uncharacterized memory socket.

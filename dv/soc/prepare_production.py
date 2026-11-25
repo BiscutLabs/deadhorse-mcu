@@ -8,6 +8,7 @@ ROOT=Path(__file__).resolve().parents[2]
 def main():
     for script in ('prepare_i0.py','prepare_xip.py','prepare_osc_sleep.py','power/prepare_threshold.py','power/prepare_clients.py','power/prepare_watchdog_phase.py'):
         subprocess.run([sys.executable,str(ROOT/'dv/soc'/script)],cwd=ROOT,check=True)
+    subprocess.run([sys.executable,str(ROOT/'sw/boot/prepare_rom.py')],cwd=ROOT,check=True)
     print('PASS production SoC inputs prepared; no execution claimed')
 
 if __name__=='__main__':main()

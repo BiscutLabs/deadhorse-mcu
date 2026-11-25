@@ -1,5 +1,6 @@
 package deadhorse.boot_control
 import chisel3._
+import chisel3.util.experimental.BoringUtils
 import _root_.circt.stage.ChiselStage
 
 class BootOwnerFormal(variant: String) extends RawModule {
@@ -10,8 +11,9 @@ class BootOwnerFormal(variant: String) extends RawModule {
   val d=Module[BootControl](if(variant=="owner") new BootControl("build/t28/boot_control/boot_control_regs.json") {
     override protected def permitted(o: UInt): Bool=true.B
   } else new BootControl("build/t28/boot_control/boot_control_regs.json"))
+  val contextReady=BoringUtils.bore(d.context.contextReady)
   d.clk:=clock;d.epochReset_n:=reset_n;d.reset_n:=serviceReset_n;d.quiet:=start;d.debugOwned:=false.B
-  d.bootMode:=false.B
+  d.bootMode:=false.B;d.performanceHold:=false.B
   d.bus.req:=req;d.bus.bits.addr:=addr;d.bus.bits.wdata:=data;d.bus.bits.we:=write;d.bus.bits.be:=be
   // Explicit denied-origin stimulus; all seven denied origins remain reachable.
   d.bus.bits.origin:=Mux(origin===1.U,0.U,origin)
@@ -21,6 +23,7 @@ class BootOwnerFormal(variant: String) extends RawModule {
       cover(d.bus.gnt && start)
     } else {
       assert(!d.released)
+      assert(!contextReady)
       assert(!d.bus.rvalid || d.bus.err)
     }
   }
