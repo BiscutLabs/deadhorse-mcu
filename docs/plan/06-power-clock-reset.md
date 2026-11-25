@@ -1,6 +1,6 @@
 # 06 Power, clocks and reset
 
-## PLAN05 dormant contract (Phase2 verification in progress)
+## PLAN05 dormant contract
 
 | Mode | Required behavior |
 | --- | --- |
@@ -28,7 +28,11 @@ worst modeled routed publication2764cycles and return-to-WFI2996cycles.
 Estimated at assumed32000Hz:86.375ms and93.625ms. This is not integrated
 peripheral, LF-frequency or power qualification. The production dormant tests measure2633AON ticks from radio IRQ to OSC_EN
 (estimated82.28125ms at nominal32kHz), and2644ticks to copy the lite image
-(estimated82.625ms). B12 library leakage estimates below exclude dynamic and
+(estimated82.625ms, diagnostic copy without production ROM verification).
+Final ROM copy/readback measures16,405,620 quanta for the588-byte watcher
+(estimated170.891875ms at assumed96MHz quantum), and28,504,620 for1024bytes
+(estimated296.923125ms). D104 accepts only the maximum-image250ms excess
+for now; T42 retains the original target. B12 library leakage estimates below exclude dynamic and
 board power; no complete microamp system-current signoff exists.
 
 
@@ -176,3 +180,18 @@ PLAN05 leakage qualification: the SRAM Liberty `cell_leakage_power` is an
 unconditional scalar, used as an idle/standby proxy with CEN high assumed; it
 is not a characterized CEN-high condition. Both selected macro sizes supply
 the same scalar. No capacity-based leakage scaling is inferred.
+
+
+### Final PLAN05 ROM-inclusive static estimate
+
+`python hw/top/reference/measurements/plan05_area_leakage.py --base
+build/plan05/t36-timing03`, base main5ba87bf plus receipt-hashed sources,
+updates the Phase2 subtotal with the mapped production ROM. Estimated static
+digital+SRAM current at TT25/assumed3.3V is4.383810/4.825459/5.603557uA
+(minimum/equal-state mean/maximum); FF125/assumed3.6V is
+152.535158/200.999967/276.519768uA. Same method and exclusions as above:
+sum library leakage plus scalar SRAM CEN-high standby proxy, divided by rail.
+Per-domain/block contributions and input hashes are in the receipt. AON
+switching, analog macros, pads, external oscillator/radio/board power and future
+scan are excluded. This does not establish whole-system microamp power or
+qualify SRAM/analog physical retention.

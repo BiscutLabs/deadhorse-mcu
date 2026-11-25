@@ -61,8 +61,8 @@ def clock_manifest(mod):
         return lineage(parent[0],seen)
     main={'Dma','DmaEngine','GeneralTimers','TimerBreak','TimerDmaRequests',
         'Pinmux','PinmuxPad','Qspi','QspiEngine','QspiScheduler','SpiHost','I2cHost','Gpio',
-        'GpioWake','SocLocalMemory','DebugMemory','DebugSba','Fpu','FloatExecution'}
-    aon={'AonTimers','AonSpi','AonGpio','LiteBootState','CdcPulseCapture','BootModeStrap','LiteCore','LiteBusAdapter','OscCtrl','OscSequencer',
+        'GpioWake','SocLocalMemory','rom_16384x32','DebugMemory','DebugSba','Fpu','FloatExecution'}
+    aon={'AonTimers','AonSpi','AonGpio','LiteBootState','CdcPulseCapture','BootModeStrap','BootResetContext','LiteCore','LiteBusAdapter','OscCtrl','OscSequencer',
         'OscClockReset','ResetBootstrap','ResetCauses','PowerReset','BrownoutSelect','WatchdogChannel','UartWake',
         'GpioWakeState','RecoveryLoader','LoaderControl','ClockedI2cTarget','SocRetainedMemory'}
     result={}

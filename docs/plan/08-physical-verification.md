@@ -1,6 +1,48 @@
 # 08 Physical implementation and verification
 
-## PLAN05 Phase2 mapped estimate
+## PLAN05 production ROM-inclusive estimate
+
+This supersedes the Phase2 estimate below. Measured on main5ba87bf plus
+receipt-hashed final PLAN05 sources by `python scratch/plan05_t36_timing03.py`
+in the pinned environment. The receipt records fresh EmitSoc, plan04_map with
+`--sram --rom-image build/t36/rom/rom.hex`, plan04_screen, plan04_area,
+t35_budget and plan05_area_leakage commands under
+`hw/top/reference/measurements/`, base `build/plan05/t36-timing03`.
+
+| Item | Area mm2 | Provenance |
+| --- | ---: | --- |
+| Production mapped standard cells, ROM included | 3.542381069 | Measured SS125 mapping, no wire delays |
+| Scan substitution | 0.401930144 | Estimated from measured flops/library replacements |
+| Remaining clock/reset/power | 0.020333997 | Estimated unused allowance |
+| Scan glue | 0.050000000 | Assumed; ROM placeholder removed because actual ROM is mapped |
+| Placed digital at assumed0.55 utilization | 7.299354927 | Estimated sum/utilization |
+| Main16KiB and retained2KiB SRAM | 2.874558676 | Estimated from20 measured pinned LEF footprints |
+| LF RC/POR/pads/SRAM halo | 1.150000000 | Assumed0.10+0.15+0.50+0.40 |
+| Total | **11.323913603** | Estimated planning use, not placement |
+| Headroom against12.92 | **1.596086397** | Estimated subtraction |
+
+The exact6776-byte firmware maps separately to measured0.098597408mm2,
+6007 cells and32 flops, below its assumed0.50mm2 allowance. This isolated
+number is **not additive** to the parent-optimized whole map. All16384 ROM
+words are authenticated against the built image. Mapped main worst67.850388ns
+passes75ns in both AON source modes; physical hold/removal/pulse diagnostics
+remain unqualified before CTS, with no physical signoff claimed.
+
+| Main capacity | Extra macro footprint mm2 | Estimated total mm2 | Estimated headroom mm2 |
+| --- | ---: | ---: | ---: |
+| 16KiB | 0.000000000 | 11.323913603 | 1.596086397 |
+| 24KiB | 1.243308424 | 12.567222027 | 0.352777973 |
+| 32KiB | 2.486616848 | 13.810530451 | -0.890530451 |
+
+24KiB fits this macro-only estimate, before additional decoder/control costs;
+32KiB does not. D99 approves measurement only: production remains16KiB.
+For queued T40, reserve its0.010mm2 mapped cap /0.55 =0.018181818mm2 placed:
+estimated current total11.342095421mm2 and headroom1.577904579mm2. Additional
+T40 scan remains unmeasured/excluded and must be accounted before acceptance.
+The older T40/Phase2 reservation below is historical, not a second charge.
+
+## Historical PLAN05 Phase2 mapped estimate
+
 
 Measured on main `29cab7e5` plus emitted source hashes in
 `build/plan05/timing03/map/result.json`; latest Phase2 RTL; phase-end CI remains separate.

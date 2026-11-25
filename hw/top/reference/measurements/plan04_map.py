@@ -20,14 +20,19 @@ from t32_layered_reset import layered
 from plan04_usb_binding import bind_source
 from plan05_usb_boundary import isolate,audit as audit_boundary
 from t33_analog_socket import threshold_driver
+from t36_rom_identity import authenticate as authenticate_rom
 
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 
-def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control=False,sram=False):
+def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control=False,sram=False,rom_image=None):
     if not isinstance(target_ps,int) or not 0<target_ps<=62500:raise ValueError('Invalid optimization target')
     base=(ROOT/base).resolve();base.relative_to(ROOT/'build')
     ref=(ROOT/usb_ref).resolve();ref.relative_to(ROOT/'build')
     emit=base/'emit';out=base/'map';out.mkdir(exist_ok=False)
+    rom_image=(ROOT/rom_image).resolve() if rom_image else None
+    if rom_image:
+        assert sram, 'ROM implementation requires production hard SRAM'
+        rom_image.relative_to(ROOT/'build')
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
     lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
     assert digest(lib)==cfg['sha256']
@@ -54,6 +59,8 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         Path(__file__).parent/'t32/t32_packed_reset.py',ROOT/'tools/timing/fanout.py',
         ROOT/'tools/timing/check.py',ROOT/'phys/gf180-ws-1x1/block-timing.json',
         ref/'certificate/result.json',ref/'mapped.json',lib]
+    dependencies += [Path(__file__).with_name('t36_rom_identity.py')]
+    if rom_image:dependencies += [rom_image]
     if sram:dependencies += sram_libs+[lock]
     if counter_ref:
         counter_receipt=json.loads((counter_ref/'result.json').read_text())
@@ -93,7 +100,7 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         analog['modules'][name]=module
     (out/'analog-interfaces.json').write_text(json.dumps(analog))
     run([f'read_liberty -lib {lib}']+[f'read_liberty -lib {p}' for p in sram_libs]+[f'read_json {out}/analog-interfaces.json',
-        'read_slang --keep-hierarchy -DSYNTHESIS --top DeadhorseSoc '+' '.join(map(str,files)),
+        'read_slang --keep-hierarchy -DSYNTHESIS '+('-DENABLE_INITIAL_MEM_ ' if rom_image else '')+'--top DeadhorseSoc '+' '.join(map(str,files)),
         'hierarchy -check -top DeadhorseSoc','proc','chformal -remove','memory_collect',
         f'write_json {out}/hier.json'],'import')
     design=json.loads((out/'hier.json').read_text());inventory=[]
@@ -144,6 +151,26 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
             seen.add(b);todo.extend(edges.get(b,()))
         item.update(clock_pin=clock,interface=mod['ports'],registered_read=True,
             clock_domain='aon' if item['instance'].startswith('digital.subsystem.retained.') else 'main')
+    if rom_image:
+        assert len(cuts)==1
+        rom_module=cuts[0]['module']
+        receipt['implemented_rom']=authenticate_rom(design,cuts[0],rom_image,files)
+        receipt['implemented_rom']['module']=rom_module
+        # Rejection controls exercise the same identity validator, not a second oracle.
+        wrong=copy.deepcopy(design)
+        params=wrong['modules'][cuts[0]['module']]['cells'][cuts[0]['name']]['parameters']
+        init=params['INIT']
+        rejected=[]
+        for label,value in [('wrong-word',('1' if init[0]=='0' else '0')+init[1:]),
+                            ('missing-initialization','x'*len(init))]:
+            params['INIT']=value
+            try:authenticate_rom(wrong,cuts[0],rom_image,files)
+            except ValueError as error:
+                assert 'ROM INIT' in str(error);rejected.append(label)
+            else:raise AssertionError('ROM identity fault escaped: '+label)
+        receipt['implemented_rom']['negative_controls_rejected']=rejected
+        receipt['scope']='Mapped production digital logic including initialized performance ROM and twenty hard SRAM macros; only two analog interfaces remain sockets.'
+        cuts=[]
     # Authenticate unchanged producer proof sources and the mapped island.
     cert=json.loads((ref/'certificate/result.json').read_text())
     assert cert['status']=='pass' and digest(ref/'mapped.json')==cert['mapped_sha256']
@@ -186,7 +213,7 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         design['modules'][counter_target]=counter
         undo=copy.deepcopy(design);undo['modules'][counter_target]=old_counter;assert undo==counter_original
     (out/'bound-hier.json').write_text(json.dumps(design))
-    run([f'read_json {out}/bound-hier.json','blackbox '+' '.join(i['module'] for i in cuts),
+    run([f'read_json {out}/bound-hier.json']+(['blackbox '+' '.join(i['module'] for i in cuts)] if cuts else [])+[
         'flatten','opt_expr','opt_merge','opt_clean','check -assert',f'write_json {out}/flat.json'],'flatten')
     original=json.loads((out/'flat.json').read_text());projected=copy.deepcopy(original)
     top=projected['modules']['DeadhorseSoc'];removed={};ports=[]
@@ -316,6 +343,16 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     constraints=out/'mapping.constr';constraints.write_text(f'set_driving_cell {cfg["library"]}__buf_1\nset_load {cfg["output_load_pf"]*1000*multiplicity:g}\n')
     abc=out/'mapping.abc';abc.write_text('strash; &get -n; &fraig -x; &put; scorr; dc2; strash; '+
         f'&get -n; &dch -f; &nf -D {target_ps}; &put; buffer; upsize -D {target_ps}; dnsize -D {target_ps}; stime -p\n')
+    if rom_image:
+        isolated_constraints=out/'rom-mapping.constr'
+        isolated_constraints.write_text(f'set_driving_cell {cfg["library"]}__buf_1\nset_load {cfg["output_load_pf"]*1000:g}\n')
+        run([f'read_json {out}/hier.json',f'hierarchy -top {rom_module}',
+            f'synth -top {rom_module} -flatten -noabc -nofsm',f'dfflibmap -liberty {lib}',
+            f'abc -liberty {lib} -constr {isolated_constraints} -script {abc}',
+            'clean -purge','check -assert',f'tee -o {out}/rom-area.txt stat -liberty {lib}',
+            f'write_json {out}/rom-mapped.json'],'rom-map')
+        receipt['implemented_rom']['isolated_mapped_sha256']=digest(out/'rom-mapped.json')
+        receipt['implemented_rom']['area_scope']='Isolated mapping of the exact ROM including its read registers; not an additive partition of parent ABC optimization. Integrated whole-map includes the initialized ROM.'
     run(front+[f'abc -liberty {lib} -constr {constraints} -script {abc}','clean -purge','check -assert',
         'rename -enumerate',f'write_json {out}/unbuffered.json'],'map')
     design=json.loads((out/'unbuffered.json').read_text());mod=design['modules']['DeadhorseSoc']
@@ -421,4 +458,5 @@ if __name__=='__main__':
     parser.add_argument('--stability-reference',help='Strict-48MHz mapped counter; source equivalence and exact pin preservation required')
     parser.add_argument('--threshold-control',action='store_true',help='T33 audited live AON threshold output socket')
     parser.add_argument('--sram',action='store_true',help='T35: retain and audit twenty pinned hard SRAM instances; only ROM remains a memory socket')
-    args=parser.parse_args();main(args.base,args.usb_reference,args.target_ps,args.stability_reference,args.threshold_control,args.sram)
+    parser.add_argument('--rom-image',help='T36 exact initialized production ROM image; requires --sram, maps ROM contents and read registers')
+    args=parser.parse_args();main(args.base,args.usb_reference,args.target_ps,args.stability_reference,args.threshold_control,args.sram,args.rom_image)

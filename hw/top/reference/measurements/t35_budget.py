@@ -103,8 +103,24 @@ def main(base):
     for name,value in clock['input_sha256'].items():assert digest(ROOT/name)==value
     clock_spent=(clock['digital_area_um2_measured']+clock['scan_uplift_um2_estimated'])/1e6
     assert clock_spent<=.10,'Existing clock/reset digital allowance exceeded'
+    implemented_rom=mapping.get('implemented_rom')
+    isolated_rom=None
+    if implemented_rom:
+        assert implemented_rom['status']=='authenticated'
+        image=Path(implemented_rom['image'])
+        assert digest(image)==implemented_rom['image_sha256']
+        isolated=base/'map/rom-mapped.json'
+        assert digest(isolated)==implemented_rom['isolated_mapped_sha256']
+        rcells=json.loads(isolated.read_text())['modules'][implemented_rom['module']]['cells']
+        assert rcells and all(c['type'] in areas for c in rcells.values())
+        isolated_rom=dict(area_mm2_measured=sum(areas[c['type']] for c in rcells.values())/1e6,
+            flop_count_measured=sum('__dff' in c['type'] for c in rcells.values()),
+            cells_measured=len(rcells),allowance_mm2_assumed=.50,
+            scope=implemented_rom['area_scope'],image_sha256=implemented_rom['image_sha256'])
+        assert json.loads((base/'map/macro-sockets.json').read_text())==[]
+        views += [image,isolated,base/'map/result.json']
     allowances=dict(clock_reset_remaining_mm2_estimated=.10-clock_spent,
-        rom_mm2_assumed=.50,scan_glue_mm2_assumed=.05,bist_remaining_mm2_assumed=0,
+        rom_mm2_assumed=0 if implemented_rom else .50,scan_glue_mm2_assumed=.05,bist_remaining_mm2_assumed=0,
         scan_cell_substitution_mm2_estimated=scan)
     physical=dict(lf_rc_mm2_assumed=.10,por_brownout_mm2_assumed=.15,pad_keepout_mm2_assumed=.50,sram_halo_glue_mm2_assumed=.40)
     placed=(measured+sum(allowances.values()))/.55
@@ -117,16 +133,17 @@ def main(base):
         headroom_mm2_estimated=12.92-total-(k-16)*unit,
         fits_macro_only_estimate=total+(k-16)*unit<=12.92,
         qualification='Additional decode/control area and timing unmeasured; no SRAM growth approved') for k in (16,24,32)}
-    result=dict(status='estimated_with_allowances',partitions=partitions,
+    result=dict(status='estimated_with_allowances',partitions=partitions,isolated_rom=isolated_rom,
         mapped_logic_mm2_measured=measured,macro_instances_measured=len(macros),
         macro_footprints=footprints,sram_mm2_estimated=sram,main_sram_options=options,
         digital_allowances=allowances,physical_allowances=physical,utilization_assumed=.55,
         placed_digital_mm2_estimated=placed,total_mm2_estimated=total,ceiling_mm2=12.92,headroom_mm2_estimated=12.92-total,
         partition_method='Exclusive backward endpoint cones, stopping at sequential outputs; named net aliases and source ownership label state. Shared and output-only glue counted once. Allocation of flattened cells, not isolated block areas.',
-        basis='Macro area = instance count * pinned LEF width * height. All built BIST/controller/adapter cells are in measured digital area; original 0.05 BIST placeholder replaced, not double-counted. ROM and analog/placement/scan remain assumptions, not signoff.',
+        basis='Macro area = instance count * pinned LEF width * height. All built BIST/controller/adapter cells are in measured digital area; original 0.05 BIST placeholder replaced, not double-counted. When implemented_rom is authenticated, initialized ROM is included in measured whole-map area and its placeholder is zero; isolated ROM is non-additive. Otherwise ROM remains assumed. Analog/placement/scan remain assumptions, not signoff.',
         inputs={p.relative_to(ROOT).as_posix():digest(p) for p in [mapped,hierarchy,lib,lock_path,clock_path,Path(__file__)]+views})
     (base/'area-budget.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result),flush=True)
+    if isolated_rom and isolated_rom['area_mm2_measured']>.50:raise RuntimeError('T36 ROM allowance stop condition')
     if total>12.92:raise RuntimeError('T35 area-budget stop condition')
 
 
