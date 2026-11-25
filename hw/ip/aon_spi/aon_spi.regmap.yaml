@@ -1,0 +1,39 @@
+block: aon_spi
+description: Lite-owned LF SPI with framed byte FIFOs
+data_width: 32
+address_width: 8
+registers:
+- name: control
+  offset: 0
+  fields:
+  - {name: enable, bits: 0, access: rw, reset: 0}
+  - {name: mode3, bits: 1, access: rw, reset: 0}
+- name: status
+  offset: 4
+  fields:
+  - {name: busy, bits: 0, access: ro}
+  - {name: tx_level, bits: [7, 4], access: ro}
+  - {name: rx_level, bits: [11, 8], access: ro}
+- name: tx_data
+  offset: 8
+  fields: [{name: value, bits: [7, 0], access: wo}]
+- name: rx_data
+  offset: 12
+  fields: [{name: value, bits: [7, 0], access: ro}]
+- name: divider
+  offset: 16
+  fields: [{name: ticks, bits: [15, 0], access: rw, reset: 1}]
+- name: length
+  offset: 20
+  fields: [{name: bytes, bits: [3, 0], access: rw, reset: 1}]
+- name: start
+  offset: 24
+  fields: [{name: go, bits: 0, access: w1p}]
+- name: events
+  offset: 28
+  fields:
+  - {name: complete, bits: 0, access: w1c, reset: 0}
+  - {name: error, bits: 1, access: w1c, reset: 0}
+- name: irq_enable
+  offset: 32
+  fields: [{name: events, bits: [1, 0], access: rw, reset: 0}]
