@@ -9,13 +9,13 @@ class LiteDebugPort extends Bundle {
   val request=Input(Bool());val allowEntry=Input(Bool());val stop=Input(Bool())
   val mode=Output(Bool());val stopped=Output(Bool())
 }
-class LiteCore(withDebug: Boolean=false,debugBase: BigInt=0x10000) extends RawModule {
+class LiteCore(withDebug: Boolean=false,debugBase: BigInt=0x10000,withRVFI: Boolean=true) extends RawModule {
   val debug=if(withDebug) Some(IO(new LiteDebugPort)) else None
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
   val start=IO(Input(Bool()));val entry=IO(Input(UInt(32.W)));val irq=IO(Input(Bool()))
   val request=IO(Decoupled(new MemoryRequest));val response=IO(Flipped(Decoupled(new MemoryResponse)))
   val halted=IO(Output(Bool()));val sleeping=IO(Output(Bool()));val clockHold=IO(Output(Bool()))
-  val trace=IO(Output(new Retirement));val rvfi=IO(Output(new LiteRvfi));val interruptTaken=IO(Output(Bool()))
+  val trace=IO(Output(new Retirement));val rvfi=if(withRVFI) IO(Output(new LiteRvfi)) else Wire(new LiteRvfi);val interruptTaken=IO(Output(Bool()))
   protected def writeback(value: UInt): UInt=value
   protected def requestAddress(value: UInt): UInt=value
   protected def retiredPc(value: UInt): UInt=value
