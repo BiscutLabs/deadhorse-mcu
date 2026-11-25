@@ -1,0 +1,99 @@
+{
+  "repository": "https://github.com/wafer-space/gf180mcu-project-template",
+  "revision": "d99f6e1ba14e549e80d5d83e113fbd82ed37ed5c",
+  "license": "Apache-2.0",
+  "pdk_commit": "792ef67037d74c8c51811eab3ce23cf793491296",
+  "files": {
+    "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "AUTHORS.md": "3d03e047acae957dd0d829574c6aae59270a1df620deaf471f416799a8f42eab",
+    "README.md": "f96eeee64b42501b10a4b236048f261e14ad93e66e0a88c330c8137b48dd8284",
+    "Makefile": "6328ef34eb23b3af8a35865fda4222f04c84273efffaaf9e819c0c442947e46c",
+    "flake.nix": "df7a59580a3b9ba99c65997de020e3c9735f2cb969c8c2cf821dc92e7ff155c0",
+    "flake.lock": "cb391f8de11c5f7dd32ecd0364b280a85eb9ae1da89bd717da71c3e38a003e35",
+    "shell.nix": "d3ce60f831a9532c923d4053e874b746fe4b61a8f39024b66bd045ff56d6ebf6",
+    "src/chip_top.sv": "adeb70b23b0b69789b7b6c30916f192dd34ac4ae2cb39b76cdf3a9785112bd94",
+    "src/chip_core.sv": "1ab9385c7d479654cd204199dc17939d0de3f9be142c086a76c970f963693707",
+    "src/slot_defines.svh": "830a0cac24585ddbd17417e621047ca3f9e640bbe4d663201ca3414d5f104714",
+    "librelane/slots/slot_1x1.yaml": "beeb65a950bf77d1cca242637393eb3c5981b23b4e59d57603df80e58387be63",
+    "librelane/config.yaml": "4ef7336d0a945461dac30f068e225a021dd5755eb490e03179bfbf81dbab2639",
+    "librelane/config_padring.yaml": "63d5e9b92301d047c67c463fb6a68bf6827b549972b0e4c5193efc7dd0ae4a28",
+    "librelane/chip_top.sdc": "0e7d130a066b39c9343749e26849d389f5def0e99598e00a26f249dcd9ab5e0b",
+    "librelane/macros/macros_3v3.yaml": "8cef980d0b7f157f94c33938c64a8dfdbadf9c7875a563d695a504aa449bceed",
+    "librelane/pdn/pdn_cfg.tcl": "2b69d4c9428c4cd0f5df3ad794b57db910e898c953d501f3ada6c30acb18c6f4",
+    "librelane/pdn/pdn_3v3_sram.tcl": "49ca0a3e0ebcf54d0858fb7b7adda5ce5d378dcbdb9c9e5ac52162d5def8f1d8",
+    "librelane/gf180mcu_render.lyp": "b3a68935eeec10953890db1b9afa6019b9be6dc9d9a7f67691350815fe04aeb6",
+    "scripts/padring.py": "450bcf5886d0ae343ed211a222f03528342d7f267dd8107fb6892442d60a6090",
+    "ip/gf180mcu_ws_ip__logo/gds/gf180mcu_ws_ip__logo.gds": "98d0cbbac50f436a3965346a99a5a43f921b0cb73fe3feecd226e67082b2fd4c",
+    "ip/gf180mcu_ws_ip__logo/lef/gf180mcu_ws_ip__logo.lef": "4db0d8852ae66bbf772ce78aeae2d688c42f1bc6e6b423b01bee64a7dd9e13cd",
+    "ip/gf180mcu_ws_ip__logo/lib/gf180mcu_ws_ip__logo.lib": "f7fe5d2d5d872f0f9e686880e9e8ef1009b96cf7fb5b480233213fcf8a50f524",
+    "ip/gf180mcu_ws_ip__logo/vh/gf180mcu_ws_ip__logo.v": "fa0816f3dd54f6c9d7d24e667840f9d5f711ab9fc3788bd1d68ec95aa91d883c",
+    "ip/gf180mcu_ws_ip__marker/gds/gf180mcu_ws_ip__marker.gds": "5621522f25558d6850c7355a28caa7c7d7fc923640352a20165646a565f0638f",
+    "ip/gf180mcu_ws_ip__marker/lef/gf180mcu_ws_ip__marker.lef": "91c4a6fc76af31627759dd3b9eabfd5896ea4b2834fcf71210d63b685f812d30",
+    "ip/gf180mcu_ws_ip__marker/lib/gf180mcu_ws_ip__marker.lib": "0b0d9faa8c1c707b906e35835ee800098bd20b583374690d8cee38e64be11f2d",
+    "ip/gf180mcu_ws_ip__marker/vh/gf180mcu_ws_ip__marker.v": "9f94de7bbe92883575e38c0860f99035c4ef10809a2beb7ea07663e8890949c6",
+    "ip/gf180mcu_ws_ip__project_id/gds/gf180mcu_ws_ip__project_id.gds": "31e1e27e0e4ba5f881933f3fd73eb2e3a97c8f1b8ac4e5a2f0eb97207eec1f31",
+    "ip/gf180mcu_ws_ip__project_id/lef/gf180mcu_ws_ip__project_id.lef": "3d5a4dbe141c9c6053c65de57a194fcd3af672ba1c5baf7c8550d08572760366",
+    "ip/gf180mcu_ws_ip__project_id/lib/gf180mcu_ws_ip__project_id.lib": "55ae3d2910c69a703ecf936018a243a0d906cbfab02a6b8a0a412c76bf3a25c7",
+    "ip/gf180mcu_ws_ip__project_id/vh/gf180mcu_ws_ip__project_id.v": "952c73fa133729f26767af4e2d5db2e37e99992e7d9d338588e61133ead93619",
+    "ip/gf180mcu_ws_ip__qrcode_id/gds/gf180mcu_ws_ip__qrcode_id.gds": "41080172af7f444881dba5d7c9521042ef0e996400f21dd7f68aa428d17ff684",
+    "ip/gf180mcu_ws_ip__qrcode_id/lef/gf180mcu_ws_ip__qrcode_id.lef": "f8633c388a0c6dad0c5199a82aa7d6ebd849d78542d776ae7abd06cb640f822f",
+    "ip/gf180mcu_ws_ip__qrcode_id/lib/gf180mcu_ws_ip__qrcode_id.lib": "8d01eb95fd3f9b36f272f97821e0d61bf588b1d0edc4fa316325d5717b365168",
+    "ip/gf180mcu_ws_ip__qrcode_id/vh/gf180mcu_ws_ip__qrcode_id.v": "8f269e1ce2fe71168be9698a6d4557366d15ce00903a0f1014e26f009d4e47fa",
+    "ip/gf180mcu_ws_ip__shuttle_id/gds/gf180mcu_ws_ip__shuttle_id.gds": "6c112fbba8bf3b65f4a22fd5a51ef5bd077a029aca165c60cb4d0bcf13dec51a",
+    "ip/gf180mcu_ws_ip__shuttle_id/lef/gf180mcu_ws_ip__shuttle_id.lef": "d76d7f041157979e0a943dcdafea80df7096d81e20c8e193a0b250a671dbd52f",
+    "ip/gf180mcu_ws_ip__shuttle_id/lib/gf180mcu_ws_ip__shuttle_id.lib": "c8bff37c8bd1bac6aad62a9440bce8c5a7273da5fc547da4b173bf940dbe9312",
+    "ip/gf180mcu_ws_ip__shuttle_id/vh/gf180mcu_ws_ip__shuttle_id.v": "825ec02a0f38e45d7f3f6183ff579a271dc41ce8e66371b8b6f720bc8ad82804"
+  },
+  "flake_dependencies": {
+    "ciel": {
+      "lastModified": 1792224803,
+      "narHash": "sha256-ESrLNYiXVE6iBddaUVnon7WTFxk3+zv6oRaPzpmY4dA=",
+      "owner": "fossi-foundation",
+      "repo": "ciel",
+      "rev": "e180507a4190462d65cdded4448eb4f7bd2f30fa",
+      "type": "github"
+    },
+    "devshell": {
+      "lastModified": 1791918082,
+      "narHash": "sha256-oN9JrhRfHa7MUTdUq+11dHn7u0Z4WfEA4mhzBq0/zoQ=",
+      "owner": "numtide",
+      "repo": "devshell",
+      "rev": "9e29c63dde99a2d80c94b3d024c9768c01544558",
+      "type": "github"
+    },
+    "flake-compat": {
+      "lastModified": 1767039857,
+      "narHash": "sha256-vNpUSpF5Nuw8xvDLj2KCwwksIbjua2LZCqhV1LNRDns=",
+      "owner": "NixOS",
+      "repo": "flake-compat",
+      "rev": "5edf11c44bc78a0d334f6334cdaf7d60d732daab",
+      "type": "github"
+    },
+    "librelane": {
+      "lastModified": 1792412302,
+      "narHash": "sha256-AyIrZXlquZ8EqtvmDaLWk1lkXSXkIBdnqJVYijv5JUw=",
+      "owner": "librelane",
+      "repo": "librelane",
+      "rev": "99148a9c1e648cdfdb9d7b772481af32e0dfbe8b",
+      "type": "github"
+    },
+    "nix-eda": {
+      "lastModified": 1791256612,
+      "narHash": "sha256-KOSQsHtzZvAVqUklgVdgKloPoTZ5gns7BMxIpnyPi8E=",
+      "owner": "fossi-foundation",
+      "repo": "nix-eda",
+      "rev": "8a8e673d5327d1ceaf039c1e647f487148c7bd85",
+      "type": "github"
+    },
+    "nixpkgs": {
+      "lastModified": 1780734595,
+      "narHash": "sha256-DmTfP92QFYRLOGXlMIE54MAgxSJjDWocl3gRNOu72Os=",
+      "owner": "nixos",
+      "repo": "nixpkgs",
+      "rev": "9b696460ac78b5ccfc17c854d8c976f20456e943",
+      "type": "github"
+    }
+  },
+  "patches": [],
+  "scope": "Selected unmodified1x1/3.3V template inputs, example core for baseline only, required wafer.space IP. Materialize under build; no production pad library selected yet."
+}

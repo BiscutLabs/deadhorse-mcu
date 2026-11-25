@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "status": "candidate_not_active",
+  "revision": "792ef67037d74c8c51811eab3ce23cf793491296",
+  "source": "https://github.com/fossi-foundation/ciel-releases",
+  "template_revision": "d99f6e1ba14e549e80d5d83e113fbd82ed37ed5c",
+  "release": "https://github.com/fossi-foundation/ciel-releases/releases/tag/gf180mcu-792ef67037d74c8c51811eab3ce23cf793491296",
+  "archives": {
+    "gf180mcu_ocd_ip_sram.tar.zst": {
+      "sha256": "1e0be26201ce2e32a8a44abc45f22bfcb81181cb3aa747f3326451b912e0d334",
+      "url": "https://github.com/fossi-foundation/ciel-releases/releases/download/gf180mcu-792ef67037d74c8c51811eab3ce23cf793491296/gf180mcu_ocd_ip_sram.tar.zst"
+    },
+    "gf180mcu_fd_sc_mcu7t5v0.tar.zst": {
+      "sha256": "0d4b8cc43105865e09e192cab0a9f643845f9567b5782672a7be19b2499f9ce0",
+      "url": "https://github.com/fossi-foundation/ciel-releases/releases/download/gf180mcu-792ef67037d74c8c51811eab3ce23cf793491296/gf180mcu_fd_sc_mcu7t5v0.tar.zst"
+    },
+    "gf180mcu_fd_io.tar.zst": {
+      "sha256": "5ccbb2f0924933a1da0ffd5452ca583864c6987457b416d27a6907c007e57cf6",
+      "url": "https://github.com/fossi-foundation/ciel-releases/releases/download/gf180mcu-792ef67037d74c8c51811eab3ce23cf793491296/gf180mcu_fd_io.tar.zst"
+    },
+    "gf180mcu_ocd_io.tar.zst": {
+      "sha256": "c983735fe0e0bf1f865f7a4f9f1b003a9791f4a1f756c898072747bb1e3ee177",
+      "url": "https://github.com/fossi-foundation/ciel-releases/releases/download/gf180mcu-792ef67037d74c8c51811eab3ce23cf793491296/gf180mcu_ocd_io.tar.zst"
+    }
+  },
+  "files": {
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lef/gf180mcu_fd_sc_mcu7t5v0.lef": "47dadf84c21b20f558d043c36271632f07b1c2c2a595b118e2e1050ebb74349b",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ff_125C_1v98.lib": "2ae94b0fbe4a316721196588397e5d6c1164fc2d580494b3d1a87e1250e0d176",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ff_125C_3v60.lib": "631bcfdf4506ffa55b719563067a5bbd53a4342845b4836af53ade1caa0f4c89",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ff_125C_5v50.lib": "36095028cc201a78fab9bd2e4a9dca16aa65e76fb2809bee110a10d6eee185e5",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ff_n40C_1v98.lib": "15552dde340d35739e077f32ac64bbd30096ac93704c4003ce370a06c060e7a7",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ff_n40C_3v60.lib": "e8c3ad837deb68ce049297d0c0f72c8a62fcded2d8d5785452f9feb8616de949",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ff_n40C_5v50.lib": "e52a6914d8c060ca4fa45690a49735102b12d5bdb0937ab9c805b6fb1d325a59",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ss_125C_1v62.lib": "462b1f25302348d08b29ba1c43bbcee252db47a2918eb893a8bf16390e0d0324",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ss_125C_3v00.lib": "ae53503d75456f41c222109c8a625612dfad97c2e287c04c2432473b0a0e7de5",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ss_125C_4v50.lib": "7c74eded15daf0e3ca5650c66176ff00eb81d684476f0cdf53f1feaa7275cfa3",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ss_n40C_1v62.lib": "98e056ff3a1c1e517dab4c7f9591d9a9771a3bed4955eeec641d3fad49bf6d9c",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ss_n40C_3v00.lib": "b98d06e9d55c57c1bdce446e8a334681a0a33e8b2ad530f6edef7d6557c8f928",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ss_n40C_4v50.lib": "259cd87bda9cca9d9d1793494d1f5e60fc19f057a278ee7a26c56d854800bdf1",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__tt_025C_1v80.lib": "a846211df4953489abd9bca74dd2ae59cbc44b7d5643b99965d4dfd05f76287a",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__tt_025C_3v30.lib": "af14535f9488a41f56a7df8696eb8539829cb9d917044edaa38b0733bcd6fc54",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__tt_025C_5v00.lib": "e60758f8fceaa6cb4db6bc1674c654bdcef6a7228d3366a1faee803d544b59ad"
+  }
+}

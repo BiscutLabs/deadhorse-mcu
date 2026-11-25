@@ -119,6 +119,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D106 | DMI-only asynchronous cancellation | User-approved2026-11-25; immediate hard-clear quarantine and acknowledged flush; DM cold-only; implementation unverified |
 | [x] | D107 | Bridge timeout quarantine and BIST pin abort | User-approved2026-11-25; immediate cancellation, acknowledged flush, existing selective pin abort; implementation unverified |
 | [x] | D108 | T42 main-clock local grant | User-approved2026-11-25; only production toAon admission; preserve FIFO/epoch/owners/full readback,250ms and scoped/no-CI policy |
+| [x] | D109 | T43 fd_io pads and current SRAM inventory | User-approved2026-11-25; common3.3V supply, sixteen1024x8 plus four512x8; no capacity change or electrical/physical acceptance |
 
 ## Tasks
 
@@ -177,7 +178,7 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [x] | T40 | [DMA circular UART RX](tasks/T40-dma-circular-uart-rx.md) | Codex | D102; completed PLAN05 and T41; T23 proof debt retained | Scoped implementation complete: frozen19 DMA/SoC tests, driver/map checks, all four simulation faults, timing and area pass. Measured added0.003462mm2 below0.010 cap. Circular formal closure/reload-fault proof deferred at caps; finite range bounded36, inherited unbounded debt remains. No aggregate CI. [Report](tasks/reports/T40.md) |
 | [x] | T41 | [Reset consolidation](tasks/T41-reset-consolidation.md) | Codex | D103; completed PLAN05/T36; T33/T34/T32 interfaces | Scoped completion under D103/D106/D107, independently reviewed. Four cohorts, paired-image warm ROM and relevant reset/boot/sleep/debug checks pass. Measured release instances 89→30 and reset controls 150→59; mapped setup passes with approved USB warning, estimated headroom 1.586 mm². Lite initialization/SRAM ownership proofs deferred at caps; shared startup/shutdown and qualified DMI composition remain open. Physical hold/RDC/reset-removal deferred; no aggregate CI. [Receipt](tasks/reports/T41.md) |
 | [x] | T42 | [Lite boot-transfer latency](tasks/T42-lite-boot-transfer.md) | Codex | D104/D108; PLAN05; T41 | [Report](tasks/reports/T42.md): independently accepted scoped completion. Maximum measured20,051,604quanta, estimated208.870875ms/250ms with full readback/no bypass; D104 closed.18 relevant Scala cases,20 wire positives/1 ROM fault,2 load cases,2 unbounded local assertions/3 faults pass. Main67.515236ns/75; estimated headroom1.569452635mm2. Inherited composition/physical debt remains; no aggregate CI |
-| [ ] | T43 | [wafer.space template and PDK](tasks/T43-wafer-space-physical-base.md) | unassigned | D105; current production; prerequisite for T38 | [Planning receipt](tasks/reports/T43-planning.md); no migration, chip top or physical acceptance; resolve macro-count mismatch before execution |
+| [~] | T43 | [wafer.space template and PDK](tasks/T43-wafer-space-physical-base.md) | Codex | D105/D109; current production; prerequisite for T38 | [Reviewed provenance/comparison checkpoint](tasks/reports/T43.md) on codex/t43-wafer-space-base; pad library and SRAM inventory approved. Migration, matched measurements and physical smoke remain. No aggregate CI |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -291,6 +292,9 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-25 Codex: T43 checkpoint authenticates39 template files and candidate PDK; comparison measures15 corners with229 unchanged cells each, byte-identical LEF and24 matching SRAM views. Independent review's fail-closed/provenance refinements incorporated. Pending explicit pad-library/current-SRAM-inventory choices; active PDK unchanged, no aggregate CI or physical qualification.
+- 2026-11-25 Codex: Started T43 on its own branch after T42. Rechecked upstream main d99f6e1ba14e549e80d5d83e113fbd82ed37ed5c and template PDK792ef67037d74c8c51811eab3ce23cf793491296; prepare authenticated collateral/library comparison and independently reviewed pad/SRAM recommendations. No aggregate CI; active PDK unchanged pending qualification.
 
 - 2026-11-25 Codex: T42/D108 independently verified for publication by t36_contract_review (read-only; inspected final code, proofs, reset/ownership tests, trace controls, area/timing, source/receipt hashes and report). Frozen strict maximum load passes without D104; full readback and original window retained. Local grant removes8 measured flops, isolated area reduces720.0256um2. Scoped checks pass; inherited bridge/T41 composition and physical hold/reset debt remain, no aggregate CI. T42 complete and D104 exception closed.
 

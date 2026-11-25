@@ -198,6 +198,12 @@ active. D108 is the implementation authorization, not a change to the target.
 | --- | --- | --- |
 | **D108** | Registered local grant for production main-to-AON | User-approved2026-11-25: implement the independently reviewed [local-grant proposal](../spec/t42-lite-transfer-proposal.md). Replace only toAon's obsolete DirectionPermit with a main-clock registered request follower, reset low by the existing main release. Preserve BridgeSource/Target, FIFOs, epochs, cancellation, owners, debug leaf and full RAM readback. Amends D104's hardware-approval boundary; original250ms target and1024-byte capacity remain. Close D104 only after fresh unchanged-window production loading passes without bypass. Scoped relevant tests/capped proofs, no aggregate CI. Approval is not implementation or timing/area acceptance. |
 
+## T43 pad library and SRAM inventory
+
+| ID | Decision | Approved scope |
+| --- | --- | --- |
+| **D109** | Common-supply fd_io pads and unchanged production SRAM inventory | User-approved2026-11-25: select gf180mcu_fd_io for the common nominal3.3V core/IO supply; configure sixteen1024x8 main and four512x8 retained SRAM macros, preserving16KiB/2KiB. Resolves D105/T43's pad choice and supersedes its older twenty1024x8 request only. USB electrical, pad-level and physical qualification remain required; no capacity, pin-function or acceptance change. [Reviewed proposal](../spec/t43-physical-base-proposal.md). |
+
 ## Risks and evidence still required
 
 
