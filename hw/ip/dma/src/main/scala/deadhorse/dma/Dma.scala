@@ -9,28 +9,41 @@ class Dma(json: String,endpoints: DmaEndpoints,memoryBase: BigInt,memorySize: Bi
   val requests=IO(Input(UInt(17.W)));val pwmAck=IO(Output(UInt(9.W)))
   val irq=IO(Output(Bool()));val clockHold=IO(Output(Bool()))
   protected def allowed(origin: UInt): Bool=origin===owner
+  protected def shadowLocked(value: Bool): Bool=value
+  protected def makeEngine(): DmaEngine=new DmaEngine(endpoints,memoryBase,memorySize)
   val regs=Module(new RegBlock(json));regs.clk:=clk;regs.rst_n:=reset_n
   val adapter=Module(new BusRegAdapter(8,base,0));adapter.clk:=clk;adapter.reset_n:=reset_n
   adapter.bus.req:=bus.req;adapter.bus.bits:=bus.bits;adapter.bus.bits.origin:=Mux(allowed(bus.bits.origin),0.U,7.U)
   bus.gnt:=adapter.bus.gnt;bus.rvalid:=adapter.bus.rvalid;bus.rdata:=adapter.bus.rdata;bus.err:=adapter.bus.err
   regs.bus<>adapter.registers
-  val engine=Module(new DmaEngine(endpoints,memoryBase,memorySize))
+  val engine=Module(makeEngine())
   engine.clk:=clk;engine.reset_n:=reset_n;engine.owner:=owner;engine.requests:=requests
   engine.start:=regs.hw("start_channels_pulse");engine.abort:=regs.hw("abort_channels_pulse")
+  val blocked=Wire(Vec(4,Bool()))
   for(i<-0 until 4) {
     engine.settings(i).address:=regs.hw(s"address${i}_value_q")
     engine.settings(i).count:=regs.hw(s"count${i}_value_q")
     engine.settings(i).endpoint:=regs.hw(s"endpoint${i}_value_q")
+    engine.settings(i).circular:=regs.hw(s"endpoint${i}_circular_q").asBool
+    val shadowOffsets=regs.description.fields.filter(f=>Set(s"address$i",s"count$i",s"endpoint$i")(f.register)).map(_.offset).distinct
+    val hit=shadowOffsets.map(o=>adapter.registers.req_addr===o.U).reduce(_||_)
+    val pending=engine.start(i) && !engine.abort(i) && !engine.busy(i) && engine.settings(i).circular
+    blocked(i):=shadowLocked((engine.busy(i) && engine.circular(i)) || pending) && hit
     regs.hw(s"remaining${i}_value_d"):=engine.remaining(i)
     regs.hw(s"current${i}_value_d"):=engine.current(i)
     regs.hw(s"fault${i}_phase_d"):=engine.fault(i)
   }
+  val blockWrite=blocked.asUInt.orR && adapter.registers.req_write
+  regs.bus.req_wstrb:=Mux(blockWrite,0.U,adapter.registers.req_wstrb)
+  val rejectedWrite=Mux(adapter.registers.req_valid && regs.bus.req_ready && adapter.registers.req_write &&
+    adapter.registers.req_wstrb.orR,blocked.asUInt,0.U)
   memory<>engine.memory;peripheral<>engine.peripheral;pwmAck:=engine.pwmAck;clockHold:=engine.clockHold
   regs.hw("busy_channels_d"):=engine.busy
   regs.hw("events_done_set"):=engine.done;regs.hw("events_error_set"):=engine.failed
-  regs.hw("events_config_error_set"):=engine.rejected;regs.hw("events_aborted_set"):=engine.aborted
+  regs.hw("events_config_error_set"):=engine.rejected | rejectedWrite;regs.hw("events_aborted_set"):=engine.aborted
+  regs.hw("events_half_set"):=engine.half;regs.hw("events_wrap_set"):=engine.wrap
   withClockAndReset(clk,(!reset_n).asAsyncReset) {
-    val events=Cat(regs.hw("events_aborted_q"),regs.hw("events_config_error_q"),regs.hw("events_error_q"),regs.hw("events_done_q"))
+    val events=Cat(regs.hw("events_wrap_q"),regs.hw("events_half_q"),regs.hw("events_aborted_q"),regs.hw("events_config_error_q"),regs.hw("events_error_q"),regs.hw("events_done_q"))
     irq:=RegNext((events & regs.hw("irq_enable_events_q")).orR,false.B)
   }
 }

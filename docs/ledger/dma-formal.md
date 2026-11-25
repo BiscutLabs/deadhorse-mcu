@@ -73,3 +73,64 @@ Fresh concrete models match all historical variants. Original assertions,
 assumptions, depths and120-second caps remain. No helper or unchanged retry.
 Exact per-assertion times, model sizes, fault limitations, historical evidence
 audits and next scoped work are in [the debt report](../spec/soc-verification-debt.md).
+
+## T40 circular UART receive — 2026-11-25
+
+Measured commands, on `10a142c` plus receipt-hashed sources, prefixed with
+`python tools/env/run.py run --`:
+
+- `python hw/ip/dma/formal/circular.py --output build/t40/formal-final01`:
+  original finite claims replayed, circular growth/portfolio capped; then
+  a negative-job Yosys selection-union error stopped the runner before solving.
+- `python hw/ip/dma/formal/circular.py --faults-from build/t40/formal-final01
+  --output build/t40/formal-faults-final01`: only authenticated emitted fault
+  models, corrected exact-cone selection. No positive timeout rerun.
+- `python hw/ip/dma/formal/check.py --cases denied --output
+  build/t40/formal-denied-final01`: seven original denial assertions proved,
+  cover and owner-bypass fault passed their expected outcomes.
+- `python hw/ip/dma/formal_summary.py --base build/t40/formal-final01`:
+  read-only Yosys model inventory and log summary, no solver retry.
+
+| Original finite property | Job | Current result | Engine | Measured wall seconds |
+| --- | --- | --- | --- | ---: |
+| Request exclusivity | finite-0 | Proved | ABC PDR | 2.268 |
+| Origin | finite-1 | Proved | ABC PDR | 2.318 |
+| Alignment | finite-2 | Proved | ABC PDR | 2.270 |
+| SRAM range | finite-3 | Bounded36; unbounded debt unchanged | BTOR | 92.898 |
+| Memory offer stability | finite-4 | Proved | ABC PDR | 2.369 |
+| Peripheral offer stability | finite-5 | Proved | ABC PDR | 2.419 |
+| Channel0 count/selector | finite-6 | Proved | ABC PDR | 2.269 |
+| Channel1 count/selector | finite-7 | Proved | ABC PDR | 2.269 |
+| Channel2 count/selector | finite-8 | Proved | ABC PDR | 2.270 |
+| Channel3 count/selector | finite-9 | Proved | ABC PDR | 2.269 |
+| Seven non-owner wrapper assertions | denied/correct | Proved | ABC PDR | 2.219 |
+
+The new circular model has38 assertions, including an independent POP-driven
+lap counter and descriptor snapshot. Assumptions: initial reset asserted,
+thereafter arbitrary, one digital sample clock. All bus replies and MMIO are
+arbitrary; no fairness, response deadline, shadow-stability or invariant is
+assumed. Original finite inputs have circular tied low, exactly their old
+domain. Denied accesses retain the complete non-owner mapping.
+
+| Circular step-0/triage measurement | Measured result |
+| --- | --- |
+| Prepared positive model | 2,354 cells; 1,490 sequential bits including formal `$ff` state; no RAM |
+| BMC16 growth | PASS bounded, 3.722s; checks through index15, before the first wrap witness |
+| BMC32 growth | TIMEOUT, 121.261s; last attempted index28, not all properties discharged there |
+| Portfolio | ABC PDR + Yices induction, TIMEOUT121.665s; no aggregate proof |
+| Cover model | 1,789 cells, 927 sequential bits; all five covers in14.099s |
+| First cover bounds | Abort18, busy config-error19, odd-count half27, wrap36, wrap with a competing channel36 |
+| Extraneous/contributing cones | No data RAM. Four-channel MMIO, arbitration, wide cursor/range arithmetic and checker history share logic |
+
+The earlier decoding-only model (`formal-ring01`,34 assertions) timed out at
+BMC64. Review added independent lap state before accepting event accounting.
+The 16-step pass is **not** closure of range/underflow/exact-per-lap claims:
+it does not reach a wrap. These claims remain deferred with real three-lap
+simulation and fault controls. A Yices induction-state failure is not a
+reset-reachable counterexample; the positive bounded jobs found no such bug.
+No second triage round was run. Next useful work is a separately reviewed
+partition of per-channel conservation and shared bus-retirement properties,
+not another unchanged timeout. No helper may be assumed without proof.
+
+Fault results and the complete scoped test inventory are in
+[T40](../plan/tasks/reports/T40.md). Neither aggregate CI tier ran.
