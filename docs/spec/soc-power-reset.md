@@ -1,5 +1,14 @@
 # Production clock, reset and sleep boundaries
 
+Queued T41/D103 amendment (not implemented here): consolidate cold, warm,
+debug and unchanged USB-transport cohorts. Both watchdogs join warm; causes,
+debug and RAM survive warm. Warm ROM validates both images before releasing
+lite, skips flash copies only if both match, otherwise reloads. This replaces
+the performance-only/surviving-watcher reset contract when T41 lands. Existing
+PLAN05 implementation/evidence remains its historical baseline; no USB/analog
+interface change or completed proof is implied. See plan10 and the T41 brief.
+
+
 PLAN05 target amendment: performance owns oscillator/power/reset MMIO through
 toAon and is the single boot master. Whole-chip reset holds lite until explicit
 release; performance-only reset preserves watcher state. Committed dormant

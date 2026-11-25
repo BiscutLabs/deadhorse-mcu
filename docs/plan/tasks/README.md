@@ -60,7 +60,7 @@ checkpoints; current progress and evidence live only in STATUS.
 | T38 | [Chip top and pad ring](T38-chip-top-pads.md) | T35/T36; T34 interfaces; current T39 evidence; coordinate T37 | Unimplemented; acceptance unverified |
 | T39 | [Focused core and SoC regression](T39-core-soc-qualification.md) | Existing T13/T25 production cores, T20/T32–T34 integration; proof debt retained | D89 finite existing-regression scope; broader qualification deferred; results in STATUS/report |
 | T40 | [DMA circular UART RX](T40-dma-circular-uart-rx.md) | D102; PLAN05 design changes and Phase 2 qualification; T23 | Scheduled after PLAN05 migration; UART RX only, +0.010 mm2 cap; scoped checks, no aggregate CI; acceptance unverified |
-| T41 | [Reset consolidation](https://github.com/BiscutLabs/deadhorse-mcu/blob/codex/t41-reset-consolidation-plan/docs/plan/tasks/T41-reset-consolidation.md) | D103; completed PLAN05/T36 | Separate planning branch; rebase before inventory/RTL; scoped checks/no aggregate CI for T41 |
+| T41 | [Reset consolidation](T41-reset-consolidation.md) | D103; completed PLAN05/T36; T33/T34/T32 | Queued on its own branch; commit independently reviewed inventory before RTL; scoped checks/no aggregate CI; acceptance unverified |
 | T42 | [Lite boot-transfer latency](T42-lite-boot-transfer.md) | D104; PLAN05; coordinate T41 | Queued investigation; restore250ms maximum-image target; hardware proposal requires approval |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |

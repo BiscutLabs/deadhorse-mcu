@@ -1,5 +1,14 @@
 # Production boot contract — PLAN05
 
+Queued T41/D103 amendment (not implemented here): consolidate cold, warm,
+debug and unchanged USB-transport cohorts. Both watchdogs join warm; causes,
+debug and RAM survive warm. Warm ROM validates both images before releasing
+lite, skips flash copies only if both match, otherwise reloads. This replaces
+the performance-only/surviving-watcher reset contract when T41 lands. Existing
+PLAN05 implementation/evidence remains its historical baseline; no USB/analog
+interface change or completed proof is implied. See plan10 and the T41 brief.
+
+
 Approved architectural replacement under D92–D101 (user 2026-11-24).
 Implementation and scoped boot tests now exist; final PLAN05 publication checks
 are recorded in the T36 report. D104 temporarily accepts maximum-image load
