@@ -39,9 +39,9 @@ object DmaStandalone {
   private val uarts=Seq(BigInt(0x40010000L),BigInt(0x40010100L),BigInt(0x40010200L))
   private val spi=BigInt(0x40010300L);private val pwm=BigInt(0x40030000L)
   val endpoints=DmaEndpoints(uarts.flatMap(b=>Seq(b+12,b+16))++Seq(spi+16,spi+20)++(0 until 9).map(i=>pwm+0xc0+4*i),
-    uarts.flatMap(b=>Seq(b+8,b+8))++Seq(spi+12,spi+12)++Seq.fill(9)(pwm),
+    uarts.flatMap(b=>Seq(b+8,b+8))++Seq(spi+12,spi+12)++Seq.fill(9)(pwm+20),
     Seq(0,2,0,2,0,2,0,4).map(BigInt(_))++(0 until 9).map(i=>BigInt(1)<<i),
-    (0 until 9).map(i=>pwm+0x40+4*i),pwm+12)
+    (0 until 9).map(i=>pwm+0x40+4*(i/4)),pwm+16)
   val memoryBase=BigInt(0x20000000L);val memorySize=BigInt(16384)
 }
 object EmitDma extends App {

@@ -39,6 +39,7 @@ class PinmuxSpec extends AnyFunSuite with ChiselSim {
   test("clock demand spans accepted selection write through registered pad handover") {
     simulateRaw(new Pinmux("build/t24/pinmux/pinmux_regs.json")) {d=>
       d.reset_n.poke(false.B);d.owner.poke(1.U);d.bus.req.poke(false.B);d.bus.bits.poke(0.U.asTypeOf(d.bus.bits))
+      d.timerValues.poke(0.U);d.timerEnables.poke(0.U);d.timerRunning.poke(0.U);d.timerInputs.poke(0.U)
       d.values.foreach(_.poke(7.U));d.enables.foreach(_.poke(7.U));d.clk.step(3)
       d.reset_n.poke(true.B);d.clk.step(3);assert(!high(d.clockHold))
       d.bus.bits.addr.poke(0.U);d.bus.bits.we.poke(true.B);d.bus.bits.wdata.poke(1.U)
@@ -55,6 +56,7 @@ class PinmuxSpec extends AnyFunSuite with ChiselSim {
   test("MMIO lane masks, denied owners, exact decode and stable-selection data writes") {
     simulateRaw(new Pinmux("build/t24/pinmux/pinmux_regs.json")) {d=>
       d.reset_n.poke(false.B);d.owner.poke(1.U);d.bus.req.poke(false.B);d.bus.bits.poke(0.U.asTypeOf(d.bus.bits))
+      d.timerValues.poke(0.U);d.timerEnables.poke(0.U);d.timerRunning.poke(0.U);d.timerInputs.poke(0.U)
       d.values.zipWithIndex.foreach {case(v,i)=>v.poke((i+1).U)};d.enables.foreach(_.poke(7.U));d.clk.step(3)
       d.reset_n.poke(true.B);d.clk.step(3)
       def access(a: Int,w: Boolean=false,v: Int=0,mask: Int=15,origin: Int=1): (BigInt,Boolean)={

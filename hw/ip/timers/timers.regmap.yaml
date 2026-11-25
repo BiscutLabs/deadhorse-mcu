@@ -1,127 +1,74 @@
 block: timers
-description: D68 split timer service
+description: Three shared-period general timers and microsecond timebase
 data_width: 32
-address_width: 8
+address_width: 10
 registers:
-- name: control
+- name: time_control
   offset: 0
-  fields:
-  - name: run
-    bits: 0
-    access: rw
-    reset: 0
-- name: preload
-  offset: 4
-  fields:
-  - name: value
-    bits:
-    - 31
-    - 0
-    access: rw
-    reset: 0
-- name: command
-  offset: 8
-  fields:
-  - name: apply
-    bits:
-    - 3
-    - 0
-    access: w1p
-  - name: load_time
-    bits: 4
-    access: w1p
+  fields: [{name: run, bits: 0, access: rw, reset: 0}]
 - name: time_value
+  offset: 4
+  fields: [{name: value, bits: [31, 0], access: ro}]
+- name: time_preload
+  offset: 8
+  fields: [{name: value, bits: [31, 0], access: rw, reset: 0}]
+- name: time_command
   offset: 12
-  fields:
-  - name: value
-    bits:
-    - 31
-    - 0
-    access: ro
-- name: events
+  fields: [{name: load, bits: 0, access: w1p}]
+- name: pending
   offset: 16
-  fields:
-  - name: pending
-    bits:
-    - 3
-    - 0
-    access: w1c
-    reset: 0
-  - name: overrun
-    bits:
-    - 7
-    - 4
-    access: w1c
-    reset: 0
-  - name: config_error
-    bits:
-    - 11
-    - 8
-    access: w1c
-    reset: 0
-  - name: imu
-    bits: 12
-    access: w1c
-    reset: 0
-  - name: load_error
-    bits: 13
-    access: w1c
-    reset: 0
-- name: irq_enable
+  fields: [{name: channels, bits: [11, 0], access: ro}]
+- name: apply
   offset: 20
-  fields:
-  - name: events
-    bits:
-    - 13
-    - 0
-    access: rw
-    reset: 0
-- name: imu_capture
+  fields: [{name: channels, bits: [11, 0], access: w1p}]
+- name: events
   offset: 24
-  fields:
-  - name: value
-    bits:
-    - 31
-    - 0
-    access: ro
-- name: channel_mode
+  fields: [{name: channels, bits: [11, 0], access: w1c, reset: 0}]
+- name: irq_enable
+  offset: 28
+  fields: [{name: events, bits: [23, 0], access: rw, reset: 0}]
+- name: dma_enable
   offset: 32
-  fields:
-  - name: mode
-    bits:
-    - 1
-    - 0
-    access: rw
-    reset: 0
-  - name: output_enable
-    bits: 2
-    access: rw
-    reset: 0
-  count: 4
-- name: deadline
+  fields: [{name: channels, bits: [8, 0], access: rw, reset: 0}]
+- name: dma_ack
+  offset: 36
+  fields: [{name: channels, bits: [8, 0], access: w1p}]
+- name: dma_pending
+  offset: 40
+  fields: [{name: channels, bits: [8, 0], access: ro}]
+- name: dma_overrun
+  offset: 44
+  fields: [{name: channels, bits: [8, 0], access: w1c, reset: 0}]
+- name: timer_run
+  offset: 48
+  fields: [{name: timers, bits: [2, 0], access: rw, reset: 0}]
+- name: config_error
+  offset: 52
+  fields: [{name: timers, bits: [2, 0], access: w1c, reset: 0}]
+- name: period
   offset: 64
+  count: 3
+  fields: [{name: value, bits: [15, 0], access: rw, reset: 0}]
+- name: prescaler
+  offset: 80
+  count: 3
+  fields: [{name: value, bits: [15, 0], access: rw, reset: 0}]
+- name: channel_mode
+  offset: 128
+  count: 12
   fields:
-  - name: value
-    bits:
-    - 31
-    - 0
-    access: rw
-    reset: 0
-  count: 4
+  - {name: mode, bits: [1, 0], access: rw, reset: 0}
+  - {name: output_enable, bits: 2, access: rw, reset: 0}
+  - {name: falling, bits: 3, access: rw, reset: 0}
+- name: compare
+  offset: 192
+  count: 12
+  fields: [{name: value, bits: [16, 0], access: rw, reset: 0}]
 - name: captured
-  offset: 96
-  fields:
-  - name: value
-    bits:
-    - 31
-    - 0
-    access: ro
-  count: 4
-- name: status
-  offset: 112
-  fields:
-  - name: armed
-    bits:
-    - 3
-    - 0
-    access: ro
+  offset: 256
+  count: 12
+  fields: [{name: value, bits: [31, 0], access: ro}]
+- name: counter
+  offset: 320
+  count: 3
+  fields: [{name: value, bits: [15, 0], access: ro}]

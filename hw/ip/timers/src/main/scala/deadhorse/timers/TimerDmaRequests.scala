@@ -1,8 +1,8 @@
-package deadhorse.pwm
+package deadhorse.timers
 import chisel3._
 
 /** One outstanding event per channel; simultaneous service and event replaces it. */
-class PwmDmaRequests extends RawModule {
+class TimerDmaRequests extends RawModule {
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
   val events=IO(Input(UInt(9.W)));val mask=IO(Input(UInt(9.W)));val acknowledge=IO(Input(UInt(9.W)))
   val request=IO(Output(UInt(9.W)));val overrun=IO(Output(UInt(9.W)))

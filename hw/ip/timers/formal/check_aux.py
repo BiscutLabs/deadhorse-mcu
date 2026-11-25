@@ -1,4 +1,4 @@
-"""Focused PWM proofs, covers and actual RTL faults; never invokes CI."""
+"""Focused merged timer DMA/denied proofs, covers and actual RTL faults; never invokes CI."""
 import argparse
 import hashlib
 import json
@@ -11,14 +11,13 @@ ROOT=Path(__file__).resolve().parents[4]
 sys.path.insert(0,str(ROOT))
 from tools.formal import assertion_names, validate_job
 
-CASES={'channel':('PwmChannelFormal',12,5,24),
-       'dma':('PwmDmaFormal',5,3,8),'denied':('PwmDeniedFormal',7,1,16)}
+CASES={'dma':('TimerDmaFormal',5,3,8),'denied':('TimerDeniedFormal',7,1,16)}
 
 def run(output,cases):
     out=(ROOT/output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
-    paths=[p for root in ('hw/lib','hw/ip/pwm/src/main','hw/ip/pwm/formal')
+    paths=[p for root in ('hw/lib','hw/ip/timers/src/main','hw/ip/timers/formal','hw/ip/gpio/formal')
            for p in (ROOT/root).rglob('*') if p.is_file() and p.suffix in ('.scala','.py')]
-    paths += [ROOT/'hw/ip/pwm/pwm.regmap.yaml',ROOT/'build/t22/pwm/pwm_regs.json',
+    paths += [ROOT/'hw/ip/timers/timers.regmap.yaml',ROOT/'build/t21/timers/timers_regs.json',
               ROOT/'build.sbt',ROOT/'tools/formal.py',ROOT/'tools/sbt.py',ROOT/'tools/env/lock.json']
     hashes=lambda:{p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     receipt=dict(status='running',source_sha256=hashes(),cases={},
@@ -37,15 +36,15 @@ def run(output,cases):
             top,asserts,covers,depth=CASES[case];directory=out/case;directory.mkdir()
             entry=dict(jobs=[]);receipt['cases'][case]=entry
             row=command([sys.executable,'tools/sbt.py',
-                'set hw / Compile / unmanagedSourceDirectories += file("/work/hw/ip/pwm/formal")',
-                f'hw/runMain deadhorse.pwm.EmitPwmFormal {case} {directory}/emit'],directory/'emit.log')
+                'set hw / Compile / unmanagedSourceDirectories ++= Seq(file("/work/hw/ip/timers/formal"),file("/work/hw/ip/gpio/formal"))',
+                f'hw/runMain deadhorse.timers.EmitTimerAuxFormal {case} {directory}/emit'],directory/'emit.log')
             entry['emission']=row
             if row['returncode']:raise RuntimeError(case+' emission failed')
             for variant in ('cover','corrupt','correct'):
                 sv=sorted((directory/'emit'/variant).glob('*.sv'))
                 if not sv:raise RuntimeError('Missing model')
                 mode='cover' if variant=='cover' else 'bmc' if variant=='corrupt' else 'prove'
-                engine=('abc pdr\nsmtbmc yices\naiger suprove' if case=='channel' else 'abc pdr') if mode=='prove' else 'btor btormc'
+                engine='abc pdr' if mode=='prove' else 'btor btormc'
                 sby=directory/(variant+'.sby')
                 sby.write_text('\n'.join(['[options]',f'mode {mode}',f'depth {depth}','timeout 120',
                     '[engines]',engine,'[script]',f'read_slang --top {top} '+' '.join(p.name for p in sv),
@@ -61,8 +60,7 @@ def run(output,cases):
                 if result=='TIMEOUT':
                     row['status']='unresolved'
                 else:
-                    faults={'channel':{'d.'+assertion_names(12)[4]},
-                            'dma':set(assertion_names(5)), 'denied':set(assertion_names(7))}[case]
+                    faults={'dma':set(assertion_names(5)), 'denied':set(assertion_names(7))}[case]
                     row['failed_properties']=validate_job(directory/variant,
                         'cover' if mode=='cover' else 'negative' if variant=='corrupt' else 'proof',
                         row['returncode'],result,faults if variant=='corrupt' else None)

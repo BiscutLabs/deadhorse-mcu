@@ -1,5 +1,5 @@
 block: pinmux
-description: Limited GPIO output alternate functions
+description: GPIO alternates and unified timer pad routing
 data_width: 32
 address_width: 8
 registers:
@@ -14,3 +14,22 @@ registers:
 - name: settling
   offset: 0x20
   fields: [{name: pads, bits: [2, 0], access: ro}]
+- name: timer_select
+  offset: 0x40
+  count: 13
+  fields: [{name: channel, bits: [3, 0], access: rw, reset: 15}]
+- name: capture_select
+  offset: 0x80
+  count: 4
+  fields: [{name: channel, bits: [3, 0], access: rw, reset: 15}]
+- name: timer_active
+  offset: 0xa0
+  count: 13
+  fields: [{name: channel, bits: [3, 0], access: ro}]
+- name: capture_active
+  offset: 0xe0
+  count: 4
+  fields: [{name: channel, bits: [3, 0], access: ro}]
+- name: route_events
+  offset: 0xf0
+  fields: [{name: rejected, bits: 0, access: w1c, reset: 0}]
