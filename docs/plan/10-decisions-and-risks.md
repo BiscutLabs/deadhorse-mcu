@@ -137,6 +137,15 @@ D92-D101 record PLAN05 above. This subsequent task supersedes none of them.
 | --- | --- | --- |
 | **D102** | DMA circular receive, UART RX only, reload from shadow, user-approved 2026-11-24 | Schedule T40 after PLAN05 design changes. Four existing channels gain circular UART RX only, count >= 2, stable shadow reload protected by busy-write rejection, half/wrap W1C events and a small firmware ring driver. No second base/count copy, overrun detector, new endpoint or non-circular behavior change. Added mapped standard-cell area capped at 0.010 mm2 total; stop on excess before recovery optimization. Relevant DMA/SoC/driver tests and unchanged assertions only; no aggregate fast/full CI. Bounded formal evidence may be recorded; one timeout-triage round, no unchanged timeout reruns, unresolved claims remain visible. Independent review and all other limits remain. This task-specific D76 exception does not change PLAN05's phase-end checks. |
 
+## PLAN05 lite-load follow-up
+
+D103 is reserved for the separately queued T41 reset-consolidation decision on
+`codex/t41-reset-consolidation-plan`; it is not implemented by PLAN05.
+
+| ID | Decision | Approved scope |
+| --- | --- | --- |
+| **D104** | Accept maximum lite-image boot-load latency temporarily | User-approved2026-11-24 after the focused firmware attempt: "Add it as a follow up task and accept as is for now". Continue PLAN05/T36 with the supported1024-byte image's measured latency recorded as an explicit exception to250ms, not a passing result against that target. The diagnostic measured28,503,264 quanta (estimated296.909ms at assumed96MHz); fresh production evidence must report its actual interval. Keep the250ms target for T42 and all other boot/integrity/reset/ownership checks; the actual watcher remains checked against250ms. No bridge/clock architecture change is approved. Queue T42 for measurement-led investigation and an independently reviewed proposal before requesting hardware-change approval. D101 phase-end fast checks and proof deferrals are unchanged. |
+
 ## Risks and evidence still required
 
 

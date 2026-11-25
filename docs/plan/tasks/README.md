@@ -55,11 +55,13 @@ checkpoints; current progress and evidence live only in STATUS.
 | T33 | [Clock/reset/power controller](T33-clock-reset-power.md) | PLAN04; T32/T34 interface coordination | Remaining full reset sequencing/reason, threshold selection and retained sleep beyond PLAN04; acceptance unverified |
 | T34 | [Analog interfaces/models](T34-analog-models.md) | PLAN04 interfaces | LF RC plus POR/brownout only; no internal HF; acceptance unverified |
 | T35 | [SRAM macros and BIST](T35-sram-bist.md) | T32/T33 completed; coordinate T36 | Unimplemented; acceptance unverified |
-| T36 | [Production boot ROM](T36-boot-rom.md) | T32/T33 completed; coordinate T35 | Unverified acceptance; boot-path contract prerequisite |
+| T36 | [Production boot ROM](T36-boot-rom.md) | PLAN05; T32-T35 | Production ROM implemented; current scoped evidence, final CI and D104 exception in STATUS/report |
 | T37 | [Test mode and scan](T37-test-scan.md) | T35/T36; coordinate T38 | Unimplemented; acceptance unverified |
 | T38 | [Chip top and pad ring](T38-chip-top-pads.md) | T35/T36; T34 interfaces; current T39 evidence; coordinate T37 | Unimplemented; acceptance unverified |
 | T39 | [Focused core and SoC regression](T39-core-soc-qualification.md) | Existing T13/T25 production cores, T20/T32–T34 integration; proof debt retained | D89 finite existing-regression scope; broader qualification deferred; results in STATUS/report |
 | T40 | [DMA circular UART RX](T40-dma-circular-uart-rx.md) | D102; PLAN05 design changes and Phase 2 qualification; T23 | Scheduled after PLAN05 migration; UART RX only, +0.010 mm2 cap; scoped checks, no aggregate CI; acceptance unverified |
+| T41 | [Reset consolidation](https://github.com/BiscutLabs/deadhorse-mcu/blob/codex/t41-reset-consolidation-plan/docs/plan/tasks/T41-reset-consolidation.md) | D103; completed PLAN05/T36 | Separate planning branch; rebase before inventory/RTL; scoped checks/no aggregate CI for T41 |
+| T42 | [Lite boot-transfer latency](T42-lite-boot-transfer.md) | D104; PLAN05; coordinate T41 | Queued investigation; restore250ms maximum-image target; hardware proposal requires approval |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |
