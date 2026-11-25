@@ -9,6 +9,10 @@ from urllib.parse import unquote, urlsplit
 
 ROOT_FILES = {'README.md', 'LICENSE', 'AGENTS.md', 'build.sbt', 'fusesoc.conf', '.gitignore'}
 GENERATED = {'.vcd', '.fst', '.gds', '.oas', '.log', '.o', '.elf', '.pyc', '.pt', '.pyd'}
+# D105/T43 permits only the authored physical socket and D110 pad glue here.
+# Emitted RTL and upstream materialized sources still belong under build/.
+PHYSICAL_SV = {'phys/gf180-ws-1x1/chip_core.sv',
+               'phys/gf180-ws-1x1/chip_pad_feedback.sv'}
 
 
 def inventory(root, include_untracked=False):
@@ -84,7 +88,7 @@ def check(root, include_untracked=False):
         if suffix in GENERATED or any(p in {'build', 'obj_dir'} for p in parts[:-1]):
             fail('NO_GENERATED', name, 'generated artifact')
         if suffix in {'.ps1', '.cmd', '.bat'}: fail('NO_PLATFORM_WRAPPER', name, 'platform-specific wrapper')
-        if suffix in {'.sv', '.v', '.svh', '.vh'} and not name.startswith(('hw/vendor/', 'tools/spikes/')):
+        if suffix in {'.sv', '.v', '.svh', '.vh'} and name not in PHYSICAL_SV and not name.startswith(('hw/vendor/', 'tools/spikes/')):
             fail('SV_VENDOR_ONLY', name, 'RTL outside vendor or historical spikes')
         if re.search(r'(^|/)src/(main|test)/scala/', name) and suffix != '.scala' and path.name != '.gitkeep':
             fail('RTL_ONLY', name, 'only Scala source or .gitkeep allowed')

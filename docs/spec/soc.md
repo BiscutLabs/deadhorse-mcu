@@ -27,6 +27,21 @@ state/output equivalence. No new peripheral is optional in production.
 
 ## Clock, reset and dormant operation
 
+### Physical pad readback (D110)
+
+T43 binds the logical pins through the approved fd_io cells. Input/released mode
+uses OE=0, IE=1 and the physical receiver. Driven mode uses OE=1, IE=0 and feeds
+the local driven value to the core input. This applies to GPIO, AON GPIO,
+timer, QSPI, I2C and USB pad feedback; no internal register map changes.
+GPIO input/edge IRQ/wake cannot detect external contention while driving.
+Firmware must release a pad before sampling an external signal on it.
+Open-drain low reads zero locally; released open-drain pins sample the external
+bus for ACK/arbitration and stretching. USB electrical qualification remains open.
+The exact indexed assignment is in
+[pad-map.yaml](../../phys/gf180-ws-1x1/pad-map.yaml).
+
+### Clock and reset sequence
+
 OSC_IN is dedicated48MHz CMOS, feeding USB and registered50%-duty divide-by-six
 for main8MHz through the shared ICG. OSC_EN is AON-controlled, high on reset,
 with board pull-up. AON runs only from nominal32kHz LF RC or reset-selected

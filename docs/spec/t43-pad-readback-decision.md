@@ -1,7 +1,8 @@
-# T43 pad receive behavior: decision required
+# T43 pad receive behavior: approved D110
 
-D109 selects gf180mcu_fd_io; it does not waive existing pin behavior. No pad
-adapter RTL has been implemented.
+D110 records user approval on 2026-11-25 of the reviewed proposal below.
+D109 selected gf180mcu_fd_io; D110 supplies the explicit driven-pad behavior
+exception. Approval alone does not claim implementation or qualification.
 
 The foundry [digital IO control table](https://gf180mcu-pdk.readthedocs.io/en/latest/IPs/IO/gf180mcu_fd_io/digital.html)
 marks IE=1/OE=1 as disallowed. The pinned functional model also gates its Y
@@ -15,9 +16,9 @@ inputs. Substituting the local drive value would mask an externally different
 pad level and its edges. D109 did not approve that behavioral change, and T43
 forbids changing pin functions silently.
 
-## Proposed minimal resolution
+## Approved pad-boundary contract
 
-Approve the following pad-boundary contract, with no peripheral register-map,
+Apply the following pad-boundary contract, with no peripheral register-map,
 GPIO-count or pin-assignment change:
 
 - Released/input mode: OE=0, IE=1; core receives the physical pad receiver Y.
@@ -37,14 +38,11 @@ tests capture pulses on an output-enabled pin.
 This explicitly narrows the raw-input promise while driving. Existing core-port
 tests stay unchanged; new chip pad-boundary tests must cover this distinction
 (including external forcing), legal enables, open-drain release and pad boot/reset.
-USB electrical qualification remains separate. This is a proposal, not a claim
+USB electrical qualification remains separate. This is a contract, not a claim
 that local drive feedback has already been verified for all USB states.
 
-If raw-pad sensing during output must be preserved, retain the current contract
-and stop chip-top binding until a qualified receiver/pad implementation is
-available. Do not assert disallowed enables, consume spare pads that do not
-exist, or connect an unqualified raw pad directly to standard-cell logic.
+Do not assert disallowed enables, consume spare pads that do not exist, or
+connect an unqualified raw pad directly to standard-cell logic.
 
-Approval is required by [T43's scope](../plan/tasks/T43-wafer-space-physical-base.md)
-and AGENTS.md's behavior-change rule. PDK comparison/measurement work is
-independent and can continue while this decision is pending.
+The explicit approval required by [T43's scope](../plan/tasks/T43-wafer-space-physical-base.md)
+and AGENTS.md's behavior-change rule is recorded as D110.

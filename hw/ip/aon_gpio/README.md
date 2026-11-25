@@ -5,6 +5,12 @@ capture operate with OSC_IN stopped. The [integration contract](../../../docs/sp
 defines polarity, clear/rearm, mux ownership and the assumed physical pulse
 width. Radio IRQ wakes lite; the validated watcher uses mailbox to wake main.
 
+D110 qualifies observation at the physical chip boundary: released pads sample
+the external receiver; output-enabled pads feed back the local driven value.
+An external pulse on a driven pad is therefore not captured. Release/disarm
+the output as required before using that pad for an external IRQ or wake input.
+Existing core-port tests and their assertions remain unchanged.
+
 AON ownership of shared pads is acknowledged by main before the AON driver
 opens. A mode change requires disabled/disarmed GPIO, idle SPI and main
 availability. The shared `CdcPulseCapture` uses an asynchronously asserted

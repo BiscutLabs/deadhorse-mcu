@@ -1,13 +1,16 @@
 # gf180-ws-1x1
 
-GF180MCU wafer.space physical base. T43 is blocked pending the pad-readback
-decision; no chip-top or physical-flow qualification is claimed.
+GF180MCU wafer.space physical base. D110 approves driven-pad readback; logical
+binding and scoped checks are in progress. Complete physical qualification is
+blocked by missing LF/POR physical views, not replaced by area allowances.
 
 `template.lock.json` pins the official Apache-2.0 template, selected files and
 complete Nix dependency locks. `prepare_template.py` authenticates canonical Git
 blobs and materializes them under `build/`, following the SRAM vendor workflow.
 The retained `LICENSE` is upstream's license. Attribution is retained in the
-materialized `AUTHORS.md` and source headers. The patch list is currently empty.
+materialized `AUTHORS.md` and source headers. Canonical upstream files remain
+unchanged; local socket and simulation adaptations are listed in
+`patches/README.md` and authenticated by preparation receipts.
 
 `pdk-candidate.lock.json` authenticates the comparison inputs. The active
 `pdk-lock.json` and `block-timing.json` select revision 792ef67037d74c8c51811eab3ce23cf793491296.
@@ -27,8 +30,27 @@ requalification before aggregate acceptance; it has not been waived or run here.
 
 `pad-map.yaml` assigns every production signal with no digital spare pads and
 two unassigned analog pads. This is a checked logical map, not placed fit.
-The approved library and SRAM inventory are D109; pad readback while driving
-still needs the separate behavioral decision below.
+The approved library and SRAM inventory are D109; D110 supplies the explicit
+pad-readback contract. `chip_core.sv` binds the existing production SoC to the
+unmodified template chip_top socket; `chip_pad_feedback.sv` implements legal
+IE/OE controls and local feedback. These are combinational pad-boundary glue,
+the narrow D105 SV exception, not new peripheral logic or clock crossings.
+Status observations remain kept internal nets; LF/POR and supply connections
+remain in the production core. No debug/test input is tied off at this boundary.
+
+`prepare_chip.py` authenticates template sources, replaces only the example
+core socket and records input/output hashes and adaptations. Its simulation
+option exposes the existing named analog-model stimulus through fixture-only
+ports; those ports are absent from production. See [patch list](patches/README.md).
+The copied physical config is not yet a complete Deadhorse flow configuration.
+
+Scoped pad checks live in `dv/`. The Boolean proof is exhaustive and has no
+assumptions; the four-state test exercises the original foundry model, including
+external contention and open-drain release. The boot simulator's compatibility
+view changes four unsupported resistive pull primitives only under enforced
+PU=PD=0, where both original and replacement contribute Z. It is build-only,
+authenticated, and checked with the same Icarus cases. No physical vendor view
+is modified; strength, specify timing and electrical equivalence are not claimed.
 
 `physical-env.lock.json` pins the Nix bootstrap and template flake. The measured
 toolchain reports LibreLane v3.1.0.dev3. `Physical.Dockerfile` records the build

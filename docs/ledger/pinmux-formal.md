@@ -41,3 +41,23 @@ checked clock-demand continuity, source ordering, profile isolation and the
 corrected timer fixture. The first integration fixture failure is retained
 in `scratch/t24-integration-first.log`; mode values were corrected to the
 documented compare/OE configuration without changing RTL behavior or checks.
+
+## T43/D110 physical pad boundary, 2026-11-25
+
+Command (pinned environment):
+`python phys/gf180-ws-1x1/dv/pad_boundary.py --output build/t43/pad-boundary04`.
+Receipt baseline is `721027d` plus the source hashes in that receipt. The scalar
+combinational `chip_pad_feedback` instance is proved by Yosys SAT with every input
+unconstrained: IE/OE exclusivity, requested drive/data preservation, local
+feedback while driving and receiver feedback while released. No assumptions,
+state induction or sequential depth. **Measured** positive solver command time
+is 0.073983 s. Three negative controls (illegal enables, raw receiver while
+driving, inverted output) all fail the same assertions as required.
+
+The same runner passes four-state Icarus checks against the original foundry
+pad model and the build-only disabled-pull compatibility model. It covers
+released input, output, external contention and open-drain low/release/stretch.
+The scalar proof is not a whole-chip temporal, strength, specify or USB
+electrical proof. Existing pinmux/GPIO core-port tests and properties are
+unchanged; D110 explicitly changes only driven-pad external readback semantics.
+Independent review checked the proof, mutants and original/patched simulations.

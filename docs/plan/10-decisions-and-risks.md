@@ -204,8 +204,14 @@ active. D108 is the implementation authorization, not a change to the target.
 | --- | --- | --- |
 | **D109** | Common-supply fd_io pads and unchanged production SRAM inventory | User-approved2026-11-25: select gf180mcu_fd_io for the common nominal3.3V core/IO supply; configure sixteen1024x8 main and four512x8 retained SRAM macros, preserving16KiB/2KiB. Resolves D105/T43's pad choice and supersedes its older twenty1024x8 request only. USB electrical, pad-level and physical qualification remain required; no capacity, pin-function or acceptance change. [Reviewed proposal](../spec/t43-physical-base-proposal.md). |
 
-## Risks and evidence still required
+## T43 driven-pad readback
 
+| ID | Decision | Approved scope |
+| --- | --- | --- |
+| **D110** | Legal fd_io enables with local-drive readback | User-approved 2026-11-25: adopt the [reviewed pad-readback proposal](../spec/t43-pad-readback-decision.md). Released pads use OE=0/IE=1 and physical receiver Y; driven pads use OE=1/IE=0 and local driven value feedback. Open-drain low follows the driven rule and release follows the receiver rule. Explicitly amends the raw-pin input/IRQ/wake promise while output-enabled in the pinmux/GPIO/AON GPIO chip-boundary contracts; external contention and externally different driven-pad levels are not observed. D109 library/inventory, pin counts, maps, peripheral behavior at core ports and existing tests remain unchanged. Pad-level tests must cover legal enables, forcing, open-drain and boot/reset; USB electrical qualification is not waived. |
+
+
+## Risks and evidence still required
 
 | ID | Risk | Required work |
 | --- | --- | --- |

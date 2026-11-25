@@ -43,6 +43,13 @@ class StructureTests(unittest.TestCase):
     def test_rtl_clean(self): self.put('hw/lib/src/test/scala/.gitkeep'); self.expect()
     def test_sv_bad(self): self.put('hw/top/chip/chip.sv'); self.expect('SV_VENDOR_ONLY')
     def test_sv_clean(self): self.put('tools/spikes/test/design.sv'); self.expect()
+    def test_physical_socket_clean(self):
+        self.put('phys/gf180-ws-1x1/chip_core.sv')
+        self.put('phys/gf180-ws-1x1/chip_pad_feedback.sv'); self.expect()
+    def test_physical_other_rtl_bad(self):
+        self.put('phys/gf180-ws-1x1/peripheral.sv'); self.expect('SV_VENDOR_ONLY')
+    def test_physical_nested_rtl_bad(self):
+        self.put('phys/gf180-ws-1x1/generated/chip_core.sv'); self.expect('SV_VENDOR_ONLY')
     def test_symlink_bad(self):
         dest = self.put('docs/target.txt')
         (dest.parent/'link').symlink_to('target.txt'); self.expect('NO_SYMLINK')

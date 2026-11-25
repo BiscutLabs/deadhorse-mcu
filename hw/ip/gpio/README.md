@@ -6,6 +6,11 @@ functional profile). GPIO data/enables and bus/register state use main clock
 and main service reset. Inputs are independent bits synchronized through
 CdcSync, not an atomic external parallel bus. Outputs and enables reset zero.
 
+At the physical chip pads, D110 supplies external receiver data only while a
+pad is released. A driven pad feeds back its local output value, including to
+input/edge IRQ/wake logic; external contention is not observable while driving.
+Core-port behavior and existing tests remain unchanged.
+
 AON wake has its own synchronized inputs and registered sticky request. Its
 mask/polarity and clear commands cross as one coherent CdcFifo packet. Only
 one command is outstanding; a returned AON acknowledgement must match its

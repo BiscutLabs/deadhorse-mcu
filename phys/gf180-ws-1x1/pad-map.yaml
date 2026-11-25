@@ -75,4 +75,4 @@ aliases:
 notes:
   - GPIO output mux and main timer routing remain as soc.yaml; these aliases add no pads.
   - USB VBUS is a conditioned digital input, not a directly qualified five-volt pad connection.
-  - GPIO receive behavior while driving awaits the separate pad-readback decision.
+  - D110 uses local-drive feedback while driving; released pads sample the physical receiver.

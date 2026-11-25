@@ -42,7 +42,9 @@
     "ip/gf180mcu_ws_ip__shuttle_id/gds/gf180mcu_ws_ip__shuttle_id.gds": "6c112fbba8bf3b65f4a22fd5a51ef5bd077a029aca165c60cb4d0bcf13dec51a",
     "ip/gf180mcu_ws_ip__shuttle_id/lef/gf180mcu_ws_ip__shuttle_id.lef": "d76d7f041157979e0a943dcdafea80df7096d81e20c8e193a0b250a671dbd52f",
     "ip/gf180mcu_ws_ip__shuttle_id/lib/gf180mcu_ws_ip__shuttle_id.lib": "c8bff37c8bd1bac6aad62a9440bce8c5a7273da5fc547da4b173bf940dbe9312",
-    "ip/gf180mcu_ws_ip__shuttle_id/vh/gf180mcu_ws_ip__shuttle_id.v": "825ec02a0f38e45d7f3f6183ff579a271dc41ce8e66371b8b6f720bc8ad82804"
+    "ip/gf180mcu_ws_ip__shuttle_id/vh/gf180mcu_ws_ip__shuttle_id.v": "825ec02a0f38e45d7f3f6183ff579a271dc41ce8e66371b8b6f720bc8ad82804",
+    "librelane/macros/macros_5v.yaml": "23e0856439fceb253457703185c3d2aebf72dc75366f0aabf33c3e7961da0085",
+    "librelane/pdn/pdn_5v_sram.tcl": "c85ee1ce14b31099ebab51fd362d937a527a4cf798ceb79e2bd92dfca4be3093"
   },
   "flake_dependencies": {
     "ciel": {

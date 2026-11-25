@@ -5,8 +5,10 @@ Use the exact views from `hw/vendor/gf180_sram/gf180_sram.lock.json`, materializ
 its `prepare.py`; no replacement or repaired Liberty/LEF/GDS is authorized.
 
 There are sixteen `gf180mcu_ocd_ip_sram__sram1024x8m8wm1` instances under
-`digital.memory`, and four under `digital.subsystem.retained`. Each has
-CLK, active-low CEN/GWEN, active-low WEN[7:0], A[9:0], D[7:0], Q[7:0].
+`digital.memory`, and four `gf180mcu_ocd_ip_sram__sram512x8m8wm1` instances
+under `digital.subsystem.retained` (D109). Both have CLK, active-low CEN/GWEN,
+active-low WEN[7:0], D[7:0] and Q[7:0]; main addresses are A[9:0] and retained
+addresses are A[8:0]. The chip socket adds the `i_chip_core.soc` prefix.
 Connect physical `VDD` and `VSS` to the qualified normal supply/ground grid;
 the logical BlackBox omits physical power pins. SRAM has no reset pin.
 Clock main instances at generated OSC_IN/6 and retained instances at AON.
@@ -17,7 +19,9 @@ LEF width/height and instance counts are extracted by
 `hw/top/reference/measurements/t35_budget.py`; the area estimate is their
 product, never the stale Liberty `area`. The existing **assumed** 0.40 mm²
 macro-halo/channel allowance remains until placement establishes actual routing
-clearances. No invented halo width or completed placement is claimed. The
+clearances. `sram-placement.yaml` uses an **assumed 20 um** preliminary halo
+for geometric checks only; this neither replaces the budget allowance nor
+establishes routing clearance or completed physical placement. The
 pinned LEF declares no SYMMETRY; retain its native orientation unless T38
 qualifies another orientation. T38 must preserve power access, signal-pin
 access and enough space for clock/reset/test routing, then remeasure.

@@ -1,0 +1,11 @@
+# Preliminary placement coordinates in um, not a routed-fit result.
+# N only: pinned SRAM LEF does not declare rotated symmetry.
+core: [442, 442, 3490, 4680]
+halo_um_assumed: 20
+lane_x: [500, 900, 1300, 1700]
+groups:
+  - {instance: i_chip_core.soc.digital.memory.outputs_memory, size: 1024, y: 500}
+  - {instance: i_chip_core.soc.digital.memory.outputs_memory_1, size: 1024, y: 1100}
+  - {instance: i_chip_core.soc.digital.memory.outputs_memory_2, size: 1024, y: 1700}
+  - {instance: i_chip_core.soc.digital.memory.outputs_memory_3, size: 1024, y: 2300}
+  - {instance: i_chip_core.soc.digital.subsystem.retained.memory, size: 512, y: 3000}

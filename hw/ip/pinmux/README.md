@@ -15,6 +15,11 @@ simultaneously. GPIO synchronized input, edge IRQ and AON wake still observe
 the same raw GPIO input pins. No peripheral input routing, clocks, resets,
 JTAG, serial pins or new CDC are introduced.
 
+At the T43 physical chip boundary, D110 qualifies that raw-input promise:
+released pins observe the external pad, while output-enabled pins read back
+the locally driven value. External contention on a driven pad is not sensed.
+The mux's core-port behavior and tests remain unchanged.
+
 All inputs to the output selector are synchronous main-domain signals. Output
 data and enable are flops. With a stable selection, they sample the selected
 source on each main edge (one-edge latency). When the requested selection
