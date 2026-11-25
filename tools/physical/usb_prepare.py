@@ -6,6 +6,10 @@ from pathlib import Path
 import subprocess
 
 ROOT=Path(__file__).resolve().parents[2]
+import sys
+sys.path.insert(0,str(ROOT))
+from tools.pdk import root as pdk_root,liberty as pdk_liberty
+from pdk_views import manifest as pdk_manifest,require_manifest,view as physical_view
 
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def linux(p):return '/work/'+Path(p).resolve().relative_to(ROOT).as_posix()
@@ -23,9 +27,11 @@ if __name__=='__main__':
     for n,h in timing['source_sha256'].items():
         p=ROOT/n.removeprefix('/work/')
         if sha(p)!=h:raise ValueError('Changed baseline emission')
-    pdk=ROOT/'build/physical/pdk/gf180mcuD';sc=pdk/'libs.ref/gf180mcu_fd_sc_mcu7t5v0'
+    pdk=pdk_root();sc=pdk/'libs.ref/gf180mcu_fd_sc_mcu7t5v0'
     lib=sc/'lib/gf180mcu_fd_sc_mcu7t5v0__ss_125C_3v00.lib'
-    if sha(lib)!='5d2f37ba6f43e33aeba26dc1da55c96394a862eeec4148043f1d48bdf65ccea6':raise ValueError('Changed mapping corner')
+    if lib!=pdk_liberty():raise ValueError('Changed mapping corner')
+    physical_view('libs.ref/gf180mcu_fd_sc_mcu7t5v0/lef/gf180mcu_fd_sc_mcu7t5v0.lef')
+    physical_view('libs.ref/gf180mcu_fd_sc_mcu7t5v0/techlef/gf180mcu_fd_sc_mcu7t5v0__nom.tlef')
     ties=out/'ties.ys'
     ties.write_text(f'read_liberty -lib {linux(lib)}\nread_verilog {linux(block/"mapped.v")}\nhierarchy -top Usb\nhilomap -hicell gf180mcu_fd_sc_mcu7t5v0__tieh Z -locell gf180mcu_fd_sc_mcu7t5v0__tiel ZN -singleton\nwrite_verilog -noattr -noexpr {linux(out/"mapped-ties.v")}\n')
     with (out/'ties.log').open('w') as log:subprocess.run(['yosys','-Q','-T','-s',str(ties)],stdout=log,stderr=subprocess.STDOUT,check=True)
@@ -39,9 +45,11 @@ if __name__=='__main__':
     (out/'flow').mkdir()
     for p in (ROOT/'tools/physical').glob('*'):
         if p.is_file():(out/'flow'/p.name).write_bytes(p.read_bytes())
-    inputs += [sc/'lef/gf180mcu_fd_sc_mcu7t5v0.lef',sc/'techlef/gf180mcu_fd_sc_mcu7t5v0__nom.tlef',*sorted((sc/'lib').glob('*.lib')),
-               *sorted((pdk/'libs.tech/librelane').glob('rules.openrcx.gf180mcuD.*'))]
-    receipt=dict(status='prepared',commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),source_sha256=bound,
+    inputs += [physical_view('libs.ref/gf180mcu_fd_sc_mcu7t5v0/lef/gf180mcu_fd_sc_mcu7t5v0.lef'),physical_view('libs.ref/gf180mcu_fd_sc_mcu7t5v0/techlef/gf180mcu_fd_sc_mcu7t5v0__nom.tlef')]
+    inputs += [pdk_liberty(p.stem.split('__')[1]) for p in sorted((sc/'lib').glob('*.lib'))]
+    inputs += [physical_view(p.relative_to(pdk).as_posix()) for p in (pdk/'libs.tech/librelane').glob('rules.openrcx.gf180mcuD.*')]
+    inputs += [ROOT/n for n in pdk_manifest()['input_sha256']]
+    receipt=dict(status='prepared',pdk=pdk_manifest(),commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),source_sha256=bound,
         input_sha256={p.relative_to(ROOT).as_posix():sha(p) for p in inputs if p.is_file()},
         scope='Standalone USB; estimated pad/reset contract retained; no whole-chip signoff',
         assumptions=dict(core_utilization_percent=55,placement_density=0.60,core_margin_um=10),ci='not run')

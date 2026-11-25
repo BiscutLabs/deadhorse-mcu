@@ -23,7 +23,7 @@ def main():
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
     if args.domain:
         cfg=dict(cfg,period_ns={'main':125.0,'aon':31250.0,'usb':1000.0/48}[args.domain])
-    library=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
+    library=ROOT/cfg['liberty']
     if hashlib.sha256(library.read_bytes()).hexdigest()!=cfg['sha256']: raise ValueError('Library hash mismatch')
     cell='gf180mcu_fd_sc_mcu7t5v0__icgtp_1'
     script=output/'netlist.ys'

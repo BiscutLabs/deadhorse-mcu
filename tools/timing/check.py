@@ -217,7 +217,7 @@ def _measure(top, sources, clock, output, liberty=None, combinational=False,
     # Invalidate old success before any operation that might fail.
     (output / 'result.json').write_text(json.dumps({'status': 'blocked'}))
     (output / 'commands.jsonl').write_text('')
-    liberty = local(liberty or f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib')
+    liberty = local(liberty or cfg['liberty'])
     if digest(liberty) != cfg['sha256']:
         raise ValueError('Required slow-corner Liberty hash mismatch')
     sources = [local(source) for source in sources]

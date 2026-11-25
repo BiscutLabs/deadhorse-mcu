@@ -5,9 +5,12 @@
   "image_source": "https://hub.docker.com/r/openroad/ubuntu24.04",
   "openroad": "/OpenROAD/install/bin/openroad",
   "openroad_version": "26Q4-2433-gf11b4276ba",
-  "pdk_release": "https://github.com/fossi-foundation/ciel-releases/releases/download/gf180mcu-f6bfbd4d3d23c4236ff1f36126489ee59aa35cbd",
+  "pdk_release": "https://github.com/fossi-foundation/ciel-releases/releases/download/gf180mcu-792ef67037d74c8c51811eab3ce23cf793491296",
   "archives": {
-    "common.tar.zst": "b37e657e60a8ac352c09552ed6842eabbdd3635b85934b537729221f00bafedf",
-    "gf180mcu_fd_sc_mcu7t5v0.tar.zst": "48340b027293da69226b854087a8e9f0f757fcc9e631d1c18eab2681a359e33a"
-  }
+    "gf180mcu_ocd_ip_sram.tar.zst": "1e0be26201ce2e32a8a44abc45f22bfcb81181cb3aa747f3326451b912e0d334",
+    "gf180mcu_fd_sc_mcu7t5v0.tar.zst": "0d4b8cc43105865e09e192cab0a9f643845f9567b5782672a7be19b2499f9ce0",
+    "gf180mcu_fd_io.tar.zst": "5ccbb2f0924933a1da0ffd5452ca583864c6987457b416d27a6907c007e57cf6",
+    "common.tar.zst": "1342fe46866de6a3f1d8c3edb3193dafa4c3cf955cb987a17791b2287c41e39d"
+  },
+  "pdk_revision": "792ef67037d74c8c51811eab3ce23cf793491296"
 }

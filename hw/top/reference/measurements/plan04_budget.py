@@ -16,7 +16,7 @@ def main(base):
     digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
     assert mapping['status']=='mapped' and digest(mapped)==mapping['mapped_sha256']
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
-    lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
+    lib=ROOT/cfg['liberty']
     assert digest(lib)==cfg['sha256']
     areas={n:float(re.search(r'\barea\s*:\s*([\d.]+)',b)[1]) for n,b in groups(lib.read_text(),'cell')}
     cells=json.loads(mapped.read_text())['modules']['DeadhorseSoc']['cells']

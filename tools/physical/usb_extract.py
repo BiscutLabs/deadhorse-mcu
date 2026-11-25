@@ -7,12 +7,19 @@ from usb_prepare import ROOT,linux,sha
 sys.path.insert(0,str(ROOT/'tools/timing'))
 from usb_boundary import characterize,contract,tcl_rows
 
+import sys
+sys.path.insert(0,str(ROOT))
+from tools.pdk import root as pdk_root,liberty as pdk_liberty
+from pdk_views import manifest as pdk_manifest,require_manifest,require_prepared,view as physical_view
+
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--physical',type=Path,required=True);p.add_argument('--snapshot',type=Path,required=True)
     a=p.parse_args();out=a.physical.resolve();src=a.snapshot.resolve();out.relative_to(ROOT/'build');src.relative_to(ROOT/'build')
     if 'USB_DETAIL_ROUTE_COMPLETE' not in (out/'run.log').read_text(encoding='utf-8-sig'):raise ValueError('Detailed route incomplete')
-    pdk=ROOT/'build/physical/pdk/gf180mcuD';sc=pdk/'libs.ref/gf180mcu_fd_sc_mcu7t5v0';block=src/'timing/usb'
+    require_prepared(json.loads((out/'inputs.json').read_text()))
+    pdk=pdk_root();sc=pdk/'libs.ref/gf180mcu_fd_sc_mcu7t5v0';block=src/'timing/usb'
     for rc in ('min','nom','max'):
+        physical_view('libs.tech/librelane/rules.openrcx.gf180mcuD.'+rc)
         target=out/('extract-'+rc);target.mkdir(exist_ok=False)
         script=f'read_db {{{linux(out/"routed.odb")}}}\ndefine_process_corner -ext_model_index 0 {rc}\nset_extraction_rules_file {{{linux(pdk/"libs.tech/librelane"/f"rules.openrcx.gf180mcuD.{rc}")}}}\nextract_parasitics\nwrite_spef {{{linux(target/"routed.spef")}}}\nputs USB_EXTRACTION_COMPLETE\n'
         (target/'run.tcl').write_text(script)
@@ -43,7 +50,7 @@ set f [open $path_report w]''')
     analysis+='\nreport_parasitic_annotation -report_unannotated\nreport_clock_skew\nreport_check_types -min_pulse_width -violators -digits 6\nputs USB_PHYSICAL_TIMING_COMPLETE\n'
     (out/'physical-analyze.tcl').write_text(analysis)
     for corner in ('ss_125C_3v00','ss_n40C_3v00','ff_125C_3v60','ff_n40C_3v60','tt_025C_3v30'):
-        lib=sc/'lib'/('gf180mcu_fd_sc_mcu7t5v0__'+corner+'.lib')
+        lib=pdk_liberty(corner)
         c=contract('Usb',characterize(lib))
         c['characterization']['method']=c['characterization']['method'].replace('pinned SS corner only','pinned '+corner+' corner')
         c['reset_basis']='Upstream dffrnq_1 synchronized deassertion; per-corner rising CLK-to-Q and transition values in inputs/characterization. Same assumed slew/load envelope; asynchronous assertion and arbitrary peer phase retained.'
@@ -60,7 +67,7 @@ set f [open $path_report w]''')
             text=f'set spef {{{linux(out/("extract-"+rc)/"routed.spef")}}}\n'+text
             (target/'run.tcl').write_text(text)
             (target/'contract.json').write_text(json.dumps(dict(corner=corner,contract=c),indent=2)+'\n')
-    receipt=dict(routed_db_sha256=sha(out/'routed.odb'),routed_netlist_sha256=sha(out/'routed.v'),
+    receipt=dict(pdk=pdk_manifest(),routed_db_sha256=sha(out/'routed.odb'),routed_netlist_sha256=sha(out/'routed.v'),
         path_metric='launch-relative-data-v3-fixed-launch-enumeration',
         analysis_sha256=sha(out/'physical-analyze.tcl'),generator_sha256=sha(Path(__file__)),
         assumption='Same input slew/load and reset source-flop envelope, characterized separately at each PVT; board/upstream implementation unqualified')

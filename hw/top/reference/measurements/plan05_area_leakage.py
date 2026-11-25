@@ -59,13 +59,13 @@ def main(base):
     def group(owners,n):
         found=owners.get(n,set())
         return next(iter(found)) if len(found)==1 else 'shared_glue' if found else 'output_clock_glue'
-    pdk_path=ROOT/'build/riscay-mcu/physical/gf180/pdk-lock.json';pdk=json.loads(pdk_path.read_text());inputs.append(pdk_path)
+    pdk_path=ROOT/'phys/gf180-ws-1x1/pdk-lock.json';pdk=json.loads(pdk_path.read_text());inputs.append(pdk_path)
     result=dict(status='estimated_library_leakage',by_block={},by_domain={},corners={},
         method='Area/count from mapped cells; block ownership from sequential endpoint backward cones. Shared glue counted once. Leakage sums each cell conditional-state minimum/mean/maximum; means assume equally weighted characterized states, not actual sleep activity. SRAM uses the unconditional library cell_leakage_power scalar as an idle/standby proxy; CEN high and normal rail are assumed. The two macro sizes have identical library scalars, not inferred capacity scaling.',
         exclusions=['AON switching and SRAM read/write dynamic power','Analog LF/POR macros','Pad cells/pulls','Board oscillator standby, regulator and radio',('Future scan/physical cells' if receipt.get('implemented_rom') else 'Unimplemented ROM and future scan/physical cells')],
         qualification='Not a whole-system current prediction or power signoff. Main/USB clocks stop, supplies and all SRAM stay on. Powered digital+SRAM current is a static subtotal; excluded currents must be added.')
     for corner,voltage in [('tt_025C_3v30',3.3),('ff_125C_3v60',3.6)]:
-        lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/gf180mcu_fd_sc_mcu7t5v0__{corner}.lib'
+        lib=ROOT/pdk['root']/f'libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__{corner}.lib'
         assert digest(lib)==pdk['files'][lib.name];inputs.append(lib);text=lib.read_text()
         assert re.search(r'leakage_power_unit\s*:\s*"?1uW',text)
         data={}

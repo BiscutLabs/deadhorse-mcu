@@ -22,14 +22,11 @@ def main():
     emitted=local(args.emitted); output=output_dir(args.output)
     sources=[emitted/'ClockGate.sv']; hashes={}
     if args.binding=='asic':
-        pdk=ROOT/'build/riscay-mcu/.tools/physical/pdk'
-        for name,digest in {
-            'gf180mcu_fd_sc_mcu7t5v0.v':'9a21c5f98200acfe77d8ba52067164e0802284dc1c1e117f0e64fb6ac42eb64b',
-            'primitives.v':'ccc0f447f71ce35c635e08d49eb0ed77aa2ec91cf31d8e3e45a246114d3cae92'}.items():
-            path=pdk/name
-            if hashlib.sha256(path.read_bytes()).hexdigest()!=digest:
-                raise ValueError('Pinned PDK model differs: '+name)
-            hashes[name]=digest; sources.append(path)
+        sys.path.insert(0,str(ROOT))
+        from tools.pdk import models
+        for path in models():
+            hashes[path.name]=hashlib.sha256(path.read_bytes()).hexdigest()
+            sources.append(path)
     else:
         inputs()
         sources.append(ROOT/'hw/vendor/ibex_ref/vendor/lowrisc_ip/ip/prim_generic/rtl/prim_generic_clock_gating.sv')

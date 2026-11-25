@@ -1,5 +1,29 @@
 # Per-block GF180 timing ledger
 
+## T43 matched template-PDK migration, 2026-11-25
+
+Measured on production3533b393 plus checkpoint e40d53c9 and receipt-hashed
+migration scripts, commands in [T43 report](../plan/tasks/reports/T43.md).
+Old/new SS125 mapping and both AON strap screens under build/t43/old and
+build/t43/new02 reproduce identical area and timing: main67.515236ns/75ns,
+AON65.482735ns/18750ns, TCK17.974028ns/6000ns, OSC_IN counter12.126913ns/12.5ns,
+USB FF13.485458ns inherited warning (ceiling15ns). Other populated USB classes
+retain unchanged delays/budgets; report lists endpoints. DMA44.663383ns and
+unified timers53.102665ns retain their existing66.666667ns isolated budget.
+
+The original USB map/certificates remain immutable. Full-Liberty token/cell
+identity witness, exact old/new STA reports and current production source-binding
+miter support the selected library; this is not a new proof claim. SRAM's mixed
+production inventory receives 20 runs forming 10 old/new pin-set pairs
+(five corners/two straps),
+with identical positive setup/hold minima and identical unreported-output sets.
+Receipts: build/t43/usb-sta-pair03 and build/t43/sram-pair03.
+
+Mapped digital3.5594355776mm2 measured; T35 estimated total11.3505473655mm2,
+estimated headroom1.5694526345mm2. No limit/allowance changes. Existing pre-CTS
+hold/reset/RDC and USB electrical/physical obligations remain. No aggregate CI
+or full-chip physical qualification is claimed.
+
 ## T32 standalone faithful core timing, 2026-11-23
 
 D80's third mapping candidate and maintained-flow reproduction measure

@@ -21,7 +21,7 @@ def main():
     out=(ROOT/a.output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
     digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
-    lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
+    lib=ROOT/cfg['liberty']
     assert digest(lib)==cfg['sha256']
     design=json.loads(source.read_text());old=design['modules']['DeadhorseSoc']
     names=('_coreRelease_released','_serviceRelease_released')

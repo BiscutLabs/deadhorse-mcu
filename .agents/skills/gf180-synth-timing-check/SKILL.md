@@ -23,7 +23,7 @@ bash tools/bootstrap/fetch_gf180_pdk.sh build/pdk
 ```
 
 It downloads the project cell-library archive from the release tagged
-`gf180mcu-f6bfbd4d3d23c4236ff1f36126489ee59aa35cbd`, checks its SHA-256 and
+`gf180mcu-792ef67037d74c8c51811eab3ce23cf793491296`, checks its SHA-256 and
 unpacks it. Liberty files land at
 `build/pdk/gf180mcuD/libs.ref/<library>/lib/<library>__<corner>.lib`.
 

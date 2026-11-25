@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[4]
 TOP = 'DeadhorseSoc'
 MAC = 'T20Mac'
 ALIAS = 'core.u_ibex_core.ex_block_i.gen_multdiv_fast_multdiv_i.'
-LIB = ROOT / 'build/riscay-mcu/.tools/physical/pdk/gf180mcu_fd_sc_mcu7t5v0__ss_125C_3v00.lib'
+LIB = ROOT / json.loads((ROOT / 'phys/gf180-ws-1x1/block-timing.json').read_text())['liberty']
 
 
 def digest(path):

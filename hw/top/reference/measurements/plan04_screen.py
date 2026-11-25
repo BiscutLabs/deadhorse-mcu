@@ -119,16 +119,16 @@ def main(base,reference,screen_name='screen',sram_corner=None):
     def seal():return {p.relative_to(ROOT).as_posix():digest(p) for p in consumed}
     mod=json.loads((mapped/'canonical.json').read_text())['modules']['DeadhorseSoc']
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
-    lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
+    lib=ROOT/cfg['liberty']
     assert digest(lib)==cfg['sha256']
     consumed.append(lib)
     macro_libs=[]
     if sram_corner:
         assert 'sram_liberty' in mapping,'T35 screen requires real macro mapping'
         assert sram_corner in ('ss_125C_3v00','ss_n40C_3v00','tt_025C_3v30','ff_125C_3v60','ff_n40C_3v60')
-        pdk_lock=ROOT/'build/riscay-mcu/physical/gf180/pdk-lock.json'
+        pdk_lock=ROOT/cfg['pdk_lock']
         pdk=json.loads(pdk_lock.read_text())
-        assert pdk['revision']=='40cee970d8a9b7eaea35a34fe7d6068f05721f0a'
+        assert lib.is_relative_to(ROOT/pdk['root']), 'Library outside pinned PDK'
         lib=lib.with_name(f'{cfg["library"]}__{sram_corner}.lib')
         assert digest(lib)==pdk['files'][lib.name]
         macro_lock_path=ROOT/'hw/vendor/gf180_sram/gf180_sram.lock.json'

@@ -16,7 +16,7 @@ def main(base):
     out=base/'new-digital-area';out.mkdir(exist_ok=False)
     hierarchy=base/'map/hier.json';design=json.loads(hierarchy.read_text())
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
-    lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
+    lib=ROOT/cfg['liberty']
     digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
     assert digest(lib)==cfg['sha256']
     initial={str(p.relative_to(ROOT)):digest(p) for p in (hierarchy,lib,Path(__file__))}

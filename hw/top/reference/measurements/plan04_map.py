@@ -34,7 +34,7 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         assert sram, 'ROM implementation requires production hard SRAM'
         rom_image.relative_to(ROOT/'build')
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
-    lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
+    lib=ROOT/cfg['liberty']
     assert digest(lib)==cfg['sha256']
     sram_lib=None;sram_libs=[];macro_widths={}
     if sram:
@@ -49,6 +49,10 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         sram_lib=sram_libs[0]
     files=[emit/line.strip() for line in (emit/'filelist.f').read_text().splitlines() if line.strip()]
     reference_certificate=json.loads((ref/'certificate/result.json').read_text())
+    pdk_rebind=None
+    if reference_certificate['library_sha256']!=digest(lib):
+        from tools.timing.pdk_rebind import reference_library
+        pdk_rebind=reference_library(ref,lib)
     counter_ref=(ROOT/stability_reference).resolve() if stability_reference else None
     if counter_ref:counter_ref.relative_to(ROOT/'build')
     certified_sources=[ROOT/n.removeprefix('/work/') for field in ('sources','proof_source_sha256')
@@ -60,6 +64,7 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         ROOT/'tools/timing/check.py',ROOT/'phys/gf180-ws-1x1/block-timing.json',
         ref/'certificate/result.json',ref/'mapped.json',lib]
     dependencies += [Path(__file__).with_name('t36_rom_identity.py')]
+    if pdk_rebind:dependencies += [ROOT/n for n in pdk_rebind['input_sha256']]
     if rom_image:dependencies += [rom_image]
     if sram:dependencies += sram_libs+[lock]
     if counter_ref:
@@ -75,6 +80,7 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     receipt=dict(status='running',commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         emitted_sha256={p.relative_to(ROOT).as_posix():digest(p) for p in files},liberty_sha256=digest(lib),
         scope='Mapped digital logic, pre-layout; six memory sockets and two uncharacterized analog macros excluded')
+    if pdk_rebind:receipt['usb_library_rebind']=pdk_rebind
     if sram:
         receipt.update(scope='Mapped digital logic and twenty hard SRAM macros; ROM and two analog interfaces remain sockets.',
                        sram_liberty=sram_lib.relative_to(ROOT).as_posix(),sram_liberty_sha256=digest(sram_lib),
@@ -174,7 +180,9 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     # Authenticate unchanged producer proof sources and the mapped island.
     cert=json.loads((ref/'certificate/result.json').read_text())
     assert cert['status']=='pass' and digest(ref/'mapped.json')==cert['mapped_sha256']
-    assert cert['library_sha256']==digest(lib)
+    assert cert['library_sha256']==digest(lib) or (pdk_rebind and
+        pdk_rebind['original_library_sha256']==cert['library_sha256'] and
+        pdk_rebind['selected_library_sha256']==digest(lib))
     for name,value in cert['proof_source_sha256'].items():
         p=ROOT/name.removeprefix('/work/');assert digest(p)==value,('Changed USB proof source',name)
     original=copy.deepcopy(design)

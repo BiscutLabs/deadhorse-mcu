@@ -18,13 +18,19 @@ The repository's T06 bootstrap pins RISCay at
   original RISCay bandgap/comparator starting point. Raw supply-good chatter,
   nonzero dip-detection latency and dependence on a longer digital hold prevent
   inheriting its results as evidence for the present ideal assertion/1 ms model.
-- `physical/gf180/pdk-lock.json`: open_pdks revision
+- Historical T06 `physical/gf180/pdk-lock.json`: open_pdks revision
   `40cee970d8a9b7eaea35a34fe7d6068f05721f0a`, cell libraries and model hashes.
 - `soc/sram-lock.json`: SRAM repository revision
   `efdbf734d806c2ac3b858d281a5b832625a8e928`, views and hashes.
 - LF `sources.json` separately pins GF180 primitive model revision
   `9f992d5a9186d1f7820c58f039c484ad35b2edea`; reconcile model revisions and
   selected process options before analog implementation, not by silently mixing.
+
+T43 selects template PDK `792ef67037d74c8c51811eab3ce23cf793491296` through
+`phys/gf180-ws-1x1/pdk-lock.json` and the versioned physical fetch. The old
+40cee970 reference above describes retained RISCay provenance only, not the
+active process pin. No analog SPICE/layout result is migrated by changing the
+digital library. Reconcile analog primitive model provenance before simulation.
 
 Pinned cell/SRAM views include SS 3.0 V, TT 3.3 V and FF 3.6 V corners with
 temperature labels -40/25/125 C. These are available characterization points,

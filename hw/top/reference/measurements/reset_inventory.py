@@ -21,7 +21,7 @@ BASE.mkdir(parents=True,exist_ok=True)
 if args.emit:
  emit=args.emit.resolve();emit.relative_to(ROOT/'build')
  cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text(encoding='utf-8'))
- lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
+ lib=ROOT/cfg['liberty']
  assert hashlib.sha256(lib.read_bytes()).hexdigest()==cfg['sha256']
  lock=json.loads((ROOT/'hw/vendor/gf180_sram/gf180_sram.lock.json').read_text(encoding='utf-8'))
  libs=[lib]

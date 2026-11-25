@@ -18,7 +18,7 @@ def main():
     source=(ROOT/a.netlist).resolve();source.relative_to(ROOT/'build')
     out=(ROOT/a.output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
-    lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
+    lib=ROOT/cfg['liberty']
     digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
     assert digest(lib)==cfg['sha256']
     replacements=dict(v.split('=',1) for v in a.cell);assert len(replacements)==len(a.cell)

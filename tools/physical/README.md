@@ -12,6 +12,13 @@ and disables network access. `fetch.py` runs in the original pinned environment
 with explicit network access and verifies archive hashes before extraction.
 It does not replace the main environment lock.
 
+T43's selected PDK is installed under `build/physical/pdk/<full revision>/`,
+leaving the original unversioned baseline intact. `tools/pdk.py` authenticates
+active Liberty/model views against `phys/gf180-ws-1x1/pdk-lock.json`.
+Historical routed receipts remain bound to their original library and flow;
+changing the active pin does not requalify those results. The official template's
+separate LibreLane/Nix environment is pinned under `phys/gf180-ws-1x1/`.
+
 Run `usb_prepare.py` in the main environment with an existing USB snapshot and
 a fresh `build/` output. It checks source/flow hashes, adds physical tie cells
 and writes the OpenROAD invocation. Run that Tcl through the companion runner.

@@ -1,5 +1,18 @@
 # 08 Physical implementation and verification
 
+## T43 matched PDK reproduction
+
+The T42 budget below is reproduced unchanged by old/new PDK mapping and the
+T35 budget method under `build/t43/old` and `build/t43/new02`. Commands and
+source/hash provenance are in the [T43 report](tasks/reports/T43.md).
+Measured mapped digital remains 3.5594355776 mm2; estimated total remains
+11.3505473655 mm2 and estimated headroom 1.5694526345 mm2 against the unchanged
+12.92 mm2 planning limit. No additional physical fit or pad/analog qualification
+is implied. D109 retains sixteen 1024x8 main and four 512x8 retained macros.
+The measured old/new timing checks are identical for the SoC, USB, DMA, timers
+and SRAM interfaces. Existing USB warning and pre-CTS hold/reset obligations
+remain open.
+
 ## T42 fresh production budget
 
 This supersedes the historical T41-plus-T40 estimate below. Measured on main

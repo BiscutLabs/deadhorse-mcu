@@ -30,7 +30,7 @@ def main():
     analysis=(ROOT/a.analysis).resolve();analysis.relative_to(ROOT)
     digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
-    lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
+    lib=ROOT/cfg['liberty']
     assert digest(lib)==cfg['sha256']
     module=json.loads((base/'mapped.json').read_text())['modules']['DeadhorseSoc']
     library=set(re.findall(r'\bcell\s*\(\s*"?([^\s"()]+)"?\s*\)',lib.read_text()))

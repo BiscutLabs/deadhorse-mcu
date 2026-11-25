@@ -9,6 +9,7 @@ import sys
 import time
 
 ROOT=Path(__file__).resolve().parents[4]
+sys.path.insert(0,str(ROOT))
 
 
 def main(output):
@@ -38,13 +39,9 @@ def main(output):
         receipt['tools_sha256']={name:sha(Path(shutil.which(name)))
             for name in ('yosys','iverilog','iverilog-vpi','vvp')}
         cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
-        pdk=ROOT/'build/riscay-mcu/.tools/physical/pdk'
-        lib=pdk/(cfg['library']+'__'+cfg['corner']+'.lib')
-        models=[pdk/'gf180mcu_fd_sc_mcu7t5v0.v',pdk/'primitives.v']
-        expected=[cfg['sha256'],'9a21c5f98200acfe77d8ba52067164e0802284dc1c1e117f0e64fb6ac42eb64b',
-            'ccc0f447f71ce35c635e08d49eb0ed77aa2ec91cf31d8e3e45a246114d3cae92']
-        for path,digest in zip([lib,*models],expected):
-            if sha(path)!=digest:raise ValueError('Pinned library/model mismatch: '+str(path))
+        from tools.pdk import models as pdk_models, liberty as pdk_liberty
+        lib=pdk_liberty(cfg['corner']);models=pdk_models()
+        if sha(lib)!=cfg['sha256']:raise ValueError('Pinned library differs from timing configuration')
         receipt['libraries_sha256']={p.name:sha(p) for p in [lib,*models]}
         run([sys.executable,'tools/sbt.py',
             'set hw / Compile / unmanagedSourceDirectories += file("/work/hw/ip/osc_ctrl/formal")',

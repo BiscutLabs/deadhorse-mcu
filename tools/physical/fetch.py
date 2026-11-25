@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[2]
 
 if __name__=='__main__':
     lock=json.loads((Path(__file__).parent/'lock.json').read_text())
-    output=ROOT/'build/physical/pdk';output.mkdir(parents=True,exist_ok=True)
+    output=ROOT/'build/physical/pdk'/lock['pdk_revision'];output.mkdir(parents=True,exist_ok=True)
     for name,sha in lock['archives'].items():
         path=output/name
         if not path.exists():urllib.request.urlretrieve(lock['pdk_release']+'/'+name,path)

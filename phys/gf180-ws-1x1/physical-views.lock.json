@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "revision": "792ef67037d74c8c51811eab3ce23cf793491296",
+  "archives": {
+    "common.tar.zst": {
+      "url": "https://github.com/fossi-foundation/ciel-releases/releases/download/gf180mcu-792ef67037d74c8c51811eab3ce23cf793491296/common.tar.zst",
+      "sha256": "1342fe46866de6a3f1d8c3edb3193dafa4c3cf955cb987a17791b2287c41e39d"
+    },
+    "gf180mcu_fd_sc_mcu7t5v0.tar.zst": {
+      "sha256": "0d4b8cc43105865e09e192cab0a9f643845f9567b5782672a7be19b2499f9ce0",
+      "url": "https://github.com/fossi-foundation/ciel-releases/releases/download/gf180mcu-792ef67037d74c8c51811eab3ce23cf793491296/gf180mcu_fd_sc_mcu7t5v0.tar.zst"
+    }
+  },
+  "files": {
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/techlef/gf180mcu_fd_sc_mcu7t5v0__max.tlef": "1d6173a79069462caea96a6f8bf04a0e7b34d65a2036a697dec9450ae17de8da",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/techlef/gf180mcu_fd_sc_mcu7t5v0__min.tlef": "14396f05ad56e2808a267728d9934d38df63b5e7fb0412a3fb5babf35f1f1266",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/techlef/gf180mcu_fd_sc_mcu7t5v0__nom.tlef": "842b186318d53844561af4ec530b4e30d8ba519bcc58d512a363ef255acc7abd",
+    "libs.ref/gf180mcu_fd_sc_mcu7t5v0/lef/gf180mcu_fd_sc_mcu7t5v0.lef": "47dadf84c21b20f558d043c36271632f07b1c2c2a595b118e2e1050ebb74349b",
+    "libs.tech/librelane/rules.openrcx.gf180mcuD.max": "0ee103cf2108f2fd945087551b6dd1eaf4ee55af60571de2983878c8a271515f",
+    "libs.tech/librelane/rules.openrcx.gf180mcuD.max.magic": "19bf57d71af08de233ec166c9c516ada8cfbdbc1dc770fb83e52cfec4256ed99",
+    "libs.tech/librelane/rules.openrcx.gf180mcuD.min": "5cf275c985ffd49096407d22891910fea34aff5a915db8a5b9a7c1e04b737e00",
+    "libs.tech/librelane/rules.openrcx.gf180mcuD.min.magic": "c5270e40670298137735509560744faab1427b8dbd4397d8bf29014a6bacde1b",
+    "libs.tech/librelane/rules.openrcx.gf180mcuD.nom": "d83a04ea28af9b74a097fb479bbab9ed52859a1e3428b33d3151cb5afae62ddf",
+    "libs.tech/librelane/rules.openrcx.gf180mcuD.nom.magic": "ad430c26f39a60cbcd1bf70c447203ba28b2582d9dfaaa83543067aa74be7308"
+  }
+}

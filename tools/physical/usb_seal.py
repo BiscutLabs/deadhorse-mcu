@@ -15,6 +15,8 @@ from usb_boundary import characterize,contract,groups
 
 def seal(physical,validation,sdc_audit,netlist_audit,output):
     inputs=json.loads((physical/'inputs.json').read_text())
+    require_prepared(inputs)
+    require_manifest(json.loads((physical/'extraction-inputs.json').read_text()))
     audit_hashes(inputs['source_sha256'])
     result=json.loads((validation/'result.json').read_text())
     baseline=next(ROOT/n for n in inputs['input_sha256'] if n.endswith('/timing/usb/result.json'))
@@ -43,12 +45,12 @@ def seal(physical,validation,sdc_audit,netlist_audit,output):
             audit=audit_queries(rows(source/'paths.tsv'),rows(source/'paths.tsv.expected.tsv'),rows(source/'paths.tsv.queries.tsv'))
             if c.get('query_audit')!=audit:raise ValueError('Changed timing query audit')
         result['delay_interpretation']='Worst data delay from exhaustive fixed-register-launch/endpoint/polarity queries, retaining CLK-to-Q and subtracting cached propagated launch insertion. Inputs retain absolute boundary arrival. Every query and no-timed-path pair accounted; full-period slack remains separate.'
-    pdk=ROOT/'build/physical/pdk/gf180mcuD/libs.ref/gf180mcu_fd_sc_mcu7t5v0'
+    pdk=pdk_root()/'libs.ref/gf180mcu_fd_sc_mcu7t5v0'
     # Correct descriptive metadata only; all original numeric scripts/reports
     # remain intact and hashes bind them. Old metadata hard-coded SS prose.
     contracts={};pulse={};library_paths=[]
     for corner in sorted({c['corner'].rsplit('-',1)[0] for c in result['corners']}):
-        lib=pdk/'lib'/('gf180mcu_fd_sc_mcu7t5v0__'+corner+'.lib');library_paths.append(lib)
+        lib=pdk_liberty(corner);library_paths.append(lib)
         c=contract('Usb',characterize(lib))
         c['characterization']['method']=c['characterization']['method'].replace('pinned SS corner only','pinned '+corner+' corner')
         c['reset_basis']='Per-corner dffrnq_1 rising CLK-to-Q with unchanged slew/load envelope. Arbitrary peer phase and asynchronous assertion remain unqualified.'
@@ -61,7 +63,7 @@ def seal(physical,validation,sdc_audit,netlist_audit,output):
             qualification='Library scalar requirement only; transition-dependent pulse-width tables and actual upstream pulse/glitch freedom remain unqualified. No reset waveform signoff.')
     result['corner_contracts']=contracts;result['reset_pulse_requirements']=pulse
     # Cell area is measured Liberty area sum, not die/core or power-grid area.
-    ss=pdk/'lib/gf180mcu_fd_sc_mcu7t5v0__ss_125C_3v00.lib'
+    ss=pdk_liberty()
     import re
     areas={n:float(re.search(r'\barea\s*:\s*([\d.]+)',b)[1]) for n,b in groups(ss.read_text(),'cell')}
     mapped=json.loads((physical/'routed.json').read_text())['modules']['Usb']['cells']
@@ -69,6 +71,7 @@ def seal(physical,validation,sdc_audit,netlist_audit,output):
     result['area_um2']=dict(routed_cell_sum=sum(areas[c['type']] for c in mapped.values()),cells=len(mapped),original_cells=original,
         meaning='Measured sum of pinned Liberty cell area; includes CTS/ties, excludes PDN/pads/fillers')
     files=set(library_paths)
+    files.update(ROOT/n for n in pdk_manifest()['input_sha256'])
     files.update(p for p in physical.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.resolve()!=output.resolve())
     files.update(p for p in (ROOT/'tools/physical').glob('*') if p.is_file())
     files.update(ROOT/n for n in inputs['source_sha256'])
@@ -79,6 +82,11 @@ def seal(physical,validation,sdc_audit,netlist_audit,output):
     result['file_sha256']={p.relative_to(ROOT).as_posix():sha(p) for p in sorted(files)}
     output.write_text(json.dumps(result,indent=2)+'\n')
     print('SEALED diagnostic failures and source/artifact hashes; CI not run')
+
+import sys
+sys.path.insert(0,str(ROOT))
+from tools.pdk import root as pdk_root,liberty as pdk_liberty
+from pdk_views import manifest as pdk_manifest,require_manifest,require_prepared,view as physical_view
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)

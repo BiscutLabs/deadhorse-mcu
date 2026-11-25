@@ -10,7 +10,7 @@ def main():
  baseline=json.loads((base/'result.json').read_text());proved=json.loads((proof/'result.json').read_text())
  assert baseline['status'] in ('measured','measured_with_D104_exception') and proved['status']=='pass'
  config=ROOT/'phys/gf180-ws-1x1/block-timing.json';cfg=json.loads(config.read_text())
- lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib';assert sha(lib)==cfg['sha256']
+ lib=ROOT/cfg['liberty'];assert sha(lib)==cfg['sha256']
  areas={n:float(re.search(r'\barea\s*:\s*([\d.]+)',b)[1]) for n,b in groups(lib.read_text(),'cell')}
  inputs={str(q):sha(q) for q in (pathlib.Path(__file__),config,lib,base/'result.json',proof/'result.json')}
  commands=[];results={}

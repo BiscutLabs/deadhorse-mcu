@@ -27,7 +27,7 @@ def main():
     else:raise ValueError('Reset buffer cycle escaped')
     design['modules']['GpioTiming']=new;(out/'buffered.json').write_text(json.dumps(design))
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
-    lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
+    lib=ROOT/cfg['liberty']
     assert digest(lib)==cfg['sha256']
     ys=out/'export.ys';ys.write_text(f'read_json {out}/buffered.json\ncheck -assert\nstat -liberty {lib}\nwrite_json {out}/mapped.json\nwrite_verilog -noattr -noexpr {out}/mapped.v\n')
     with (out/'export.log').open('w') as log:subprocess.run(['yosys','-Q','-T','-s',str(ys)],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)

@@ -162,7 +162,7 @@ def main(output):
             if current != prior: raise RuntimeError('Production HDL changed; review timing/behavior before accepting')
         (out/'interfaces.json').write_text(json.dumps(interfaces()))
         config = json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
-        lib = ROOT/f'build/riscay-mcu/.tools/physical/pdk/{config["library"]}__{config["corner"]}.lib'
+        lib = ROOT/config['liberty']
         if digest(lib) != config['sha256']: raise RuntimeError('Wrong pinned library')
         receipt['liberty_sha256'] = digest(lib)
         script = out/'binding.ys'
