@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <memory>
+#include "transfer_trace.hpp"
 int main(int argc,char**argv) {
  std::unique_ptr<Nor> savedFlash;
  try {
@@ -65,7 +66,9 @@ int main(int argc,char**argv) {
   if(allowMaxLiteException&&(scenario!="held"||expectedLite.size()!=1024))
    throw std::runtime_error("D104 exception is only the supported maximum held image");
   std::vector<uint8_t> uartOutput;bool oldTx=true;int txBit=-1;uint64_t txSample=0;unsigned txByte=0;
+  TransferTrace transferTrace;
   auto tick=[&]() {
+   TransferSample transferBefore(d);
    bool oldMain=d.status_mainLevel,oldDma=d.dmaActive;
    ticks++;d.oscIn=d.oscEn?!d.oscIn:0;
    if(ticks%1500==0)d.model_lfClock=!d.model_lfClock;
@@ -74,6 +77,7 @@ int main(int argc,char**argv) {
    d.pins_inactive_qspiDqIn=nor.update(d.pins_inactive_qspiCs_n&1,d.pins_inactive_qspiSclk,
      d.pins_inactive_qspiDqOut,d.pins_inactive_qspiDqEnable);
    d.eval();context.timeInc(1);
+   transferTrace.sample(transferBefore,d,ticks);
    // Start at the first offered CPU write, before any bridge grant/retirement.
    if(d.liteWriteOffer&&!liteCopyBegin)liteCopyBegin=ticks;
    if(warm&&!secondEpoch&&warmGuard&&d.warmActive&&!warmAsserted) {

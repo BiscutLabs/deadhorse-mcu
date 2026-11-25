@@ -17,3 +17,18 @@ Every run preserves source/image/tool commands and artifact hashes. Negative
 controls must fail for their intended assertion. The existing scoped policy
 allows costly proofs to remain explicitly deferred; no aggregate CI is invoked
 here. Required PLAN05 phase-end fast CI is separate.
+
+## T42 passive load profiling
+
+`python dv/soc/boot/load_profile.py --output build/t42/baseline02` runs only
+the production watcher-held and maximum-lite-held boot cases with the original
+wire/image checks. It does not replace `check.py` or the full wire campaign.
+Optional `DH_TRANSFER_TRACE` writes passive CSV observations; it changes no
+stimulus or acceptance threshold. Pre-edge handshakes and instruction-qualified
+post-edge RVFI identify every copy/readback word. Run
+`python dv/soc/boot/analyze_load.py --profile build/t42/baseline02 --output build/t42/analysis03`
+for authenticated stage attribution and corrupted-trace negative controls.
+Outputs must be new directories under `build/`; execute through the pinned
+environment. Source labels assume the held-lite, single-outstanding load cases,
+not concurrent-master attribution. See the T42 report for measured results and
+the proposal's hardware-approval boundary.
