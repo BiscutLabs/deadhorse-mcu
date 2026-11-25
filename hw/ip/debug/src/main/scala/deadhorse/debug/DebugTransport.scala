@@ -7,6 +7,7 @@ import deadhorse.lib.{CdcFifo,ResetRelease}
   * Only shared FIFOs cross payloads; common reset flushes both directions. */
 class DebugTransport extends RawModule {
   protected def requestFifo(): CdcFifo=new CdcFifo(41)
+  protected def requestReset(por: Bool,epoch: Bool): Bool=por && epoch
   protected def responseReset(por: Bool,epoch: Bool): Bool=por && epoch
   val mainClock=IO(Input(Clock()));val tck=IO(Input(Clock()));val por_n=IO(Input(Bool()))
   val clear_n=IO(Input(Bool()))
@@ -19,7 +20,8 @@ class DebugTransport extends RawModule {
   val req=Module(requestFifo());val resp=Module(new CdcFifo(34))
   req.writeClock:=tck;req.readClock:=mainClock
   resp.writeClock:=mainClock;resp.readClock:=tck
-  req.writeReset_n:=por_n && epoch;req.readReset_n:=por_n && epoch
+  val requestEpoch=requestReset(por_n,epoch)
+  req.writeReset_n:=requestEpoch;req.readReset_n:=requestEpoch
   resp.writeReset_n:=responseReset(por_n,epoch);resp.readReset_n:=responseReset(por_n,epoch)
   req.push:=scanRequest.valid;req.in:=scanRequest.bits;scanRequest.ready:=req.ready
   request.valid:=req.valid;request.bits:=req.out;req.pop:=request.ready

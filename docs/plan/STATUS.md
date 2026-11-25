@@ -1,6 +1,6 @@
 # Status
 
-Single progress tracker. Last updated: 2026-11-24.
+Single progress tracker. Last updated: 2026-11-25
 States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete,
 `[-]` withdrawn.
 Decision checks record the user's approvals, not implementation completion.
@@ -172,7 +172,7 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36/T43; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
 | [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
 | [ ] | T40 | [DMA circular UART RX](tasks/T40-dma-circular-uart-rx.md) | unassigned | D102; PLAN05 design changes/Phase 2 qualification; T23 | Scheduled only; [planning receipt](tasks/reports/T40-planning.md). UART RX only, shadow reload, strict area cap; implementation and acceptance unverified |
-| [~] | T41 | [Reset consolidation](tasks/T41-reset-consolidation.md) | Codex | D103; completed PLAN05/T36; T33/T34/T32 interfaces | Inventory measured on codex/t41-reset-consolidation; [inventory](../spec/reset-consolidation-inventory.md), [receipt](tasks/reports/T41.md). Independent inventory commit precedes RTL; implementation unstarted; scoped checks, no aggregate CI |
+| [!] | T41 | [Reset consolidation](tasks/T41-reset-consolidation.md) | Codex | D103; completed PLAN05/T36; T33/T34/T32 interfaces | Blocked on [DMI cancellation exception](../spec/t41-dmi-clear-exception.md): cold-only transport conflicts with immediate hard-clear cancellation. Inventory committed; focused production/negative tests pass; [receipt](tasks/reports/T41.md). No consolidation accepted; no aggregate CI |
 | [ ] | T42 | [Lite boot-transfer latency](tasks/T42-lite-boot-transfer.md) | unassigned | D104; PLAN05; coordinate T41 | Queued investigation/proposal; hardware changes need approval; maximum-image250ms target remains open |
 | [ ] | T43 | [wafer.space template and PDK](tasks/T43-wafer-space-physical-base.md) | unassigned | D105; current production; prerequisite for T38 | [Planning receipt](tasks/reports/T43-planning.md); no migration, chip top or physical acceptance; resolve macro-count mismatch before execution |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
@@ -287,6 +287,10 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-25: T41 cancellation diagnostic passes2 tests: current transport cancels a queued request with main stopped; synchronized-clear fault is rejected. Independent review identifies a required DMI-only asynchronous quarantine exception to cold-only debug transport; no approval recorded, no assertion weakened. T41 blocked pending decision.
+
+- 2026-11-25: Resumed T41 from reviewed inventory74bea3c. Checking exact DMI hard-clear cancellation before replacing reset-driven transport epochs; scoped port tests and independent review, no aggregate CI.
 
 - 2026-11-24: T41 inventory independently reviewed before RTL: measured89 releases/178 release bits,150 normalized reset controls and15,071 unique reset-controlled bits. Fresh production emission unchanged from PLAN05; scoped structural checks and counting fixtures pass. Inventory-only commit; four-cohort RTL/boot/behavioral/area acceptance remains open; no aggregate CI.
 
