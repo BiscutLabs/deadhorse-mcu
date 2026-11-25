@@ -172,7 +172,7 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36/T43; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
 | [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
 | [ ] | T40 | [DMA circular UART RX](tasks/T40-dma-circular-uart-rx.md) | unassigned | D102; PLAN05 design changes/Phase 2 qualification; T23 | Scheduled only; [planning receipt](tasks/reports/T40-planning.md). UART RX only, shadow reload, strict area cap; implementation and acceptance unverified |
-| [ ] | T41 | [Reset consolidation](tasks/T41-reset-consolidation.md) | unassigned | D103; completed PLAN05/T36; T33/T34/T32 interfaces | Queued only; [planning receipt](tasks/reports/T41-planning.md). Inventory and separate commit precede RTL; scoped checks, no aggregate CI |
+| [~] | T41 | [Reset consolidation](tasks/T41-reset-consolidation.md) | Codex | D103; completed PLAN05/T36; T33/T34/T32 interfaces | Inventory measured on codex/t41-reset-consolidation; [inventory](../spec/reset-consolidation-inventory.md), [receipt](tasks/reports/T41.md). Independent inventory commit precedes RTL; implementation unstarted; scoped checks, no aggregate CI |
 | [ ] | T42 | [Lite boot-transfer latency](tasks/T42-lite-boot-transfer.md) | unassigned | D104; PLAN05; coordinate T41 | Queued investigation/proposal; hardware changes need approval; maximum-image250ms target remains open |
 | [ ] | T43 | [wafer.space template and PDK](tasks/T43-wafer-space-physical-base.md) | unassigned | D105; current production; prerequisite for T38 | [Planning receipt](tasks/reports/T43-planning.md); no migration, chip top or physical acceptance; resolve macro-count mismatch before execution |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
@@ -287,6 +287,10 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-24: T41 inventory independently reviewed before RTL: measured89 releases/178 release bits,150 normalized reset controls and15,071 unique reset-controlled bits. Fresh production emission unchanged from PLAN05; scoped structural checks and counting fixtures pass. Inventory-only commit; four-cohort RTL/boot/behavioral/area acceptance remains open; no aggregate CI.
+
+- 2026-11-24: Started T41 inventory on its own implementation branch after rebasing planning onto maina5ae6f4 (T43/D105 planning only). Production RTL remains PLAN05. Enumerate all nested release trees and retention predicates before changes; no aggregate CI or long proof sweep.
 
 - 2026-11-24: Added D105/T43 on a separate planning branch and made T38 depend on it. Replaced physical-source instructions with the official wafer.space template; no PDK or RTL changed. Current order remains T41, T40, T42; T43 is required before T38. PLAN05 macro inventory differs from the requested twenty1024x8 and must be reconciled before implementation.
 
