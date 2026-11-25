@@ -34,7 +34,10 @@ class BridgeSource(limit: Int) extends RawModule {
     valid := false.B
     canAccept := phase === idle && ask && permit && requestReady && linkUp
     admitted := phase === idle && ask && permit && requestReady && linkUp
-    demand := offer || ask || phase === waiting || phase === aborting || abortState || targetNeedsClock
+    // Reopening waits for both clocks to acknowledge the flush. Dropping this
+    // demand at abort acknowledgement could stop the target before it reopens.
+    demand := offer || ask || phase === waiting || phase === aborting ||
+      (phase === releasing && !linkUp) || abortState || targetNeedsClock
     when(phase === releasing && !permit && linkUp && !abortAcknowledged) { phase := idle }
     when(phase === idle) {
       when(offer) { ask := true.B }
@@ -86,7 +89,7 @@ class BridgeTarget extends RawModule {
     val demand = RegInit(true.B); val ack = RegInit(false.B)
     val acceptRequest = RegInit(false.B); val replyPending = RegInit(false.B)
     needClock := demand; abortAck := ack
-    demand := issued || poison || phase =/= idle || (requestValid && acceptRequest && linkUp)
+    demand := !linkUp || issued || poison || phase =/= idle || (requestValid && acceptRequest && linkUp)
     acceptRequest := phase === idle && linkUp
     isolated := poison
     target.req := req; target.bits := packet

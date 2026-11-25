@@ -225,3 +225,14 @@ same model, depth and cap passes with Yices/BTOR in `ownership-perf-cover06`.
 That qualified engine selection is now in the maintained runner, and the fresh
 `ownership06` aggregate passes. Earlier timeout and fault-mutation diagnostics
 remain preserved. No production RTL, assertion, assumption or cap changed.
+
+## T41 qualified reset composition (2026-11-25)
+
+The default local DMI theorem is distinct from the production qualified-reset
+composition. Production coldMain releases on ungated divided-clock edges,
+whereas the DMI consumer uses gated main; default local release waits for two
+gated edges. ColdScan still uses TCK. Their ready timing is not asserted to be
+equivalent. The qualified composition is deferred under the scoped proof
+policy, supported by production real-JTAG ndmreset and reset-phase simulation.
+Preserving a matching local proof receipt does not discharge this obligation.
+No assertion, assumption, bound or reset behavior changes for this disclosure.

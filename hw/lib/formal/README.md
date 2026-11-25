@@ -1,5 +1,23 @@
 # Hello formal contract
 
+## T41 cancellation fence
+
+`CdcEpochFormal.scala` checks an actual dual-clock, 8-bit/depth-two FIFO with
+the production `CdcEpoch` and synchronous-flush mode. The independent queue
+oracle checks capacity, overflow, phantom/data/held-head behavior, immediate
+cancellation, and acknowledgement that both clocks have run since cancellation.
+Only initial reset is constrained; subsequent reset/cancel, data and all clocks
+are arbitrary. There is no fairness assumption or analog metastability model.
+The six covers include capacity, pointer wrap, held-head delivery and reopening.
+Faults remove peer acknowledgement, delay cancellation, or corrupt delivered data.
+`python hw/lib/formal/epoch_proof.py --output build/t41/<fresh-directory>` uses
+the existing 120-second job cap, ABC PDR safety and SMTBMC/Z3 covers. A safety
+PASS is unbounded; covers are finite witnesses. This parameter instance is not
+by itself a full-width transport or physical CDC signoff. T41 records the
+separate full-width DMI proof and existing bridge proof limitations.
+
+## Hello
+
 `HelloFormal` observes only the DUT ports. It checks zero after a sampled reset
 and the previous sample's byte successor while reset stays released.
 Its data property uses the inverse predecessor relation and an explicit

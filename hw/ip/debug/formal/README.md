@@ -143,3 +143,15 @@ invariants from the scoped experiment; none is an accepted premise. Exact
 recipes and limitations are archived under
 `hw/top/reference/measurements/t32/evidence_replay/epoch/`. These do not replace
 the original epoch assertions or make `epoch.py` an accepted aggregate.
+
+## T41 qualified reset composition
+
+The existing DMI transport safety receipt proves the default local-release
+model. T41 production supplies shared coldScan on TCK and shared coldMain on
+the ungated divided clock, while DMI logic uses gated main. The latter is not
+the default model's two local gated-clock release edges: readiness latency may
+differ. Rebinding the unchanged local model preserves its theorem only; it
+does not prove the qualified production composition. That additional
+composition remains deferred under the scoped proof policy, with production
+JTAG ndmreset and reset-phase simulations as finite evidence. No new assumption
+or claim of equivalent release timing is made. DM state remains cold-only.

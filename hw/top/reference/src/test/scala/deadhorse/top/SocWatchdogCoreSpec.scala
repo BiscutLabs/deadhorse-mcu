@@ -18,7 +18,7 @@ class SocWatchdogCoreSpec extends AnyFunSuite with ChiselSim with SocDebugLintCo
       Paths.get("hw/vendor/ibex_ref/vendor/lowrisc_ip/ip/prim_generic/rtl/prim_generic_clock_gating.sv").toAbsolutePath.toString))
   private val gates=Array("--ckg-name=prim_generic_clock_gating","--ckg-input=clk_i",
     "--ckg-output=clk_o","--ckg-enable=en_i","--ckg-test-enable=test_en_i")
-  test("real watchdog resets core/client epoch, firmware observes preserved DMA/GPIO and inhibited PWM") {
+  test("real watchdog warm reset clears DMA/GPIO/timers and firmware observes retained cause") {
     simulateRaw(new SocWatchdogCoreBench,firtoolOpts=gates,settings=settings) {d=>
       val p=d.i1.get
       d.uartRx.poke(true.B);d.coldReset_n.poke(false.B);d.warmReset_n.poke(false.B)
@@ -45,7 +45,7 @@ class SocWatchdogCoreSpec extends AnyFunSuite with ChiselSim with SocDebugLintCo
         if(wasReady && !ready && sawEnabled) {
           sawReset=true
           assert(p.inactive.actuatorEnable.peek().litValue==0,"WATCHDOG_CORE_PWM")
-          assert(p.inactive.gpioEnable.peek().litValue==6,"WATCHDOG_CORE_GPIO_PRESERVED")
+          assert(p.inactive.gpioEnable.peek().litValue==0,"WATCHDOG_CORE_GPIO_RESET")
         }
         recovered=sawReset && ready && p.inactive.gpioOut.peek().litValue==4 &&
           p.inactive.gpioEnable.peek().litValue==6

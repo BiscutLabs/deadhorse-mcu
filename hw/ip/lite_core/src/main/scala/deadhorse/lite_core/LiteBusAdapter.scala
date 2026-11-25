@@ -5,7 +5,8 @@ import chisel3.util._
 import deadhorse.lib.LocalBus
 
 /** Common service-reset epoch. LocalBus replies occur after their grant edge. */
-class LiteBusAdapter(origin: Int=0) extends RawModule {
+class LiteBusAdapter(origin: Int=0,withInitialize: Boolean=false) extends RawModule {
+  val initialize=if(withInitialize) Some(IO(Input(Bool()))) else None
   require(origin>=0 && origin<8)
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
   val request=IO(Flipped(Decoupled(new MemoryRequest)))
@@ -22,7 +23,7 @@ class LiteBusAdapter(origin: Int=0) extends RawModule {
     val stoppedFlag=RegInit(false.B)
     request.ready:=ready;response.valid:=reply;response.bits:=result
     bus.req:=offeredRequest;bus.bits:=payload;halted:=stoppedFlag
-    busy:=RegNext(phase=/=idle && phase=/=stopped || request.valid,false.B)
+    val working=RegNext(phase=/=idle && phase=/=stopped || request.valid,false.B);busy:=working
     when(phase===idle) {
       ready:=true.B
       when(request.fire) {
@@ -41,5 +42,9 @@ class LiteBusAdapter(origin: Int=0) extends RawModule {
       result.data:=returned(bus.rdata);result.error:=bus.err;reply:=true.B;phase:=returning
     }
     when(phase===returning && response.ready) {reply:=false.B;phase:=idle}
+    initialize.foreach {clear=>when(clear) {
+      phase:=idle;ready:=false.B;offeredRequest:=false.B;reply:=false.B
+      payload:=0.U.asTypeOf(payload);result:=0.U.asTypeOf(result);stoppedFlag:=false.B;working:=false.B
+    }}
   }
 }

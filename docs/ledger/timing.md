@@ -2198,3 +2198,55 @@ reinstating the cut cells; all production decode/arbitration/drain/response
 logic remains. Macro area/delay, upstream core paths and integrated paths are
 excluded. No whole-chip area/timing or physical hold/reset qualification follows;
 the hold/removal arrays are empty. All complete profiles emit. Neither CI tier ran.
+
+## T41 shared reset distribution — 2026-11-25
+
+Measured on `3f11e32` plus receipt-hashed working sources, pinned SS125 GF180
+libraries and existing constraints. Fresh production emission has 278 files;
+the `consolidated-timing02`, `03` and `04` copies are byte-identical. Commands
+run through `python tools/env/run.py run -- python`:
+
+```text
+hw/top/reference/measurements/plan04_map.py --base build/t41/consolidated-timing04 --usb-reference build/t33/pre-fast03/fast/usb/timing/usb --stability-reference build/t41/block-timing02/stability --threshold-control --sram --rom-image build/t36/rom/rom.hex
+hw/top/reference/measurements/plan04_screen.py --base build/t41/consolidated-timing04 --usb-reference build/t33/pre-fast03/fast/usb/timing/usb --screen-name ss125b --sram-corner ss_125C_3v00
+hw/top/reference/measurements/t35_budget.py --base build/t41/consolidated-timing04
+```
+
+Measured maxima are identical in both frozen AON source modes. Prefix `U.` in
+the table means `digital.subsystem.usb.`; no path exceptions were broadened.
+
+| Class | Measured ns | Budget ns | Start → end |
+| --- | ---: | ---: | --- |
+| AON FF | 2.488224 | 18750 | U._7236_/Q → U._7237_/D |
+| AON RR | 67.492126 | 18750 | _228618_/Q → _228772_/D |
+| Main FF | 10.045056 | 75 | U._7477_/Q → U._7310_/D |
+| Main RR | 69.784782 | 75 | _221603_/Q → _220714_/D |
+| TCK RR | 17.620693 | 6000 | _236522_/Q → _217676_/D |
+| USB CC | 20.921200 | 50 | U._7042_/Q → U._7596_/D |
+| USB CC reset | 12.001124 | 12.5 | U._7280_/Q → U._6543_/D |
+| USB CF | 10.944381 | 12.5 | U._7254_/Q → U._6522_/D |
+| USB CP | 12.811203 | 37.5 | U._7057_/Q → U._7683_/D |
+| USB FC | 11.993650 | 12.5 | U._7609_/Q → U._7435_/D |
+| USB FF | 13.485458 | 12.5; approved warning ceiling 15 | U._6398_/Q → U._7356_/D |
+| USB FP | 9.182744 | 12.5 | U._7583_/Q → U._7683_/D |
+| OSC_IN RR | 12.126913 | 12.5 | clocks.executor.counter._194_/Q → clocks.executor.counter._186_/D |
+
+The source counter first failed at measured 13.009707 ns. Removing synchronous
+zeroing of its inactive remaining count reduced it to 12.126913 ns; active,
+ready and request still clear, and activation reloads before use. Unbounded
+stable-output equivalence and its clear-ready negative pass in
+`build/t41/stability-clear-proof01`. Counter area is measured 4274.0544 µm²,
+down from 5288.2368 µm² in the retained failing attempt. No timing budget changed.
+
+Mapped whole logic is measured 3.5510477184 mm². The T35 method estimates
+11.3344345975 mm² including macros/unchanged allowances and 0.55 utilization,
+leaving estimated 1.5855654025 mm² against 12.92 mm². Isolated controller area
+increases from measured 0.0687404928 to 0.0713242432 mm² for explicit clear/ack
+control, including the new sibling reset root; sharing releases saves state
+elsewhere. See the T41 report for exact before/after boundaries.
+
+Electrical and gate-violation counts are measured zero in both modes. Each
+mode retains 13645 reported raw hold/recovery/removal/pulse violation rows and 12 absent
+reset-endpoint paths. Reported endpoint minimum slack +1.87561 ns does not
+qualify those missing checks. This is pre-layout setup evidence, not routed
+hold, reset-tree, RDC or analog signoff. No aggregate CI ran.

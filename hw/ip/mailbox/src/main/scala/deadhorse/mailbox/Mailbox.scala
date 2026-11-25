@@ -35,18 +35,20 @@ class MailboxEndpoint(json: String, owner: Int, base: BigInt = BigInt("40001000"
   }
 }
 
-class Mailbox(json: String) extends RawModule {
+class Mailbox(json: String,qualifiedResets: Boolean=false) extends RawModule {
   protected def endpoint(owner: Int): MailboxEndpoint = new MailboxEndpoint(json,owner)
   val aonClock = IO(Input(Clock())); val mainClock = IO(Input(Clock()))
   val aonReset_n = IO(Input(Bool())); val mainReset_n = IO(Input(Bool()))
   val aon = IO(new LocalBus); val main = IO(new LocalBus)
   val irq = IO(Output(Vec(2,Bool()))); val wakePeer = IO(Output(Vec(2,Bool())))
-  val ar = Module(new ResetRelease); val mr = Module(new ResetRelease)
-  ar.clk := aonClock; mr.clk := mainClock; ar.reset_n := aonReset_n; mr.reset_n := mainReset_n
+  def localRelease(clock: Clock,reset: Bool): Bool = if(qualifiedResets) reset else {
+    val r=Module(new ResetRelease);r.clk:=clock;r.reset_n:=reset;r.released
+  }
+  val aonUp=localRelease(aonClock,aonReset_n);val mainUp=localRelease(mainClock,mainReset_n)
   val a = Module(endpoint(0)); val m = Module(endpoint(1))
-  a.clk := aonClock; m.clk := mainClock; a.reset_n := ar.released; m.reset_n := mr.released
+  a.clk := aonClock; m.clk := mainClock; a.reset_n := aonUp; m.reset_n := mainUp
   a.bus <> aon; m.bus <> main
-  val am = Module(new CdcFifo(32)); val ma = Module(new CdcFifo(32))
+  val am = Module(new CdcFifo(32,qualifiedResets=qualifiedResets)); val ma = Module(new CdcFifo(32,qualifiedResets=qualifiedResets))
   am.writeClock := aonClock; am.readClock := mainClock; ma.writeClock := mainClock; ma.readClock := aonClock
   am.writeReset_n := aonReset_n; am.readReset_n := mainReset_n
   ma.writeReset_n := mainReset_n; ma.readReset_n := aonReset_n

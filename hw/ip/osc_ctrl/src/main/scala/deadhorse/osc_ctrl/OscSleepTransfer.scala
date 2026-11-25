@@ -6,14 +6,14 @@ import deadhorse.lib._
 
 /** Atomic sleep/mode transfers through the shared FIFO. Source pending remains
   * a clock hold until the main endpoint has consumed the complete payload. */
-class OscSleepTransfer extends RawModule {
+class OscSleepTransfer(qualifiedResets: Boolean=false) extends RawModule {
   protected def acknowledge(value: Bool): Bool=value
   val aon=IO(Input(Clock()));val main=IO(Input(Clock()))
   val aonReset_n=IO(Input(Bool()));val mainReset_n=IO(Input(Bool()))
   val requested=IO(Input(Bool()));val modes=IO(Input(UInt(6.W)))
   val applied=IO(Output(Bool()));val appliedModes=IO(Output(UInt(6.W)))
   val settled=IO(Output(Bool()))
-  val fifo=Module(new CdcFifo(7))
+  val fifo=Module(new CdcFifo(7,qualifiedResets=qualifiedResets))
   fifo.writeClock:=aon;fifo.readClock:=main
   fifo.writeReset_n:=aonReset_n;fifo.readReset_n:=mainReset_n
   // FIFO endpoint releases are synchronized independently to their clocks.

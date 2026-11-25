@@ -11,8 +11,8 @@ class BootControlSpec extends AnyFunSuite with ChiselSim {
   }
   def exercise(d: BootControl): Unit={
     def high(v: Bool)=v.peek().litToBoolean
-    d.epochReset_n.poke(false.B);d.reset_n.poke(false.B);d.quiet.poke(false.B);d.debugOwned.poke(false.B)
-    d.bootMode.poke(false.B);d.performanceHold.poke(false.B)
+    d.warmReleasePending.poke(false.B);d.epochReset_n.poke(false.B);d.reset_n.poke(false.B);d.quiet.poke(false.B);d.debugOwned.poke(false.B)
+    d.bootMode.poke(false.B);d.warmHold.poke(false.B)
     d.bus.req.poke(false.B);d.bus.bits.poke(0.U.asTypeOf(d.bus.bits));d.clk.step(3)
     d.epochReset_n.poke(true.B);d.reset_n.poke(true.B)
     def access(a: Int,w: Boolean=false,v: Long=0,be: Int=15,origin: Int=1): (BigInt,Boolean)={
@@ -59,7 +59,8 @@ class BootControlSpec extends AnyFunSuite with ChiselSim {
     wr(4,key);assert(high(d.released) && rd(0)==2,"BOOT_RELEASE")
     wr(4,key);assert(high(d.released) && rd(8)==1,"BOOT_REDUNDANT_RELEASE");wr(8,1)
     d.reset_n.poke(false.B);d.clk.step(2);d.reset_n.poke(true.B);d.clk.step(4)
-    assert(high(d.released) && rd(0)==2 && rd(8)==0,"BOOT_TRANSPORT_RETENTION")
+    assert(high(d.held) && !high(d.released) && rd(0)==1 && rd(8)==0,"BOOT_WARM_HOLD")
+    wr(4,key);assert(high(d.released),"BOOT_RELEASE_AFTER_WARM")
     wr(12,hold);assert(rd(0)==6 && !high(d.held),"BOOT_DRAIN_REQUIRED")
     wr(12,hold);assert(rd(8)==0,"BOOT_HOLD_IDEMPOTENT")
     wr(4,key);assert(rd(8)==1 && rd(0)==6,"BOOT_RELEASE_DURING_DRAIN");wr(8,1)
@@ -76,13 +77,13 @@ class BootControlSpec extends AnyFunSuite with ChiselSim {
     wr(20,0);assert(rd(0)==1 && rd(8)==1,"CONTEXT_KEY");wr(8,1)
     wr(0,31);assert(rd(0)==1,"CONTEXT_READ_ONLY")
     wr(20,0x434f4e54L);assert(rd(0)==17 && high(d.held),"CONTEXT_READY")
-    d.performanceHold.poke(true.B);d.clk.step(2);assert(rd(0)==25,"CONTEXT_FRESH_RESET")
-    d.performanceHold.poke(false.B);d.reset_n.poke(false.B);d.clk.step(2)
+    d.warmHold.poke(true.B);d.clk.step(2);assert(rd(0)==25,"CONTEXT_FRESH_RESET")
+    d.warmHold.poke(false.B);d.reset_n.poke(false.B);d.clk.step(2)
     d.reset_n.poke(true.B);d.clk.step(4);assert(rd(0)==25,"CONTEXT_SERVICE_RETENTION")
-    // A stale watchdog hold spanning a whole reset is not a new warm reset.
-    d.performanceHold.poke(true.B);d.epochReset_n.poke(false.B);d.clk.step(2)
+    // A stale warm hold spanning cold reset is not a new warm entry.
+    d.warmHold.poke(true.B);d.epochReset_n.poke(false.B);d.clk.step(2)
     d.epochReset_n.poke(true.B);d.clk.step(4);assert(rd(0)==1,"CONTEXT_NEW_EPOCH")
-    d.performanceHold.poke(false.B);d.clk.step();d.performanceHold.poke(true.B);d.clk.step()
+    d.warmHold.poke(false.B);d.clk.step();d.warmHold.poke(true.B);d.clk.step()
     assert(rd(0)==9,"CONTEXT_NEW_EDGE")
   }
   test("performance-owned lite hold/release, drain, keys, canceled transport and retained epoch") {

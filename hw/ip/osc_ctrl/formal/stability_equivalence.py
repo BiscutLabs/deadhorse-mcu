@@ -12,7 +12,7 @@ sys.path.insert(0,str(ROOT))
 from tools.formal import assertion_names,validate_job
 
 
-def main(output):
+def main(output,shared=False):
     out=(ROOT/output).resolve();out.relative_to(ROOT/'build')
     out.mkdir(parents=True,exist_ok=False)
     paths=[ROOT/p for p in ('hw/ip/osc_ctrl/formal/StabilityEquivalence.scala',
@@ -20,9 +20,10 @@ def main(output):
         'hw/ip/osc_ctrl/src/main/scala/deadhorse/osc_ctrl/OscClockBoundary.scala',
         'hw/lib/src/main/scala/deadhorse/lib/Cdc.scala','tools/formal.py','tools/env/lock.json')]
     def hashes():return {p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
-    receipt=dict(status='running',source_sha256=hashes(),jobs=[],
-        assumptions=['Initial reset asserted, thereafter arbitrary reset, enable, request and count'],
-        scope='Output-cycle equivalence to original full-width decrement; not CDC/analog qualification',
+    receipt=dict(status='running',shared=shared,source_sha256=hashes(),jobs=[],
+        assumptions=['Initial reset asserted, thereafter arbitrary reset, clear (when present), enable, request and count'],
+        scope=('Output-cycle equivalence to synchronous count-clear reference; inactive count may differ' if shared else
+               'Output-cycle equivalence to original full-width decrement; not CDC/analog qualification'),
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip())
     def run(command,label):
         start=time.monotonic()
@@ -33,7 +34,7 @@ def main(output):
     try:
         receipt['emission']=run([sys.executable,'tools/sbt.py',
             'set hw / Compile / unmanagedSourceDirectories += file("/work/hw/ip/osc_ctrl/formal")',
-            f'hw/runMain deadhorse.osc_ctrl.EmitStabilityEquivalence {out}/emit'],'emit')
+            f'hw/runMain deadhorse.osc_ctrl.EmitStabilityEquivalence {out}/emit {"shared" if shared else ""}'],'emit')
         if receipt['emission']['returncode']:raise RuntimeError('Emission failed')
         for label,mode in [('correct','prove'),('fault','bmc'),('cover','cover')]:
             sources=sorted((out/'emit'/('fault' if label=='fault' else 'correct')).glob('*.sv'))
@@ -70,4 +71,5 @@ def main(output):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',required=True)
-    sys.exit(main(parser.parse_args().output))
+    parser.add_argument('--shared',action='store_true')
+    args=parser.parse_args();sys.exit(main(args.output,args.shared))

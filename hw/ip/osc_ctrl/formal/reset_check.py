@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 from tools.formal import assertion_names, validate_job
 
 
-def main(output):
+def main(output,shared=False):
     out = (ROOT / output).resolve()
     out.relative_to(ROOT / 'build')
     out.mkdir(parents=True, exist_ok=False)
@@ -23,7 +23,7 @@ def main(output):
         'hw/lib/src/main/scala/deadhorse/lib/Cdc.scala', 'tools/formal.py', 'tools/env/lock.json')]
     def hashes():
         return {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
-    receipt = dict(status='running', source_sha256=hashes(), jobs=[],
+    receipt = dict(status='running',shared=shared, source_sha256=hashes(), jobs=[],
         commit=subprocess.check_output(['git','rev-parse','HEAD'], cwd=ROOT, text=True).strip(),
         assumptions=['Normal/bypass cases exhaust static D84 strap choices',
             'Both AON source inputs use one proof clock; analog mux/clock quality is not proved',
@@ -41,7 +41,7 @@ def main(output):
     try:
         receipt['emission']=run([sys.executable,'tools/sbt.py',
             'set hw / Compile / unmanagedSourceDirectories += file("/work/hw/ip/osc_ctrl/formal")',
-            f'hw/runMain deadhorse.osc_ctrl.EmitResetFormal {out}/emit'],'emit')
+            f'hw/runMain deadhorse.osc_ctrl.EmitResetFormal {out}/emit {"shared" if shared else ""}'],'emit')
         if receipt['emission']['returncode']:raise RuntimeError('Emission failed')
         jobs=[('por-initial','prove')]
         for case in ('normal','bypass'):
@@ -91,4 +91,5 @@ def main(output):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',required=True)
-    sys.exit(main(parser.parse_args().output))
+    parser.add_argument('--shared',action='store_true')
+    args=parser.parse_args();sys.exit(main(args.output,args.shared))

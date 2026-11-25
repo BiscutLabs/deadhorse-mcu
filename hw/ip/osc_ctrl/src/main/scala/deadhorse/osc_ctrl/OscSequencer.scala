@@ -5,8 +5,11 @@ import chisel3.util._
 
 /** AON policy only. Inputs are already local/synchronized; source-clock gate
   * closure and stability are independently acknowledged by the clock boundary. */
-class OscSequencer extends RawModule {
+class OscSequencer(withEpochClear: Boolean=false) extends RawModule {
   val clk=IO(Input(Clock())); val reset_n=IO(Input(Bool()))
+  val initialize=if(withEpochClear) Some(IO(Input(Bool()))) else None
+  val clearAck=if(withEpochClear) Some(IO(Input(UInt(2.W)))) else None
+  val epochClear=if(withEpochClear) Some(IO(Output(Bool()))) else None
   val sleep=IO(Input(Bool())); val deep=IO(Input(Bool()))
   val forceRun=IO(Input(Bool())) // Internal reset is an unmaskable sleep cancellation.
   val mainHold=IO(Input(Bool())); val oscillatorHold=IO(Input(Bool()))
@@ -28,6 +31,7 @@ class OscSequencer extends RawModule {
   protected def gateOutput(value: Bool): Bool=value
   protected def resetOn: Bool=true.B
   protected def forcedRun(value: Bool): Bool=value
+  protected def clearComplete(value: Bool): Bool=value
 
   withClockAndReset(clk,(!reset_n).asAsyncReset) {
     val run :: stopping :: off :: starting :: Nil=Enum(4)
@@ -42,6 +46,16 @@ class OscSequencer extends RawModule {
     val closurePending=RegInit(false.B)
     val stopArmed=RegInit(false.B)
     val pending=RegInit(0.U(8.W)); val causes=RegInit(0.U(8.W))
+    val clearing=if(withEpochClear) Some(RegInit(true.B)) else None
+    val clearReleased=if(withEpochClear) Some(RegInit(false.B)) else None
+    val sourceReady=clearReleased.getOrElse(true.B) && !clearing.getOrElse(false.B)
+    epochClear.foreach(_:=clearing.get)
+    if(withEpochClear) {
+      // The held request survives OFF. Both domains must acknowledge clearing,
+      // then both acknowledgements must return low before new commands/config.
+      when(phase===starting && clearing.get && clearComplete(clearAck.get.andR)) {clearing.get:=false.B}
+      when(phase===starting && !clearing.get && clearAck.get===0.U) {clearReleased.get:=true.B}
+    }
     val forced=forcedRun(forceRun)
     val incoming=wake & wakeEnable
     val allWake=pending | incoming
@@ -57,13 +71,13 @@ class OscSequencer extends RawModule {
       initialized:=true.B;delay:=nonzero(delayTicks);timeout:=nonzero(timeoutTicks)
       edges:=nonzero(stableEdges)
     }.elsewhen(phase===starting) {
-      when(!stable) {sawUnstable:=true.B}
+      when(!stable && sourceReady) {sawUnstable:=true.B}
       when(!failed) {
         when(!checking) {
-          when(elapsed===delay-1.U && sawUnstable) {checking:=true.B;elapsed:=0.U}
+          when(elapsed===delay-1.U && (if(withEpochClear) true.B else sawUnstable)) {checking:=true.B;elapsed:=0.U}
             .elsewhen(elapsed=/=delay-1.U) {elapsed:=elapsed+1.U}
         }.otherwise {
-          when(stable) {gate:=gateAllowed(true.B);permission:=true.B;phase:=run}
+          when(stable && sourceReady && (if(withEpochClear) sawUnstable else true.B)) {gate:=gateAllowed(true.B);permission:=true.B;phase:=run}
             .elsewhen(elapsed===timeout-1.U) {failed:=true.B}
             .otherwise {elapsed:=elapsed+1.U}
         }
@@ -76,7 +90,15 @@ class OscSequencer extends RawModule {
       // Allow the new sleep transfer to register its hold before requesting
       // gate closure. Thereafter its FIFO read acknowledgement keeps us safe.
       stopArmed:=true.B
-      when(allWake.orR || forced) {gate:=true.B;phase:=run}
+      when(allWake.orR || forced || clearing.getOrElse(false.B) && demand) {
+        when(clearing.getOrElse(false.B) || !sourceReady) {start()}
+          .otherwise {gate:=true.B;phase:=run}
+      }.elsewhen(clearing.getOrElse(false.B)) {
+        // Closure was acknowledged before requesting this flush. Its explicit
+        // source acknowledgements include gate closure, even after the old
+        // completion FIFO and closed-report state have themselves been cleared.
+        when(clearComplete(clearAck.map(_.andR).getOrElse(false.B))) {on:=false.B;phase:=off}
+      }
         .elsewhen(shutdownReady(stopArmed && !mainHold && coreIdle)) {
           gate:=false.B
           // Reject a stale closed report from power-up or a previous stop.
@@ -86,9 +108,16 @@ class OscSequencer extends RawModule {
           when(!gateClosed) {closurePending:=true.B}
           when(closurePending && gateClosed) {
             when(!deepSleep || oscillatorHold || stopAllowed(!demand)) {
-              on:= !deepSleep || oscillatorHold
-              when(deepSleep && !oscillatorHold) {checking:=false.B;permission:=false.B}
-              phase:=off
+              if(withEpochClear) {
+                when(deepSleep && !oscillatorHold) {
+                  clearing.get:=true.B;clearReleased.get:=false.B
+                  checking:=false.B;permission:=false.B
+                }.otherwise {on:=true.B;phase:=off}
+              } else {
+                on:= !deepSleep || oscillatorHold
+                when(deepSleep && !oscillatorHold) {checking:=false.B;permission:=false.B}
+                phase:=off
+              }
             }
           }
         }.otherwise {gate:=true.B;closurePending:=false.B}
@@ -97,7 +126,14 @@ class OscSequencer extends RawModule {
         when(on) {gate:=true.B;phase:=run}.otherwise {start()}
       }
     }
-    oscillatorOn:=on;gateRequest:=gateOutput(gate);qualify:=checking;count:=edges
+    initialize.foreach {clear=>when(clear) {
+      phase:=starting;on:=true.B;gate:=false.B;checking:=false.B;failed:=false.B
+      permission:=false.B;initialized:=false.B;sawUnstable:=false.B
+      delay:=512.U;timeout:=4096.U;edges:=256.U;elapsed:=0.U
+      deepSleep:=false.B;closurePending:=false.B;stopArmed:=false.B
+      pending:=0.U;causes:=0.U;clearing.get:=true.B;clearReleased.get:=false.B
+    }}
+    oscillatorOn:=on;gateRequest:=gateOutput(gate);qualify:=checking && sourceReady;count:=edges
     authorized:=permission
     preparing:=phase===stopping || phase===off
     state:=phase;fault:=failed;lastWake:=causes;pendingWake:=pending

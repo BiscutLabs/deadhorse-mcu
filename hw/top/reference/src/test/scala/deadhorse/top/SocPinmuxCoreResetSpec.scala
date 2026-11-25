@@ -23,7 +23,7 @@ class SocPinmuxCoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLin
       Paths.get("hw/vendor/ibex_ref/vendor/lowrisc_ip/ip/prim_generic/rtl/prim_generic_clock_gating.sv").toAbsolutePath.toString))
   private val gates=Array("--ckg-name=prim_generic_clock_gating","--ckg-input=clk_i",
     "--ckg-output=clk_o","--ckg-enable=en_i","--ckg-test-enable=test_en_i")
-  test("real core reset preserves pin selection and registered outputs") {
+  test("shared warm reset clears pin selection and disables registered outputs") {
     simulateRaw(new SocPinmuxCoreResetBench,firtoolOpts=gates,settings=settings) {d=>
       val p=d.i1.get
       d.uartRx.poke(true.B);d.coldReset_n.poke(false.B);d.warmReset_n.poke(false.B)
@@ -43,11 +43,15 @@ class SocPinmuxCoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLin
       var writes=0;var resetAt= -1
       for(cycle<-0 until 2400) {
         if(d.applied.peek().litToBoolean) {writes+=1;resetAt=cycle+24}
-        if(cycle==resetAt) d.mainCoreReset_n.poke(false.B)
+        if(cycle==resetAt) {
+          p.inactive.gpioEnable.expect(7.U);p.inactive.gpioOut.expect(5.U)
+          d.mainCoreReset_n.poke(false.B)
+          p.inactive.gpioEnable.expect(0.U);p.inactive.gpioOut.expect(0.U)
+        }
         tick()
         if(resetAt>=0 && cycle>=resetAt) {
-          assert(p.inactive.gpioEnable.peek().litValue==7 && p.inactive.gpioOut.peek().litValue==5,
-            "PINMUX_CORE_RESET_PRESERVES")
+          assert(p.inactive.gpioEnable.peek().litValue==0 && p.inactive.gpioOut.peek().litValue==0,
+            "PINMUX_WARM_RESET_CLEARS")
         }
       }
       assert(writes==1 && resetAt>=0 && resetAt<2300,"PINMUX_RESET_SCENARIO")

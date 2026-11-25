@@ -20,6 +20,7 @@ def main():
     ap.add_argument('--output', required=True)
     ap.add_argument('--width', type=int, default=32)
     ap.add_argument('--depth', type=int, default=2)
+    ap.add_argument('--side-only', action='store_true', help='Run the existing Gray/reset-release properties only; no FIFO data-proof claim')
     args = ap.parse_args()
     out = (ROOT / args.output).resolve(); out.relative_to(ROOT / 'build')
     if (out / 'result.json').exists(): raise ValueError('Retain prior evidence; use fresh output')
@@ -29,7 +30,7 @@ def main():
     snapshot = lambda: {str(p.relative_to(ROOT)): digest(p) for p in source_paths}
     tool_paths = {name: shutil.which(name) for name in ('sby', 'yosys', 'yosys-abc', 'z3')}
     if not all(tool_paths.values()): raise ValueError('Missing pinned CDC proof tool')
-    receipt = dict(status='running', width=args.width, depth=args.depth, runs=[],
+    receipt = dict(status='running', width=args.width, depth=args.depth, side_only=args.side_only, runs=[],
         assumptions=['both resets asserted initially; subsequently arbitrary',
                      'observer history initialized to zero (monitor-only)',
                      'ideal digital sampling; no analog metastability model'],
@@ -47,7 +48,9 @@ def main():
     try:
         code,_=run([sys.executable,'tools/sbt.py',f'hw/runMain deadhorse.lib.EmitCdcFormal {args.width} {args.depth} {out}/emit'],'emit',600)
         if code: raise RuntimeError('CDC formal emission failed')
-        for variant in ('cover','corrupt','correct','side_cover','side_bad_gray','side_early_release','side_correct'):
+        variants=('side_cover','side_bad_gray','side_early_release','side_correct') if args.side_only else (
+            'cover','corrupt','correct','side_cover','side_bad_gray','side_early_release','side_correct')
+        for variant in variants:
             sources=sorted((out/'emit'/variant).glob('*.sv'))
             is_cover=variant.endswith('cover')
             is_fault=variant in ('corrupt','side_bad_gray','side_early_release')

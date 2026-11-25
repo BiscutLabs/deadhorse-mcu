@@ -21,6 +21,7 @@ def main():
     if (out / 'result.json').exists(): raise ValueError('Retain prior evidence; use fresh output')
     out.mkdir(parents=True, exist_ok=True)
     paths=[ROOT/p for p in ('hw/lib/src/main/scala/deadhorse/lib/Cdc.scala',
+        'hw/lib/src/main/scala/deadhorse/lib/CdcEpoch.scala',
         'hw/ip/debug/formal/DebugTransportFormal.scala','hw/ip/debug/src/main/scala/deadhorse/debug/DebugTransport.scala',
         'tools/formal.py','tools/sbt.py','tools/env/lock.json','build.sbt')]+[Path(__file__)]
     hashes=lambda:{p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}

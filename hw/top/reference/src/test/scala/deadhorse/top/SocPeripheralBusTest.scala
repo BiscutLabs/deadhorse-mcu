@@ -17,6 +17,7 @@ object SocTestPorts extends PeekPokeAPI {
     d.sramReset_n.poke(true.B);d.sramTest.result.poke(0.U)
     d.pins.clockControl.reset_n.poke(true.B);d.pins.clockControl.coreIdle.poke(false.B)
     d.pins.clockControl.stable.poke(false.B);d.pins.clockControl.closed.poke(false.B)
+    d.pins.clockControl.clearAck.poke(0.U)
     d.pins.clockControl.jtagWake.poke(false.B)
     d.performanceDebugMode.poke(false.B);d.performanceReset_n.poke(false.B)
     d.performanceReady.foreach(_.poke(true.B))
@@ -30,6 +31,7 @@ object SocTestPorts extends PeekPokeAPI {
     d.sramReset_n:=true.B;d.sramTest.result:=0.U
     d.pins.clockControl.reset_n:=true.B;d.pins.clockControl.coreIdle:=false.B
     d.pins.clockControl.stable:=false.B;d.pins.clockControl.closed:=false.B
+    d.pins.clockControl.clearAck:=0.U
     d.pins.clockControl.jtagWake:=false.B
     d.performanceDebugMode:=false.B;d.performanceReset_n:=false.B
     d.performanceReady.foreach(_:=true.B)

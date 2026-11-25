@@ -19,6 +19,7 @@ class SocMapTests(unittest.TestCase):
     def test_invalid_configurations_are_rejected(self):
         def region(m): return m['regions'][0]
         faults = {
+            'retired reset cohort': lambda m: m['resets'].append('main_service'),
             'unknown key': lambda m: m.update(typo=True),
             'retained write authority': lambda m: m['retained_layout'].update(writer='lite'),
             'retained unsafe condition': lambda m: m['retained_layout'].update(write_condition='debug_halted'),
@@ -66,7 +67,7 @@ class SocMapTests(unittest.TestCase):
             'oscillator main reset': lambda m: m['osc_ctrl'].update(reset='main_service'),
             'qspi scope': lambda m: m['qspi'].update(reset='main_core'),
             'qspi owner': lambda m: m['qspi'].update(reset_owner='lite'),
-            'PWM reset mismatch': lambda m: m['general_timers'].update(reset='warm'),
+            'PWM reset mismatch': lambda m: m['general_timers'].update(reset='cold'),
             'PWM alias window': lambda m: m['general_timers'].update(size=4096),
             'PWM ownership mismatch': lambda m: m['general_timers'].update(owner='lite'),
             'PWM boolean offset': lambda m: m['general_timers'].update(offset=False),

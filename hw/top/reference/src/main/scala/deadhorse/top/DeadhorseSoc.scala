@@ -12,7 +12,7 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
                    gateTarget: ClockGateTarget = ClockGateTarget.Model,
                    readLatency: Int = 1, banks: Int = 4,
                    verificationFixture: Boolean = false, ramImages: Seq[String] = Seq.empty,
-                   i1Config: Option[SocI1Config] = None,withRvfi: Boolean=true) extends RawModule {
+                   i1Config: Option[SocI1Config] = None,withRvfi: Boolean=true,externalResetDomains: Boolean=false) extends RawModule {
   protected def bootPermit(released: Bool): Bool=released
   protected def debugRequest(request: Bool): Bool=request
   require(verificationFixture || ramImages.isEmpty, "Preloaded SRAM is verification-only")
@@ -25,6 +25,8 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   // never permission to stop the complete SoC clock.
   val uartTxEnable = IO(Output(Bool())); val clockHold = IO(Output(Bool()))
   val coreReady = IO(Output(Bool())); val coreSleeping = IO(Output(Bool()))
+  val resetDomains=if(externalResetDomains) Some(IO(Input(new SocResetReleases))) else None
+  val requestedWarm_n=IO(Output(Bool()))
   val description = new SocDescription(config)
   val i1 = i1Config.map(_=>IO(new SocI1Pins))
   val watchdogCoreReset=WireDefault(false.B);val watchdogWholeReset=WireDefault(false.B)
@@ -32,20 +34,35 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   val debugGrant=WireDefault(false.B);val debugFetch=WireDefault(false.B);val debugHalt=WireDefault(false.B);val debugReset=WireDefault(false.B)
   require(!i1Config.exists(_.bootControl.isDefined) || i1Config.exists(_.liteCore),
     "Production boot release requires the real lite core")
-  val serviceRelease = Module(new ResetRelease)
-  serviceRelease.clk := mainClock
-  serviceRelease.reset_n := coldReset_n && warmReset_n && mainServiceReset_n && !watchdogWholeReset && !debugReset
-  val coreRelease = Module(new ResetRelease)
-  coreRelease.clk := mainClock
-  coreRelease.reset_n := coldReset_n && warmReset_n && mainServiceReset_n && mainCoreReset_n &&
-    !watchdogWholeReset && !watchdogCoreReset && !debugReset && (bootPermit(bootReleased) || debugGrant)
+  val warmRaw=coldReset_n && warmReset_n && mainCoreReset_n && !watchdogWholeReset && !debugReset
+  requestedWarm_n:=warmRaw
+  val sharedReleases=i1Config.map { _=>
+    resetDomains.getOrElse {
+    val d=Module(new SocResetDomains)
+    d.mainClock:=mainClock;d.aonClock:=i1.get.aonClock;d.sourceClock:=i1.get.usbClock
+    d.scanClock:=i1.get.inactive.jtagTck.asClock;d.cold_n:=coldReset_n;d.warm_n:=warmRaw
+    d.pin_n:=warmReset_n
+    d.aonQualified:=i1.get.aonServiceReset_n;d.mainQualified:=mainServiceReset_n
+    d.released
+    }
+  }
+  val serviceUp=sharedReleases.map(_.warmMain).getOrElse {
+    val r=Module(new ResetRelease);r.clk:=mainClock
+    r.reset_n:=coldReset_n && warmReset_n && mainServiceReset_n;r.released
+  }
+  // PLAN05 production always boots performance ROM. There is no independent
+  // performance-client reset cohort; diagnostic core reset joins warm.
+  val coreUp=sharedReleases.map(_.warmMain).getOrElse {
+    val r=Module(new ResetRelease);r.clk:=mainClock
+    r.reset_n:=coldReset_n && warmReset_n && mainServiceReset_n && mainCoreReset_n;r.released
+  }
 
   val memory = Module(new SocLocalMemory(description, romImage, banks, readLatency, ramImages,
     dmaEnabled=i1Config.exists(_.dma.isDefined),xipEnabled=i1Config.exists(_.xip),debugEnabled=i1Config.nonEmpty,
     sramTarget=if(gateTarget==ClockGateTarget.Asic) deadhorse.sram.SramTarget.Asic else deadhorse.sram.SramTarget.Model,
     bistEnabled=i1Config.nonEmpty))
-  memory.clk := mainClock; memory.serviceReset_n := serviceRelease.released
-  memory.clientReset_n := coreRelease.released
+  memory.clk := mainClock; memory.serviceReset_n := serviceUp
+  memory.clientReset_n := coreUp
   coreReady := memory.epochReady
   // Passive verification pins; absent from the production interface.
   val memoryTrace = if(verificationFixture) Some(IO(Output(new Bundle {
@@ -60,7 +77,7 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   val core = Module(new IbexTop(gateTarget, WithRVFI=withRvfi, RegisteredExecution=false, WithF=true,
     DmHaltAddr=if(i1Config.nonEmpty) description.region("debug_mem").base+0x800 else BigInt("1a110800",16),
     DmExceptionAddr=if(i1Config.nonEmpty) description.region("debug_mem").base+0x810 else BigInt("1a110808",16)))
-  core.clk_i := mainClock; core.rst_ni := coreRelease.released
+  core.clk_i := mainClock; core.rst_ni := coreUp
   core.test_en_i := false.B; core.scan_rst_ni := true.B; core.ram_cfg_i := 0.U
   core.instr_rdata_intg_i := 0.U; core.data_rdata_intg_i := 0.U
   core.scramble_key_valid_i := false.B; core.scramble_key_i := 0.U; core.scramble_nonce_i := 0.U
@@ -95,18 +112,19 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   }
 
   val subsystem=i1Config.map(c=>Module(new SocI1Peripherals(description,c,
-    if(gateTarget==ClockGateTarget.Asic) deadhorse.sram.SramTarget.Asic else deadhorse.sram.SramTarget.Model,withRvfi)).suggestName("subsystem"))
+    if(gateTarget==ClockGateTarget.Asic) deadhorse.sram.SramTarget.Asic else deadhorse.sram.SramTarget.Model,withRvfi,sharedDomainReleases=true,consolidatedOscillator=externalResetDomains)).suggestName("subsystem"))
   if(i1Config.nonEmpty) {
     val peripherals=this.subsystem.get
+    peripherals.domainReleases.get:=sharedReleases.get
     peripherals.performanceDebugMode:=core.debug_mode_o
-    peripherals.performanceReset_n:=coreRelease.reset_n
+    peripherals.performanceReset_n:=warmRaw
     debugFetch:=peripherals.performanceDebugFetch;debugHalt:=peripherals.performanceHalt;debugGrant:=peripherals.performanceDebugGrant;debugReset:=peripherals.debugReset
     peripherals.mainClock:=mainClock;peripherals.coldReset_n:=coldReset_n
     peripherals.warmReset_n:=warmReset_n;peripherals.mainServiceReset_n:=mainServiceReset_n
     peripherals.main<>memory.peripheral;peripherals.pins<>i1.get
     peripherals.dmaMemory.foreach(port=>memory.dma.get<>port)
     memory.testPort.get<>peripherals.sramTest;memory.testOwn.get:=peripherals.sramOwn
-    peripherals.sramReset_n:=serviceRelease.released
+    peripherals.sramReset_n:=serviceUp
     peripherals.nativeXip.foreach(port=>memory.xip.get<>port)
     peripherals.uartRx:=uartRx
     uartTx:=peripherals.uartTx;uartTxEnable:=peripherals.uartTxEnable
@@ -122,21 +140,21 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   val uartRegion = description.region("uart0")
   val fixtureRegions = if(verificationFixture) Seq(BigInt(0x100000),BigInt(0x2000000),BigInt(0x10000000)) else Seq.empty
   val fabric = Module(new BusFabric(1, Seq(BusRegion(uartRegion.base, uartRegion.size)) ++ fixtureRegions.map(BusRegion(_,16))))
-  fabric.clk := mainClock; fabric.reset_n := serviceRelease.released
+  fabric.clk := mainClock; fabric.reset_n := serviceUp
   fabric.master(0) <> memory.peripheral
   fabric.allow(0) := true.B; fabric.admit(0) := true.B
   // A retained endpoint is never reopened by a fictitious quiescent pulse.
   // A late response drains quarantine, or common service reset resets both.
   fabric.quiescent(0) := false.B
   val uart = Module(new Uart(uartJson, base=uartRegion.base))
-  uart.clk := mainClock; uart.reset_n := serviceRelease.released
+  uart.clk := mainClock; uart.reset_n := serviceUp
   uart.bus <> fabric.target(0); uart.owner := description.origin("performance").U
   uart.rx := uartRx; uart.sleepRequest := false.B; uart.sleepMode := 0.U
   uartTx := uart.tx; uartTxEnable := uart.txEnable; clockHold := uart.clockHold
   core.ports("irq_fast_i") := uart.irq.asUInt << description.interrupt("uart0")
   for((base,index) <- fixtureRegions.zipWithIndex) {
     val target=Module(new SocTestTarget(base,base==BigInt(0x2000000)))
-    target.clk:=mainClock; target.reset_n:=serviceRelease.released
+    target.clk:=mainClock; target.reset_n:=serviceUp
     target.bus<>fabric.target(index+1)
     fabric.admit(index+1):=true.B; fabric.quiescent(index+1):=false.B
     if(base==BigInt(0x2000000)) core.ports("irq_software_i"):=target.msip
@@ -148,8 +166,8 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   * Every production feature remains present; this is not a chip profile. */
 class SocDigitalAssembly(config: String, uartJson: String, romImage: String,
     gateTarget: ClockGateTarget=ClockGateTarget.Model, readLatency: Int=1, banks: Int=4,
-    i1Config: Option[SocI1Config]=Some(SocProduction.config()),withRvfi: Boolean=false)
-  extends SocCoreAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config=i1Config,withRvfi=withRvfi) {
+    i1Config: Option[SocI1Config]=Some(SocProduction.config()),withRvfi: Boolean=false,externalResetDomains: Boolean=false)
+  extends SocCoreAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config=i1Config,withRvfi=withRvfi,externalResetDomains=externalResetDomains) {
   require(i1Config.exists(c => c.io.nonEmpty && c.dma.nonEmpty &&
     c.pinmux.nonEmpty && c.liteCore && c.watchdog.nonEmpty && c.bootControl.nonEmpty &&
     c.qspi.nonEmpty && c.xip), "The complete digital assembly requires every production feature")

@@ -142,6 +142,7 @@ case class SocIoConfig(gpio: String, timers: String, aonTimer: String, mainMHz: 
 }
 /** Clock-boundary handshake. Internal to the production clock/reset wrapper. */
 class SocClockControlPins extends Bundle {
+  val clearAck=Input(UInt(2.W));val epochClear=Output(Bool())
   val reset_n=Input(Bool());val coreIdle=Input(Bool());val stable=Input(Bool())
   val closed=Input(Bool());val jtagWake=Input(Bool())
   val oscillatorOn=Output(Bool());val gateRequest=Output(Bool());val authorized=Output(Bool())

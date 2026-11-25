@@ -11,7 +11,17 @@ sys.path.insert(0,str(ROOT/'dv/core'))
 from state_equiv import prepare
 
 
-def bind_source(hierarchy,target,certificate,out,reference_top='Usb',fault_pin='pullupEnable'):
+def drop_unused_input(module,name):
+    port=module['ports'][name]
+    assert port['direction']=='input',(name,'not input')
+    bits=set(port['bits'])
+    assert all(not bits.intersection(bs) for c in module['cells'].values()
+               for bs in c['connections'].values()),(name,'input is used by a cell')
+    assert all(not bits.intersection(p['bits']) for n,p in module['ports'].items() if n!=name),(name,'port alias')
+    del module['ports'][name]
+
+
+def bind_source(hierarchy,target,certificate,out,reference_top='Usb',fault_pin='pullupEnable',unused_inputs=()):
     out.mkdir(exist_ok=False)
     sources=[ROOT/n.removeprefix('/work/') for n in certificate['sources']]
     for p,value in zip(sources,certificate['sources'].values()):
@@ -37,9 +47,28 @@ def bind_source(hierarchy,target,certificate,out,reference_top='Usb',fault_pin='
     for role,path,top in [('gold',out/'reference-bound.json',reference_top),('candidate',hierarchy,target)]:
         run([f'read_json {path}',f'hierarchy -top {top}',f'rename {top} Usb' if top!='Usb' else 'check -assert',
             'flatten','memory_map','opt -full','clean -purge',f'write_json {out}/{role}.json'],role)
+    gold_flat=json.loads((out/'gold.json').read_text())
+    candidate_flat=json.loads((out/'candidate.json').read_text())
+    omitted=[]
+    for name in unused_inputs:
+        if name not in candidate_flat['modules']['Usb']['ports']:
+            drop_unused_input(gold_flat['modules']['Usb'],name);omitted.append(name)
+    (out/'gold.json').write_text(json.dumps(gold_flat))
+    gold_names=json.loads((out/'gold.json').read_text())['modules']['Usb']['netnames']
+    candidate_names=json.loads((out/'candidate.json').read_text())['modules']['Usb']['netnames']
+    # T41 exposes the same default FIFO release wires through the helper's
+    # named ports. This is only a spelling relation: prepare still checks all
+    # state identities, reset/clock/control pins and next-state expressions.
+    release_aliases={}
+    for name in gold_names:
+        for side in ('rd','wr'):
+            suffix=f'._{side}_released'
+            if name.endswith(suffix):
+                renamed=name[:-len(suffix)]+f'.{side}.released'
+                if renamed in candidate_names:release_aliases[name]=renamed
     def prove(candidate,directory,negative=False,names=None):
         directory.mkdir(exist_ok=False)
-        a,b,evidence=prepare(out/'gold.json',candidate,'Usb',directory,names or {})
+        a,b,evidence=prepare(out/'gold.json',candidate,'Usb',directory,release_aliases | (names or {}))
         # Every state D, clock/reset/control pin and output is compared; equal
         # named state is the inductive relation, not a new environment premise.
         run([f'read_json {a}','rename Usb gold',f'read_json {b}','rename Usb gate',
@@ -60,6 +89,7 @@ def bind_source(hierarchy,target,certificate,out,reference_top='Usb',fault_pin='
     receipt=dict(status='proved',method='Unbounded named-state one-step induction',correspondence=evidence,
         specialization='owner=1 only; other inputs independent' if reference_top=='Usb' else 'All inputs independent',
         negative_control=f'Actual candidate {pin} output inverted; proof rejected',
-        source_sha256=certificate['sources'],hierarchy_sha256=hashlib.sha256(hierarchy.read_bytes()).hexdigest())
+        source_sha256=certificate['sources'],release_aliases=release_aliases,unused_inputs_removed=omitted,
+        hierarchy_sha256=hashlib.sha256(hierarchy.read_bytes()).hexdigest())
     (out/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
     return receipt

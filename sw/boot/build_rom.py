@@ -5,7 +5,7 @@ ROOT=pathlib.Path.cwd();SRC=pathlib.Path(__file__).resolve().parent
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def main():
  p=argparse.ArgumentParser();p.add_argument('--output',required=True)
- p.add_argument('--negative-control',choices=('CRC','RANGE','COMMIT','EARLY_RELEASE'))
+ p.add_argument('--negative-control',choices=('CRC','RANGE','COMMIT','EARLY_RELEASE','WARM_SKIP_RELOAD'))
  a=p.parse_args();out=(ROOT/a.output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
  inputs=[SRC/n for n in ('start.S','policy.c','platform.c','main.c','recovery.c','boot.h','platform.h','rom.ld')]
  includes=['build/t20/map','build/t30/qspi','build/t20/i1/uart','build/t28/boot_control','build/t23/dma']

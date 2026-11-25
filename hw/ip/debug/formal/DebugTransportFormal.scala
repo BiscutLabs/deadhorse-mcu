@@ -14,8 +14,8 @@ class DebugTransportFormal(variant: String) extends RawModule {
   val takeResponse=IO(Input(Bool()))
   val d=Module[DebugTransport](variant match {
     case "corrupt"=>new DebugTransport {
-      override protected def requestFifo(): CdcFifo=new CdcFifo(41) {
-        override protected def makeReader(): CdcRead=new CdcRead(41,2) {
+      override protected def requestFifo(): CdcFifo=new CdcFifo(41,qualifiedResets=true,synchronousFlush=true) {
+        override protected def makeReader(): CdcRead=new CdcRead(41,2,withClear=true) {
           override protected def capture(v: UInt): UInt=v ^ 1.U
         }
       }

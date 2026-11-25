@@ -79,4 +79,32 @@ class WatchdogSpec extends AnyFunSuite with ChiselSim {
     }
     assert(failed.getMessage.contains("WATCHDOG_ACTIVE"))
   }
+  private def retainedCause(d: WatchdogChannel): Unit={
+    d.por_n.poke(false.B);d.reset_n.poke(false.B)
+    d.period.poke(2.U);d.window.poke(0.U);d.warning.poke(0.U)
+    d.start.poke(false.B);d.feed.poke(false.B);d.clk.step(2)
+    d.por_n.poke(true.B);d.reset_n.poke(true.B)
+    d.start.poke(true.B);d.clk.step();d.start.poke(false.B);d.clk.step(8)
+    // Finish an actual expiry AND its hold before testing retention. A fault
+    // during the first expiry could otherwise fail only a crash-count check.
+    assert(d.cause.peek().litToBoolean && d.crashes.peek().litValue==1 &&
+      !d.resetHold.peek().litToBoolean,"WATCHDOG_CAUSE_PRECONDITION")
+    d.reset_n.poke(false.B)
+    assert(d.cause.peek().litToBoolean,"WATCHDOG_WARM_CAUSE_LOST")
+    d.clk.step(3);assert(d.cause.peek().litToBoolean,"WATCHDOG_WARM_CAUSE_LOST")
+    d.reset_n.poke(true.B);d.clk.step()
+    assert(d.cause.peek().litToBoolean && d.crashes.peek().litValue==1,"WATCHDOG_CAUSE_RELEASE")
+    d.por_n.poke(false.B);assert(!d.cause.peek().litToBoolean,"WATCHDOG_COLD_CAUSE_CLEAR")
+  }
+  test("a latched cause survives warm assertion and release, and cold clears it") {
+    simulateRaw(new WatchdogChannel)(retainedCause)
+  }
+  test("warm clearing an already latched cause is rejected specifically") {
+    val failed=intercept[org.scalatest.exceptions.TestFailedException] {
+      simulateRaw(new WatchdogChannel {
+        override protected def retainedReset: Bool=por_n && reset_n
+      })(retainedCause)
+    }
+    assert(failed.getMessage.contains("WATCHDOG_WARM_CAUSE_LOST"))
+  }
 }

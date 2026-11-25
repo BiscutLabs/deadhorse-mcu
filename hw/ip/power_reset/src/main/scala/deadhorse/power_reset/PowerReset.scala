@@ -23,7 +23,7 @@ class BrownoutSelect extends RawModule {
   * analog macro guarantee; digital proof does not qualify analog transients. */
 class PowerReset(json: String,base: BigInt=BigInt("40000500",16)) extends RawModule {
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val bus=IO(new LocalBus)
-  val causes=IO(Input(UInt(5.W)));val threshold=IO(Output(UInt(2.W)))
+  val causes=IO(Input(UInt(6.W)));val threshold=IO(Output(UInt(2.W)))
   protected def makeSelector(): BrownoutSelect=new BrownoutSelect
   val regs=Module(new RegBlock(json));regs.clk:=clk;regs.rst_n:=reset_n
   val adapter=Module(new BusRegAdapter(8,base,1))

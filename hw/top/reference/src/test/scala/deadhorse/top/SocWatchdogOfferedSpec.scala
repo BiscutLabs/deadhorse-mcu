@@ -30,18 +30,23 @@ class SocWatchdogOfferedSpec extends AnyFunSuite with ChiselSim with SocDebugLin
       def high(v: Bool)=v.peek().litToBoolean
       var armed=false;var sawExpiry=false;var now=0L;var expiryAt=0L
       def tick(n: Int=1): Unit=for(_<-0 until n) {
-        d.oscIn.step(1500);m.porReference.step(31);m.lfClock.step();now+=1
+        d.oscIn.step(1500);m.porReference.step(31)
+        val pendingBefore=high(o.downstreamPending);val offeredBefore=high(o.offered)
+        m.lfClock.step();now+=1
         if(armed) {
-          d.status.servicesReleased.expect(true.B);o.mainUp.expect(true.B);o.aonUp.expect(true.B)
           if(!sawExpiry && high(o.resetHold)) {
             sawExpiry=true;expiryAt=now
+            // servicesReleased is the cold-owned source-qualification record;
+            // actual consumers must assert warm immediately, before its clear.
+            o.mainUp.expect(false.B);o.aonUp.expect(false.B)
             o.clientUp.expect(false.B);o.ready.expect(false.B)
             println(s"WATCHDOG_OFFERED_EXPIRY accepted=${o.clientAccepted.peek().litValue} offered=${high(o.offered)} dispatches=${o.dispatches.peek().litValue} commits=${o.targetCommitted.peek().litValue} returned=${o.returned.peek().litValue} acceptCycle=${o.acceptedCycle.peek().litValue}")
-            assert(o.clientAccepted.peek().litValue==1 && high(o.offered) &&
+            assert(o.clientAccepted.peek().litValue==1 && offeredBefore &&
               o.dispatches.peek().litValue==0 && o.targetCommitted.peek().litValue==0,
               "WATCHDOG_OFFERED_PHASE")
-            o.downstreamPending.expect(true.B);o.returned.expect(0.U);o.clientResponse.expect(false.B)
-            p.gpioEnable.expect(3.U);p.gpioOut.expect(1.U)
+            assert(pendingBefore,"WATCHDOG_PENDING_AT_EXPIRY")
+            o.downstreamPending.expect(false.B);o.returned.expect(0.U);o.clientResponse.expect(false.B)
+            p.gpioEnable.expect(0.U);p.gpioOut.expect(0.U)
           }
         }
       }
@@ -56,12 +61,12 @@ class SocWatchdogOfferedSpec extends AnyFunSuite with ChiselSim with SocDebugLin
       println(s"WATCHDOG_OFFERED_TIMESTAMPS acceptedCycle=${o.acceptedCycle.peek().litValue} expiryCycle=${o.expiryCycle.peek().litValue} dispatchedCycle=${o.dispatchedCycle.peek().litValue}")
       assert(sawExpiry,"WATCHDOG_PHASE_EXPIRY_MISSING")
       assert(high(o.ready) && high(d.status.coreSleeping) && p.gpioOut.peek().litValue==2,"WATCHDOG_PHASE_REBOOT_FAILED")
-      o.cause.expect(true.B);o.crashes.expect(1.U);o.targetCommitted.expect(1.U);o.clientAccepted.expect(1.U)
-      o.returned.expect(1.U);o.staleResponses.expect(0.U);o.earlyReady.expect(0.U)
-      o.commitData.expect("h51a00210".U);o.commitMask.expect(15.U);o.targetOrigin.expect(1.U)
+      o.cause.expect(true.B);o.crashes.expect(1.U);o.targetCommitted.expect(0.U);o.clientAccepted.expect(1.U)
+      o.returned.expect(0.U);o.staleResponses.expect(0.U);o.earlyReady.expect(0.U)
+      o.dispatches.expect(0.U);o.commitData.expect(0.U);o.commitMask.expect(0.U)
       p.gpioEnable.expect(3.U);tick(16)
-      o.targetCommitted.expect(1.U);o.crashes.expect(1.U);o.staleResponses.expect(0.U);o.earlyReady.expect(0.U)
-      info(s"covered real watchdog accepted/offered before dispatch, expiry AON tick=$expiryAt; one surviving commit and clean reboot")
+      o.targetCommitted.expect(0.U);o.crashes.expect(1.U);o.staleResponses.expect(0.U);o.earlyReady.expect(0.U)
+      info(s"covered real watchdog accepted/offered before dispatch, expiry AON tick=$expiryAt; zero canceled commits/returns and clean reboot")
     }
     if(earlyWrite) {
       val e=intercept[org.scalatest.exceptions.TestFailedException] {exercise()}

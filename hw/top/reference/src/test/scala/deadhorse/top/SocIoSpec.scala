@@ -82,7 +82,7 @@ class SocIoSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguratio
       assert(d.pins.inactive.gpioEnable.peek().litValue==0 && d.pins.inactive.timerEnable.peek().litValue==0)
     }
   }
-  test("AON deadline and GPIO level wake with main stopped; independent reset scopes") {
+  test("AON deadline and GPIO level wake with main stopped; shared warm reset") {
     simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d);val gpio=BigInt(0x40012000L);val aon=BigInt(0x40000000L)
       for(i<-0 until 3) good(d,d.main,0x40012200L+4*i,true,1)
@@ -92,24 +92,22 @@ class SocIoSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguratio
       good(d,d.pins.lite,aon+32,true,200);good(d,d.pins.lite,aon,true,1)
       d.pins.aonClock.step(220);assert(high(d.pins.mainDemand) && high(d.pins.aonIrq))
       tick(d,8);assert(d.fastIrq.peek().litValue.testBit(11))
-      d.mainServiceReset_n.poke(false.B);d.pins.aonClock.step(4)
-      d.mainServiceReset_n.poke(true.B);tick(d,48)
-      assert(d.fastIrq.peek().litValue.testBit(11),"AON_IRQ_REASSERTS_AFTER_MAIN_RESET")
+      d.warmReset_n.poke(false.B);d.pins.aonClock.step(4)
+      d.warmReset_n.poke(true.B);tick(d,48)
+      assert(!d.fastIrq.peek().litValue.testBit(11),"AON_IRQ_CLEARED_BY_WARM_RESET")
       good(d,d.pins.lite,aon+4,true,1);tick(d,40);assert(!high(d.pins.mainDemand))
-      // Main reset flushed GPIO wake; reinstall before the stopped-main check.
+      // Warm reset flushed GPIO wake; reinstall before the stopped-main check.
       for(i<-0 until 3) good(d,d.main,0x40012200L+4*i,true,1)
       good(d,d.main,gpio,true,6);good(d,d.main,gpio+4,true,3)
       good(d,d.main,gpio+28,true,1);good(d,d.main,gpio+32,true,1);good(d,d.main,gpio+36,true,1);tick(d,32)
       d.pins.inactive.gpioIn.poke(1.U);d.pins.aonClock.step(12);assert(high(d.pins.mainDemand))
-      d.pins.aonServiceReset_n.poke(false.B);d.pins.aonClock.step(4)
-      // Production pinmux drives disabled pads low, even when the GPIO data
-      // register retains a one. Check the exact physical value while main is stopped.
-      assert(d.pins.inactive.gpioOut.peek().litValue==2 && d.pins.inactive.gpioEnable.peek().litValue==3)
-      assert(!high(d.pins.aonIrq));d.pins.aonServiceReset_n.poke(true.B);tick(d,48)
+      d.warmReset_n.poke(false.B);d.pins.aonClock.step(4)
+      // Shared warm assertion disables and clears both domains even when main
+      // has supplied no edge. No independent service-reset cohort remains.
+      assert(d.pins.inactive.gpioOut.peek().litValue==0 && d.pins.inactive.gpioEnable.peek().litValue==0)
+      assert(!high(d.pins.aonIrq));d.warmReset_n.poke(true.B);tick(d,48)
       assert(!high(d.pins.mainDemand),"IO_WAKE_CONFIG_FLUSH")
-      // Preserve the original raw GPIO retention obligation, including the
-      // disabled bit, without adding main edges before the wake-flush check.
-      assert(good(d,d.main,gpio)==6 && good(d,d.main,gpio+4)==3,"IO_GPIO_STATE_RETAINED")
+      assert(good(d,d.main,gpio)==0 && good(d,d.main,gpio+4)==0,"IO_GPIO_WARM_DEFAULTS")
     }
   }
 }

@@ -44,11 +44,12 @@ class RegHardware(val fields: Seq[RegField]) extends Record {
 }
 
 /** Single-domain registered target with asynchronous active-low reset. */
-class RegBlock(json: String) extends RawModule {
+class RegBlock(json: String,withClear: Boolean=false) extends RawModule {
   def this(json: os.Path) = this(json.toString)
   val description = new RegDescription(json)
   val clk = IO(Input(Clock()))
   val rst_n = IO(Input(Bool()))
+  val clear=if(withClear) Some(IO(Input(Bool()))) else None
   val bus = IO(new RegBus(description.addressWidth))
   val hw = IO(new RegHardware(description.fields))
 
@@ -62,11 +63,12 @@ class RegBlock(json: String) extends RawModule {
     val valid = RegInit(false.B)
     val response = RegInit(0.U(32.W))
     val responseError = RegInit(false.B)
-    bus.req_ready := ready
-    bus.rsp_valid := valid
+    val clearing=clear.getOrElse(false.B)
+    bus.req_ready := ready && !clearing
+    bus.rsp_valid := valid && !clearing
     bus.rsp_rdata := response
     bus.rsp_error := responseError
-    val accept = bus.req_valid && ready
+    val accept = bus.req_valid && ready && !clearing
     val hit = description.offsets.map(o => o -> (bus.req_addr === o.U)).toMap
     val mapped = hit.values.foldLeft(false.B)(_ || _)
     val partialAt = description.offsets.map { offset =>
@@ -100,13 +102,19 @@ class RegBlock(json: String) extends RawModule {
           val clear = Mux(selected, data & mask, 0.U(f.width.W))
           q := (q & ~clear) | hw(f.key + "_set")
         case "w1p" =>
-          hw(f.key + "_pulse") := RegNext(Mux(selected, data & mask, 0.U(f.width.W)), 0.U(f.width.W))
+          val pulse=RegNext(Mux(selected, data & mask, 0.U(f.width.W)),0.U(f.width.W))
+          clear.foreach(c=>when(c) {pulse:=0.U})
+          hw(f.key + "_pulse") := Mux(clearing,0.U,pulse)
         case "wo" =>
           val issue = selected && (strobes & f.byteMask.U(4.W)).orR
-          hw(f.key + "_we") := RegNext(issue, false.B).asUInt
-          hw(f.key + "_wdata") := RegNext(Mux(issue, data, 0.U(f.width.W)), 0.U(f.width.W))
+          val enable=RegNext(issue,false.B)
+          val value=RegNext(Mux(issue,data,0.U(f.width.W)),0.U(f.width.W))
+          clear.foreach(c=>when(c) {enable:=false.B;value:=0.U})
+          hw(f.key + "_we") := (enable && !clearing).asUInt
+          hw(f.key + "_wdata") := value
         case "ro" => ()
       }
+      stored.foreach(q=>clear.foreach(c=>when(c) {q:=initialValue(f).U(f.width.W)}))
       val read = if (f.stored) stored.get else if (f.access == "ro") hw(f.key + "_d") else 0.U(f.width.W)
       Mux(hit(f.offset), (read.pad(32) << f.lsb)(31, 0), 0.U(32.W))
     }
@@ -123,5 +131,6 @@ class RegBlock(json: String) extends RawModule {
       response := Mux(bus.req_write, 0.U, readResult(readData))
       responseError := error
     }
+    clear.foreach(c=>when(c) {ready:=true.B;valid:=false.B;response:=0.U;responseError:=false.B})
   }
 }

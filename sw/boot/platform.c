@@ -95,6 +95,12 @@ int dh_uart_write(uint8_t value) {
 void *memcpy(void *dst,const void *src,size_t n) {
  uint8_t *d=dst;const uint8_t *s=src;while(n--)*d++=*s++;return dst;
 }
+void dh_enter(uint32_t entry,uint32_t config,uint32_t bytes,uint32_t generation,uint32_t causes) {
+ void (*application)(uint32_t,uint32_t,uint32_t,uint32_t)=(void *)(uintptr_t)entry;
+ __asm__ volatile("fence.i":::"memory");
+ application(config,bytes,generation,causes);
+ dh_fail();
+}
 void *memset(void *dst,int value,size_t n) {
  uint8_t *d=dst;while(n--)*d++=(uint8_t)value;return dst;
 }

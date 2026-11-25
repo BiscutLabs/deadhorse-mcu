@@ -15,9 +15,9 @@ class SramStatusBench extends RawModule {
   val main=IO(new SramPort(12));val aon=IO(new SramPort(12));val held=IO(Output(Bool()))
   val regs=Module(new SramDmi("build/t20/i1/sram/sram_regs.json"))
   val owner=Module(new SramBist)
-  regs.clk:=clk;regs.reset_n:=transport_n;regs.epoch_n:=epoch_n
+  regs.clk:=clk;regs.reset_n:=epoch_n;regs.clear:= !transport_n;regs.epoch_n:=owner.commandOpen
   regs.request<>request;regs.response<>response
-  owner.clk:=clk;owner.aonClock:=aonClock;owner.epoch_n:=epoch_n
+  owner.clk:=clk;owner.aonClock:=aonClock;owner.epoch_n:=epoch_n;owner.cold_n:=epoch_n
   owner.start:=regs.start;owner.keyed:=regs.keyed;owner.authorized:=ndm
   owner.mainReset_n:= !(ndm || owner.resetHold);owner.aonReset_n:= !(ndm || owner.resetHold)
   regs.busy:=owner.busy;regs.done:=owner.done;regs.failed:=owner.failed;regs.rejected:=owner.rejected

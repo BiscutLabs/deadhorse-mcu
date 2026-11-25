@@ -200,12 +200,20 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     if counter_ref:
         counter_targets=[n for n in design['modules'] if n.split('$')[0]=='OscStability'];assert len(counter_targets)==1
         counter_target=counter_targets[0]
+        counter_prefix=counter_target.split('$',1)[1].removeprefix('DeadhorseSoc.')+'.'
+        assert counter_prefix in ('clocks.counter.','clocks.executor.counter.')
         counter_binding=bind_source(out/'hier.json',counter_target,{'sources':counter_receipt['source_sha256']},
-            out/'counter-source-binding',reference_top='OscStability',fault_pin='stable')
+            out/'counter-source-binding',reference_top='OscStability',fault_pin='stable',unused_inputs=('oscillatorOn',))
         run([f'read_json {counter_ref}/mapped.json','rename -enumerate',
             f'write_json {out}/counter-reference.json'],'counter-canonical')
         counter=copy.deepcopy(json.loads((out/'counter-reference.json').read_text())['modules']['OscStability'])
         old_counter=copy.deepcopy(design['modules'][counter_target]);counter_original=copy.deepcopy(design)
+        if 'oscillatorOn' not in old_counter['ports']:
+            # The qualified counter's mode uses clear, so firtool omits this
+            # unused legacy input at the integrated instance. Fail if it has
+            # acquired any logic or output dependency in the mapped reference.
+            from hw.top.reference.measurements.plan04_usb_binding import drop_unused_input
+            drop_unused_input(counter,'oscillatorOn')
         counter['attributes']=copy.deepcopy(old_counter.get('attributes',{}))
         assert {n:(p['direction'],len(p['bits'])) for n,p in counter['ports'].items()}=={n:(p['direction'],len(p['bits'])) for n,p in old_counter['ports'].items()}
         for c in counter['cells'].values():c.setdefault('attributes',{})['keep']='1'
@@ -384,13 +392,13 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
             assert isinstance(b,int) and forward.get(a,b)==b and backward.get(b,a)==a
             forward[a]=b;backward[b]=a
         for name,c in counter['cells'].items():
-            d=mod['cells']['clocks.counter.'+name]
+            d=mod['cells'][counter_prefix+name]
             assert c['type']==d['type'] and c['parameters']==d['parameters'] and c['port_directions']==d['port_directions']
             for pin,bs in c['connections'].items():
                 assert len(bs)==len(d['connections'][pin])
                 for a,b in zip(bs,d['connections'][pin]):counter_bit(a,b)
         for name,p in counter['ports'].items():
-            actual=mod['netnames']['clocks.counter.'+name]['bits'];assert len(actual)==len(p['bits'])
+            actual=mod['netnames'][counter_prefix+name]['bits'];assert len(actual)==len(p['bits'])
             for a,b in zip(p['bits'],actual):counter_bit(a,b)
         (out/'counter-preservation.json').write_text(json.dumps(dict(status='pass',bits=forward,
             source_binding=counter_binding['method'],reference_sha256=digest(counter_ref/'mapped.json')),indent=2))

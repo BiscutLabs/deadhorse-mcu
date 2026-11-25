@@ -24,6 +24,7 @@ def main(base):
     rows=[]
     blocks=[('OscClockReset',12500),('OscCtrl',18750000),('OscSleepTransfer',75000),('ResetCauses',18750000)]
     if any(n.split('$')[0]=='PowerReset' for n in design['modules']):blocks.append(('PowerReset',18750000))
+    if any(n.split('$')[0]=='SocResetDomains' for n in design['modules']):blocks.append(('SocResetDomains',12500))
     for top,target in blocks:
         names=[n for n in design['modules'] if n.split('$')[0]==top];assert len(names)==1
         dest=out/top;dest.mkdir()

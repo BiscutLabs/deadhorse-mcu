@@ -7,26 +7,7 @@ _start:
   csrci mstatus, 8
   la t0, dh_fail
   csrw mtvec, t0
-  # No stack or SRAM write before surviving DMA and QSPI have drained.
-  csrr t0, mcycle
-  li t1, 16000000
-  li t2, 0x40011008
-  li t3, 0x4001301c
-  li t6, 1048576
-1:
-  lw t4, 0(t2)
-  andi t4, t4, 15
-  lw t5, 0(t3)
-  andi t5, t5, 1
-  or t4, t4, t5
-  beqz t4, 2f
-  csrr t4, mcycle
-  sub t4, t4, t0
-  bgeu t4, t1, dh_fail
-  addi t6, t6, -1
-  bnez t6, 1b
-  j dh_fail
-2:
+  # T41 warm reset flushes DMA/QSPI with the cores before ROM release.
   li sp, 0x20004000
   la t0, __bss_start
   la t1, __bss_end

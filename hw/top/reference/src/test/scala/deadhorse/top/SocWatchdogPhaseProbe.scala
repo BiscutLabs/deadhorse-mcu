@@ -39,10 +39,19 @@ class SocWatchdogPhaseProbe(badKey: Boolean=false,offered: Boolean=false,earlyWr
   val reply=BoringUtils.bore(bus.rvalid)
   val clientReply=BoringUtils.bore(data.rvalid)
   withClockAndReset(clocks.mainClock,(!monitorReset_n).asAsyncReset) {
-    val pending=RegInit(false.B);val accepted=RegInit(0.U(8.W));val returned=RegInit(0.U(8.W))
+    // Live ownership cancels asynchronously with the real warm release, even
+    // when the main clock stops. Historical counts use only monitor reset.
+    val pending=withReset((!(monitorReset_n && up)).asAsyncReset) {RegInit(false.B)}
+    val accepted=RegInit(0.U(8.W));val returned=RegInit(0.U(8.W))
     val sawReset=RegInit(false.B);val stale=RegInit(0.U(8.W));val early=RegInit(0.U(8.W))
     val returnTail=RegNext(pending && reply,false.B)
-    val oldReturnWindow=RegInit(false.B);val freshClient=RegInit(false.B)
+    val oldReturnWindow=withReset((!(monitorReset_n && up)).asAsyncReset) {RegInit(false.B)}
+    val clientOwned=withReset((!(monitorReset_n && up)).asAsyncReset) {RegInit(false.B)}
+    // The passive monitor is enabled while boot is polling GPIO. An initial
+    // reply may belong to a request accepted before the monitor was enabled.
+    // Arm on its first observed acceptance; retain this across warm reset.
+    val ownershipStarted=RegInit(false.B)
+    when(anyClientAccept) {ownershipStarted:=true.B}
     val cycle=RegInit(0.U(32.W));val acceptedCycle=RegInit(0.U(32.W));val expiryCycle=RegInit(0.U(32.W))
     val dispatchedCycle=RegInit(0.U(32.W));val dispatches=RegInit(0.U(8.W));cycle:=cycle+1.U
     when(accept) {acceptedCycle:=cycle}
@@ -53,10 +62,11 @@ class SocWatchdogPhaseProbe(badKey: Boolean=false,offered: Boolean=false,earlyWr
     when(accept) {pending:=true.B;accepted:=accepted+1.U}
     when(pending && reply) {pending:=false.B}
     when(oldReturnWindow && reply) {returned:=returned+1.U}
-    when(observe.resetHold) {sawReset:=true.B;freshClient:=false.B}
-      .elsewhen(sawReset && up && anyClientAccept) {freshClient:=true.B}
-    when(clientReply && (observe.resetHold || sawReset && (!freshClient || pending || returnTail))) {stale:=stale+1.U}
-    when(sawReset && pending && ready) {early:=early+1.U}
+    when(observe.resetHold) {sawReset:=true.B}
+    when(clientReply) {clientOwned:=false.B}
+    when(up && anyClientAccept) {clientOwned:=true.B}
+    when(ownershipStarted && clientReply && (!up || !clientOwned)) {stale:=stale+1.U}
+    when(anyClientAccept && (!up || !ready)) {early:=early+1.U}
     observe.clientAccepted:=accepted;observe.returned:=returned
     observe.downstreamPending:=pending;observe.downstreamResponse:=pending && reply
     observe.clientResponse:=pending && clientReply

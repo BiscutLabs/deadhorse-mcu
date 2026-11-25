@@ -47,18 +47,22 @@ waiting:
   j waiting
 restarted:
   lw t0, 4(s1)
-  li t1, 3
-  bne t0, t1, failed
+  bnez t0, failed
   lw t0, 0(s1)
+  bnez t0, failed
+  lw t0, 28(s0)
   li t1, 1
   bne t0, t1, failed
-  lw t0, 28(s0)
-  bne t0, t1, failed
 #ifdef OFFERED
+  # A warm reset cancels the offered window write and resets its shadow.
   lw t0, 4(s0)
-  li t1, 0x51a00210
-  bne t0, t1, failed
+  bnez t0, failed
 #endif
+  li t0, 1
+  sw t0, 512(s1)
+  sw t0, 516(s1)
+  li t0, 3
+  sw t0, 4(s1)
   li t0, 2
   sw t0, 0(s1)
 done:

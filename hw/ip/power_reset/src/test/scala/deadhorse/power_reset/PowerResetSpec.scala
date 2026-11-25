@@ -18,7 +18,7 @@ class PowerResetSpec extends AnyFunSuite with ChiselSim {
     d.clk.step(3);d.threshold.expect(0.U);d.reset_n.poke(true.B);d.clk.step(3)
   }
   def access(d: PowerReset,offset: Int,write: Boolean=false,data: BigInt=0,
-      mask: Int=15,owner: Int=0): (BigInt,Boolean)={
+      mask: Int=15,owner: Int=1): (BigInt,Boolean)={
     d.bus.bits.addr.poke((0x40000500L+offset).U);d.bus.bits.we.poke(write.B)
     d.bus.bits.wdata.poke(data.U);d.bus.bits.be.poke(mask.U);d.bus.bits.origin.poke(owner.U)
     d.bus.req.poke(true.B)
@@ -61,12 +61,12 @@ class PowerResetSpec extends AnyFunSuite with ChiselSim {
         assert(response._2==(mask!=0),"POWER_PARTIAL_KEY")
         d.threshold.expect(0.U)
       }
-      for(owner<-1 to 7) {
+      for(owner<-0 to 7 if owner!=1) {
         assert(access(d,8,true,0x42524f57L,owner=owner)._2,"POWER_OWNER")
         d.threshold.expect(0.U)
       }
       for(offset<-Seq(0x14,0xfc,5)) assert(access(d,offset,true,1)._2,"POWER_HOLE")
-      for(reason<-0 until 32) {
+      for(reason<-0 until 64) {
         d.causes.poke(reason.U);d.clk.step(2)
         assert(access(d,0)==(BigInt(reason),false),"POWER_REASON")
       }
@@ -74,7 +74,7 @@ class PowerResetSpec extends AnyFunSuite with ChiselSim {
       d.reset_n.poke(false.B);d.threshold.expect(0.U)
       d.clk.step(2);d.reset_n.poke(true.B);d.clk.step(3)
       assert(access(d,4)._1==0);assert(access(d,12)._1==0)
-      assert(access(d,0)._1==31,"POWER_UPSTREAM_REASON_RETENTION")
+      assert(access(d,0)._1==63,"POWER_UPSTREAM_REASON_RETENTION")
     }
   }
   test("wrong key has no effect") {simulateRaw(new PowerReset(json))(wrongKey)}

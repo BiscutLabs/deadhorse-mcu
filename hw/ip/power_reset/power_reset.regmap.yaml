@@ -6,7 +6,7 @@ registers:
   - name: reason
     offset: 0x00
     fields:
-      - {name: causes, bits: [4, 0], access: ro}
+      - {name: causes, bits: [5, 0], access: ro}
   - name: threshold
     offset: 0x04
     fields:

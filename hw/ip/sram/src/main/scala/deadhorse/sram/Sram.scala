@@ -68,9 +68,10 @@ class MarchResult extends Bundle {
 /** March C- with explicit synchronous-read comparison and a level handshake.
   * run stays asserted through completion; dropping it relinquishes the port.
   * Functional reset must remain asserted for every destructive operation. */
-class SramMarch(words: Int) extends RawModule {
+class SramMarch(words: Int,withClear: Boolean=false) extends RawModule {
   require(words>=2 && words<=4096)
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
+  val clear=if(withClear) Some(IO(Input(Bool()))) else None
   val run=IO(Input(Bool()));val permitted=IO(Input(Bool()))
   val busy=IO(Output(Bool()));val done=IO(Output(Bool()));val result=IO(Output(new MarchResult))
   val memory=IO(new SramPort(12))
@@ -81,7 +82,7 @@ class SramMarch(words: Int) extends RawModule {
     val failure=RegInit(0.U.asTypeOf(new MarchResult))
     val descending=phase===3.U || phase===4.U
     val expected=Mux(phase===2.U || phase===4.U,"hffffffff".U,0.U)
-    memory.enable:=reset_n && run && permitted && (state===write || state===read)
+    memory.enable:=reset_n && !clear.getOrElse(false.B) && run && permitted && (state===write || state===read)
     memory.write:=state===write;memory.address:=address;memory.mask:=15.U
     memory.data:=Mux(phase===1.U || phase===3.U,"hffffffff".U,0.U)
     busy:=state=/=idle;done:=state===complete;result:=failure
@@ -109,6 +110,7 @@ class SramMarch(words: Int) extends RawModule {
       when(phase===5.U) {advance()}.otherwise {state:=write}
     }
     when(!run) {state:=idle}
+    clear.foreach(c=>when(c) {state:=idle;address:=0.U;phase:=0.U;failure:=0.U.asTypeOf(failure)})
     assert(!memory.enable || permitted && run)
     assert(!memory.enable || address<words.U)
     assert(!done || phase===5.U)

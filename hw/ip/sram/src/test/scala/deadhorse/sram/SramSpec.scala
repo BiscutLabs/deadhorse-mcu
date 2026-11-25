@@ -148,7 +148,7 @@ class SramSpec extends AnyFunSuite with ChiselSim {
 
   test("ownership survives debugger reset release and waits for the slower AON agent") {
     simulateRaw(new SramBist(16,8)) {d=>
-      d.epoch_n.poke(false.B);d.start.poke(false.B);d.keyed.poke(false.B);d.authorized.poke(false.B)
+      d.cold_n.poke(false.B);d.epoch_n.poke(false.B);d.start.poke(false.B);d.keyed.poke(false.B);d.authorized.poke(false.B)
       d.mainReset_n.poke(true.B);d.aonReset_n.poke(true.B)
       d.main.result.poke(0.U);d.aon.result.poke(0.U)
       val main=Array.fill[BigInt](16)(0);val aon=Array.fill[BigInt](8)(0)
@@ -167,7 +167,7 @@ class SramSpec extends AnyFunSuite with ChiselSim {
         if(remote && ticks%5==0) {val a=port(d.aon,aon);d.aonClock.step();a.foreach(v=>d.aon.result.poke(v.U))}
         ticks+=1
       }
-      step(30);d.epoch_n.poke(true.B);step(35)
+      step(30);d.cold_n.poke(true.B);d.epoch_n.poke(true.B);step(35)
       d.keyed.poke(true.B);d.start.poke(true.B);step();d.start.poke(false.B);step(2)
       d.rejected.expect(true.B);d.resetHold.expect(false.B)
       ndm=true;d.authorized.poke(true.B);step(30);d.resetAck.expect(true.B)

@@ -5,7 +5,7 @@ import deadhorse.lib._
 
 /** Production digital clock/reset boundary. The first qualification releases
   * domain resets; subsequent sleep gates clocks without resetting state. */
-class OscClockReset(target: ClockGateTarget=ClockGateTarget.Model) extends RawModule {
+class OscClockReset(target: ClockGateTarget=ClockGateTarget.Model,consolidated: Boolean=false) extends RawModule {
   protected def epochReset(qualified: Bool,bootstrap: Bool): Bool=qualified
   protected def makeCounter(): OscStability=new OscStability
   protected def makeGate(): OscMainGate=new OscMainGate(target)
@@ -20,7 +20,14 @@ class OscClockReset(target: ClockGateTarget=ClockGateTarget.Model) extends RawMo
   val aonClock=IO(Output(Clock()));val mainClock=IO(Output(Clock()))
   val aonReset_n=IO(Output(Bool()));val coldReset_n=IO(Output(Bool()));val warmReset_n=IO(Output(Bool()))
   val serviceReset_n=IO(Output(Bool()));val stable=IO(Output(Bool()));val closed=IO(Output(Bool()))
-  val bootstrap=Module(new ResetBootstrap)
+  val ungatedClock=IO(Output(Clock()));val usbServiceReset_n=IO(Output(Bool()))
+  val shared=if(consolidated) Some(IO(Input(new Bundle {
+    val coldAon=Bool();val coldMain=Bool();val coldSource=Bool();val pinAon=Bool();val initialize=Bool()
+  }))) else None
+  val epochClear=if(consolidated) Some(IO(Input(Bool()))) else None
+  val clearAck=if(consolidated) Some(IO(Output(UInt(2.W)))) else None
+  val bootstrap=Module(new ResetBootstrap(qualifiedResets=consolidated))
+  if(consolidated) {bootstrap.releases.get.cold:=shared.get.coldAon;bootstrap.releases.get.pin:=shared.get.pinAon}
   bootstrap.rcClock:=rcClock;bootstrap.externalAonClock:=aonClockIn
   bootstrap.externalReset_n:=externalReset_n;bootstrap.supplyReset_n:=supplyReset_n
   bootstrap.selectExternal:=aonClockSelect;bootstrap.bypassPor:=porBypass
@@ -38,6 +45,23 @@ class OscClockReset(target: ClockGateTarget=ClockGateTarget.Model) extends RawMo
   dividerRelease.in:=bootstrap.aonReset_n.asUInt
   val dividerReset=WireDefault(dividerResetValue(dividerRelease.out.asBool,bootstrap.aonReset_n))
   divider.clk:=oscIn;divider.reset_n:=dividerReset
+  ungatedClock:=divider.divided
+  private val legacy = if(consolidated) {
+    val executor=Module(new OscSourceControl(target))
+    executor.source:=oscIn;executor.divided:=divider.divided;executor.aon:=bootstrap.aonClock
+    executor.coldSource:=shared.get.coldSource;executor.coldDivided:=shared.get.coldMain
+    executor.coldAon:=shared.get.coldAon;executor.pinAon:=shared.get.pinAon
+    executor.aonQualified:=bootstrap.aonReset_n;executor.initialize:=shared.get.initialize
+    executor.epochClear:=epochClear.get;clearAck.get:=executor.clearAck
+    executor.gateRequest:=gateRequest;executor.authorized:=authorized
+    executor.qualify:=qualify;executor.count:=count
+    executor.localHold:=localHold;executor.coreIdle:=coreIdle
+    mainClock:=executor.main;stable:=executor.stable;closed:=executor.closed
+    serviceReset_n:=executor.mainQualified;usbServiceReset_n:=executor.usbQualified
+    None
+  } else {
+  // Preserved boundary reference used by focused pre-consolidation fixtures.
+  usbServiceReset_n:=serviceReset_n
   val gateReset=Module(new ResetRelease)
   // Clear stale source-domain authorization asynchronously before the source
   // stops. New main work must not reopen a gate using the previous epoch.
@@ -104,4 +128,10 @@ class OscClockReset(target: ClockGateTarget=ClockGateTarget.Model) extends RawMo
     // Raw reset assertion propagates without needing any oscillator edges.
     serviceReset_n:=bootstrap.aonReset_n && bootDone
   }
+    Some((counter,configuration))
+  }
+  // Passive access for the retained reference's formal transfer/count oracle.
+  // No extra hardware is elaborated in either configuration.
+  def counter: OscStability=legacy.get._1
+  def configuration: CdcFifo=legacy.get._2
 }

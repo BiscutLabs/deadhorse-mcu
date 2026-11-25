@@ -1,21 +1,30 @@
 package deadhorse.osc_ctrl
 
 import chisel3._
+import deadhorse.lib.{ResetRelease,CdcEpoch}
 
 /** Independent raw-source observers; no DUT state or helper is assumed.
   * Pin edges are independent of AON, including pulses wholly between AON edges.
   * The six-bit epoch is used only by a 24-global-step cover (cannot wrap there).
   */
-class ResetCausesFormal(bypass: Boolean, variant: String) extends RawModule {
+class ResetCausesFormal(bypass: Boolean, variant: String,shared: Boolean=false) extends RawModule {
   val aon=IO(Input(Clock()));val observe=IO(Input(Clock()))
   val supplyReset_n=IO(Input(Bool()));val externalReset_n=IO(Input(Bool()))
   val brownout=IO(Input(Bool()));val checkerInit_n=IO(Input(Bool()))
   val cold=if(bypass) externalReset_n else supplyReset_n
-  val d=Module(new ResetCauses)
+  val d=Module(new ResetCauses(qualifiedResets=shared))
   d.clk:=aon;d.coldReset_n:= (if(variant=="cold") true.B else cold)
   d.externalReset_n:= (if(variant=="pin") true.B else if(variant=="invent-pin") false.B else externalReset_n)
   d.brownout:= (if(variant=="brown") false.B else if(variant=="invent-brown") true.B else brownout)
   d.bypass:= (if(variant=="bypass") false.B else bypass.B)
+  if(shared) {
+    val a=Module(new ResetRelease);val b=Module(new ResetRelease)
+    a.clk:=observe;b.clk:=aon;a.reset_n:=d.coldReset_n;b.reset_n:=d.coldReset_n
+    val pin=Module(new CdcEpoch(rawCapture=true))
+    pin.aClock:=observe;pin.bClock:=aon;pin.aReset_n:=a.released;pin.bReset_n:=b.released
+    pin.cancel_n:=d.coldReset_n && d.externalReset_n
+    d.releases.get.cold:=b.released;d.releases.get.pin:=pin.bLocal
+  }
   val coldAge=withClockAndReset(aon,(!cold).asAsyncReset) {
     val n=RegInit(0.U(2.W));when(n<3.U) {n:=n+1.U};n
   }
@@ -93,10 +102,10 @@ class ResetCausesFormal(bypass: Boolean, variant: String) extends RawModule {
 }
 
 object EmitResetCausesFormal extends App {
-  require(args.length==1)
+  require(args.length==1 || args.length==2 && args(1)=="shared")
   for(bypass<-Seq(false,true);variant<- (if(bypass) Seq("correct","bypass") else Seq("correct","cold","pin","brown","invent-pin","invent-brown"))) {
     val name=s"${if(bypass) "bypass" else "normal"}-$variant"
-    _root_.circt.stage.ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new ResetCausesFormal(bypass,variant)),
+    _root_.circt.stage.ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new ResetCausesFormal(bypass,variant,args.length==2)),
       Array("--target-dir",s"${args(0)}/$name"),Array("--disable-all-randomization","--disable-opt",
         "--strip-debug-info","--verification-flavor=immediate","--lower-to-core"))
   }
