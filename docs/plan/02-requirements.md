@@ -100,8 +100,8 @@ interoperability gate exists in the initial MCU (D4, D43).
 
 | ID | Requirement | Tag |
 | --- | --- | --- |
-| R-PHY-1 | GF180MCU, 3.3 V, 7-track cells, wafer.space 1x1 slot: 3.932 by 5.122 mm die, 12.92 mm2 core. | M (Coldfoot slot data) |
-| R-PHY-2 | Fits the slot's pad ring: 40 bidirectional, 12 input-only, 2 analog pads. | M (Coldfoot slot data) |
+| R-PHY-1 | GF180MCU, 3.3 V, 7-track cells, wafer.space 1x1 slot: 3.932 by 5.122 mm die, 12.92 mm2 core. | D105 target; verify pinned upstream slot in T43 |
+| R-PHY-2 | Fits the slot's pad ring: 40 bidirectional, 12 input-only, 2 analog pads. | D105 target; verify pinned upstream slot in T43 |
 | R-PHY-3 | The performance core and main domain close timing at the chosen `clk_main` frequency (12 or 24 MHz) at the slow corner with extracted delays. | A, replaced by spike S1 |
 | R-PHY-4 | Every production die can be tested for stuck faults in logic and for SRAM defects through a documented access path. | A |
 

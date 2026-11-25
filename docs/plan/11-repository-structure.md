@@ -153,20 +153,13 @@ interfaces and protocol; which clock domain it is in; every delay
 with its kind (relative, absolute, simulation-only); reset behaviour; an
 area estimate; and its status (planned, reference, generated, routed).
 
-## Where Coldfoot material lands
+## Physical collateral source
 
-| Coldfoot | Deadhorse | Change |
-| --- | --- | --- |
-| Gateway | Deadhorse bus master | Defined by the gateway protocol |
-| `hw/common/` | `hw/lib/` | Same role; misleading names corrected |
-| `hw/soc/` | `hw/top/reference/` | |
-| `asic/` | `phys/gf180-ws-1x1/` | Slot, pad ring and flow kept; template licence, nested CI, `tmp/` and `final/` not carried |
-| `fpga/nexys_video/` | `fpga/nexys_video/` | Vendored Ethernet library pinned or dropped |
-| `sw/runtime/` | Reference for `sw/host/` | Build output excluded |
-| `scripts/`, `tools/`, root scripts | `tools/` | One entry point |
-| `ai/`, `.claude/`, `.githooks/` | `AGENTS.md`, `.agents/` | |
-| `demo/`, `snn_visualize/` | Not carried | Separate repository |
-| `docs/` reports and investigation logs | `docs/ledger/` rows; the rest not carried | |
+D105 selects the official wafer.space GF180MCU project template. T43 keeps
+only used template files under `phys/gf180-ws-1x1/`, with the Apache-2.0
+license, attribution, source revision, per-file hashes and reviewed patches.
+No pad-ring, slot, FPGA or physical-flow material is taken from Coldfoot.
+The mixed SV pad top is T43's narrow exception; the core stays Chisel.
 
 ### No NoC is carried
 
@@ -175,8 +168,7 @@ Coldfoot transport is vendored. A later chip that needs one starts from its
 own brief, source rights and area budget, attaching at the reserved bus
 window. Never import Coldfoot packages to obtain constants.
 
-Deadhorse may change its approved transport copy under a brief, with provenance;
-this is the D14 exception to vendor immutability, not permission to copy more IP.
+D43 supersedes D14; no transport-copy exception remains in this chip.
 
 ## Design language and build
 
@@ -192,5 +184,7 @@ Deadhorse RTL is Chisel, entirely clocked (decisions D16 and D17).
 - **SystemVerilog source exists only under `hw/vendor/`,** with a lock file
   and a FuseSoC `.core` file list, and enters the design through a Chisel
   `BlackBox` in the block that uses it.
+  D105/T43 adds the narrow template-based mixed-SV pad-top/collateral exception
+  under `phys/gf180-ws-1x1/`, with a lock, attribution and reviewed patches.
 - **Python** is for tools, the register-map front end and reference models.
 - **C** is for firmware under `sw/`.

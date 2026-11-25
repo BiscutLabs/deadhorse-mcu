@@ -2,8 +2,10 @@
 
 ## Goal, inputs and readiness
 
-Complete the I5 chip-level digital/pad assembly and import the D9 LibreLane
-flow. Start after T35/T36 and coordinate T37; T34 macro contracts are required.
+Complete the I5 chip-level digital/pad assembly using the T43/D105 LibreLane
+flow. Start after T35/T36 and T43 physical-base qualification; coordinate T37.
+T34 macro contracts are required. Use T43's reviewed logical chip top/pad map;
+do not repeat its PDK migration or silently substitute template versions.
 D88/D89 also require current T39 scoped core/SoC regression evidence for
 physical acceptance, including its documented limitations and affected replay
 after T35/T36/T37 changes. Preliminary physical work does not substitute for
@@ -20,7 +22,7 @@ signoff views or claim tape-out readiness while those are absent.
    ADC functions unassigned; reset-disabled outputs and USB electrical behavior
    must match their contracts.
 2. Pin and license every pad/macro/flow dependency. Import/restructure only the
-   allowed LibreLane flow/configuration under D9, never Coldfoot RTL/packages.
+   official wafer.space LibreLane flow/configuration accepted by T43/D105, never prohibited third-party material.
    If licensing or an import requires prohibited source, stop and report.
 3. Floorplan the measured logic, selected SRAM, ROM, actual analog/pad views,
    halos, PDN and routing channels. Separate core and total-die budgets; replace

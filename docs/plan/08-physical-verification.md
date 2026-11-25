@@ -97,15 +97,17 @@ scan insertion. Nothing in this document needs custom asynchronous tooling.
 
 | Item | Value | Source |
 | --- | --- | --- |
-| Process | GF180MCU, 3.3 V devices and I/O | RISCay, Coldfoot |
-| Cells | 7-track. RISCay pins `gf180mcu_fd_sc_mcu7t5v0`; Coldfoot uses `gf180mcu_as_sc_mcu7t3v3`. D15 selects the former at nominal 3.3 V; shuttle qualification remains open | RISCay, Coldfoot |
-| SRAM | `gf180mcu_ocd_ip_sram` 1024x8 (155,414 um2) and 512x8 (96,985 um2) | Coldfoot `tile_pkg.sv`, RISCay |
-| Slot | wafer.space 1x1: die 3.932 by 5.122 mm, core 12.92 mm2 | Coldfoot slot file |
-| Pad ring | 40 bidirectional, 12 input-only, 2 analog, clock and reset pads | Coldfoot pad document |
+| Process | GF180MCU, 3.3 V devices and I/O | Official wafer.space template; T43 pins and qualifies the selected views |
+| Cells | D15 selects `gf180mcu_fd_sc_mcu7t5v0` at nominal 3.3 V; shuttle qualification remains open | Pinned project library; T43 compares the template PDK |
+| SRAM | `gf180mcu_ocd_ip_sram` 1024x8 and 512x8; current measured LEF footprints and counts above | `hw/vendor/gf180_sram/gf180_sram.lock.json`; T43 compares new-PDK hashes before switching |
+| Slot | wafer.space 1x1 target: die 3.932 by 5.122 mm, core 12.92 mm2 | D105; verify exact pinned upstream slot in T43 |
+| Pad ring | 40 bidirectional, 12 input-only, 2 analog, dedicated clock/reset pads | D105 target; T43 verifies slot/map, T38 qualifies placement/electrics |
 
-Coldfoot already has a pad ring, slot template and LibreLane configuration
-for this shuttle, for a clocked design. Deadhorse reuses that flow for the
-whole chip (decision D9).
+D105 replaces D9: use only the official wafer.space project template with
+its pinned PDK and LibreLane dependencies. T43 imports the selected licensed
+collateral and records reviewed patches; no Coldfoot physical material is
+authorized. Existing measurements keep their original PDK provenance until
+matched old/new measurements qualify migration. Full P&R remains T38.
 
 ### Cell library (decision D15)
 
@@ -315,7 +317,7 @@ route from G1, and the region stays a placement blockage until delivery or the c
 
 None of these has a qualified Deadhorse layout today. D42 selects wafer.space
 GF180MCU 1x1, date open; verify actual slot/pad rules, SRAM and library acceptance
-and analog process options before treating historical Coldfoot data as qualified.
+and analog process options against the pinned official template/PDK before signoff.
 
 | Macro | Starting point | Work |
 | --- | --- | --- |
@@ -323,7 +325,7 @@ and analog process options before treating historical Coldfoot data as qualified
 | POR/brownout and reset hold | RISCay schematic | Assumed 0.15 mm2 allowance; selectable thresholds with safe hardware default, hysteresis, qualified release, layout/extraction, slow ramps, mismatch and test access; no separate early-warning detector |
 | External OSC_IN and AON fallback | Dedicated OSC_IN plus AON_CLK_IN pad | Registered /6 main, reset-held AON selection and shared ICG qualification; no internal HF macro or LF crystal driver |
 | USB pad arrangement | Standard 3.3 V bidirectional pads with external series resistors and pull-up | With the USB implementer: validate drive, slew and input thresholds against the full-speed electrical spec |
-| Pad ring, ESD, power pads | Coldfoot's wafer.space ring | Re-assign per the pad budget |
+| Pad ring, ESD, power pads | Official wafer.space template, D105/T43 | Review pad library and mapping in T43; physical qualification in T38 |
 
 LF RC has an assumed 0.10 mm2 allowance. The external oscillator's duty cycle
 and cycle-to-cycle jitter enter timing closure, including the generated main
@@ -359,7 +361,7 @@ the flight simulation) is specified in
 | Clock-domain crossing | Structural CDC check that every signal crossing a domain goes through the crossing block; simulation with randomised clock phase and frequency ratio; reset during crossing traffic | New |
 | Clocking | Glitch checks on every gate and on the always-on clock mux; HF stop and restart at every phase | RISCay's oscillator stop-phase tests extended |
 | Formal | The first choice for control logic: full proofs for the crossing FIFO, domain bridge, mailbox, register blocks, bus, watchdogs, power and clock controller, boot lock and actuator block; riscv-formal on both cores; equivalence checks on the netlists. See [12-formal-verification.md](12-formal-verification.md) | Chisel properties, SymbiYosys, riscv-formal |
-| FPGA | The SoC on an FPGA board, flying a hardware-in-the-loop simulation, then driving real ESCs, servos and sensors on the bench; no external-link requirement | Coldfoot's FPGA flow |
+| FPGA | The SoC on an FPGA board, flying a hardware-in-the-loop simulation, then driving real ESCs, servos and sensors on the bench; no external-link requirement | Project FPGA target flow; separate qualification |
 
 ### Deadlines
 

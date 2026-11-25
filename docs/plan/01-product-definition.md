@@ -36,7 +36,7 @@ contains **no neuromorphic IP and no chip-to-chip link**.
   reset release; defer separate early-warning detector.
 - Optional USB CDC-ACM integrated last; cutoff before Phase 3 floorplan freeze,
   UART/JTAG fallback. Limited pin alternate functions frozen at G1.
-- Coldfoot LibreLane flow restructured for this repository; library
+- Official wafer.space template/LibreLane flow pinned under D105/T43; library
   `gf180mcu_fd_sc_mcu7t5v0`; wafer.space GF180MCU 1x1 target, date open.
 
 These are approved requirements, not a claim of timing, power, area or shuttle

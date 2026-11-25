@@ -44,10 +44,12 @@ is subsequently assigned.
 
 1. **Adopt before building.** Reuse the named clocked IP and conventions where appropriate. D2/D19/D20
    explicitly require a Chisel core/FPU implementation; it needs new verification.
-   Coldfoot imports are transport-only and require a sanitized handoff.
+   No Coldfoot material is imported; D105 selects the official wafer.space physical template.
 2. **Chisel is the design language.** Everything
    Deadhorse writes, and the SoC top, is Chisel. SystemVerilog appears only
    as vendored blocks behind a Chisel black box.
+   D105/T43 permits only the template-based mixed-SV pad top and physical
+   collateral around the Chisel core, with a lock and reviewed patches.
 3. **Every number has a provenance.** *Measured* means a tool produced it and
    the source is named. *Estimated* means derived by hand from measured
    inputs. *Assumed* means a placeholder that a named task will replace.

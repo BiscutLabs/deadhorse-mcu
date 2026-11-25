@@ -82,7 +82,8 @@ this initial clocked implementation and may only start under an explicit brief.
 
 ## P3 Physical
 
-T38 imports the approved D9 LibreLane flow for Deadhorse without Coldfoot RTL; floorplan SRAM, analog, pads
+T43 first pins and qualifies the official wafer.space template/PDK under D105.
+T38 uses that accepted base to floorplan SRAM, analog, pads
 and optional USB. Include clock trees/gates, scan, CDC/reset and full timing at
 qualified corners with extraction. Analog DRC/LVS/antenna and startup/corner
 campaigns, supply monitor safe defaults/selection and extracted sleep power.

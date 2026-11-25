@@ -17,7 +17,7 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 | **D6** | Low-frequency clock | On-die nominal 32 kHz RC oscillator; D78 adds a reset-sampled external AON clock fallback. No external low-frequency crystal driver is required; numerical accuracy, startup and current remain characterization targets. |
 | **D7** | Sleep peripherals | SPI, I2C and each UART selectively available while the performance core sleeps. HF clock requested only when needed; UART receive mode keeps its required clock running. Retained state, timer/event/JTAG wake; no power-gated standby. |
 | **D8** | Production test | Include scan, SRAM self-test, and analog calibration/test access. Coverage, pattern generator, timing and macro qualification remain engineering work. |
-| **D9** | Physical flow | Reuse Coldfoot LibreLane flow and pad-ring approach, restructured to Deadhorse conventions; import only authorized physical collateral. |
+| **D9** | Physical flow | Superseded by D105: use the pinned official wafer.space GF180MCU template and its PDK_COMMIT; no Coldfoot physical material. |
 | **D10** | Clocked islands | Superseded by D17; no clockless-island architecture. |
 | **D11** | USB cutoff | Optional USB is integrated last. Apply cutoff before Phase 3 floorplan freeze; proceed with UART and JTAG if USB is not ready. Reservation requires implementer evidence. |
 | **D12** | Memory capacity | 16 KiB performance SRAM plus 3 KiB retained lite SRAM baseline. Configurable banking and room to increase if measurements justify it; larger memory is not a claim of physical fit. |
@@ -145,6 +145,12 @@ D103 is reserved for the separately queued T41 reset-consolidation decision on
 | ID | Decision | Approved scope |
 | --- | --- | --- |
 | **D104** | Accept maximum lite-image boot-load latency temporarily | User-approved2026-11-24 after the focused firmware attempt: "Add it as a follow up task and accept as is for now". Continue PLAN05/T36 with the supported1024-byte image's measured latency recorded as an explicit exception to250ms, not a passing result against that target. The diagnostic measured28,503,264 quanta (estimated296.909ms at assumed96MHz); fresh production evidence must report its actual interval. Keep the250ms target for T42 and all other boot/integrity/reset/ownership checks; the actual watcher remains checked against250ms. No bridge/clock architecture change is approved. Queue T42 for measurement-led investigation and an independently reviewed proposal before requesting hardware-change approval. D101 phase-end fast checks and proof deferrals are unchanged. |
+
+## Physical-base decision
+
+| ID | Decision | Approved scope |
+| --- | --- | --- |
+| **D105** | Physical base is the wafer.space gf180mcu project template at a pinned commit; PDK moves to that template's PDK_COMMIT; no Coldfoot pad ring, slot or flow material | User direction 2026-11-24; T43 precedes T38 on its own branch. Supersedes D9 source selection. Pin latest main at execution, hashes/licenses and reviewed patches; compare libraries/SRAM and rerun only library-dependent area/timing checks, no aggregate fast/full CI. Mixed SV chip-top/template collateral around the Chisel core is a narrow D16/D20/source-location exception, not permission for new SV peripheral/core RTL. Pad-library choice requires approval; keep pinned SRAM on differences pending approval. Stop for missing used cells, new timing failures, negative headroom, pad overflow or more than minor template edits. Resolve the requested twenty1024x8 macros against PLAN05's sixteen1024x8 plus four512x8 before configuration; no memory growth is implied. No implementation or physical qualification is claimed. |
 
 ## Risks and evidence still required
 

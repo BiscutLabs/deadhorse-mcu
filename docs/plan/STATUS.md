@@ -114,6 +114,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D101 | PLAN05 phase-end qualification | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
 | [x] | D102 | DMA circular UART RX, shadow reload | User-approved 2026-11-24; T40 after PLAN05 design changes, +0.010 mm2 mapped-cell cap, scoped tests/no aggregate CI, one formal triage round. D92-D101 remain unchanged; no DMA implementation acceptance |
 | [x] | D104 | Temporary maximum lite-image load exception | User-approved2026-11-24; T42 retains250ms target; all other checks and D101 remain |
+| [x] | D105 | Official wafer.space physical base and template PDK | User-approved2026-11-24; supersedes D9 source; T43 scoped migration and logical chip top before T38; pad/SRAM stops retained; no implementation |
 
 ## Tasks
 
@@ -167,11 +168,12 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [x] | T35 | [SRAM macros and BIST](tasks/T35-sram-bist.md) | Codex | T32/T33 implementation with recorded deferrals; coordinate T36; D90 | [Scoped completion](tasks/reports/T35.md): production macros/BIST, 43 relevant Scala tests, four TAP scenarios and unchanged flight cycles; two proofs deferred, physical signoff open; no CI under D90 |
 | [x] | T36 | [Production boot ROM firmware](tasks/T36-boot-rom.md) | Codex | PLAN05 Phase2; D91-D101/D104 | [Report](tasks/reports/T36.md):5 metadata tests,7 formal jobs,12 native tests/3 faults and36 wire cases pass with D104 maximum-image load exception296.923125ms; watcher170.891875ms. Final ROM timing/area pass; Phase3 fast passes all 33 commands in measured 3869.903314s, 12 inherited deferrals; full tier unrun |
 | [ ] | T37 | [Test mode and scan](tasks/T37-test-scan.md) | unassigned | T35/T36; coordinate T38 | Brief prepared by PLAN03; implementation and acceptance unverified |
-| [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
+| [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36/T43; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
 | [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
 | [ ] | T40 | [DMA circular UART RX](tasks/T40-dma-circular-uart-rx.md) | unassigned | D102; PLAN05 design changes/Phase 2 qualification; T23 | Scheduled only; [planning receipt](tasks/reports/T40-planning.md). UART RX only, shadow reload, strict area cap; implementation and acceptance unverified |
 | [ ] | T41 | [Reset consolidation](https://github.com/BiscutLabs/deadhorse-mcu/blob/codex/t41-reset-consolidation-plan/docs/plan/tasks/T41-reset-consolidation.md) | unassigned | D103; completed PLAN05/T36 | Queued on separate branch, planning commit1b92572; rebase onto final PLAN05 before inventory/RTL. No implementation or measured inventory yet |
 | [ ] | T42 | [Lite boot-transfer latency](tasks/T42-lite-boot-transfer.md) | unassigned | D104; PLAN05; coordinate T41 | Queued investigation/proposal; hardware changes need approval; maximum-image250ms target remains open |
+| [ ] | T43 | [wafer.space template and PDK](tasks/T43-wafer-space-physical-base.md) | unassigned | D105; current production; prerequisite for T38 | [Planning receipt](tasks/reports/T43-planning.md); no migration, chip top or physical acceptance; resolve macro-count mismatch before execution |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -284,6 +286,8 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-24: Added D105/T43 on a separate planning branch and made T38 depend on it. Replaced physical-source instructions with the official wafer.space template; no PDK or RTL changed. Current order remains T41, T40, T42; T43 is required before T38. PLAN05 macro inventory differs from the requested twenty1024x8 and must be reconciled before implementation.
 
 - 2026-11-24: PLAN05/T36 scoped completion under D104. Frozen Phase3 fast01 passes all 33 commands in measured 3869.903314s; 12 inherited proof deferrals remain. Exact ROM boot/native/wire checks, main timing and ROM-inclusive area pass; maximum-image load remains an explicit 296.923125ms exception against250ms, queued in T42. Full tier and physical signoff unrun. T40/T41/T42 remain queued; T41 planning stays on its own branch.
 
