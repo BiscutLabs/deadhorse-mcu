@@ -56,7 +56,7 @@ class QspiSpec extends AnyFunSuite with ChiselSim {
     }
     d.reset_n.poke(false.B);d.bus.req.poke(false.B);d.bus.bits.poke(0.U.asTypeOf(d.bus.bits));d.dqIn.poke(0.U)
     d.clk.step(3);d.reset_n.poke(true.B);tick(3)
-    def access(a: Int,w: Boolean=false,v: Long=0,be: Int=15,origin: Int=0): (BigInt,Boolean)={
+    def access(a: Int,w: Boolean=false,v: Long=0,be: Int=15,origin: Int=1): (BigInt,Boolean)={
       d.bus.req.poke(true.B);d.bus.bits.addr.poke(a.U);d.bus.bits.we.poke(w.B)
       d.bus.bits.wdata.poke(v.U);d.bus.bits.be.poke(be.U);d.bus.bits.origin.poke(origin.U)
       var n=0
@@ -65,10 +65,10 @@ class QspiSpec extends AnyFunSuite with ChiselSim {
       while(!high(d.bus.rvalid)) {tick();n+=1;assert(n<32)}
       val r=(d.bus.rdata.peek().litValue,high(d.bus.err));tick(2);r
     }
-    def wr(a: Int,v: Long,origin: Int=0): Unit=assert(!access(a,true,v,origin=origin)._2)
-    def rd(a: Int,origin: Int=0): BigInt={val(v,e)=access(a,origin=origin);assert(!e);v}
-    assert(rd(28)==0 && value(d.csEnable)==0 && !high(d.sclkEnable))
-    for(o<-1 to 7) assert(access(20,true,0x51535049L,origin=o)._2,"QSPI_OWNER")
+    def wr(a: Int,v: Long,origin: Int=1): Unit=assert(!access(a,true,v,origin=origin)._2)
+    def rd(a: Int,origin: Int=1): BigInt={val(v,e)=access(a,origin=origin);assert(!e);v}
+    assert(rd(28)==2 && value(d.csEnable)==0 && !high(d.sclkEnable))
+    for(o<-0 to 7 if o!=1) assert(access(20,true,0x51535049L,origin=o)._2,"QSPI_OWNER")
     for(a<-Seq(1,40,4096)) assert(access(a)._2)
     for(be<-1 to 14) assert(access(20,true,0x51535049L,be=be)._2)
     assert(!access(20,true,0x51535049L,be=0)._2 && rd(32)==0)
@@ -88,7 +88,7 @@ class QspiSpec extends AnyFunSuite with ChiselSim {
       ended=false;awaiting=true;launchCycle=cycle;wr(20,0x51535049L)
       if(test==1) {
         wr(20,0x51535049L);wr(36,0x4f574e01L);wr(8,0);wr(12,0);wr(16,0);wr(4,255)
-        assert((rd(32)&2)!=0 && (rd(28)&14)==0,"QSPI_BUSY_REJECT")
+        assert((rd(32)&2)!=0 && (rd(28)&14)==2,"QSPI_BUSY_REJECT")
       }
       while(!ended || (rd(28)&1)!=0) tick()
       awaiting=false
@@ -99,18 +99,20 @@ class QspiSpec extends AnyFunSuite with ChiselSim {
       wr(32,3);assert(rd(32)==0)
       assert(!high(d.clockHold));expected=Vector.empty
     }
-    // Owner change returns a response to the old owner and preserves settings.
+    // The historical handoff encoding cannot transfer performance ownership.
     val old=rd(8);wr(36,0x4f574e01L)
-    assert(access(8)._2,"QSPI_OLD_OWNER");assert(rd(8,1)==old && rd(28,1)==2)
-    wr(36,0x4f574e00L,1);assert(rd(28)==0)
-    wr(36,0x4f574e02L);assert(rd(28)==0 && rd(32)==2)
+    assert(rd(8)==old && rd(28)==2 && rd(32)==0)
+    for(next<-Seq(0,2,7)) {
+      wr(36,0x4f574e00L|next);assert(rd(28)==2 && rd(32)==2)
+      assert(access(8,origin=next)._2,"QSPI_FIXED_OWNER");wr(32,3)
+    }
     // Abort a selected flash with no subsequent controller clock edge.
     wr(0,0);wr(4,255);wr(8,6);expected=symbols(6,1,false);half=255;selected=0
     wr(20,0x51535049L);assert(value(d.cs_n)==2)
     d.reset_n.poke(false.B)
     assert(value(d.cs_n)==3 && value(d.dqEnable)==0 && value(d.csEnable)==0 && !high(d.sclkEnable),"QSPI_ASYNC_RESET")
     running=false;ended=false;expected=Vector.empty;previousCs=3;previousClock=false
-    tick(2);d.reset_n.poke(true.B);tick(5);assert(rd(28)==0 && rd(32)==0)
+    tick(2);d.reset_n.poke(true.B);tick(5);assert(rd(28)==2 && rd(32)==0)
   }
   test("single/quad symbols, turnaround, bounded gap, snapshot, ownership and reset") {
     simulateRaw(new Qspi("build/t29/qspi/qspi_regs.json"))(exercise)

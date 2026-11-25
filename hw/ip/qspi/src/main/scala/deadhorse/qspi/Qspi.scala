@@ -14,7 +14,7 @@ class Qspi(json: String,base: BigInt=0,withXip: Boolean=false) extends RawModule
   protected def engine(): QspiEngine=new QspiEngine
   val regs=Module(new RegBlock(json));regs.clk:=clk;regs.rst_n:=reset_n
   val adapter=Module(new BusRegAdapter(12,base,0));adapter.clk:=clk;adapter.reset_n:=reset_n
-  val owner=withClockAndReset(clk,(!reset_n).asAsyncReset) {RegInit(0.U(3.W))}
+  val owner=1.U(3.W) // PLAN05: performance owns QSPI for the complete service epoch.
   adapter.bus.req:=bus.req;adapter.bus.bits:=bus.bits
   adapter.bus.bits.origin:=Mux(permitted(bus.bits.origin,owner),0.U,7.U)
   bus.gnt:=adapter.bus.gnt;bus.rvalid:=adapter.bus.rvalid;bus.rdata:=adapter.bus.rdata;bus.err:=adapter.bus.err
@@ -37,7 +37,7 @@ class Qspi(json: String,base: BigInt=0,withXip: Boolean=false) extends RawModule
   val applyError=WireDefault(false.B)
   val start=launch && !handoff && canStart && valid && regs.hw("launch_key_wdata")==="h51535049".U
   val handoffValue=regs.hw("handoff_key_wdata")
-  val transfer=handoff && !launch && canTransfer && (handoffValue==="h4f574e00".U || handoffValue==="h4f574e01".U)
+  val transfer=handoff && !launch && canTransfer && handoffValue==="h4f574e01".U
   if(withXip) {
     val scheduler=Module(new QspiScheduler);scheduler.clk:=clk;scheduler.reset_n:=reset_n;scheduler.xip<>xip.get
     scheduler.command:=raw;scheduler.commandValid:=start
@@ -68,7 +68,6 @@ class Qspi(json: String,base: BigInt=0,withXip: Boolean=false) extends RawModule
     e.start:=scheduler.engineStart
   } else {e.start:=start}
   withClockAndReset(clk,(!reset_n).asAsyncReset) {
-    when(transfer) {owner:=handoffValue(2,0)}
     clockHold:=RegNext(occupied || launch || handoff,false.B)
   }
   dqOut:=e.dqOut;dqEnable:=e.dqEnable;sclk:=e.sclk;sclkEnable:=e.pinsEnable

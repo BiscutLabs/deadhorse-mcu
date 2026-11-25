@@ -45,7 +45,7 @@ class QspiOwnerFormal(variant: String) extends RawModule {
   } else new Qspi("build/t29/qspi/qspi_regs.json"))
   d.clk:=clock;d.reset_n:=reset_n;d.dqIn:=0.U
   d.bus.req:=req;d.bus.bits.addr:=addr;d.bus.bits.wdata:=data;d.bus.bits.we:=write;d.bus.bits.be:=be
-  d.bus.bits.origin:=Mux(origin<2.U,2.U,origin)
+  d.bus.bits.origin:=Mux(origin===1.U,0.U,origin)
   withClockAndReset(clock,(!reset_n).asAsyncReset) {
     if(variant=="cover") {cover(d.bus.rvalid && d.bus.err)} else {
       assert(!d.sclkEnable && d.csEnable===0.U)

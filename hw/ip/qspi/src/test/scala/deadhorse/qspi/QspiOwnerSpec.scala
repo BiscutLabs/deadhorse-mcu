@@ -24,26 +24,28 @@ class QspiOwnerSpec extends AnyFunSuite with ChiselSim {
       // Offer the next operation immediately, with no artificial idle gap.
       d.clk.step();r
     }
-    var owner=0
     for(next<-Seq(1,0,1,1,0)) {
-      assert(!access(owner,8,true,0xa5)._2)
-      assert(!access(owner,36,true,0x4f574e00L|next)._2,"QSPI_HANDOFF_RESPONSE")
-      owner=next
+      assert(!access(1,8,true,0xa5)._2)
+      assert(!access(1,36,true,0x4f574e00L|next)._2,"QSPI_HANDOFF_RESPONSE")
+      assert(access(1,28)==(BigInt(2),false),"QSPI_RESET_OWNER")
+      assert(access(1,32)==(BigInt(if(next==1) 0 else 2),false),"QSPI_HANDOFF_REJECTION")
+      assert(!access(1,32,true,3)._2)
       for(origin<-0 to 7) {
         val(data,err)=access(origin,8)
-        assert(err==(origin!=owner),"QSPI_DYNAMIC_OWNER")
-        assert(data==(if(origin==owner)0xa5 else 0))
+        assert(err==(origin!=1),"QSPI_FIXED_OWNER")
+        assert(data==(if(origin==1)0xa5 else 0))
       }
     }
   }
-  test("back-to-back handoffs return to the old requester and revoke former owners") {
+
+  test("back-to-back handoff encodings cannot transfer performance ownership") {
     simulateRaw(new Qspi("build/t29/qspi/qspi_regs.json"))(exercise)
   }
-  test("retaining lite access after handoff is rejected") {
+  test("retaining lite access is rejected") {
     val e=intercept[org.scalatest.exceptions.TestFailedException] {
       simulateRaw(new Qspi("build/t29/qspi/qspi_regs.json") {
         override protected def permitted(origin: UInt,owner: UInt): Bool=origin===owner || origin===0.U
       })(exercise)
-    };assert(e.getMessage.contains("QSPI_DYNAMIC_OWNER"))
+    };assert(e.getMessage.contains("QSPI_FIXED_OWNER"))
   }
 }
