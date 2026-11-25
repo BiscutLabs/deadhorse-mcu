@@ -10,10 +10,11 @@ class BootOwnerFormal(variant: String) extends RawModule {
   val d=Module[BootControl](if(variant=="owner") new BootControl("build/t28/boot_control/boot_control_regs.json") {
     override protected def permitted(o: UInt): Bool=true.B
   } else new BootControl("build/t28/boot_control/boot_control_regs.json"))
-  d.clk:=clock;d.epochReset_n:=reset_n;d.reset_n:=serviceReset_n;d.startAccepted:=start
+  d.clk:=clock;d.epochReset_n:=reset_n;d.reset_n:=serviceReset_n;d.quiet:=start;d.debugOwned:=false.B
+  d.bootMode:=false.B
   d.bus.req:=req;d.bus.bits.addr:=addr;d.bus.bits.wdata:=data;d.bus.bits.we:=write;d.bus.bits.be:=be
   // Explicit denied-origin stimulus; all seven denied origins remain reachable.
-  d.bus.bits.origin:=Mux(origin===0.U,1.U,origin)
+  d.bus.bits.origin:=Mux(origin===1.U,0.U,origin)
   withClockAndReset(clock,(!(reset_n && serviceReset_n)).asAsyncReset) {
     if(variant=="cover") {
       cover(d.bus.rvalid && d.bus.err)

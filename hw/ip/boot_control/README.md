@@ -1,50 +1,37 @@
-# Lite-first performance release
+# Performance-owned lite boot control
 
-T28 implements the digital handoff in plans07/16. Existing recovery loading,
-image checks, lite execution and shared reset primitives are adopted unchanged.
-The two-core release coordination is new clocked Chisel; no upstream block
-provided that interface. This is recovery-started sequencing, not flash boot.
-
-The lite-owned AON window is0x40000300..0x400003ff. Generated MMIO preserves
-the trusted origin tag; every other origin, unmapped or misaligned access
-errors. All bus/pad/clock source contracts are unchanged.
+PLAN05 E1/C3 replaces the former lite-first performance release. Performance
+is the sole boot master. Lite is held in reset until performance explicitly
+releases it at the retained program-RAM base. The AON register window remains
+0x40000300; only performance-origin accesses are admitted.
 
 | Offset | Register | Contract |
 | --- | --- | --- |
-| 0x00 | status | read-only boot_seen bit0, released bit1 |
-| 0x04 | release_core | write-only full-word key0x50455246; reads zero |
-| 0x08 | events | command_error bit0, W1C, hardware set wins |
+| 0x00 | status | held0, released1, draining2 |
+| 0x04 | release_core | full-word key0x50455246; reads zero |
+| 0x08 | events | command_error0, W1C, hardware set wins |
+| 0x0c | hold_core | full-word key0x484f4c44; drain before writable held state |
+| 0x10 | boot_mode | read-only reset-sampled strap0 |
 
-boot_seen means a validated loader START was observed in this whole-reset
-epoch. It does not certify current execution, image authenticity or lite
-health. A correct RELEASE after boot_seen opens performance core/client
-reset. A START and RELEASE on the same edge cannot release on that edge.
-Correct repeated RELEASE is idempotent. Wrong key or RELEASE before boot_seen
-sets command_error without withdrawing an existing release. Partial writes
-error through the generated register block; zero-strobe writes do nothing.
+`LiteBootState` distinguishes held, running and draining. HOLD stops lite at
+its instruction boundary and drains outstanding memory/fabric operations before
+acknowledging held. Debug ownership cannot become a writable boot hold, and
+release waits for debug ownership to clear. Whole-chip/AON epoch reset returns
+to held asynchronously; a performance-only reset preserves lite execution and
+RAM. Register-service reset clears command transport/errors without replaying
+commands. Invalid keys, origins, partial command writes or commands in unsafe
+states do not grant release or memory permission.
 
-Both retained flags reset false on cold, external whole reset or lite-watchdog
-whole reset. Assertion is asynchronous. AON service reset clears the register
-adapter, command pulses and error event but preserves both flags. A command
-interrupted by reset cannot replay; callers may retry idempotently. Commands
-are ignored while the service reset is asserted. Performance watchdog/core/
-service resets preserve release. The output enters only the performance
-core/client's existing ResetRelease, never shared-service or PWM resets.
+C3 program write authority is enforced at retained-memory grant: performance
+only, while the acknowledged boot hold is active. Lite and direct debug SBA
+cannot write the program region. Debug may load it through performance-hart
+execution under the same hold rule. Program/data memory stays powered across
+sleep and reset. Production boot ROM implementation is a separate PLAN05/T36
+phase; these controls do not validate image contents themselves.
 
-External main/AON clocks remain required; main may be stopped while release
-is requested, and its reset synchronizer waits for main edges. This controller
-does not stop/start an oscillator or gate, and demand outputs are not permission
-to stop the complete domain. Shared services remain available during initial
-core hold. Existing loader programming lock and locked-image warm-reset
-restart limitation remain unchanged.
-
-BootRelease outputs and bus responses are registered. Epoch/service reset
-inputs are the shared reset-release outputs for their respective cohorts.
-Measured standalone mapped area is10793.7984µm², by the pinned
-`python hw/ip/boot_control/check_timing.py --output build/t28/frozen01/timing`
-subcommand, main HEAD72bcfacc plus receipt-hashed local sources. Worst measured
-register path is11.160238ns against estimated0.60×1000/9=66.666667ns, with
-zero electrical violations. This pre-layout block screen is conservative for
-AON operation, not a whole-SoC area delta or routed timing qualification.
-No area allowance is silently added to the SoC budget. Physical reset/RDC/hold
-and complete production boot remain open. See the T28 report and formal/.
+`BootModeStrap` samples during the whole-reset qualification window and freezes
+before serial pin ownership is enabled. Performance-only reset does not resample.
+See [formal/README.md](formal/README.md), [soc.md](../../../docs/spec/soc.md) and
+the [PLAN05 report](../../../docs/plan/tasks/reports/PLAN05.md) for exact evidence,
+reset composition and outstanding work. Historical T28 measurements describe
+the retired controller, not this implementation.

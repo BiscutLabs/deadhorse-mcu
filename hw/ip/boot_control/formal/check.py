@@ -20,7 +20,8 @@ def main(output):
     receipt=dict(status='running',source_sha256=hashes(),cases={},
         commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True,cwd=ROOT).strip(),
         assumptions=['Initial epoch reset low; independent service/epoch resets and inputs arbitrary thereafter; one AON clock',
-                     'Owner case drives only denied origins 1..7; control case has no command protocol assumption'])
+                     'Owner case drives denied origins 0,2..7; control case has no command protocol assumption',
+                     'Strap qualification and pad arbitrary; only initial whole reset asserted, arbitrary thereafter'])
     def command(argv,log):
         begin=time.monotonic()
         with log.open('w') as f:
@@ -29,8 +30,9 @@ def main(output):
         return dict(command=argv,returncode=code,seconds=time.monotonic()-begin,log=str(log.relative_to(out)))
     try:
         for case,top,asserts,covers,variants in [
-                ('control','BootReleaseFormal',4,3,('correct','early','key','cover')),
-                ('owner','BootOwnerFormal',2,2,('correct','owner','cover'))]:
+                ('control','LiteBootStateFormal',4,3,('correct','early','key','cover')),
+                ('owner','BootOwnerFormal',2,2,('correct','owner','cover')),
+                ('strap','BootModeStrapFormal',2,2,('correct','raw','cover'))]:
             directory=out/case;directory.mkdir();entry=dict(jobs=[]);receipt['cases'][case]=entry
             entry['emission']=command([sys.executable,'tools/sbt.py',
                 'set hw / Compile / unmanagedSourceDirectories += file("/work/hw/ip/boot_control/formal")',
@@ -53,8 +55,8 @@ def main(output):
                 entry['jobs'].append(row)
                 if solver=='TIMEOUT':row['status']='unresolved'
                 else:
-                    faults={'early':{assertion_names(4)[1],assertion_names(4)[3]},
-                            'key':{assertion_names(4)[1]},'owner':set(assertion_names(2))}.get(v)
+                    faults={'early':set(assertion_names(4)),
+                            'key':set(assertion_names(4)),'owner':set(assertion_names(2)),'raw':set(assertion_names(2))}.get(v)
                     row['failed_properties']=validate_job(directory/v,
                         'proof' if mode=='prove' else 'cover' if mode=='cover' else 'negative',row['returncode'],solver,faults)
                     row['status']='proved' if mode=='prove' else 'covered' if mode=='cover' else 'fault_rejected'
