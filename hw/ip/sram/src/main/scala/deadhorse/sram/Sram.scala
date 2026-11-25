@@ -19,11 +19,12 @@ class SramPort(val addressBits: Int) extends Bundle {
 }
 
 /** The physical pin names and sources are byte-exact pinned upstream views. */
-class Gf180Sram(functionalModel: Boolean=false) extends BlackBox with HasBlackBoxPath {
-  override def desiredName="gf180mcu_ocd_ip_sram__sram1024x8m8wm1"
+class Gf180Sram(functionalModel: Boolean=false,depth: Int=1024) extends BlackBox with HasBlackBoxPath {
+  require(Set(512,1024).contains(depth))
+  override def desiredName=s"gf180mcu_ocd_ip_sram__sram${depth}x8m8wm1"
   val io=IO(new Bundle {
     val CLK=Input(Clock());val CEN=Input(Bool());val GWEN=Input(Bool())
-    val WEN=Input(UInt(8.W));val A=Input(UInt(10.W));val D=Input(UInt(8.W));val Q=Output(UInt(8.W))
+    val WEN=Input(UInt(8.W));val A=Input(UInt(log2Ceil(depth).W));val D=Input(UInt(8.W));val Q=Output(UInt(8.W))
   })
   if(functionalModel) addPath(Paths.get("build/vendor/gf180_sram/cells",desiredName,desiredName+".v").toAbsolutePath.toString)
 }
@@ -33,11 +34,11 @@ class Gf180Sram(functionalModel: Boolean=false) extends BlackBox with HasBlackBo
   * Reset belongs to the port owner, never to the SRAM contents. */
 class SramWordBank(depth: Int=1024,target: SramTarget=SramTarget.Model,image: Option[String]=None) extends RawModule {
   require(depth>1)
-  require(target==SramTarget.Model || depth==1024 && image.isEmpty)
+  require(target==SramTarget.Model || Set(512,1024).contains(depth) && image.isEmpty)
   val clk=IO(Input(Clock()));val port=IO(Flipped(new SramPort(log2Ceil(depth))))
   protected def lane(index: Int): Int=index
   val physical=if(target==SramTarget.Model) Seq.empty else
-    (0 until 4).map(_=>Module(new Gf180Sram(target==SramTarget.VendorSimulation)))
+    (0 until 4).map(_=>Module(new Gf180Sram(target==SramTarget.VendorSimulation,depth)))
   if(target==SramTarget.Model) {
     withClock(clk) {
       val memory=SyncReadMem(depth,Vec(4,UInt(8.W)))

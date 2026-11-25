@@ -19,12 +19,14 @@ class SramSpec extends AnyFunSuite with ChiselSim {
   // the exact diagnostics of this byte-exact vendor functional model.
   implicit val commonSettings: svsim.CommonSettingsModifications=s=>{
     val dir=outputDirectory.getDirectory
-    val name="gf180mcu_ocd_ip_sram__sram1024x8m8wm1.v"
+    val depth=if(java.nio.file.Files.exists(dir.resolve("primary-sources/gf180mcu_ocd_ip_sram__sram512x8m8wm1.v"))) 512 else 1024
+    val name=s"gf180mcu_ocd_ip_sram__sram${depth}x8m8wm1.v"
     val source=dir.resolve("primary-sources").resolve(name)
     if(!java.nio.file.Files.exists(source)) s else {
-      val raw=java.nio.file.Files.readAllBytes(Paths.get("build/vendor/gf180_sram/cells/gf180mcu_ocd_ip_sram__sram1024x8m8wm1",name))
+      val raw=java.nio.file.Files.readAllBytes(Paths.get(s"build/vendor/gf180_sram/cells/gf180mcu_ocd_ip_sram__sram${depth}x8m8wm1",name))
       val hash=java.security.MessageDigest.getInstance("SHA-256").digest(raw).map(b=>f"${b & 255}%02x").mkString
-      require(hash=="9b3f0403197df34186eddab06c0f887cbc83f8732a806fb5f0c4ac6403dab4cb","SRAM_VENDOR_DRIFT")
+      val expectedHash=if(depth==512) "59c431f0f36cb939bb9d12a3818a735959cac77f1b9ab39c439f986387f07be4" else "9b3f0403197df34186eddab06c0f887cbc83f8732a806fb5f0c4ac6403dab4cb"
+      require(hash==expectedHash,"SRAM_VENDOR_DRIFT")
       val expected=new String(raw,java.nio.charset.StandardCharsets.UTF_8).replace("\r\n","\n")
       val emitted=java.nio.file.Files.readString(source).replace("\r\n","\n")
       require(emitted==expected+"\n","SRAM_EMITTED_VENDOR_DRIFT")
@@ -41,14 +43,14 @@ class SramSpec extends AnyFunSuite with ChiselSim {
   }
   private val mask32=BigInt("ffffffff",16)
   private def high(b: Bool)=b.peek().litToBoolean
-  for(target<-Seq(SramTarget.Model,SramTarget.VendorSimulation)) {
-    test(s"$target all rows and byte masks match an independent word array") {
-      simulateRaw(new SramWordBank(target=target)) {d=>
+  for(depth<-Seq(1024,512);target<-Seq(SramTarget.Model,SramTarget.VendorSimulation)) {
+    test(s"$target depth=$depth all rows and byte masks match an independent word array") {
+      simulateRaw(new SramWordBank(depth,target=target)) {d=>
         // Vendor timescale is 1 ps: use the production 125 ns period so its
         // 100/200 ps scheduling delays finish before sampling. Functional only.
         def tick(n: Int=1): Unit=d.clk.step(n,if(target==SramTarget.VendorSimulation) 125000 else 10)
         val random=new scala.util.Random(0x351024)
-        val words=Array.fill[BigInt](1024)(0)
+        val words=Array.fill[BigInt](depth)(0)
         d.port.enable.poke(false.B);d.port.write.poke(false.B);d.port.address.poke(0.U)
         d.port.data.poke(0.U);d.port.mask.poke(0.U);tick(3)
         def access(a: Int,w: Boolean=false,data: BigInt=0,mask: Int=15): Unit={
@@ -62,15 +64,30 @@ class SramSpec extends AnyFunSuite with ChiselSim {
         // Never rely on the vendor model's power-up zeros.
         for(a<-words.indices) access(a,true,BigInt(32,random))
         for(a<-words.indices.reverse) access(a)
-        for(mask<-0 until 16;a<-Seq(0,1,255,256,511,512,767,768,1023)) {
+        for(mask<-0 until 16;a<-Seq(0,1,255,256,511,512,767,768,1023).filter(_<depth)) {
           access(a,true,BigInt(32,random),mask);access(a)
           val held=words(a);d.port.enable.poke(false.B);tick(2);d.port.result.expect(held.U)
         }
         for(_<-0 until 400) {
-          val a=random.nextInt(1024);access(a,true,BigInt(32,random),random.nextInt(16));access(a)
+          val a=random.nextInt(depth);access(a,true,BigInt(32,random),random.nextInt(16));access(a)
         }
       }
     }
+  }
+
+  test("512-word vendor lane-swap negative control is detected") {
+    val error=intercept[org.scalatest.exceptions.TestFailedException] {
+      simulateRaw(new SramWordBank(512,SramTarget.VendorSimulation) {
+        override protected def lane(index: Int): Int=3-index
+      }) {d=>
+        d.port.enable.poke(false.B);d.port.write.poke(false.B);d.port.address.poke(511.U)
+        d.port.data.poke(0.U);d.port.mask.poke(15.U);d.clk.step(3,125000)
+        d.port.enable.poke(true.B);d.port.write.poke(true.B);d.port.data.poke(0x12345678L.U)
+        d.clk.step(1,125000);d.port.write.poke(false.B);d.clk.step(1,125000)
+        assert(d.port.result.peek().litValue==0x12345678L,"SRAM_RETAINED_LANE_ORACLE")
+      }
+    }
+    assert(error.getMessage.contains("SRAM_RETAINED_LANE_ORACLE"))
   }
 
   private def march(words: Int,fault: String,early: Boolean=false): Unit={
@@ -122,7 +139,7 @@ class SramSpec extends AnyFunSuite with ChiselSim {
       d.run.poke(false.B);d.clk.step();d.busy.expect(false.B);d.memory.enable.expect(false.B)
     }
   }
-  for(words<-Seq(4096,768)) test(s"March covers every operation in the $words-word production memory") {march(words,"none")}
+  for(words<-Seq(4096,512)) test(s"March covers every operation in the $words-word production memory") {march(words,"none")}
   for(fault<-Seq("stuck0","stuck1","rise","fall","alias")) test(s"March rejects $fault and records the observed mismatch") {march(16,fault)}
   test("independent operation oracle rejects premature completion") {
     val e=intercept[org.scalatest.exceptions.TestFailedException] {march(16,"none",early=true)}
