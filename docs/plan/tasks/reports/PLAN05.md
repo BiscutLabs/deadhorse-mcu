@@ -2,9 +2,9 @@
 
 ## Outcome
 
-Phase 1 and Phase 2 are complete under the approved scoped-proof policy; the
-frozen Phase2 fast tier passes with inherited deferrals. PLAN05 remains in
-progress because Phase3 production boot-ROM integration and acceptance are open.
+Done under the approved scoped proof policy and D104 latency exception;
+all implementation phases and both frozen phase-end fast tiers pass, with
+explicit inherited proof and physical-verification debt.
 
 ## What changed
 
@@ -17,13 +17,13 @@ progress because Phase3 production boot-ROM integration and acceptance are open.
 - Replaced the boot proposal with C1-C9. Independent review accepted a bounded,
   stackless DMA/QSPI-idle guard before SRAM use on performance-only reset; it
   neither aborts DMA nor implements buffer recovery. Exact binary ABI/recovery
-  encodings and polling counts have passed independent review; Phase3 execution remains pending.
+  encodings and polling counts have passed independent review; Phase3 execution is now recorded below and in T36.
 - Updated soc.yaml, the authoritative SoC specification and map checker for
   the new ownership, regions, interrupts, retained split and pad alternatives.
   Earlier integration descriptions remain explicitly historical in the appendix.
 - Added the Phase1 integration contract and AON register descriptions; revised
   boot/timer/pinmux descriptors. Phase 2 now implements the AON blocks and timer/boot bindings below; final
-  production qualification remains open.
+  physical qualification remains open.
 - Added the RV32E watcher, independent radio/MMIO oracle, measurement runner,
   CRC check and receipt checks. A test-only fixture composes the unchanged lite
   hart, production debug router and AON fabric. The Phase 1 measurement predates the Phase 2 RTL changes below.
@@ -32,7 +32,7 @@ progress because Phase3 production boot-ROM integration and acceptance are open.
   reads and prefix checks remain. Startup selects the required AON/SPI pad mux
   before enabling outputs. Packet format, clock, limits and existing cases stay.
 
-Phase 2 working changes (not yet accepted/committed):
+Phase2 changes (accepted and published through f96ad0d):
 
 - Removed ordinary toMain and loader instances from the production binding;
   dedicated debug transport remains. QSPI resets to performance ownership.
@@ -51,7 +51,7 @@ Phase 2 working changes (not yet accepted/committed):
   inventories below account for removed loader/PWM/boot-order functionality;
   old implementation files are deleted after focused replacement checks.
 
-Independent B5/B7 migration audit (runtime migration remains open):
+Independent B5/B7 migration audit (subsequent runtime evidence below):
 
 | Existing coverage | Authorized disposition / retained obligation |
 | --- | --- |
@@ -183,7 +183,7 @@ portfolio sweep; partitioning output cones is the next focused formulation.
 Lite RVFI equivalence and its three fault controls passed. Independent review
 accepted the scoped evidence; performance RVFI equivalence remains unproved.
 Phase2 fast02 passes after the recorded USB evidence-binding repair. The
-required Phase3 fast check remains open.
+required Phase3 fast check now passes as recorded below.
 
 The watcher retains twelve packet scenarios: invalid address with valid CRC,
 invalid CRC, valid and repeated valid at each of three leaf response delays.
@@ -203,7 +203,7 @@ resolved before Phase1 acceptance.
 
 At this intermediate checkpoint no broad IP regression, long proof sweep, fast CI or full CI had run. The user
 reaffirmed minimal relevant-only tests during this iteration. The explicit
-Phase2/Phase3 fast-tier requirements remain pending at their respective ends.
+Phase2/Phase3 fast-tier requirements were pending then; both final results appear below.
 
 Additional scoped Phase2 evidence on the same base commit plus working sources:
 
@@ -293,7 +293,7 @@ selected. Reset-phase SRAM targets use the resized legal data window. Full
 phase matrices and fault controls are preserved; current results are reported
 separately, not inferred from source migration.
 
-### Final migration checks in progress
+### Phase2 migration checks (preserved evidence)
 
 - `hw/testOnly deadhorse.top.SocClientPhaseSpec -- -z "lite=true"`:
   PASS all14 reset phases, measured63.000s Scala/76s sbt in
@@ -322,12 +322,12 @@ separately, not inferred from source migration.
   fixture now drives the same public reset pin then services performance/lite
   in boot order. Follow-up exposed stale cold-retained lite debug ownership
   across whole reset. Reviewed fix clears ownership/resetting while aonUp is
-  low, retaining the pending halt; the final focused runtime check is pending.
+  low, retaining the pending halt; the later Debug03 runtime results appear below.
   No permission, timeout or halt-on-reset expectation was weakened.
 - Structure01 exposed a non-UTF8 newly written GPIO formal README; corrected
   encoding. Structure02 exposed links to retired block documentation; links
   now explicitly identify historical source or replacement timer contract.
-  Final structure result remains pending.
+  The later Structure03 result appears below.
 
 Final reviewed migration evidence:
 
@@ -399,7 +399,57 @@ preserved: moving port aliases behind buffers left original Q nets unnamed.
 Boundary07 adds explicit Q net names only; independent review verified unchanged
 cell/pin connectivity. No timing limit or assertion changed.
 
+### Final Phase3 scoped evidence
+
+`python dv/soc/boot/check.py --output build/plan05/t36-boot04` passes six native
+policy/six recovery tests, three fault controls and36 production wire cases,
+with the explicit D104 maximum-image latency exception. Measured command-time
+sum406.762149s. Tests cover actual IMFC/mailbox execution, image selection/
+copy/verification, performance-only resets with surviving watcher, DMA drain/
+stall, UART permissions/concurrent BUSY/duplicates, commit-last updates, native
+partial writes, serial power cuts/restarts and early-release fault. Full details
+and preserved CSR/UART/latency failures are in [T36](T36.md).
+
+Five boot-metadata Scala tests and seven focused formal jobs pass (two unbounded
+positives, three rejected faults, two covers, original120s caps). Fresh exact-ROM
+production mapping/timing03 passes main67.850388ns/75ns and both AON source modes;
+USB's approved13.485458ns warning remains. Final source/ROM/RTL/artifact audit
+passes with only a documented comment correction after the wire run.
+
+USB boundary08 has fresh source/netlist/73-pin/35-buffer binding and extracted
+fixture timing/audits. Existing unchanged packet/sampling proofs are rebound,
+not rerun. Host driver path/log-location mistakes are preserved in driver01/02;
+driver03 copies the exact successful route log to the extractor's required
+path, then completes unchanged extraction/audits without rerouting. This is
+boundary qualification, not whole-chip physical signoff.
+
+`python tools/env/run.py run -- python tools/ci.py --tier fast --output build/plan05/phase3-fast01 --usb-evidence build/plan05/usb-boundary08/acceptance-manifest.json`
+passes all **33 measured commands** in **3869.903314 measured seconds**.
+Final output: `PASS fast tier active checks; 12 deferred, unproved (see receipt)`.
+The four T14 and eight T17 inherited deferrals remain unproved. The final
+publication audit verifies the frozen non-Markdown sources and child receipts;
+only final documentation changes follow the snapshot. Full CI is unrun.
+Independent final review passes: all frozen source entries and 13 child receipts
+match; no non-Markdown source changed after the snapshot.
+
+The USB standalone SIE diagnostic still fails its measured 22.734825 ns RO
+screen. Its pre-existing diagnostic-only disposition is unchanged; engine and
+wrapper are acceptance targets. No failing diagnostic is relabelled as passing.
+
 ## Numbers
+
+Final ROM-inclusive numbers supersede Phase2 estimates below: measured mapped
+logic3.542381068799mm2; isolated exact ROM0.098597408mm2/6776bytes (nonadditive);
+estimated chip11.323913602544mm2/headroom1.596086397456mm2. With T40's cap
+reservation: estimated11.342095421/1.577904579mm2, extra scan unmeasured.
+24KiB fits a macro-only estimate before added control,32KiB does not; no growth
+approved. Plan08 and T36 give commands/provenance; plan06 gives static library
+leakage estimates/exclusions. The actual588-byte watcher loads/verifies in
+measured16,405,620quanta (estimated170.891875ms at assumed96MHz);1024bytes takes
+28,504,620 (estimated296.923125ms), explicitly accepted under D104 with T42
+retaining250ms as its target. Read-derived diagnostic phase splits are untrusted
+and not accepted measurements; total interval is independently validated.
+
 
 Measured by opt05 above on its receipt-hashed sources. Times are estimated as
 cycles / assumed nominal32,000Hz. Targets grant immediately, with no competing
@@ -539,19 +589,18 @@ relaxed, and no production feature/test was silently dropped.
 
 The first Phase2 fast run failed at stale USB evidence and is preserved.
 After reviewed requalification, the complete frozen fast02 run passes. Phase3
-and its required fast tier remain pending.
+scoped implementation and its required frozen fast tier pass with D104.
 
 ## Open issues
 
-Final debug/reset checks and the source-bound Phase2 timing/area receipt are
-complete. USB boundary requalification and Phase2 fast CI pass. AON SPI positive proof, GPIO sticky-capture checker,
-performance RVFI equivalence and inherited formal/physical debt remain deferred
-under the scoped policy; no timeout or checker failure is called a proof.
+AON SPI positive proof, GPIO
+sticky-capture checker, performance RVFI equivalence and inherited formal/
+physical debt remain deferred under the scoped policy; no timeout or checker
+failure is called a proof. Full tier, physical/analog qualification, complete
+ISA/system coverage and complete dormant-current signoff remain open.
 
-Phase3 production ROM and boot/update/recovery tests remain unimplemented.
-Its exact ABI/command encodings and hardware reset-epoch discriminator have
-passed independent review; software-model draft checks do not substitute for
-production RTL or serial-wire acceptance. T36 retains its ROM allowance and
-all original update/power-loss obligations. Full CI has not run and is deferred
-by user policy. Physical/analog qualification and complete deep-sleep system
-current remain open; the leakage estimate excludes analog/board switching power.
+D104 accepts maximum-image boot-load latency temporarily; T42 is queued to
+investigate a reviewed improvement without changing clocks or RAM verification.
+T41 reset consolidation is separately queued after PLAN05, with an inventory
+commit required before RTL. T40 circular UART RX remains queued, not implemented.
+No stage or tape-out gate is ticked by these task completions.

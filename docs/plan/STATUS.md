@@ -102,17 +102,18 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 
 | [x] | D90 | T35 scoped verification | User direction 2026-11-24: SRAM/BIST and affected integration tests only, no aggregate CI; defer extensive timeout proof work, retain independent review and physical/interface stop conditions |
 | [x] | D91 | T36 scoped verification | User direction 2026-11-24: boot-ROM and affected integration checks only, no aggregate CI; defer extensive timeout proof work; retain independent review and boot-path/ownership/image-policy stop conditions |
-| [x] | D92 | Single performance boot master | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
-| [x] | D93 | Remove recovery loader | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
-| [x] | D94 | Performance-owned main peripherals | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
-| [x] | D95 | AON watcher peripherals | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
-| [x] | D96 | Watcher-sized retained memory | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
-| [x] | D97 | Unified general timers | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
-| [x] | D98 | Verification-only RVFI | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
-| [x] | D99 | Measure main SRAM options only | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
-| [x] | D100 | Powered retained memory in dormant modes | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
-| [x] | D101 | PLAN05 phase-end qualification | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
+| [x] | D92 | Single performance boot master | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
+| [x] | D93 | Remove recovery loader | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
+| [x] | D94 | Performance-owned main peripherals | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
+| [x] | D95 | AON watcher peripherals | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
+| [x] | D96 | Watcher-sized retained memory | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
+| [x] | D97 | Unified general timers | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
+| [x] | D98 | Verification-only RVFI | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
+| [x] | D99 | Measure main SRAM options only | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
+| [x] | D100 | Powered retained memory in dormant modes | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
+| [x] | D101 | PLAN05 phase-end qualification | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
 | [x] | D102 | DMA circular UART RX, shadow reload | User-approved 2026-11-24; T40 after PLAN05 design changes, +0.010 mm2 mapped-cell cap, scoped tests/no aggregate CI, one formal triage round. D92-D101 remain unchanged; no DMA implementation acceptance |
+| [x] | D104 | Temporary maximum lite-image load exception | User-approved2026-11-24; T42 retains250ms target; all other checks and D101 remain |
 
 ## Tasks
 
@@ -127,7 +128,7 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [x] | PLAN02 | [General-purpose MCU scope](tasks/PLAN02-general-mcu.md) | Codex | User direction D69 | [Report](tasks/reports/PLAN02.md); documentation checks and independent review pass; no RTL or CI |
 | [x] | PLAN03 | [SoC consolidation and tape-out planning](tasks/PLAN03-soc-consolidation.md) | Codex | D72–D77; existing T20–T30 evidence | One production top, ADC retirement, B4 measurements, B5 debt register/triage and B6 briefs independently accepted. Frozen fast03 passes all active checks with twelve T14/T17 deferrals explicitly unproved. [Measured paths](../spec/soc-production-measurements.md), [report](tasks/reports/PLAN03.md). Full tier, T20 system qualification and chip physical acceptance remain open |
 | [!] | PLAN04 | [Tapeout clock/reset architecture](tasks/PLAN04-clock-reset.md) | Codex | D78/D79/D81–D84; D86 closeout | [Report](tasks/reports/PLAN04.md): original composition/formal acceptance remains incomplete. Implementation, measured timing/area and finite wake/retention evidence carried into T33's completed D86 closeout. Minimum-count/shutdown helpers deferred rather than awaiting approval. Historical fast02 evidence retains its original scope; full tier and physical/I3 qualification remain open |
-| [~] | PLAN05 | [Dormant coprocessor and single-master boot](tasks/PLAN05-dormant-coprocessor.md) | Codex | D92-D101; T36 | [Report](tasks/reports/PLAN05.md): Phases1/2 complete under scoped proof policy; dormant/timer/memory/debug/reset tests and frozen fast02 pass (33 commands, measured3807.603677s;12 inherited deferrals). Main timing69.030312ns/75; estimated chip12.020820471mm2. Phase3 ROM integration/acceptance pending; full CI unrun |
+| [x] | PLAN05 | [Dormant coprocessor and single-master boot](tasks/PLAN05-dormant-coprocessor.md) | Codex | D92-D101/D104; T36 | [Report](tasks/reports/PLAN05.md): all implementation/scoped checks pass with explicit proof debt and D104 maximum-image latency exception. Both frozen fast tiers pass; Phase3 measured 3869.903314s, 12 inherited proof deferrals. Main67.850388ns/75, estimated chip11.323913603mm2; full tier unrun |
 | [x] | T08 | [Pinned Linux environment](tasks/T08-environment.md) | Codex | none | [Report](tasks/reports/T08.md); clean rebuild and runtime smoke pass |
 | [x] | T01 | [Scaffold/CI](tasks/T01-scaffold.md) | Codex | T08 | [Report](tasks/reports/T01.md); local gate and fresh-context review pass |
 | [x] | T02 | [Historical loop CI](tasks/T02-flight-loop-ci.md) | Codex | T01, T08 | [Report](tasks/reports/T02.md); exact QEMU matches, historical summary preserved, local gate passes |
@@ -164,11 +165,13 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [x] | T33 | [Clock/reset/power controller](tasks/T33-clock-reset-power.md) | Codex | PLAN04; T32/T34 coordination; D85/D86 | [Report](tasks/reports/T33.md): completed with D86 exceptions. 82 credited task cases, map/tool checks and independent review pass (commands/times in report). Initial inherited I/O scope error and failed aggregate preserved; corrected continuation explicitly selected. Difficult composition proofs remain deferred; no fast/full CI or physical/I3 signoff |
 | [x] | T34 | [Analog interfaces/models](tasks/T34-analog-models.md) | Codex | PLAN03; D87 | [Report](tasks/reports/T34.md): completed with D87 exceptions. Frozen relevant models/production POR cases, scoped reset proofs, pin audit and fault controls pass. Production HDL unchanged. Physical characterization, four-state qualification and calibration/test access remain open; neither CI tier run |
 | [x] | T35 | [SRAM macros and BIST](tasks/T35-sram-bist.md) | Codex | T32/T33 implementation with recorded deferrals; coordinate T36; D90 | [Scoped completion](tasks/reports/T35.md): production macros/BIST, 43 relevant Scala tests, four TAP scenarios and unchanged flight cycles; two proofs deferred, physical signoff open; no CI under D90 |
-| [!] | T36 | [Production boot ROM](tasks/T36-boot-rom.md) | Codex | T32/T33 implementation with recorded deferrals; T35; D91 | [Preflight report](tasks/reports/T36.md): reviewed [boot-path proposal](../spec/boot-rom-proposal.md) superseded by PLAN05 D92-D101 and C1-C9; implementation follows PLAN05 Phase2 migration; no boot acceptance claimed |
+| [x] | T36 | [Production boot ROM firmware](tasks/T36-boot-rom.md) | Codex | PLAN05 Phase2; D91-D101/D104 | [Report](tasks/reports/T36.md):5 metadata tests,7 formal jobs,12 native tests/3 faults and36 wire cases pass with D104 maximum-image load exception296.923125ms; watcher170.891875ms. Final ROM timing/area pass; Phase3 fast passes all 33 commands in measured 3869.903314s, 12 inherited deferrals; full tier unrun |
 | [ ] | T37 | [Test mode and scan](tasks/T37-test-scan.md) | unassigned | T35/T36; coordinate T38 | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
 | [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
 | [ ] | T40 | [DMA circular UART RX](tasks/T40-dma-circular-uart-rx.md) | unassigned | D102; PLAN05 design changes/Phase 2 qualification; T23 | Scheduled only; [planning receipt](tasks/reports/T40-planning.md). UART RX only, shadow reload, strict area cap; implementation and acceptance unverified |
+| [ ] | T41 | [Reset consolidation](https://github.com/BiscutLabs/deadhorse-mcu/blob/codex/t41-reset-consolidation-plan/docs/plan/tasks/T41-reset-consolidation.md) | unassigned | D103; completed PLAN05/T36 | Queued on separate branch, planning commit1b92572; rebase onto final PLAN05 before inventory/RTL. No implementation or measured inventory yet |
+| [ ] | T42 | [Lite boot-transfer latency](tasks/T42-lite-boot-transfer.md) | unassigned | D104; PLAN05; coordinate T41 | Queued investigation/proposal; hardware changes need approval; maximum-image250ms target remains open |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -281,6 +284,16 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-24: PLAN05/T36 scoped completion under D104. Frozen Phase3 fast01 passes all 33 commands in measured 3869.903314s; 12 inherited proof deferrals remain. Exact ROM boot/native/wire checks, main timing and ROM-inclusive area pass; maximum-image load remains an explicit 296.923125ms exception against250ms, queued in T42. Full tier and physical signoff unrun. T40/T41/T42 remain queued; T41 planning stays on its own branch.
+
+- 2026-11-24: Final PLAN05/T36 scoped boot04 passes with D104; UART FIFO service defect fixed without test/timeout changes, all update/power-cut controls retained. Final ROM mapping and USB boundary08 audits pass. Freeze sources for Phase3 fast; full tier unrun. T41 planning published separately; T42 boot-latency follow-up queued.
+
+- 2026-11-24: User accepts the maximum lite-image boot-load latency for now after the focused firmware attempt (diagnostic296.909ms at nominal model clock). D104/T42 retain the original250ms target as explicit debt. Resume remaining PLAN05 Phase3 checks; no bridge architecture change or other acceptance waiver. T41/D103 reset consolidation is separately queued, not started.
+
+- 2026-11-24: PLAN05 Phase3/T36 stops at explicit250ms lite-load bound. Corrected machine-counter ROM passes16 wire cases; measured588-byte watcher interval16,497,924 model quanta (estimated171.853375ms at assumed96MHz), but supported1024-byte image exceeds250ms. Independent review confirms failure and unchanged limit. Metadata5 tests/7 proof jobs pass; remaining wire cases and Phase3 fast unrun. No Phase3 commit; request one focused optimization attempt preserving clock, verification and bound.
+
+- 2026-11-24: Started PLAN05 Phase3/T36 on main5ba87bf after accepted Phase2 and merged T40 planning. Promoted reviewed ROM/reset-context drafts; only relevant boot tests and capped proofs during iterations. No Phase3 execution or acceptance yet.
 
 - 2026-11-24: Published reviewed PLAN05 Phase2 implementation through f96ad0d on main after frozen fast02. Merged the separate D102/T40 planning records; circular DMA remains scheduled, not implemented. Reserved its approved area cap against the current Phase2 estimate without crediting unaccepted ROM savings.
 

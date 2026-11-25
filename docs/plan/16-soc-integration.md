@@ -1,6 +1,6 @@
 # 16 SoC integration
 
-## PLAN05 target migration
+## PLAN05 production migration
 
 D92-D101 supersede the loader/shared-main-peripheral/lite-first portions of
 PLAN03. Keep DeadhorseSoc as the single production top. Remove recovery loader
@@ -15,6 +15,8 @@ radio packets without the external oscillator, wakes main through mailbox,
 and resumes performance after WFI. Performance watchdog freezes through committed
 dormant and restart qualification; lite watchdog remains active. No RAM power-off.
 
+PLAN05 now implements the single production topology and performance ROM;
+its reports record scoped checks, phase-end CI and explicit proof/latency debt.
 The inventory below records pre-migration implementation, not approval to keep
 superseded features. PLAN05 Phase1 must close contracts/measurement before RTL;
 Phase2 and Phase3 each require fast CI. Stage exits and inherited proof/physical
@@ -66,7 +68,7 @@ remain sourced from soc.yaml and the peripheral register YAMLs.
 | Clock/reset/power/sleep controller | PLAN04/T33 | D78 external 48 MHz, /6 main, LF AON; PLAN04 oscillator/POR subset in progress; T33 full reset/reason/threshold/retained sleep remains |
 | Analog LF RC and POR/brownout | PLAN04/T34 | No internal HF; interface/models then extracted layout later; safe-default POR and strap fallbacks |
 | 16 KiB performance + 3 KiB retained SRAM macros/BIST | T35 | Behavioral memories today; macro footprint budgeted, not integrated |
-| Production boot ROM | T36 | Test/bootstrap content today; production CRC/A/B/golden/recovery pending |
+| Production boot ROM | T36 | PLAN05 production CRC/A/B/golden/UART recovery implemented; D104 maximum-image load exception, reports carry final checks and deferred qualification |
 | Test/scan and pad-level chip | T37/T38 | Briefs ready; no chip signoff claim |
 
 ## Integration stages and exits
