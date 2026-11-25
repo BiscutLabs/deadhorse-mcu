@@ -112,6 +112,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D99 | Measure main SRAM options only | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
 | [x] | D100 | Powered retained memory in dormant modes | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
 | [x] | D101 | PLAN05 phase-end qualification | Approved 2026-11-24; PLAN05 implementation/qualification remains open |
+| [x] | D102 | DMA circular UART RX, shadow reload | User-approved 2026-11-24; T40 after PLAN05 design changes, +0.010 mm2 mapped-cell cap, scoped tests/no aggregate CI, one formal triage round. D92-D101 remain unchanged; no DMA implementation acceptance |
 
 ## Tasks
 
@@ -167,6 +168,7 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [ ] | T37 | [Test mode and scan](tasks/T37-test-scan.md) | unassigned | T35/T36; coordinate T38 | Brief prepared by PLAN03; implementation and acceptance unverified |
 | [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
 | [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
+| [ ] | T40 | [DMA circular UART RX](tasks/T40-dma-circular-uart-rx.md) | unassigned | D102; PLAN05 design changes/Phase 2 qualification; T23 | Scheduled only; [planning receipt](tasks/reports/T40-planning.md). UART RX only, shadow reload, strict area cap; implementation and acceptance unverified |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
 | [ ] | S4 | [Latency/test](tasks/S-spikes.md#s4-latency-and-test-access) | unassigned | S1, T08, T09 | |
@@ -280,6 +282,8 @@ production verification debt. T31 is withdrawn rather than deferred work.
 
 ## Log
 
+- 2026-11-24: Published reviewed PLAN05 Phase2 implementation through f96ad0d on main after frozen fast02. Merged the separate D102/T40 planning records; circular DMA remains scheduled, not implemented. Reserved its approved area cap against the current Phase2 estimate without crediting unaccepted ROM savings.
+
 - 2026-11-24: PLAN05 frozen Phase2 fast02 passes all33 commands in measured3807.603677s after USB evidence/physical-boundary requalification. Independent review passes;12 inherited fast-tier proof deferrals and separate PLAN05 proof/physical debt remain explicit. Continue Phase3 boot ROM with relevant-only iterations and required phase-end fast; full CI not run.
 
 - 2026-11-24: Resumed PLAN05 Phase2 after publishing the separate T40 planning branch (66afedc). Loader/toMain removal and performance-owned lite hold/release migration in progress. Relevant tests and short proof attempts only during iterations; required phase-end fast checks remain. No implementation acceptance yet.
@@ -293,6 +297,8 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - 2026-11-24: PLAN05 Phase1 watcher routed02 hits the explicit latency stop: measured 3581 cycles to mailbox, estimated 111.90625 ms at nominal 32 kHz even with optimistic target timing. Independent review validates source/artifact seals and fault detection. Proposed 2 KiB memory fits measured footprint, but production remains unchanged. Await focused firmware-optimization approval; remaining contracts, implementation and phase-end CI are open.
 
 - 2026-11-24: Resumed PLAN05 on main with the complete C1-C9 contract. Recorded D92-D101, replacing the truncated draft and prior lite-first boot proposal. Phase1 review and watcher measurement precede RTL; fast CI is mandatory at both implementation phase ends.
+
+- 2026-11-24: Added D102/T40 on an isolated planning branch, scheduled after PLAN05 design changes. Reserved the maximum mapped-cell increment in the T35 baseline budget; no DMA implementation, RTL test, proof, timing run or CI. Concurrent PLAN05 files remain untouched. Planning checks/review recorded in the receipt.
 
 - 2026-11-24: T36 preflight identified the brief's explicit contract stop: loader-only lite start, no lite ROM/program-write authority and firmware/native-origin UART versus gateway-origin semantics. Prepared independently reviewed boot/recovery proposal; documentation/map checks pass. Await user decision before RTL/firmware; no CI or implementation acceptance.
 

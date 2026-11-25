@@ -97,6 +97,28 @@ build/plan04/digital-timing06/stability --threshold-control --sram`, then
 | Total | **12.699799240** | Estimated planning use, not placed fit |
 | Headroom against 12.92 | **0.220200760** | Estimated subtraction |
 
+### T40 circular UART RX reservation (D102)
+
+The historical T35 table above retains its original scope. The current
+reservation uses the measured/estimated PLAN05 Phase2 budget below
+(`build/plan05/timing03/area-budget.json`); it credits no unaccepted Phase3 ROM
+savings. Reserve T40's user-approved maximum increment:
+
+| Additional item | Area, mm2 | Provenance |
+| --- | ---: | --- |
+| Circular RX across all four DMA channels | 0.010000000 | Assumed reservation at the approved mapped standard-cell cap; not measured |
+| Placement allowance for that increment | 0.018181818 | Estimated 0.010 / existing assumed 0.55 utilization; replaces, not adds to, the cell row in the placed total |
+| PLAN05 Phase2 plus T40 placement reservation | 12.039002289 | Estimated 12.020820471 + 0.018181818 |
+| Provisional headroom against 12.92 | 0.880997711 | Estimated 12.92 - 12.039002289 |
+
+This subtotal excludes any additional scan substitution arising from T40;
+that delta is unmeasured and must be charged before claiming final fit. Keep
+the existing scan/glue, clock/reset, ROM, SRAM, analog, pad and halo rows.
+T40 must replace the reservation with matching before/after measurements
+against the post-PLAN05 design, account for scan and routing overhead, and
+recompute headroom. No new placed-fit claim or main SRAM growth is approved.
+See [T40](tasks/T40-dma-circular-uart-rx.md).
+
 The actual mapping includes 140 measured non-inverting SRAM-load buffers;
 pin-by-pin connection equivalence and a cycle fault control protect that
 transformation. Macro pin setup/hold, clock-to-Q, pulse and period checks use

@@ -129,6 +129,14 @@ Approved by the user 2026-11-24. Implementation and acceptance remain unverified
 | **D100** | Powered retained memory in dormant modes | PLAN05 E9: retained RAM is never powered down. Dormant savings come from stopping main clocks and the external oscillator. Lite/AON services continue; performance watchdog freezes through committed dormant and oscillator restart, lite watchdog remains active. Wake resumes retained WFI state, not ROM. |
 | **D101** | PLAN05 phase-end qualification | User PLAN05 rules: run fast CI at the ends of Phase2 and Phase3 and fix failures before commits/push to main. D91 scoped testing applies only to T36 iterations, not these checks. Independent reviews and all original limits remain. Full CI/stage/physical signoff is not implied. |
 
+## DMA circular receive decision
+
+D92-D101 record PLAN05 above. This subsequent task supersedes none of them.
+
+| ID | Decision | Approved scope |
+| --- | --- | --- |
+| **D102** | DMA circular receive, UART RX only, reload from shadow, user-approved 2026-11-24 | Schedule T40 after PLAN05 design changes. Four existing channels gain circular UART RX only, count >= 2, stable shadow reload protected by busy-write rejection, half/wrap W1C events and a small firmware ring driver. No second base/count copy, overrun detector, new endpoint or non-circular behavior change. Added mapped standard-cell area capped at 0.010 mm2 total; stop on excess before recovery optimization. Relevant DMA/SoC/driver tests and unchanged assertions only; no aggregate fast/full CI. Bounded formal evidence may be recorded; one timeout-triage round, no unchanged timeout reruns, unresolved claims remain visible. Independent review and all other limits remain. This task-specific D76 exception does not change PLAN05's phase-end checks. |
+
 ## Risks and evidence still required
 
 
