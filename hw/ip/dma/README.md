@@ -1,11 +1,12 @@
-# Basic DMA (T23)
+# DMA (T23, T40)
 
 Four channels share one main-clock transfer engine and
 service ready channels round-robin after each retired bus transaction, at most
 one item before reconsidering peers. Readiness waits do not occupy the shared
 engine. Fairness is in serviced transactions, not a wall-time guarantee while
 a peripheral is unready or a bus response is stalled.
-Counts are finite; there are no linked descriptors or application protocols.
+Counts are finite except for optional UART RX circular receive (T40/D102);
+there are no linked descriptors or application protocols.
 The initial SoC binding uses performance-owned SRAM, existing serial/PWM
 endpoints and IRQ8 at the reserved 0x40011000 control window.
 
@@ -58,8 +59,8 @@ current/decrements remaining before aborted is reported. Error leaves current
 at the partially completed item and remaining unchanged for that item.
 Peripheral fabric quarantine/drain
 remains authoritative on a timeout; the engine does not manufacture success.
-Whole-service reset cancels all channels jointly with those bus endpoints.
-Core-only and AON resets preserve active DMA and its memory side effects.
+Cold/warm reset cancels all channels jointly with their bus endpoints under
+T41. A fixture's local memory-client hold does not reset the DMA service.
 
 Clock demand remains asserted for active/waiting work. Completion, transfer
 error, configuration error and abort events are sticky W1C with set winning
@@ -81,6 +82,42 @@ the initial profile fixes the owner to performance.
 
 ## Register layout
 
+### UART RX circular receive (D102)
+
+Endpoint bit5 enables circular receive only for selectors1,3,5 (UART0/1/2 RX),
+with count at least2. All existing range/alignment/duplicate/owner checks apply.
+The mode is captured on START. A completed lap reloads current/count from the
+existing shadow registers, keeps busy asserted and sets wrap instead of done.
+No second base/count copy is stored. Half fires on the successful item leaving
+floor(count/2) items; odd counts therefore report after ceil(count/2) items.
+
+While an active circular channel is busy, nonzero-strobe writes to address,
+count or the complete endpoint/circular register are ignored and set its
+config-error event. Reads and zero-strobe writes retain their normal behavior.
+The same lock covers a pending circular START, even if START will be rejected;
+ABORT wins START. A terminating item still rejects a same-edge shadow write
+using pre-edge busy. Once abort/fault has completed, writes are accepted.
+An active non-circular channel keeps its original writable-shadow behavior,
+including writing a circular bit for its next START.
+
+Successful-item half is reported even when that item completes an ABORT.
+ABORT/fault suppress reload and wrap; fault suppresses item advancement and
+half. The existing non-circular done/error/abort ordering is unchanged.
+Events are registered pulses feeding sticky W1C status; hardware set wins clear.
+
+Current is one coherent register snapshot, published only after a successful
+RX POP response, which follows the committed SRAM write. At wrap it becomes
+the base immediately. While running it is a modulo write position, not a lap
+counter. ABORT retains normal post-item advancement, possibly one past the
+buffer end; fault leaves the partially completed item's cursor. Software must
+check busy/error/abort before interpreting a running-ring snapshot. Firmware
+must poll/consume before a complete lap passes unseen; equal positions cannot
+distinguish empty from overwritten data. No hardware overrun detection exists.
+
+The approved increment cap is 0.010 mm² across all four channels. Final
+measurement and qualifications are recorded in the T40 report. No new clock,
+reset or CDC is introduced.
+
 All writable fields reset zero. Address/selector/count arrays have four entries.
 
 | Offset | Register | Fields |
@@ -88,11 +125,11 @@ All writable fields reset zero. Address/selector/count arrays have four entries.
 | 0x00 | start | w1p channel mask 3:0 |
 | 0x04 | abort | w1p channel mask 3:0 |
 | 0x08 | busy | ro channel mask |
-| 0x0c | events | w1c done3:0, error7:4, config_error11:8, aborted15:12 |
-| 0x10 | irq_enable | rw event mask15:0 |
+| 0x0c | events | w1c done3:0, error7:4, config_error11:8, aborted15:12, half19:16, wrap23:20 |
+| 0x10 | irq_enable | rw event mask23:0 |
 | 0x20..0x2c | address[4] | rw memory byte address |
 | 0x30..0x3c | count[4] | rw item count15:0 |
-| 0x40..0x4c | endpoint[4] | rw selector4:0 |
+| 0x40..0x4c | endpoint[4] | rw selector4:0, circular5 |
 | 0x50..0x5c | remaining[4] | ro items not fully completed |
 | 0x60..0x6c | current[4] | ro current memory byte address |
 | 0x70..0x7c | fault[4] | ro failed transfer phase |
@@ -103,26 +140,28 @@ Fault codes: 0 none; 1 initial source read; 2 TX FIFO write; 3 RX SRAM write;
 
 ## Integration and verification
 
-`SocDmaFiles` / `EmitSocDma` opt into this controller and its third native
+The production SoC binds this controller and its third native
 memory master. IRQ8 and clock demand are connected. `check_soc_map.py` derives
 endpoint addresses and command masks from the peripheral register maps and
-checks field widths/access types. Previous profiles remain available.
+checks field widths/access types.
 
 Focused commands (prefix each with `python tools/env/run.py run --`):
 
 ```
 python3 dv/soc/prepare_dma.py
-python3 dv/soc/check_dma.py --output build/t23/<fresh-output>
-python3 hw/ip/dma/formal/check.py --output build/t23/<fresh-formal>
-python3 hw/ip/dma/check_timing.py --output build/t23/<fresh-timing>
-python3 hw/ip/dma/check_memory_timing.py --output build/t23/<fresh-memory-timing>
+python dv/soc/prepare_dma_circular.py
+python tools/sbt.py "hw/testOnly deadhorse.dma.* deadhorse.top.SocDmaSpec deadhorse.top.SocDmaCircularSpec"
+python sw/hal/tests/test_dma_ring.py
+python hw/ip/dma/formal/circular.py --output build/t40/<fresh-formal>
+python hw/ip/dma/formal/check.py --cases denied --output build/t40/<fresh-denied>
+python hw/ip/dma/check_timing.py --output build/t40/<fresh-timing>
 ```
 
 The transaction oracle covers packed bytes, stalls, partial errors, all
 offered/waiting abort phases, terminal collisions, invalid descriptors/PWM
 words and an actual data-corruption fault. SoC tests use real SRAM, fabrics,
-UART/SPI digital pin loopbacks and PWM duration checks, including independent
-core/AON resets. Memory tests compare idle-DMA CPU traces against the original
+UART/SPI digital pin loopbacks and PWM duration checks, including the T41
+qualification/reset contract. Memory tests compare idle-DMA CPU traces against the original
 profile and check competing fetch/data/DMA at the tested latencies.
 
 Formal scope and open items: [formal/README.md](formal/README.md).
@@ -136,3 +175,20 @@ hashes identify the uncommitted snapshot on `72bcfac`.
 
 CI remains off by user instruction. Status and frozen-check evidence:
 [T23 report](../../../docs/plan/tasks/reports/T23.md).
+
+## Circular receive software
+
+`sw/hal/dma_ring.h` starts a channel/UART/ring, snapshots the coherent current
+register, computes available bytes relative to a software read position, and
+advances that position after consumption. It rejects stopped/error channels.
+The `fence ir,r` orders the device cursor read before SRAM data reads. ABORT
+must drain (`busy=0`) before storage or descriptors are reused. Caller owns
+channel, FIFO and buffer; this API does not arbitrate concurrent software.
+`dma_ring_example.c` consumes an illustrative variable-length stream once per
+loop, including split-at-end frames; it implements no device protocol.
+
+Estimated service interval at an assumed 420 kbaud, 8-N-1 is strictly less
+than `length * 10 / 420000` seconds: a 256-byte ring gives approximately
+6.095 ms, before reserving scheduling margin. Consume promptly after taking
+the snapshot; the producer can overwrite unread bytes if the caller falls
+behind. Equal modulo positions do not detect a missed complete lap.

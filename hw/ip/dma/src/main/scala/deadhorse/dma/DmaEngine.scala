@@ -11,11 +11,12 @@ case class DmaEndpoints(data: Seq[BigInt],command: Seq[BigInt],commandValue: Seq
 }
 class DmaSettings extends Bundle {
   val address=UInt(32.W);val count=UInt(16.W);val endpoint=UInt(5.W)
+  val circular=Bool()
 }
 
 /** A shared bus transaction engine; per-channel partial items yield between responses. */
 class DmaEngine(endpoints: DmaEndpoints,memoryBase: BigInt,memorySize: BigInt,
-                memoryOrigin: Int=1,formalChecks: Boolean=false) extends RawModule {
+                memoryOrigin: Int=1,formalChecks: Boolean=false,circularChecks: Boolean=false) extends RawModule {
   require(memoryBase>=0 && memoryBase%4==0 && memorySize>0 && memorySize%4==0 && memoryBase+memorySize<(BigInt(1)<<32))
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val owner=IO(Input(UInt(3.W)))
   val settings=IO(Input(Vec(4,new DmaSettings)));val start=IO(Input(UInt(4.W)));val abort=IO(Input(UInt(4.W)))
@@ -25,8 +26,12 @@ class DmaEngine(endpoints: DmaEndpoints,memoryBase: BigInt,memorySize: BigInt,
   val current=IO(Output(Vec(4,UInt(32.W))));val fault=IO(Output(Vec(4,UInt(4.W))))
   val done=IO(Output(UInt(4.W)));val failed=IO(Output(UInt(4.W)))
   val rejected=IO(Output(UInt(4.W)));val aborted=IO(Output(UInt(4.W)));val clockHold=IO(Output(Bool()))
+  val circular=IO(Output(UInt(4.W)));val half=IO(Output(UInt(4.W)));val wrap=IO(Output(UInt(4.W)))
   protected def copied(value: UInt): UInt=value
   protected def busOrigin(value: UInt): UInt=value
+  protected def reloadAddress(value: UInt): UInt=value
+  protected def halfItem(next: UInt,total: UInt): Bool=next===(total>>1)
+  protected def terminalDone(ring: Bool): Bool= !ring
 
   withClockAndReset(clk,(!reset_n).asAsyncReset) {
     val fresh=0.U(3.W);val txWrite=1.U(3.W);val rxStore=2.U(3.W);val rxPop=3.U(3.W)
@@ -35,6 +40,7 @@ class DmaEngine(endpoints: DmaEndpoints,memoryBase: BigInt,memorySize: BigInt,
     val state=RegInit(idle);val selected=RegInit(0.U(2.W));val operation=RegInit(fresh)
     val priority=RegInit(0.U(2.W))
     val active=RegInit(VecInit(Seq.fill(4)(false.B)));val stopping=RegInit(VecInit(Seq.fill(4)(false.B)))
+    val ring=RegInit(VecInit(Seq.fill(4)(false.B)))
     val address=RegInit(VecInit(Seq.fill(4)(0.U(32.W))))
     val left=RegInit(VecInit(Seq.fill(4)(0.U(16.W))))
     val selector=RegInit(VecInit(Seq.fill(4)(0.U(5.W))))
@@ -44,12 +50,14 @@ class DmaEngine(endpoints: DmaEndpoints,memoryBase: BigInt,memorySize: BigInt,
     val errors=RegInit(VecInit(Seq.fill(4)(0.U(4.W))))
     val completion=RegInit(VecInit(Seq.fill(4)(false.B)));val failure=RegInit(VecInit(Seq.fill(4)(false.B)))
     val configError=RegInit(VecInit(Seq.fill(4)(false.B)));val cancellation=RegInit(VecInit(Seq.fill(4)(false.B)))
+    val halfEvent=RegInit(VecInit(Seq.fill(4)(false.B)));val wrapEvent=RegInit(VecInit(Seq.fill(4)(false.B)))
     val ack=RegInit(0.U(9.W));ack:=0.U
-    Seq(completion,failure,configError,cancellation).foreach(_.foreach(_:=false.B))
+    Seq(completion,failure,configError,cancellation,halfEvent,wrapEvent).foreach(_.foreach(_:=false.B))
     val mReq=RegInit(false.B);val pReq=RegInit(false.B);val payload=Reg(new BusPayload)
     memory.req:=mReq;peripheral.req:=pReq;memory.bits:=payload;peripheral.bits:=payload
     busy:=active.asUInt;remaining:=left;current:=address;fault:=errors;pwmAck:=ack
     done:=completion.asUInt;failed:=failure.asUInt;rejected:=configError.asUInt;aborted:=cancellation.asUInt
+    circular:=ring.asUInt;half:=halfEvent.asUInt;wrap:=wrapEvent.asUInt
     clockHold:=RegNext(active.asUInt.orR || state=/=idle,false.B)
 
     val accepted=Wire(Vec(4,Bool()))
@@ -60,12 +68,14 @@ class DmaEngine(endpoints: DmaEndpoints,memoryBase: BigInt,memorySize: BigInt,
       val duplicate=(0 until 4).filter(_!=i).map(j=>active(j) && selector(j)===c.endpoint).reduce(_||_) ||
         (0 until i).map(j=>accepted(j) && settings(j).endpoint===c.endpoint).foldLeft(false.B)(_||_)
       val valid=c.endpoint<17.U && c.count=/=0.U && owner===memoryOrigin.U &&
+        (!c.circular || (c.count>=2.U && (c.endpoint===1.U || c.endpoint===3.U || c.endpoint===5.U))) &&
         (!wide || c.address(1,0)===0.U) && c.address>=memoryBase.U && end<=(memoryBase+memorySize).U
       accepted(i):=start(i) && !abort(i) && !active(i) && valid && !duplicate
       when(start(i) && !abort(i)) {
         when(accepted(i)) {
           active(i):=true.B;stopping(i):=false.B;address(i):=c.address;left(i):=c.count
           selector(i):=c.endpoint;origin(i):=owner;stage(i):=fresh;errors(i):=0.U
+          ring(i):=c.circular
         }.otherwise {configError(i):=true.B}
       }
       when(abort(i) && active(i)) {
@@ -119,12 +129,25 @@ class DmaEngine(endpoints: DmaEndpoints,memoryBase: BigInt,memorySize: BigInt,
         errors(selected):=code;failure(selected):=true.B
       }
       def finish(): Unit={
-        left(selected):=left(selected)-1.U;address(selected):=address(selected)+Mux(wide,4.U,1.U)
+        val nextLeft=left(selected)-1.U
+        left(selected):=nextLeft;address(selected):=address(selected)+Mux(wide,4.U,1.U)
         stage(selected):=fresh
-        when(left(selected)===1.U || stopping(selected) || abort(selected)) {
+        when(ring(selected) && halfItem(nextLeft,settings(selected).count)) {halfEvent(selected):=true.B}
+        when(stopping(selected) || abort(selected)) {
           active(selected):=false.B;stopping(selected):=false.B
-          when(stopping(selected)||abort(selected)) {cancellation(selected):=true.B}
-            .otherwise {completion(selected):=true.B}
+          cancellation(selected):=true.B
+        }.elsewhen(left(selected)===1.U) {
+          when(ring(selected)) {
+            // START range checks plus wrapper shadow locking bound these
+            // reload values. Keep mux widths to the configured SRAM span.
+            val countWidth=math.min(16,log2Ceil(memorySize+1))
+            val alignedWindow=(memorySize & (memorySize-1))==0 && memoryBase%memorySize==0
+            val base=if(alignedWindow) (memoryBase.U(32.W) | settings(selected).address(log2Ceil(memorySize)-1,0))
+                     else settings(selected).address
+            address(selected):=reloadAddress(base);left(selected):=settings(selected).count(countWidth-1,0)
+            wrapEvent(selected):=true.B
+          }.otherwise {active(selected):=false.B;stopping(selected):=false.B}
+          when(terminalDone(ring(selected))) {completion(selected):=true.B}
         }
       }
       when(error) {fail(operation+&1.U)}.otherwise {
@@ -156,6 +179,20 @@ class DmaEngine(endpoints: DmaEndpoints,memoryBase: BigInt,memorySize: BigInt,
       when(past && heldM) {assert(memory.req && payload.asUInt===oldPayload.asUInt)}
       when(past && heldP) {assert(peripheral.req && payload.asUInt===oldPayload.asUInt)}
       for(i<-0 until 4) {when(active(i)) {assert(left(i)=/=0.U && selector(i)<17.U)}}
+    }
+    if(circularChecks) {
+      for(i<-0 until 4) when(active(i) && ring(i)) {
+        assert(selector(i)===1.U || selector(i)===3.U || selector(i)===5.U)
+        assert(left(i)>0.U && left(i)<=settings(i).count)
+        assert(address(i)>=settings(i).address && (address(i)+&left(i))===(settings(i).address+&settings(i).count))
+      }
+      when(memory.req && ring(selected)) {
+        assert(payload.we)
+        for(lane<-0 until 4) when(payload.be(lane)) {
+          val byte=payload.addr+&lane.U
+          assert(byte>=settings(selected).address && byte<(settings(selected).address+&settings(selected).count))
+        }
+      }
     }
   }
 }

@@ -44,3 +44,39 @@ retaining all original properties and assumptions.
 and emitted models, records size and bounded growth, and supports the portfolio
 or exact assertion partition. Never rerun unchanged timed-out jobs. Neither
 script invokes CI.
+
+## T40 circular receive
+
+`circular.py` preserves every original finite assertion with the new circular
+input tied low, then checks circular behavior through the actual register
+wrapper. That wrapper receives arbitrary MMIO, owner tags, requests, grants,
+responses and errors. Initial reset is asserted, then reset is arbitrary.
+There is no assumed shadow stability, fairness, service deadline or memory
+contents. The original non-owner harness and seven assertions remain unchanged.
+
+The circular model has 38 assertions: selector/count/cursor conservation and
+enabled SRAM-byte bounds; real shadow stability; event timing and absence of
+done; an independent per-channel descriptor/lap counter compared against
+current/remaining; and serialization of START against register acceptance.
+Aligned SRAM word addresses can precede an unaligned ring base, so bounds
+are checked on each enabled byte lane. Proof-only descriptor copies are
+elided from production. Half/wrap expectations use successful observed POPs
+and the independent lap state, not DUT remaining.
+
+`build/t40/formal-final01` re-proved nine original finite assertions, bounded
+the inherited range claim at 36 steps, and reached all five circular covers
+(last first witness at36). Circular BMC16 passed but does not reach the wrap
+witness; BMC32 and the ABC PDR/Yices portfolio reached their120-second caps.
+**Circular range, underflow and exact-per-lap formal closure remain deferred.**
+Three-lap simulation is stronger behavioral evidence here than the shallow
+bounded pass. No assertion is reported as unbounded merely because one
+portfolio engine reported some outputs proved.
+
+The fault-only continuation uses authenticated emitted models and selects the
+named faulty assertion cones; all positive assertions stay in the positive
+jobs. It fixes a Yosys selection-union runner error without rerunning any
+timed-out positive job. `formal_summary.py` exports step-0 model sizes and
+attempted depths without running a solver. Detailed results and exact fault
+coverage are in [the T40 report](../../../../docs/plan/tasks/reports/T40.md)
+and [ledger](../../../../docs/ledger/dma-formal.md). No additional triage
+round is authorized; a later attempt needs a separately reviewed decomposition.

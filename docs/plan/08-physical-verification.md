@@ -1,5 +1,31 @@
 # 08 Physical implementation and verification
 
+## T40 DMA delta on the T41 budget
+
+The current estimate uses the T41 ROM-inclusive budget, then adds the
+isolated four-channel DMA change; it does not claim a new whole-SoC mapping.
+Measured by `python hw/ip/dma/check_timing.py --output build/t40/timing-before`
+and `--output build/t40/timing-final01` on `10a142c` plus receipt-hashed T40
+sources, using identical GF180 SS125 / main-9MHz conditions. Arithmetic is
+reproducible with `python hw/ip/dma/area_delta.py --before
+build/t40/timing-before --after build/t40/timing-final01 --budget
+build/t41/consolidated-timing04/area-budget.json --output
+build/t40/area-final01.json` in the pinned environment.
+
+| Item | Area mm2 | Provenance |
+| --- | ---: | --- |
+| T41 total, including its controller/reset changes | 11.3344345975 | Estimated T35 budget; historical measured maps authenticated |
+| DMA baseline / circular implementation | 0.1604361920 / 0.1638980224 | Measured isolated maps |
+| Added DMA standard cells | 0.0034618304 | Measured difference, below D102's 0.010 cap |
+| Additional scan substitution | 0.0006322176 | Estimated same-drive replacements for measured flop mix |
+| Added placed digital | 0.0074437236 | Estimated `(0.0034618304 + 0.0006322176) / 0.55` |
+| Updated total | **11.3418783211** | Estimated T41 total plus delta |
+| Headroom against 12.92 | **1.5781216789** | Estimated subtraction |
+
+All SRAM, analog, pad, clock/reset and utilization allowances remain unchanged.
+This replaces the T40 cap reservation below rather than adding a second charge.
+Placement, routing and actual scan insertion remain unmeasured here.
+
 ## PLAN05 production ROM-inclusive estimate
 
 This supersedes the Phase2 estimate below. Measured on main5ba87bf plus
@@ -36,9 +62,9 @@ remain unqualified before CTS, with no physical signoff claimed.
 
 24KiB fits this macro-only estimate, before additional decoder/control costs;
 32KiB does not. D99 approves measurement only: production remains16KiB.
-For queued T40, reserve its0.010mm2 mapped cap /0.55 =0.018181818mm2 placed:
+Historical queued T40 reservation: its0.010mm2 mapped cap /0.55 =0.018181818mm2 placed:
 estimated current total11.342095421mm2 and headroom1.577904579mm2. Additional
-T40 scan remains unmeasured/excluded and must be accounted before acceptance.
+T40 scan was unmeasured/excluded in that reservation; the current delta above includes it.
 The older T40/Phase2 reservation below is historical, not a second charge.
 
 ## Historical PLAN05 Phase2 mapped estimate

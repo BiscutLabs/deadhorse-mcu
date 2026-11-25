@@ -15,6 +15,9 @@ class DmaSafetyFormal(variant: String) extends RawModule {
     } else new DmaEngine(DmaStandalone.endpoints,DmaStandalone.memoryBase,DmaStandalone.memorySize,
       formalChecks=variant!="cover"))
   d.clk:=clock;d.reset_n:=reset_n;d.owner:=owner;d.settings:=settings
+  // Preserve the original finite-transfer input domain; new circular behavior
+  // is checked through the real shadow-register wrapper in DmaCircularFormal.
+  d.settings.foreach(_.circular:=false.B)
   d.start:=start;d.abort:=abort;d.requests:=requests;memory<>d.memory;peripheral<>d.peripheral
   if(variant=="cover") withClockAndReset(clock,(!reset_n).asAsyncReset) {
     cover(d.done.orR);cover(d.failed.orR);cover(d.aborted.orR)

@@ -1,5 +1,5 @@
 block: dma
-description: Checked finite-count DMA channels
+description: Checked DMA channels with UART RX circular receive
 data_width: 32
 address_width: 8
 registers:
@@ -19,9 +19,11 @@ registers:
   - {name: error, bits: [7, 4], access: w1c, reset: 0}
   - {name: config_error, bits: [11, 8], access: w1c, reset: 0}
   - {name: aborted, bits: [15, 12], access: w1c, reset: 0}
+  - {name: half, bits: [19, 16], access: w1c, reset: 0}
+  - {name: wrap, bits: [23, 20], access: w1c, reset: 0}
 - name: irq_enable
   offset: 0x10
-  fields: [{name: events, bits: [15, 0], access: rw, reset: 0}]
+  fields: [{name: events, bits: [23, 0], access: rw, reset: 0}]
 - name: address
   offset: 0x20
   count: 4
@@ -33,7 +35,9 @@ registers:
 - name: endpoint
   offset: 0x40
   count: 4
-  fields: [{name: value, bits: [4, 0], access: rw, reset: 0}]
+  fields:
+  - {name: value, bits: [4, 0], access: rw, reset: 0}
+  - {name: circular, bits: 5, access: rw, reset: 0}
 - name: remaining
   offset: 0x50
   count: 4
