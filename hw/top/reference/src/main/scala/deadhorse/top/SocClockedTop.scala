@@ -55,17 +55,30 @@ class DeadhorseSoc(config: String,uartJson: String,romImage: String,
     val por=Module(new PorBrownoutMacro);attach(por.io.vdd,vdd.get);attach(por.io.vss,vss.get)
     por.io.threshold:=threshold;por.io.test:=false.B;supplyReset:=por.io.supplyReset_n;brownout:=por.io.brownout
   }
-  val clocks=Module(new OscClockReset(gateTarget))
+  val clocks=Module(new OscClockReset(gateTarget,consolidated=true))
   clocks.oscIn:=oscIn;clocks.rcClock:=rc;clocks.aonClockIn:=aonClockIn
   clocks.externalReset_n:=externalReset_n;clocks.supplyReset_n:=supplyReset
   clocks.aonClockSelect:=aonClockSelect;clocks.porBypass:=porBypass
-  val digital=Module(new SocDigitalAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config,withRvfi=analogModels))
+  val digital=Module(new SocDigitalAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config,withRvfi=analogModels,externalResetDomains=true))
+  val resetDomains=Module(new SocResetDomains)
+  resetDomains.mainClock:=clocks.ungatedClock;resetDomains.aonClock:=clocks.aonClock
+  resetDomains.sourceClock:=oscIn;resetDomains.scanClock:=pins.inactive.jtagTck.asClock
+  resetDomains.cold_n:=clocks.coldReset_n;resetDomains.pin_n:=externalReset_n
+  resetDomains.warm_n:=digital.requestedWarm_n
+  resetDomains.aonQualified:=clocks.aonReset_n;resetDomains.mainQualified:=clocks.serviceReset_n
+  digital.resetDomains.get:=resetDomains.released
+  clocks.shared.get.coldAon:=resetDomains.released.coldAon
+  clocks.shared.get.coldMain:=resetDomains.released.coldMain
+  clocks.shared.get.coldSource:=resetDomains.released.coldSource
+  clocks.shared.get.pinAon:=resetDomains.released.pinAon
+  clocks.shared.get.initialize:=resetDomains.released.warmInitialize
   digital.mainClock:=clocks.mainClock;digital.coldReset_n:=clocks.coldReset_n
   digital.warmReset_n:=clocks.warmReset_n;digital.mainServiceReset_n:=clocks.serviceReset_n
   digital.mainCoreReset_n:=true.B
   val p=digital.i1.get
   p.aonClock:=clocks.aonClock;p.usbClock:=oscIn
-  p.aonServiceReset_n:=clocks.aonReset_n;p.usbServiceReset_n:=clocks.serviceReset_n
+  p.aonServiceReset_n:=clocks.aonReset_n;p.usbServiceReset_n:=clocks.usbServiceReset_n
+  clocks.epochClear.get:=p.clockControl.epochClear;p.clockControl.clearAck:=clocks.clearAck.get
   p.clockControl.reset_n:=clocks.aonReset_n
   p.clockControl.coreIdle:=digital.coreReady && digital.coreSleeping
   p.clockControl.stable:=clocks.stable;p.clockControl.closed:=clocks.closed
@@ -92,7 +105,8 @@ class DeadhorseSoc(config: String,uartJson: String,romImage: String,
   status.aonReleased:=clocks.aonReset_n;status.servicesReleased:=clocks.serviceReset_n
   status.mainLevel:=clocks.mainClock.asBool;status.sourceStable:=clocks.stable;status.fault:=p.clockControl.fault
   status.coreReady:=digital.coreReady;status.coreSleeping:=digital.coreSleeping
-  val causes=Module(new ResetCauses)
+  val causes=Module(new ResetCauses(qualifiedResets=true))
+  causes.releases.get.cold:=resetDomains.released.coldAon;causes.releases.get.pin:=resetDomains.released.pinAon
   causes.clk:=clocks.aonClock;causes.coldReset_n:=clocks.coldReset_n
   causes.externalReset_n:=externalReset_n;causes.bypass:=porBypass;causes.brownout:=brownout
   status.resetCauses:=causes.causes

@@ -17,10 +17,11 @@ def main(output):
     out=(ROOT/output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
     files=[ROOT/p for p in ('hw/ip/sram/src/main/scala/deadhorse/sram/Sram.scala',
         'hw/ip/sram/src/main/scala/deadhorse/sram/SramBist.scala','hw/lib/src/main/scala/deadhorse/lib/Cdc.scala',
+        'hw/lib/src/main/scala/deadhorse/lib/CdcEpoch.scala',
         'hw/ip/sram/formal/SramOwnershipFormal.scala','tools/env/lock.json','tools/formal.py')]+[Path(__file__)]
     def seal():return {p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
     receipt=dict(status='running',source_sha256=seal(),jobs=[],
-        assumptions=['Common cold/pin epoch asserted initially; all later reset, requests and memory read data arbitrary.',
+        assumptions=['Cold asserted initially; pin epoch independently arbitrary, including initially; all later cold/pin resets, requests and memory read data arbitrary.',
                      'Independent unconstrained main/AON/observation clocks; ideal digital CDC sampling.'],
         scope='Full-size owner with production shared reset/FIFO cells, no analog metastability or physical memory proof.',
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip())
@@ -41,7 +42,7 @@ def main(output):
             job.write_text('\n'.join(['[options]',f'mode {dict(negative="bmc",proof="prove",cover="cover")[kind]}',
                 'multiclock on','depth 64','timeout 120','[engines]',engine,'[script]',
                 'read_slang --top SramOwnershipFormal '+' '.join(p.name for p in emitted),
-                'prep -top SramOwnershipFormal -flatten',"fminit -seq epoch_n 0,'z",'clk2fflogic','chformal -lower',
+                'prep -top SramOwnershipFormal -flatten',"fminit -seq cold_n 0,'z",'clk2fflogic','chformal -lower',
                 'select -assert-count 13 t:$assert','select -assert-count 2 t:$cover',
                 'select -assert-count 1 t:$assume','[files]',*map(str,emitted),'']))
             row=run(['sby','-d',str(out/label),str(job)],label)

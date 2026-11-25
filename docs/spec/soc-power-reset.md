@@ -1,21 +1,18 @@
 # Production clock, reset and sleep boundaries
 
-Queued T41/D103 amendment (not implemented here): consolidate cold, warm,
-debug and unchanged USB-transport cohorts. Both watchdogs join warm; causes,
-debug and RAM survive warm. Warm ROM validates both images before releasing
-lite, skips flash copies only if both match, otherwise reloads. This replaces
-the performance-only/surviving-watcher reset contract when T41 lands. Existing
-PLAN05 implementation/evidence remains its historical baseline; no USB/analog
-interface change or completed proof is implied. See plan10 and the T41 brief.
+T41/D103 implementation is in progress on the reset-consolidation branch.
+The contract below replaces the former ten-row cohort inventory. Fresh
+structural measurement finds 30 ResetRelease instances and 59 normalized reset
+controls, versus 89 and 150 before consolidation; commands and counting scope
+are in [the inventory](reset-consolidation-inventory.md). Final composed
+acceptance remains in the T41 report.
+D106/D107 preserve immediate DMI/bridge cancellation and selective BIST pin
+abort. They are cancellation controls, not resets of their payload banks.
 
-
-PLAN05 target amendment: performance owns oscillator/power/reset MMIO through
-toAon and is the single boot master. Whole-chip reset holds lite until explicit
-release; performance-only reset preserves watcher state. Committed dormant
-freezes only the performance watchdog through oscillator qualification, while
-lite watchdog continues. Radio GPIO/SPI IRQs wake lite; validated mailbox
-wakes main. AON pad ownership survives performance reset. Implementation and
-composition evidence remain pending; [PLAN05 contract](plan05-integration.md).
+Performance remains the single boot master. Both watchdogs now request warm
+reset, so lite is held until ROM has confirmed its image. Dormant wake remains
+retained execution after WFI, not a boot. The performance watchdog freezes
+while the main clock is stopped; the lite watchdog continues.
 
 T33 supplements [the production SoC contract](soc.md). This is the digital
 boundary inventory and qualification checklist, not physical signoff. Clock
@@ -26,16 +23,34 @@ nominal 32 kHz. TCK is independent. Related main/USB clocks retain their CDC.
 
 | Cohort | Assert sources | Release / consumers | Retention |
 | --- | --- | --- | --- |
-| Supply cold | On-die POR/brownout; external pin instead when static POR_BYPASS is high | Shared ResetRelease, then clock bootstrap sequencing | No promise across power loss; initializes debug and watchdog history |
-| Pin warm | External active-low pin in normal mode | Asynchronous assertion, per-domain synchronized release | Cold-only watchdog state survives; no loader under D93 |
-| Main service | Cold, pin, lite watchdog, ndmreset, main-service qualification | Main ResetRelease; shared fabrics, peripherals, DMA and client adapters | Normal sleep does not reset this cohort |
-| AON service | Cold, pin, lite watchdog, ndmreset, AON-service qualification | AON ResetRelease; AON fabric, lite service, power/reset MMIO, UART-mode transfer | Reset flushes transfer endpoints; does not reset the source qualification epoch |
-| Performance client/PWM | Main-service sources plus performance watchdog | Core/client ResetRelease and separate PWM ResetRelease | Shared DMA, buses, peripherals, lite and retained memory survive performance-only reset |
-| USB application/transport | Existing main/USB service combination, cold/pin/whole reset | Existing USB reset-release and CDC endpoint reset logic | Independent transport reset obligations remain in T19 |
-| Debug module/transport | Cold only | Existing shared main/TCK reset-release primitives | ndmreset does not reset its own debug controller or remove the clock needed to clear it |
-| Oscillator policy epoch | Cold, pin, bootstrap release | AON ResetRelease | Internal service resets cancel sleep through forceRun; they do not discard qualification or a latched source fault |
-| Source qualification / gate command epoch | Bootstrap reset or OSC_EN low | Source and ungated-main ResetRelease; shared FIFO endpoint release | A new oscillator epoch requires fresh qualification; light sleep retains the epoch |
-| Watchdog causes | Cold initialization; existing watchdog capture | Existing AON watchdog registers | Performance resets preserve recorded reasons; loader removed by D93 |
+| Cold | On-die POR/brownout; external pin instead when static POR_BYPASS is high | One shared release per AON, ungated main, OSC_IN and TCK domain | Initializes causes, debug and cold-owned control state; no reset clears RAM contents |
+| Warm | Cold, normal-mode pin, either watchdog, debug ndmreset; no software reset command currently exists | Shared AON and main releases; cores, fabrics, peripheral controls, DMA and timer outputs | Causes, debug and RAM survive; lite boot hold reasserts; PWM disables immediately |
+| Debug | Cold only | Reuses shared cold main/TCK releases | DM survives ndmreset; D106 transport cancellation quarantines admission immediately and flushes synchronously |
+| USB transport | Existing T19 cold/pin/lite-watchdog/ndmreset/BIST and USB qualification predicates | Existing USB releases and transport endpoint reset protocol | Performance watchdog does not become a USB reset source; all T19 obligations remain |
+
+Warm release qualification is data, not another asynchronous source. AON must
+have its selected clock counted and a cold-owned warm-entry initialization
+acknowledged. Main release then waits for AON release and fresh source
+qualification. The first warm-release stage fans out only to same-clock
+history/initialization logic, not functional consumers; include it in RDC and
+timing review. Short warm pulses are remembered even with AON stopped.
+
+Oscillator policy and source qualification are cold-owned state. Warm entry
+initializes policy synchronously and requests source-domain clearing. Both
+OSC_IN and ungated /6 executors acknowledge clearing; the ACK is delayed past
+the ICG closing low phase. Both ACKs must return low before fresh configuration
+and stability qualification. Deep sleep completes this flush before OSC_EN
+falls and holds clear throughout OFF. Wake during clearing is retained.
+Cold-owned control can restart and open the main clock while warm is held,
+so debug can subsequently clear ndmreset.
+
+The D107 pin fence is shared by bootstrap sampling, cause capture and BIST
+quarantine. Its raw capture includes cold plus pin; each admission endpoint
+also waits for its local cold release and peer acknowledgement. A synchronized
+pin-low event initializes policy and source state even if another source
+already holds warm reset. This preserves divider/strap qualification and BIST
+abort for a pin pulse inside held ndmreset. No additional payload reset tree
+is created. D106 DMI and D107 bridge timeout fences are separately inventoried.
 
 Reset assertion paths are intentionally asynchronous. Reset **release** is
 synchronized at each destination; asynchronous assertion is not a data CDC
@@ -47,24 +62,24 @@ recovery/removal paths pass physical timing.
 | Producer → consumer | Primitive / protocol | Reset and ownership obligation |
 | --- | --- | --- |
 | AON bootstrap reset level → OSC_IN divider data control | CdcSync with reset tied inactive | Both transitions are sampled in OSC_IN. Initial synchronizer/divider state is arbitrary; downstream asynchronous reset and startup qualification quarantine convergence, even when the source misses the reset pulse |
-| Asserting AON service reset → retained AON policy | ResetRelease pulse stretching followed by CdcSync in the policy epoch | Raw service reset asserts immediately; sleep cancellation observes the synchronized level later. The sampler must not be reset by the service reset it reports |
-| AON configuration → retained policy | Configuration reset defaults applied by the synchronized service-reset indication | MMIO adapter asserts reset immediately and waits for configuration readiness before reopening. An OFF wake preceding synchronized reset captures old coherent settings; a reset-forced start selects defaults; an existing STARTING snapshot is retained |
-| AON policy → ungated main gate executor | One-bit command CdcFifo | One command outstanding; both endpoints reset on source-epoch end |
+| Shared warm release / pin capture → cold-owned AON policy | CdcSync plus cold-owned warm-entry acknowledgement | Initialization cannot be reset by the warm event it reports; pin events are retained even inside held warm |
+| AON configuration → cold-owned policy | Shared warm reset of MMIO/configuration; synchronous policy initialization | Warm assertion forces OSC_EN high, clears policy and restores default startup configuration; ordinary deep-sleep entry retains configuration |
+| AON policy → ungated main gate executor | One-bit command CdcFifo | One command outstanding; both endpoints synchronously flush under acknowledged epoch clear |
 | Ungated main executor → AON policy | One-bit completion CdcFifo | Completion belongs to the outstanding command; source closure stays latched until an explicit reopen |
 | AON qualification count → OSC_IN counter | 16-bit CdcFifo, retained head | Atomic payload retained throughout the source epoch; no bitwise configuration crossing |
-| AON qualification permission → ungated main executor | CdcSync | New source epoch clears authorization before the source can stop |
+| AON qualification permission → ungated main executor | CdcSync | Source-domain synchronous clear removes authorization before the source can stop |
 | OSC_IN stable report → AON policy | CdcSync | Must be fresh for this oscillator epoch; minimum full-width count proof remains separate |
-| Main WFI/holds → AON policy | Registered main aggregate and CdcSync | Surviving work keeps its demand; AON-service reset cannot erase orphan demand |
-| AON UART sleep/mode configuration → main | Seven-bit CdcFifo | Pending transfer is a hold until read acknowledgement; common service reset flushes stale mode data |
+| Main WFI/holds → AON policy | Registered main aggregate and CdcSync | Ordinary sleep preserves demand; warm reset flushes all ordinary clients together |
+| AON UART sleep/mode configuration → main | Seven-bit CdcFifo | Pending transfer is a hold until read acknowledgement; shared warm reset flushes stale mode data |
 | UART pins → AON wake monitors | Existing UartWake synchronization/capture | Receive, wake-only and disabled modes retain their existing contracts |
 | GPIO pins → AON wake state | Existing GPIO synchronization and retained wake state | Masked wake capture; main sleep does not discard enabled AON capture |
 | AON timer/mailbox → AON policy | Local registered events | Pending wake is checked while stopping and retained through startup |
 | USB resume / clock request → AON policy | Existing USB AON wake/request CDC | D81 keeps OSC_IN running while USB is enabled; no claim that the full USB resume detector works without its source clock |
 | TCK pending request → AON policy | Existing debug pending handshake and CdcSync | Pending request persists until main services it; POR-only reset cohort |
 | Main debug active/halt → AON lite/debug ownership | CdcSync with cold-only reset | ndmreset must not erase the request required to resume debug service |
-| AON lite debug entry/reset state → main DM | Shared synchronization / ResetRelease | Reset acknowledgement waits for real domain reset; debug module survives |
+| AON lite debug entry/reset state → main DM | Cold-owned CdcSync plus immediate shared warm-main qualification | Lite reset acknowledgement cannot wait for a stopped main clock; DM survives |
 | AON watchdog warning → main NMI | CdcSync | Warning is data; watchdog reset containment is a separate asynchronous path |
-| Raw external pin → AON reason recorder | ResetRelease pulse capture | Pin pulses between AON edges survive as a recorded reason |
+| Raw external pin → AON reason recorder | Shared D107 pin capture | Pin pulses between AON edges survive as a recorded reason, without a duplicate release tree |
 | Analog held brownout indication → AON reason recorder | CdcSync | Macro holds the power-epoch cause; digital proof does not establish analog detection |
 | AON threshold selection → analog macro | One registered active bit, reserved high bit zero | D85 switching guarantee; T34 owns analog transient and capacitance characterization |
 

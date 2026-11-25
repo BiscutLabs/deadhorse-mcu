@@ -4,7 +4,11 @@ import chisel3._
 import chisel3.util._
 
 /** The only reset-release primitive: asynchronous assert, two local edges out. */
-class ResetRelease extends RawModule {
+class ResetRelease(withPermit: Boolean=false) extends RawModule {
+  val permit=if(withPermit) Some(IO(Input(Bool()))) else None
+  // Local reset-history recording only: sampled on the SAME owning edge as
+  // released. Never use this first-stage indication to release consumers.
+  val releasePending=if(withPermit) Some(IO(Output(Bool()))) else None
   protected def qualified(first: Bool, second: Bool): Bool = second
   val clk = IO(Input(Clock()))
   val reset_n = IO(Input(Bool()))
@@ -12,8 +16,9 @@ class ResetRelease extends RawModule {
   withClockAndReset(clk, (!reset_n).asAsyncReset) {
     val first = RegInit(false.B)
     val second = RegInit(false.B)
-    first := true.B
+    first := permit.getOrElse(true.B)
     second := first
+    releasePending.foreach(_:=first)
     dontTouch(first); dontTouch(second)
     released := qualified(first, second)
   }

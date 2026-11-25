@@ -21,13 +21,13 @@ int main(int argc,char**argv) {
   if(std::getenv("DH_POWER_CUT"))nor.powerCut=std::stoi(std::getenv("DH_POWER_CUT"));
   const std::string scenario=argv[2];
   const bool warm=scenario.rfind("warm-",0)==0;
-  const bool failClosed=scenario=="warm-bad-context"||scenario=="warm-bad-context-reset"||scenario=="warm-flash-missing"||scenario=="warm-flash-corrupt"||scenario=="warm-dma-stall";
+  const bool failClosed=scenario=="warm-bad-context"||scenario=="warm-bad-context-reset"||scenario=="warm-flash-missing"||scenario=="warm-flash-corrupt";
   const uint32_t failPc=std::getenv("DH_FAIL_PC")?std::stoul(std::getenv("DH_FAIL_PC"),nullptr,0):0;
   if(failClosed&&!failPc)throw std::runtime_error("missing authenticated fail PC");
   const unsigned expectedMarker=std::getenv("DH_EXPECTED_MARKER")?std::stoul(std::getenv("DH_EXPECTED_MARKER"),nullptr,0):0;
   std::vector<uint8_t> expectedPerf,expectedLite,expectedConfig,seenPerf,seenLite,seenConfig;
   std::vector<bool> wrotePerf,wroteLite,wroteConfig;
-  std::vector<bool> warmWrotePerf;
+  std::vector<bool> warmWrotePerf,warmWroteLite;
   if(std::getenv("DH_SELECTED_SLOT")) {
    unsigned slot=std::stoul(std::getenv("DH_SELECTED_SLOT"),nullptr,0);
    auto word=[&](unsigned at){return uint32_t(nor.bytes.at(at))|(uint32_t(nor.bytes.at(at+1))<<8)|(uint32_t(nor.bytes.at(at+2))<<16)|(uint32_t(nor.bytes.at(at+3))<<24);};
@@ -57,7 +57,7 @@ int main(int argc,char**argv) {
   bool firstApplication=false,warmGuard=false;
   unsigned checkedApplicationBoot=0;
   size_t warmReadChecked=0;
-  bool dmaActiveAtReset=false;
+  bool dmaActiveAtReset=false,warmAsserted=false,warmReleaseAuthorized=false;
   bool secondEpoch=false;
   uint64_t liteCopyBegin=0,worstLiteLoadTicks=0;
   bool liteLoadException=false;
@@ -66,7 +66,7 @@ int main(int argc,char**argv) {
    throw std::runtime_error("D104 exception is only the supported maximum held image");
   std::vector<uint8_t> uartOutput;bool oldTx=true;int txBit=-1;uint64_t txSample=0;unsigned txByte=0;
   auto tick=[&]() {
-   bool oldMain=d.status_mainLevel;
+   bool oldMain=d.status_mainLevel,oldDma=d.dmaActive;
    ticks++;d.oscIn=d.oscEn?!d.oscIn:0;
    if(ticks%1500==0)d.model_lfClock=!d.model_lfClock;
    if(ticks%48==0)d.model_porReference=!d.model_porReference;
@@ -76,11 +76,27 @@ int main(int argc,char**argv) {
    d.eval();context.timeInc(1);
    // Start at the first offered CPU write, before any bridge grant/retirement.
    if(d.liteWriteOffer&&!liteCopyBegin)liteCopyBegin=ticks;
-   if(warm&&!secondEpoch&&warmGuard&&(d.liteHeld||!d.liteResetReleased||d.liteStart))
-    throw std::runtime_error("watcher reset/restart during performance reset");
+   if(warm&&!secondEpoch&&warmGuard&&d.warmActive&&!warmAsserted) {
+    warmAsserted=true;dmaActiveAtReset=oldDma;
+    if(!d.liteHeld||d.liteResetReleased)throw std::runtime_error("warm reset failed to hold lite");
+   }
+   if(warmAsserted&&!secondEpoch) {
+    if(d.liteReleaseCommand) {
+     const bool pairedReload=scenario=="warm-reload"||scenario=="warm-lite-reload";
+     if(boots!=2||!allWritten(expectedPerf,seenPerf,wrotePerf)||!allWritten(expectedLite,seenLite,wroteLite)||
+        (pairedReload&&(!std::all_of(warmWrotePerf.begin(),warmWrotePerf.end(),[](bool b){return b;})||
+                        !std::all_of(warmWroteLite.begin(),warmWroteLite.end(),[](bool b){return b;})||
+                        warmPerfWrites!=expectedPerf.size()/4||warmLiteWrites!=expectedLite.size()/4)))
+      throw std::runtime_error("early warm lite release before paired-image confirmation");
+     warmReleaseAuthorized=true;
+    }
+    if((!d.liteHeld||d.liteStart)&&!warmReleaseAuthorized)
+     throw std::runtime_error("warm lite escaped hold without release command");
+   }
+   if(warmAsserted&&d.warmActive&&d.dmaActive)throw std::runtime_error("DMA survived warm reset");
    if(warm&&!secondEpoch&&boots>=2)while(warmReadChecked<nor.readAddresses.size()) {
     uint32_t address=nor.readAddresses[warmReadChecked++];
-    if(address<20480||address>=20480+256+expectedPerf.size())
+    if(address<20480||address>=20480+256+expectedPerf.size()+expectedLite.size())
      throw std::runtime_error("warm ROM reselected/read unrelated flash");
    }
    bool tx=d.pins_uartTx_0;
@@ -94,7 +110,7 @@ int main(int argc,char**argv) {
     mainCycles++;
     if(d.rvfi_valid) {
      retirements++;
-     if(d.rvfi_pc_rdata==0x80){boots++;if(boots==2){warmWrotePerf.assign(expectedPerf.size(),false);warmReadChecked=nor.readAddresses.size();dmaActiveAtReset=d.dmaActive;}}
+     if(d.rvfi_pc_rdata==0x80){boots++;if(boots==2){warmWrotePerf.assign(expectedPerf.size(),false);warmWroteLite.assign(expectedLite.size(),false);warmReadChecked=nor.readAddresses.size();}}
      if(!secondEpoch&&boots>=2&&d.rvfi_pc_rdata==failPc)failedClosed=true;
      if(failedClosed&&d.rvfi_pc_rdata>=0x20000000)throw std::runtime_error("failure path entered application");
      if(d.rvfi_trap)throw std::runtime_error("unexpected core trap PC="+std::to_string(d.rvfi_pc_rdata));
@@ -107,9 +123,9 @@ int main(int argc,char**argv) {
       if(expectedPerf.empty()||!allWritten(expectedPerf,seenPerf,wrotePerf)||
          !allWritten(expectedLite,seenLite,wroteLite)||!allWritten(expectedConfig,seenConfig,wroteConfig))
        throw std::runtime_error("application entered before exact image copies");
-      if(boots==2&&scenario=="warm-reload"&&
-         (!std::all_of(warmWrotePerf.begin(),warmWrotePerf.end(),[](bool b){return b;})||warmPerfWrites!=expectedPerf.size()/4))
-       throw std::runtime_error("incomplete warm image reload");
+      if(boots==2&&(scenario=="warm-reload"||scenario=="warm-lite-reload")&&
+         (!std::all_of(warmWrotePerf.begin(),warmWrotePerf.end(),[](bool b){return b;})||warmPerfWrites!=expectedPerf.size()/4||!std::all_of(warmWroteLite.begin(),warmWroteLite.end(),[](bool b){return b;})||warmLiteWrites!=expectedLite.size()/4))
+       throw std::runtime_error("incomplete warm paired-image reload");
       checkedApplicationBoot=boots;
       firstApplication=true;
      }
@@ -128,13 +144,13 @@ int main(int argc,char**argv) {
       };
       // Keep the actual image scoreboard through application corruption and
       // warm ROM writes; never infer reload correctness from a nonzero count.
-      record(0x20000000,seenPerf,wrotePerf);
+      record(0x20000000,seenPerf,wrotePerf);record(0x30000000,seenLite,wroteLite);
       if(!firstApplication&&d.rvfi_pc_rdata<0x10000) {
-       record(0x30000000,seenLite,wroteLite);record(0x20003800,seenConfig,wroteConfig);
+       record(0x20003800,seenConfig,wroteConfig);
       }
       if(!secondEpoch&&boots>=2&&d.rvfi_pc_rdata<0x10000) {
        if(at>=0x20000000&&at<0x20003800){warmPerfWrites++;record(0x20000000,seenPerf,warmWrotePerf);}
-       if(at>=0x30000000&&at<0x30000800)warmLiteWrites++;
+       if(at>=0x30000000&&at<0x30000400){warmLiteWrites++;record(0x30000000,seenLite,warmWroteLite);}
        if(at==0x40000304||at==0x4000030c)warmReleases++;
       }
       if(at>=0x30000000&&at<0x30000400)liteWrite=true;
@@ -186,15 +202,15 @@ int main(int argc,char**argv) {
   if(boots!=(warm?2u:1u)||!retirements)throw std::runtime_error("boot execution missing");
   if(warm) {
    if(scenario.rfind("warm-dma-",0)==0&&!dmaActiveAtReset)throw std::runtime_error("DMA drain test was vacuous");
-   if(warmLiteWrites||warmReleases||recovery)throw std::runtime_error("warm boot disturbed watcher");
+   if(!warmAsserted||recovery)throw std::runtime_error("warm reset/recovery contract");
    if(failClosed) {
     unsigned expectedWrites=scenario=="warm-flash-corrupt"?expectedPerf.size()/4:0;
-    if(!failedClosed||app!=0xf1||warmPerfWrites!=expectedWrites)throw std::runtime_error("warm invalid context/image did not fail closed");
+    if(!failedClosed||app!=0xf1||warmPerfWrites!=expectedWrites||warmLiteWrites||warmReleases||!d.liteHeld)throw std::runtime_error("warm invalid context/image did not fail closed");
    }
    else {
-    if(app!=0xe2||failedClosed)throw std::runtime_error("warm application/watcher/data state");
-    if(scenario=="warm-match"&&warmPerfWrites)throw std::runtime_error("matching SRAM was recopied");
-    if(scenario=="warm-reload"&&!warmPerfWrites)throw std::runtime_error("corrupt SRAM was not reloaded");
+    if(app!=0xe2||failedClosed||warmReleases!=1||d.liteHeld)throw std::runtime_error("warm application/watcher/data state");
+    if(scenario=="warm-match"&&(warmPerfWrites||warmLiteWrites))throw std::runtime_error("matching SRAM was recopied");
+    if((scenario=="warm-reload"||scenario=="warm-lite-reload")&&(!warmPerfWrites||!warmLiteWrites))throw std::runtime_error("corrupt SRAM was not reloaded");
    }
   }
   if(scenario=="normal"&&(!app||!liteWrite||!release||recovery))throw std::runtime_error("normal boot contract");
@@ -202,15 +218,21 @@ int main(int argc,char**argv) {
   if((scenario=="recovery"||scenario=="strap")&&(!recovery||app||release||liteWrite))throw std::runtime_error("recovery contract");
   if(app!=expectedMarker)throw std::runtime_error("exact application marker mismatch");
   if(scenario=="warm-bad-context-reset") {
-   // Actual pin reset of the same SoC instance, preserving its RAM contents.
-   secondEpoch=true;failedClosed=false;firstApplication=false;warmGuard=false;
+   // Ordinary pin is warm: invalid committed context must still fail closed.
+   failedClosed=false;app=0;
+   d.externalReset_n=0;for(unsigned n=0;n<12000;n++)tick();d.externalReset_n=1;
+   uint64_t deadline=ticks+96000000;while(ticks<deadline&&!failedClosed)tick();
+   if(boots!=3||!failedClosed||app||recovery||!d.liteHeld)
+    throw std::runtime_error("pin warm reset escaped invalid context");
+   // Genuine cold reset clears context-ready and permits fresh selection.
+   secondEpoch=true;failedClosed=false;firstApplication=false;warmGuard=false;warmAsserted=false;
    checkedApplicationBoot=0;app=0;release=false;liteWrite=false;recovery=false;
    std::fill(wrotePerf.begin(),wrotePerf.end(),false);std::fill(wroteLite.begin(),wroteLite.end(),false);
    std::fill(wroteConfig.begin(),wroteConfig.end(),false);
-   d.externalReset_n=0;for(unsigned n=0;n<12000;n++)tick();d.externalReset_n=1;
-   uint64_t deadline=ticks+96000000;while(ticks<deadline&&!app&&!recovery)tick();
-   if(boots!=3||app!=0xf1||recovery||!release||!liteWrite||!firstApplication)
-    throw std::runtime_error("whole-chip reset failed to recover cold boot");
+   d.model_supplyMv=0;for(unsigned n=0;n<12000;n++)tick();d.model_supplyMv=3300;
+   deadline=ticks+96000000;while(ticks<deadline&&!app&&!recovery)tick();
+   if(boots!=4||app!=0xf1||recovery||!release||!liteWrite||!firstApplication)
+    throw std::runtime_error("cold reset failed to recover cold boot");
   }
   if(argc==5) {
    if(!recovery)throw std::runtime_error("UART campaign needs recovery mode");

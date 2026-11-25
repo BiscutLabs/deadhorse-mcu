@@ -6,7 +6,7 @@ import deadhorse.sram._
 
 /** POR-owned transport/module. Target service resets never reset the DM. */
 class Debug(retainedBase: BigInt=0x30000000L, retainedSize: BigInt=3072,
-    bistJson: Option[String]=None) extends RawModule {
+    bistJson: Option[String]=None,qualifiedResets: Boolean=false) extends RawModule {
   val clk=IO(Input(Clock()));val tck=IO(Input(Clock()));val por_n=IO(Input(Bool()))
   val tms=IO(Input(Bool()));val tdi=IO(Input(Bool()));val tdo=IO(Output(Bool()));val tdoEnable=IO(Output(Bool()))
   val hartReset=IO(Input(UInt(2.W)));val unavailable=IO(Input(UInt(2.W)));val hartMode=IO(Input(UInt(2.W)))
@@ -19,18 +19,22 @@ class Debug(retainedBase: BigInt=0x30000000L, retainedSize: BigInt=3072,
     val busy=Input(Bool());val done=Input(Bool());val failed=Input(Bool());val rejected=Input(Bool())
     val resetAck=Input(Bool());val failAddress=Input(UInt(32.W));val result=Input(new MarchResult)
   }))
-  val release=Module(new ResetRelease);release.clk:=clk;release.reset_n:=por_n
-  val tapRelease=Module(new ResetRelease);tapRelease.clk:=tck;tapRelease.reset_n:=por_n
-  val tap=Module(new DebugTap);val dm=Module(new DebugModule);val transport=Module(new DebugTransport)
-  tap.io.clk_i:=tck;tap.io.rst_ni:=tapRelease.released;tap.io.testmode_i:=false.B
-  tap.io.tck_i:=tck;tap.io.trst_ni:=tapRelease.released;tap.io.tms_i:=tms;tap.io.td_i:=tdi
+  val domainReset=if(qualifiedResets) Some(IO(Input(new Bundle {val main=Bool();val scan=Bool()}))) else None
+  def localRelease(clock: Clock,provided: Option[Bool]): Bool=provided.getOrElse {
+    val r=Module(new ResetRelease);r.clk:=clock;r.reset_n:=por_n;r.released
+  }
+  val mainUp=localRelease(clk,domainReset.map(_.main));val tckUp=localRelease(tck,domainReset.map(_.scan))
+  val tap=Module(new DebugTap);val dm=Module(new DebugModule);val transport=Module(new DebugTransport(qualifiedResets=true))
+  transport.domainReset.get.main:=mainUp;transport.domainReset.get.scan:=tckUp
+  tap.io.clk_i:=tck;tap.io.rst_ni:=tckUp;tap.io.testmode_i:=false.B
+  tap.io.tck_i:=tck;tap.io.trst_ni:=tckUp;tap.io.tms_i:=tms;tap.io.td_i:=tdi
   tdo:=tap.io.td_o;tdoEnable:=tap.io.tdo_oe_o
   transport.mainClock:=clk;transport.tck:=tck;transport.por_n:=por_n;transport.clear_n:=tap.io.dmi_rst_no
   transport.scanRequest.valid:=tap.io.dmi_req_valid_o;transport.scanRequest.bits:=tap.io.dmi_req_o
   tap.io.dmi_req_ready_i:=transport.scanRequest.ready
   tap.io.dmi_resp_i:=transport.scanResponse.bits;tap.io.dmi_resp_valid_i:=transport.scanResponse.valid
   transport.scanResponse.ready:=tap.io.dmi_resp_ready_o;pendingTck:=transport.pending
-  dm.io.clk_i:=clk;dm.io.rst_ni:=release.released;dm.io.testmode_i:=false.B;dm.io.next_dm_addr_i:=0.U
+  dm.io.clk_i:=clk;dm.io.rst_ni:=mainUp;dm.io.testmode_i:=false.B;dm.io.next_dm_addr_i:=0.U
   dm.io.hart_reset_i:=hartReset;dm.io.unavailable_i:=unavailable
   // Nonzero DM base cannot be encoded in hartinfo's signed 12-bit address.
   // Advertise two scratch CSRs but no directly addressable scratch data.
@@ -45,12 +49,12 @@ class Debug(retainedBase: BigInt=0x30000000L, retainedSize: BigInt=3072,
       dm.io.dmi_resp_ready_i:=transport.response.ready
     case Some(json) =>
       val custom=Module(new SramDmi(json));custom.clk:=clk
-      custom.reset_n:=release.released && transport.coreUp;custom.epoch_n:=bist.get.epoch_n
+      custom.reset_n:=mainUp;custom.clear:= !transport.coreUp;custom.epoch_n:=bist.get.epoch_n
       bist.get.start:=custom.start;bist.get.keyed:=custom.keyed
       custom.busy:=bist.get.busy;custom.done:=bist.get.done;custom.failed:=bist.get.failed
       custom.rejected:=bist.get.rejected;custom.resetAck:=bist.get.resetAck
       custom.failAddress:=bist.get.failAddress;custom.result:=bist.get.result
-      withClockAndReset(clk,(!(release.released && transport.coreUp)).asAsyncReset) {
+      withClockAndReset(clk,(!mainUp).asAsyncReset) {
         val pending=RegInit(false.B);val owner=RegInit(false.B)
         val select=transport.request.bits(40,38)===7.U
         custom.request.bits:=transport.request.bits
@@ -63,6 +67,7 @@ class Debug(retainedBase: BigInt=0x30000000L, retainedSize: BigInt=3072,
         dm.io.dmi_resp_ready_i:=pending && !owner && transport.response.ready
         when(transport.request.fire) {pending:=true.B;owner:=select}
         when(transport.response.fire) {pending:=false.B}
+        when(!transport.coreUp) {pending:=false.B;owner:=false.B}
       }
   }
   val mem=Module(new DebugMemory);mem.clk:=clk;mem.reset_n:=memoryReset_n
@@ -70,7 +75,7 @@ class Debug(retainedBase: BigInt=0x30000000L, retainedSize: BigInt=3072,
   mem.commandHart:=dm.io.command_hart_o;mem.commandBusy:=dm.io.command_busy_o
   dm.io.slave_req_i:=mem.req;dm.io.slave_addr_i:=mem.payload.addr;dm.io.slave_we_i:=mem.payload.we
   dm.io.slave_be_i:=mem.payload.be;dm.io.slave_wdata_i:=mem.payload.wdata;mem.data:=dm.io.slave_rdata_o
-  val sba=Module(new DebugSba(retainedBase,retainedSize));sba.clk:=clk;sba.reset_n:=release.released;sba.targetUp:=systemUp;sba.targetQuiet:=systemQuiet
+  val sba=Module(new DebugSba(retainedBase,retainedSize));sba.clk:=clk;sba.reset_n:=mainUp;sba.targetUp:=systemUp;sba.targetQuiet:=systemQuiet
   sba.req:=dm.io.master_req_o;sba.address:=dm.io.master_add_o;sba.write:=dm.io.master_we_o
   sba.value:=dm.io.master_wdata_o;sba.mask:=dm.io.master_be_o
   dm.io.master_gnt_i:=sba.grant;dm.io.master_r_valid_i:=sba.valid;dm.io.master_r_rdata_i:=sba.result

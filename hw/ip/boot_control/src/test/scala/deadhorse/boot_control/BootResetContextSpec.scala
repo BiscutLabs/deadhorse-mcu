@@ -10,26 +10,26 @@ class BootResetContextSpec extends AnyFunSuite with ChiselSim {
     def getDirectory=Paths.get("build/t36/reset-context/simulation").toAbsolutePath
   }
   def exercise(d: BootResetContext): Unit={
-    d.epochReset_n.poke(false.B);d.performanceHold.poke(true.B)
+    d.warmReleasePending.poke(false.B);d.epochReset_n.poke(false.B);d.warmHold.poke(true.B)
     d.commit.poke(false.B);d.commitKey.poke(false.B);d.clk.step(2)
     d.epochReset_n.poke(true.B);d.clk.step(5)
-    d.freshPerformanceReset.expect(false.B,"STALE_HOLD_IS_NOT_FRESH")
+    d.freshWarmReset.expect(false.B,"STALE_HOLD_IS_NOT_FRESH")
     d.contextReady.expect(false.B)
-    d.performanceHold.poke(false.B);d.clk.step()
+    d.warmHold.poke(false.B);d.clk.step()
     d.commit.poke(true.B);d.clk.step();d.contextReady.expect(false.B,"CONTEXT_KEY_REQUIRED")
     d.error.expect(true.B)
     d.commitKey.poke(true.B);d.clk.step();d.contextReady.expect(true.B);d.error.expect(false.B)
-    d.commit.poke(false.B);d.performanceHold.poke(true.B);d.clk.step()
-    d.freshPerformanceReset.expect(true.B);d.contextReady.expect(true.B)
-    d.performanceHold.poke(false.B);d.clk.step(5)
-    d.freshPerformanceReset.expect(true.B);d.contextReady.expect(true.B)
+    d.commit.poke(false.B);d.warmHold.poke(true.B);d.clk.step()
+    d.freshWarmReset.expect(true.B);d.contextReady.expect(true.B)
+    d.warmHold.poke(false.B);d.clk.step(5)
+    d.freshWarmReset.expect(true.B);d.contextReady.expect(true.B)
     // Whole reset wins even if a context commit is arriving concurrently.
-    d.commit.poke(true.B);d.epochReset_n.poke(false.B);d.performanceHold.poke(true.B);d.clk.step()
-    d.freshPerformanceReset.expect(false.B);d.contextReady.expect(false.B)
+    d.commit.poke(true.B);d.epochReset_n.poke(false.B);d.warmHold.poke(true.B);d.clk.step()
+    d.freshWarmReset.expect(false.B);d.contextReady.expect(false.B)
     d.commit.poke(false.B);d.epochReset_n.poke(true.B);d.clk.step(3)
-    d.freshPerformanceReset.expect(false.B);d.contextReady.expect(false.B)
-    d.performanceHold.poke(false.B);d.clk.step();d.performanceHold.poke(true.B);d.clk.step()
-    d.freshPerformanceReset.expect(true.B);d.contextReady.expect(false.B)
+    d.freshWarmReset.expect(false.B);d.contextReady.expect(false.B)
+    d.warmHold.poke(false.B);d.clk.step();d.warmHold.poke(true.B);d.clk.step()
+    d.freshWarmReset.expect(true.B);d.contextReady.expect(false.B)
   }
   test("fresh watchdog reset, context commit and whole-reset dominance") {
     simulateRaw(new BootResetContext)(exercise)

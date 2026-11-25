@@ -9,7 +9,7 @@ class BootResetContextFormal(variant: String) extends RawModule {
     override protected def initialHold: Boolean=variant!="stale"
     override protected def validCommit(k: Bool): Bool=if(variant=="key") true.B else k
   })
-  d.clk:=clock;d.epochReset_n:=reset_n;d.performanceHold:=hold;d.commit:=commit;d.commitKey:=key
+  d.clk:=clock;d.epochReset_n:=reset_n;d.warmReleasePending:=false.B;d.warmHold:=hold;d.commit:=commit;d.commitKey:=key
   withClockAndReset(clock,(!reset_n).asAsyncReset) {
     val armed=RegInit(false.B);val expectedFresh=RegInit(false.B);val expectedReady=RegInit(false.B)
     when(!hold){armed:=true.B}
@@ -17,11 +17,11 @@ class BootResetContextFormal(variant: String) extends RawModule {
     when(commit && key){expectedReady:=true.B}
     val expectedError=RegNext(commit && !key,false.B)
     if(variant=="cover") {
-      cover(d.freshPerformanceReset && !d.contextReady)
-      cover(d.freshPerformanceReset && d.contextReady)
-      cover(d.contextReady && !d.freshPerformanceReset)
+      cover(d.freshWarmReset && !d.contextReady)
+      cover(d.freshWarmReset && d.contextReady)
+      cover(d.contextReady && !d.freshWarmReset)
     } else {
-      assert(d.freshPerformanceReset===expectedFresh)
+      assert(d.freshWarmReset===expectedFresh)
       assert(d.contextReady===expectedReady)
       assert(d.error===expectedError)
     }

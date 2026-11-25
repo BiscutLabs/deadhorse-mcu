@@ -12,7 +12,7 @@ class SocBootReleaseBench(blockBoot: Boolean=false) extends SocExternalClockTest
   override protected def bootPermit(released: Bool): Bool=if(blockBoot) false.B else released
   val liteHeld=IO(Output(Bool()));liteHeld:=BoringUtils.bore(subsystem.get.liteBootHeld)
   val starts=IO(Output(UInt(8.W)))
-  withClockAndReset(i1.get.aonClock,(!(coldReset_n && warmReset_n)).asAsyncReset) {
+  withClockAndReset(i1.get.aonClock,(!coldReset_n).asAsyncReset) {
     val n=RegInit(0.U(8.W));when(i1.get.liteStart) {n:=n+1.U};starts:=n
   }
 }
@@ -38,6 +38,7 @@ class SocBootReleaseSpec extends AnyFunSuite with ChiselSim with SocDebugLintCon
     p.usbVbus.poke(false.B);p.usbDpRx.poke(false.B);p.usbDnRx.poke(false.B)
     p.clockControl.reset_n.poke(true.B);p.clockControl.coreIdle.poke(false.B);p.clockControl.closed.poke(false.B)
     p.clockControl.stable.poke(false.B);p.clockControl.jtagWake.poke(false.B)
+    p.clockControl.clearAck.poke(0.U)
     SocInactiveTestInputs.drive(p.inactive,32)
     var mainRuns=true
     def tick(n: Int=1): Unit=for(_<-0 until n) {
@@ -56,29 +57,19 @@ class SocBootReleaseSpec extends AnyFunSuite with ChiselSim with SocDebugLintCon
     assert(high(d.liteHeld) && d.starts.peek().litValue==0 && !high(d.coreReady),"BOOT_AON_WITHOUT_MAIN")
     mainRuns=true;SocTestBoot.release(d,()=>tick());signature();tick(100)
     assert(!high(d.liteHeld) && d.starts.peek().litValue==1,"BOOT_EXPLICIT_LITE_RELEASE")
-    p.aonServiceReset_n.poke(false.B);tick(5)
-    assert(high(d.coreReady),"BOOT_SERVICE_REHOLD")
-    p.aonServiceReset_n.poke(true.B);tick(30)
-    assert(high(d.coreReady) && high(d.liteHeld) && d.starts.peek().litValue==1,"BOOT_NO_LITE_AUTOSTART")
-    d.mainCoreReset_n.poke(false.B);tick(4);assert(!high(d.coreReady))
-    assert(p.inactive.gpioEnable.peek().litValue==5,"BOOT_SHARED_PRESERVED")
-    d.mainCoreReset_n.poke(true.B);tick(200)
-    var n=0;while(high(d.liteHeld)) {tick();n+=1;assert(n<3000,"BOOT_CORE_RESTART")}
-    while(d.starts.peek().litValue!=2) {
-      assert(high(d.coreReady) && !high(d.liteHeld) && d.starts.peek().litValue<2,"BOOT_RELEASE_ORDER")
-      tick();n+=1;assert(n<3000,"BOOT_CORE_RESTART")
+    // D103: both the former performance reset and the shared request are warm.
+    // The passive cold-owned counter detects duplicate or missing lite releases.
+    for((source,index)<-Seq(d.mainCoreReset_n,d.warmReset_n).zipWithIndex) {
+      val before=index+1
+      source.poke(false.B)
+      assert(!high(d.coreReady) && high(d.liteHeld) && p.inactive.gpioEnable.peek().litValue==0,"BOOT_WARM_ASSERT")
+      tick(4)
+      assert(high(d.liteHeld) && d.starts.peek().litValue==before,"BOOT_WARM_HELD")
+      source.poke(true.B);signature();tick(100)
+      assert(!high(d.liteHeld) && d.starts.peek().litValue==before+1,"BOOT_WARM_RELOAD")
     }
-    assert(high(d.coreReady) && d.starts.peek().litValue==2)
-    d.mainServiceReset_n.poke(false.B);tick(4);d.mainServiceReset_n.poke(true.B)
-    signature();tick(200)
-    assert(d.starts.peek().litValue==2 && !high(d.liteHeld),"BOOT_SURVIVING_LITE_RESTARTED")
-    // Whole reset still asserts with the clocks stopped; next boot is automatic.
-    d.warmReset_n.poke(false.B)
-    assert(!high(d.coreReady) && high(d.liteHeld) && p.inactive.gpioEnable.peek().litValue==0,"BOOT_WHOLE_ASSERT")
-    tick(4);d.warmReset_n.poke(true.B);signature();tick(100)
-    assert(!high(d.liteHeld) && d.starts.peek().litValue==1,"BOOT_WHOLE_RELOAD")
   }
-  test("performance boots first and releases lite while independent resets retain surviving owners") {
+  test("performance boots first and explicitly releases lite again after each warm reset") {
     simulateRaw(new SocBootReleaseBench,firtoolOpts=gates,settings=settings)(exercise)
   }
   test("blocking the performance boot binding is rejected by the whole-top oracle") {

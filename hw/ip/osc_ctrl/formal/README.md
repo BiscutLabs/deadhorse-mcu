@@ -106,3 +106,31 @@ No count/shutdown helper attempt is included. This dedicated proof postdates
 fast02. D86 subsequently permits T33 publication with the difficult proofs
 explicitly deferred; it does not make this original formal aggregate pass.
 The T33 report records the frozen focused acceptance and independent review.
+
+## T41 shared release and count-clear checks (2026-11-25)
+
+Measured on `3f11e32` plus the receipt-hashed working sources, in the pinned
+runner; no aggregate CI. Commands below have the prefix
+`python tools/env/run.py run -- python`.
+
+| Command | Result and scope |
+| --- | --- |
+| `hw/ip/osc_ctrl/formal/reset_causes_check.py --shared --output build/t41/reset-causes-proof02` | Normal/bypass unbounded ABC PDR PASS (measured job walls 0.366/0.316 s), six faults rejected and seven covers. Actual shared cold releases/raw pin capture; independent clocks. Three analog/pin cause bits only, not the system cause ABI. |
+| `hw/ip/osc_ctrl/formal/reset_check.py --shared --output build/t41/reset-proof01` | Initial POR and both bypass reset/strap cases unbounded PASS (measured 0.266/0.316/0.366 s), six faults and four covers. Both AON sources use the proof clock; analog clock quality remains excluded. |
+| `hw/ip/osc_ctrl/formal/stability_equivalence.py --shared --output build/t41/stability-clear-proof01` | Unbounded PASS (measured 0.315 s), clear-ready corruption rejected, post-clear stable cover reached. Every stable output cycle equals the version that synchronously zeros the count. Inactive count may differ; all later clear/count/qualify/reset inputs arbitrary. |
+| `hw/lib/formal/cdc_proof.py --side-only --width 8 --depth 2 --output build/t41/release-proof01` | Existing Gray/release-side claims PASS, Gray and early-release faults rejected, covers reached. No FIFO data-proof claim from this scoped invocation. |
+
+Initial reset and static bypass choices retain their existing assumptions;
+there are no new environment premises or changed caps. Reset-cause emission
+first failed on moved passive legacy accessors; that tooling error was repaired
+without hardware or property changes. Every source/artifact is sealed in the
+receipts. Independent review checked the first three receipts and their scope.
+
+T33's legacy oscillator epoch-as-reset premise is retired in production.
+Its deferred minimum-count and complete shutdown/startup composition obligations
+are **not discharged** by these local results: production now needs the same
+claims over the explicit clear/acknowledge epoch. Composed simulation covers
+coalesced pin reset inside held warm reset, delayed/missing clear acknowledgement,
+fresh source qualification and production sleep/wake. Analog, metastability,
+physical reset distribution, and complete multiclock policy composition remain
+outside these proofs. No unchanged timed-out legacy job was rerun.

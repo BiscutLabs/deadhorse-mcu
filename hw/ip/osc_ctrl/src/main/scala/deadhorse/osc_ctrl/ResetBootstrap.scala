@@ -8,7 +8,7 @@ import deadhorse.lib._
   * It directly selects the reset source, independent of uninitialized state.
   * AON_CLK_SEL is sampled under that reset and then frozen. Fallback holds
   * external reset with the selected clock running; normal boot uses real POR. */
-class ResetBootstrap(stableEdges: Int=8) extends RawModule {
+class ResetBootstrap(stableEdges: Int=8,qualifiedResets: Boolean=false) extends RawModule {
   protected def coldSource(value: Bool): Bool=value
   protected def clockSelection(held: Bool,raw: Bool): Bool=held
   protected def qualifiedRelease(value: Bool,raw: Bool): Bool=value
@@ -20,6 +20,7 @@ class ResetBootstrap(stableEdges: Int=8) extends RawModule {
   val coldReset_n=IO(Output(Bool()));val warmReset_n=IO(Output(Bool()))
   val selectedExternal=IO(Output(Bool()));val selectedBypass=IO(Output(Bool()))
   val strapsFrozen=IO(Output(Bool()))
+  val releases=if(qualifiedResets) Some(IO(Input(new Bundle {val cold=Bool();val pin=Bool()}))) else None
 
   val frozen=Wire(Bool());val sampledSelect=Wire(Bool())
   val select=clockSelection(Mux(frozen,sampledSelect,selectExternal),selectExternal)
@@ -28,14 +29,18 @@ class ResetBootstrap(stableEdges: Int=8) extends RawModule {
   // D83 initializes cold-only state without trusting the bypassed POR.
   val cold=coldSource(Mux(bypass,externalReset_n,supplyReset_n))
   val raw=externalReset_n && cold
-  val released=Module(new ResetRelease);released.clk:=selected;released.reset_n:=raw
-  withClockAndReset(selected,(!raw).asAsyncReset) {
+  val released=releases.map(_.pin).getOrElse {
+    val r=Module(new ResetRelease);r.clk:=selected;r.reset_n:=raw;r.released
+  }
+  val stateReset=releases.map(_.cold).getOrElse(raw)
+  withClockAndReset(selected,(!stateReset).asAsyncReset) {
     val locked=RegInit(false.B)
-    when(released.released) {locked:=true.B}
-    frozen:=locked
+    when(released) {locked:=true.B}
+    frozen:=locked && (if(qualifiedResets) released else true.B)
     val edges=RegInit(0.U(log2Ceil(stableEdges+1).W))
     when(locked && edges<stableEdges.U) {edges:=edges+1.U}
-    aonReset_n:=qualifiedRelease(released.released && locked && edges===stableEdges.U,raw)
+    if(qualifiedResets) when(!released) {locked:=false.B;edges:=0.U}
+    aonReset_n:=qualifiedRelease(released && locked && edges===stableEdges.U,raw)
   }
   // Intentionally outside the reset they help select. They are always sampled
   // before locked can assert; no consumers leave reset before qualification.

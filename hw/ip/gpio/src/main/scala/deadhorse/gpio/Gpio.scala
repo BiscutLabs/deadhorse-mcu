@@ -25,7 +25,7 @@ class GpioWakeState extends RawModule {
 }
 
 /** Atomic wake commands; ACK is a sequence bit, never a bitwise data transfer. */
-class GpioWake extends RawModule {
+class GpioWake(qualifiedResets: Boolean=false) extends RawModule {
   val mainClock=IO(Input(Clock()));val aonClock=IO(Input(Clock()))
   val mainReset_n=IO(Input(Bool()));val aonReset_n=IO(Input(Bool()))
   val pins=IO(Input(UInt(3.W)));val mask=IO(Input(UInt(3.W)));val polarity=IO(Input(UInt(3.W)))
@@ -33,15 +33,18 @@ class GpioWake extends RawModule {
   val busy=IO(Output(Bool()));val error=IO(Output(Bool()));val ready=IO(Output(Bool()))
   val armed=IO(Output(Bool()));val pendingMain=IO(Output(Bool()));val wake=IO(Output(Bool()))
   val common=mainReset_n && aonReset_n
-  val mr=Module(new ResetRelease);mr.clk:=mainClock;mr.reset_n:=common
-  val ar=Module(new ResetRelease);ar.clk:=aonClock;ar.reset_n:=common
-  val f=Module(new CdcFifo(9,2));f.writeClock:=mainClock;f.readClock:=aonClock
-  f.writeReset_n:=common;f.readReset_n:=common;f.pop:=true.B
-  val inputSync=Module(new CdcSync(3));inputSync.clk:=aonClock;inputSync.reset_n:=ar.released;inputSync.in:=pins
-  val state=Module(new GpioWakeState);state.clk:=aonClock;state.reset_n:=ar.released
+  def localRelease(clock: Clock,reset: Bool): Bool = if(qualifiedResets) reset else {
+    val r=Module(new ResetRelease);r.clk:=clock;r.reset_n:=common;r.released
+  }
+  val mainUp=localRelease(mainClock,mainReset_n);val aonUp=localRelease(aonClock,aonReset_n)
+  val f=Module(new CdcFifo(9,2,qualifiedResets=qualifiedResets));f.writeClock:=mainClock;f.readClock:=aonClock
+  f.writeReset_n:=(if(qualifiedResets) mainReset_n else common)
+  f.readReset_n:=(if(qualifiedResets) aonReset_n else common);f.pop:=true.B
+  val inputSync=Module(new CdcSync(3));inputSync.clk:=aonClock;inputSync.reset_n:=aonUp;inputSync.in:=pins
+  val state=Module(new GpioWakeState);state.clk:=aonClock;state.reset_n:=aonUp
   state.inputs:=inputSync.out;state.command:=f.out;state.valid:=f.valid
   def mainSync(value: Bool): Bool = {
-    val s=Module(new CdcSync(1));s.clk:=mainClock;s.reset_n:=mr.released;s.in:=value.asUInt;s.out.asBool
+    val s=Module(new CdcSync(1));s.clk:=mainClock;s.reset_n:=mainUp;s.in:=value.asUInt;s.out.asBool
   }
   val peerUp=mainSync(f.readUp);val ack=mainSync(state.ack)
   val ackValid=mainSync(state.armed);val pending=mainSync(state.pending)
@@ -49,12 +52,12 @@ class GpioWake extends RawModule {
   val reject=WireDefault(false.B)
   // Main MMIO survives peer reset; rejected commands must survive it too.
   error:=withClockAndReset(mainClock,(!mainReset_n).asAsyncReset) {RegNext(reject,false.B)}
-  withClockAndReset(mainClock,(!mr.released).asAsyncReset) {
+  withClockAndReset(mainClock,(!mainUp).asAsyncReset) {
     val waiting=RegInit(false.B);val offer=RegInit(false.B);val tag=RegInit(false.B)
     val packet=RegInit(0.U(9.W));val transportReady=RegInit(false.B)
     val available=f.writeUp && peerUp
     transportReady:=available
-    reject:=(apply || clear) && (waiting || !available || !mr.released)
+    reject:=(apply || clear) && (waiting || !available || !mainUp)
     when(offer && f.ready) {offer:=false.B}
     when(waiting && !offer && ackValid && ack===tag) {waiting:=false.B}
     when(apply || clear) {
@@ -67,7 +70,7 @@ class GpioWake extends RawModule {
   }
 }
 
-class Gpio(json: String,base: BigInt=0) extends RawModule {
+class Gpio(json: String,base: BigInt=0,qualifiedResets: Boolean=false) extends RawModule {
   val clk=IO(Input(Clock()));val aonClock=IO(Input(Clock()))
   val reset_n=IO(Input(Bool()));val aonReset_n=IO(Input(Bool()))
   val bus=IO(new LocalBus);val owner=IO(Input(UInt(3.W)))
@@ -82,7 +85,7 @@ class Gpio(json: String,base: BigInt=0) extends RawModule {
   bus.gnt:=adapter.bus.gnt;bus.rvalid:=adapter.bus.rvalid;bus.rdata:=adapter.bus.rdata;bus.err:=adapter.bus.err
   regs.bus<>adapter.registers
   val sync=Module(new CdcSync(3));sync.clk:=clk;sync.reset_n:=reset_n;sync.in:=pinsIn
-  val w=Module(new GpioWake);w.mainClock:=clk;w.aonClock:=aonClock
+  val w=Module(new GpioWake(qualifiedResets));w.mainClock:=clk;w.aonClock:=aonClock
   w.mainReset_n:=reset_n;w.aonReset_n:=aonReset_n;w.pins:=pinsIn
   w.mask:=regs.hw("wake_mask_pins_q");w.polarity:=regs.hw("wake_polarity_pins_q")
   w.apply:=regs.hw("command_apply_pulse").asBool;w.clear:=regs.hw("command_clear_wake_pulse").asBool

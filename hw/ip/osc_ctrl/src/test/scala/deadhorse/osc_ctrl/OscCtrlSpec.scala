@@ -16,7 +16,7 @@ class OscCtrlSpec extends AnyFunSuite with ChiselSim {
       d.mainHold.poke(false.B);d.oscillatorHold.poke(false.B);d.coreIdle.poke(true.B)
       d.gateClosed.poke(true.B);d.stable.poke(false.B);d.wake.poke(0.U)
       d.bus.req.poke(false.B);d.bus.bits.addr.poke(0.U);d.bus.bits.we.poke(false.B)
-      d.bus.bits.wdata.poke(0.U);d.bus.bits.be.poke(15.U);d.bus.bits.origin.poke(0.U)
+      d.bus.bits.wdata.poke(0.U);d.bus.bits.be.poke(15.U);d.bus.bits.origin.poke(1.U)
       d.clk.step(3);d.reset_n.poke(true.B);d.epochReset_n.poke(true.B)
       d.clk.step(4700);d.fault.expect(true.B);d.gateRequest.expect(false.B)
       for(late<-Seq(false,true)) {
@@ -44,7 +44,7 @@ class OscCtrlSpec extends AnyFunSuite with ChiselSim {
       d.mainHold.poke(false.B);d.oscillatorHold.poke(false.B);d.coreIdle.poke(true.B)
       d.gateClosed.poke(false.B);d.stable.poke(false.B);d.wake.poke(0.U)
       d.bus.req.poke(false.B);d.bus.bits.addr.poke(0x40000408L.U);d.bus.bits.we.poke(false.B)
-      d.bus.bits.wdata.poke(0.U);d.bus.bits.be.poke(15.U);d.bus.bits.origin.poke(0.U)
+      d.bus.bits.wdata.poke(0.U);d.bus.bits.be.poke(15.U);d.bus.bits.origin.poke(1.U)
       d.clk.step(3);d.reset_n.poke(true.B);d.epochReset_n.poke(true.B)
       d.clk.step(520);d.qualify.expect(true.B);d.stable.poke(true.B);d.clk.step(3)
       d.gateRequest.expect(true.B);d.authorized.expect(true.B)
@@ -65,15 +65,15 @@ class OscCtrlSpec extends AnyFunSuite with ChiselSim {
       d.fault.expect(false.B)
     }
   }
-  test("lite owns the controller, settings honor byte masks and holes have no effects") {
+  test("performance owns the controller, settings honor byte masks and holes have no effects") {
     simulateRaw(new OscCtrl("build/t20/i1/osc_ctrl/osc_ctrl_regs.json")) {d=>
       d.reset_n.poke(false.B);d.epochReset_n.poke(false.B)
       d.mainHold.poke(false.B);d.oscillatorHold.poke(false.B)
       d.coreIdle.poke(true.B);d.gateClosed.poke(false.B);d.stable.poke(false.B);d.wake.poke(0.U)
       d.bus.req.poke(false.B);d.bus.bits.addr.poke(0.U);d.bus.bits.we.poke(false.B)
-      d.bus.bits.wdata.poke(0.U);d.bus.bits.be.poke(15.U);d.bus.bits.origin.poke(0.U)
+      d.bus.bits.wdata.poke(0.U);d.bus.bits.be.poke(15.U);d.bus.bits.origin.poke(1.U)
       d.clk.step(2);d.oscillatorOn.expect(true.B);d.reset_n.poke(true.B);d.epochReset_n.poke(true.B);d.clk.step(3)
-      def access(offset: Int,write: Boolean=false,data: Int=0,mask: Int=15,owner: Int=0): (BigInt,Boolean)={
+      def access(offset: Int,write: Boolean=false,data: Int=0,mask: Int=15,owner: Int=1): (BigInt,Boolean)={
         d.bus.req.poke(true.B);d.bus.bits.addr.poke((0x40000400L+offset).U)
         d.bus.bits.we.poke(write.B);d.bus.bits.wdata.poke(data.U)
         d.bus.bits.be.poke(mask.U);d.bus.bits.origin.poke(owner.U)
@@ -91,7 +91,7 @@ class OscCtrlSpec extends AnyFunSuite with ChiselSim {
       assert(!access(8,true,0xabcd)._2)
       assert(!access(8,true,0x1200,2)._2)
       assert(access(8)==(BigInt(0x12cd),false),"OSC_MMIO_BYTE_MASK")
-      for(owner<-1 to 7) {
+      for(owner<-Seq(0,2,3,4,5,6,7)) {
         assert(access(8,true,0,owner=owner)._2,"OSC_MMIO_OWNER")
         assert(access(8)==(BigInt(0x12cd),false),"OSC_MMIO_DENIED_EFFECT")
       }

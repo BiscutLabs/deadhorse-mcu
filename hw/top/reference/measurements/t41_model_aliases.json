@@ -1,0 +1,8 @@
+{
+  "dmi": {
+    "d.mainRelease.first": "d.mainUp_r.first",
+    "d.mainRelease.second": "d.mainUp_r.second",
+    "d.tckRelease.first": "d.tckUp_r.first",
+    "d.tckRelease.second": "d.tckUp_r.second"
+  }
+}

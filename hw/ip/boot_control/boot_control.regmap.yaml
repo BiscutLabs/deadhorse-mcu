@@ -9,7 +9,7 @@ registers:
       - {name: held, bits: 0, access: ro}
       - {name: released, bits: 1, access: ro}
       - {name: draining, bits: 2, access: ro}
-      - {name: fresh_performance_reset, bits: 3, access: ro}
+      - {name: fresh_warm_reset, bits: 3, access: ro}
       - {name: context_ready, bits: 4, access: ro}
   - name: release_core
     offset: 0x04

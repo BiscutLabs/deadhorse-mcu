@@ -215,18 +215,19 @@ class Uart(json: String, fifoDepth: Int = 8, base: BigInt = 0) extends RawModule
 }
 
 /** Independent AON monitor; no HF clock or asynchronous event latch required. */
-class UartWake extends RawModule {
+class UartWake(qualifiedReset: Boolean=false) extends RawModule {
   protected def wakeValue(value: Bool): Bool = value
   val clk = IO(Input(Clock())); val reset_n = IO(Input(Bool()))
   val rx = IO(Input(Bool())); val armed = IO(Input(Bool()))
   val invert = IO(Input(Bool())); val clear = IO(Input(Bool()))
   val wake = IO(Output(Bool())); val clockRequest = IO(Output(Bool()))
-  val release = Module(new ResetRelease)
-  release.clk := clk; release.reset_n := reset_n
+  val localUp=if(qualifiedReset) reset_n else {
+    val r=Module(new ResetRelease);r.clk:=clk;r.reset_n:=reset_n;r.released
+  }
   val synchronizer = Module(new CdcSync(1))
-  synchronizer.clk := clk; synchronizer.reset_n := release.released
+  synchronizer.clk := clk; synchronizer.reset_n := localUp
   synchronizer.in := ((!rx) ^ invert).asUInt
-  withClockAndReset(clk, (!release.released).asAsyncReset) {
+  withClockAndReset(clk, (!localUp).asAsyncReset) {
     val pending = RegInit(false.B)
     pending := wakeValue((pending && !clear) || (armed && synchronizer.out.asBool))
     wake := pending; clockRequest := pending

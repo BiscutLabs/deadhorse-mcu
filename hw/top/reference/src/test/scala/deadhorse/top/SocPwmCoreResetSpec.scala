@@ -23,7 +23,7 @@ class SocPwmCoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintCo
       Paths.get("hw/vendor/ibex_ref/vendor/lowrisc_ip/ip/prim_generic/rtl/prim_generic_clock_gating.sv").toAbsolutePath.toString))
   private val gates=Array("--ckg-name=prim_generic_clock_gating","--ckg-input=clk_i",
     "--ckg-output=clk_o","--ckg-enable=en_i","--ckg-test-enable=test_en_i")
-  test("real core reset preserves the active waveform and queued configuration") {
+  test("shared warm reset disables the active waveform and clears queued configuration") {
     simulateRaw(new SocPwmCoreResetBench,firtoolOpts=gates,settings=settings) {d=>
       val p=d.i1.get
       d.uartRx.poke(true.B);d.coldReset_n.poke(false.B);d.warmReset_n.poke(false.B)
@@ -43,11 +43,16 @@ class SocPwmCoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintCo
       var startedAt= -1;var applies=0;var resetAt= -1
       for(cycle<-0 until 12000) {
         if(d.applied.peek().litToBoolean) {applies+=1;if(applies==2) resetAt=cycle+16}
-        if(cycle==resetAt) d.mainCoreReset_n.poke(false.B)
+        if(cycle==resetAt) {
+          d.mainCoreReset_n.poke(false.B)
+          p.inactive.actuatorEnable.expect(0.U);p.inactive.actuatorOut.expect(0.U)
+        }
         tick()
         val enabled=p.inactive.actuatorEnable.peek().litValue==1
         if(enabled && startedAt<0) startedAt=cycle
-        if(startedAt>=0) {
+        if(resetAt>=0 && cycle>=resetAt) {
+          p.inactive.actuatorEnable.expect(0.U);p.inactive.actuatorOut.expect(0.U)
+        } else if(startedAt>=0) {
           val elapsed=cycle-startedAt
           val expected=if(elapsed<10000) elapsed<5000 else (elapsed-10000)%10000<2
           assert(enabled && p.inactive.actuatorOut.peek().litValue.testBit(0)==expected,"PWM_CORE_RESET_WAVEFORM")

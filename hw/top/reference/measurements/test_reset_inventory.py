@@ -1,4 +1,5 @@
 """Structural fixtures for the reset-inventory counting boundary (no RTL tests)."""
+import copy
 import json
 from pathlib import Path
 import subprocess
@@ -50,6 +51,19 @@ class ResetInventoryTest(unittest.TestCase):
         self.assertEqual(counts['all_explicit_flop_bits'],16)
         self.assertEqual(counts['nonreset_flop_bits'],8)
         self.assertEqual({c['inversion'] for c in result['reset_groups'][0]['consumers']},{0,1})
+
+    def test_elaborated_permit_variant_counts_as_a_release(self):
+        model=fixture();variant=copy.deepcopy(model['modules']['ResetRelease$fixture'])
+        variant['ports']['permit']={'bits':[6],'direction':'input'}
+        variant['ports']['releasePending']={'bits':[4],'direction':'output'}
+        model['modules']['ResetRelease_28$fixture']=variant
+        cell=model['modules']['DeadhorseSoc']['cells']['r1']
+        cell['type']='ResetRelease_28$fixture'
+        cell['connections'].update(permit=['1'],releasePending=[32])
+        process,result=self.run_model(model)
+        self.assertEqual(process.returncode,0,process.stderr)
+        self.assertEqual(result['summary']['release_instances'],2)
+        self.assertEqual(result['summary']['release_flop_bits'],4)
 
     def test_unknown_sequential_primitive_fails_closed(self):
         model=fixture();model['modules']['DeadhorseSoc']['cells']['unreset']['type']='$_DFF_P_'

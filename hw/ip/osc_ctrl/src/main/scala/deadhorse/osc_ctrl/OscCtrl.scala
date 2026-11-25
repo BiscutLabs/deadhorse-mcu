@@ -5,12 +5,15 @@ import chisel3.util._
 import deadhorse.lib._
 
 /** Performance-owned AON register boundary. Existing peripheral maps are untouched. */
-class OscCtrl(json: String,base: BigInt=BigInt("40000400",16)) extends RawModule {
+class OscCtrl(json: String,base: BigInt=BigInt("40000400",16),withWarmInitialize: Boolean=false) extends RawModule {
   protected def configurationReset(value: Bool): Bool=value
   protected def delayValue(value: UInt): UInt=value
   protected def timeoutValue(value: UInt): UInt=value
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val bus=IO(new LocalBus)
   val epochReset_n=IO(Input(Bool()))
+  val initialize=if(withWarmInitialize) Some(IO(Input(Bool()))) else None
+  val clearAck=if(withWarmInitialize) Some(IO(Input(UInt(2.W)))) else None
+  val epochClear=if(withWarmInitialize) Some(IO(Output(Bool()))) else None
   val mainHold=IO(Input(Bool()));val oscillatorHold=IO(Input(Bool()))
   val coreIdle=IO(Input(Bool()));val gateClosed=IO(Input(Bool()));val stable=IO(Input(Bool()))
   val wake=IO(Input(UInt(8.W)))
@@ -27,13 +30,17 @@ class OscCtrl(json: String,base: BigInt=BigInt("40000400",16)) extends RawModule
   val serviceReset=Module(new CdcSync(1))
   serviceReset.clk:=clk;serviceReset.reset_n:=epochReset_n;serviceReset.in:=(!reset_n).asUInt
   val forceRun=serviceReset.out.asBool
-  val configUp=epochReset_n && !forceRun
+  val configUp=if(withWarmInitialize) reset_n else epochReset_n && !forceRun
   val configReady=withClockAndReset(clk,(!(epochReset_n && reset_n)).asAsyncReset) {RegNext(configUp,false.B)}
   val regs=Module(new RegBlock(json));regs.clk:=clk;regs.rst_n:=configurationReset(configUp)
   val adapter=Module(new BusRegAdapter(8,base,1))
-  adapter.clk:=clk;adapter.reset_n:=reset_n && configUp && configReady
+  adapter.clk:=clk;adapter.reset_n:=(if(withWarmInitialize) reset_n else reset_n && configUp && configReady)
   adapter.bus<>bus;regs.bus<>adapter.registers
-  val control=Module(new OscSequencer)
+  val control=Module(new OscSequencer(withWarmInitialize))
+  if(withWarmInitialize) {
+    control.initialize.get:=initialize.get;control.clearAck.get:=clearAck.get
+    epochClear.get:=control.epochClear.get
+  }
   // Transport/configuration flush with service reset; clock policy survives
   // internal watchdog/debug reset so the DM can clear ndmreset on main.
   control.clk:=clk;control.reset_n:=epochReset_n;control.forceRun:=forceRun
@@ -61,7 +68,11 @@ class OscCtrl(json: String,base: BigInt=BigInt("40000400",16)) extends RawModule
     uartWakeArmed:=RegNext(regs.hw("wake_enable_sources_q")(4,2),0.U)
     wakeClear:=RegNext(!control.preparing && control.state===0.U,false.B)
   }
-  oscillatorOn:=control.oscillatorOn;gateRequest:=control.gateRequest
+  // The pad must turn on even for a reset pulse with AON stopped. Shared warm
+  // assertion holds this demand until the cold-owned initialization completes;
+  // no separate policy-reset bank is needed, and release cannot pulse it off.
+  oscillatorOn:=control.oscillatorOn || (if(withWarmInitialize) !reset_n else false.B)
+  gateRequest:=control.gateRequest
   authorized:=control.authorized
   qualify:=control.qualify;count:=control.count;sleepPreparing:=control.preparing;fault:=control.fault
 }

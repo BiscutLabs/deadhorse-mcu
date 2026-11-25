@@ -51,7 +51,10 @@ class SocClientPhaseProbe(lite: Boolean) extends SocAnalogModelTest(
 
   val clientClock=if(lite) clocks.aonClock else clocks.mainClock
   val targetClock=clocks.aonClock
-  val clientEpoch=if(lite) BoringUtils.bore(hart.reset_n) else BoringUtils.bore(digital.memory.clientReset_n)
+  // T41 shares AON reset; boot/debug HOLD initializes lite synchronously.
+  // Client permission therefore requires both the domain release and no HOLD.
+  val clientEpoch=if(lite) BoringUtils.bore(hart.reset_n) && !BoringUtils.bore(hart.initialize.get)
+    else BoringUtils.bore(digital.memory.clientReset_n)
   val request=if(lite) BoringUtils.bore(hart.adapter.request.valid) &&
     BoringUtils.bore(hart.adapter.request.bits.operation)===Mux(trackRead,Operation.Read.U,Operation.Write.U) &&
     BoringUtils.bore(hart.adapter.request.bits.address)===address.U else

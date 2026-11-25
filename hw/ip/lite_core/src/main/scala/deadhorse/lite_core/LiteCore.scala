@@ -9,7 +9,8 @@ class LiteDebugPort extends Bundle {
   val request=Input(Bool());val allowEntry=Input(Bool());val stop=Input(Bool())
   val mode=Output(Bool());val stopped=Output(Bool())
 }
-class LiteCore(withDebug: Boolean=false,debugBase: BigInt=0x10000,withRVFI: Boolean=true) extends RawModule {
+class LiteCore(withDebug: Boolean=false,debugBase: BigInt=0x10000,withRVFI: Boolean=true,withInitialize: Boolean=false) extends RawModule {
+  val initialize=if(withInitialize) Some(IO(Input(Bool()))) else None
   val debug=if(withDebug) Some(IO(new LiteDebugPort)) else None
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()))
   val start=IO(Input(Bool()));val entry=IO(Input(UInt(32.W)));val irq=IO(Input(Bool()))
@@ -19,6 +20,7 @@ class LiteCore(withDebug: Boolean=false,debugBase: BigInt=0x10000,withRVFI: Bool
   protected def writeback(value: UInt): UInt=value
   protected def requestAddress(value: UInt): UInt=value
   protected def retiredPc(value: UInt): UInt=value
+  protected def initializedRegister(index: Int): UInt=0.U(32.W)
   withClockAndReset(clk,(!reset_n).asAsyncReset) {
     val running=RegInit(false.B);val asleep=RegInit(false.B)
     val boundary :: offer :: waiting :: Nil=Enum(3);val phase=RegInit(boundary)
@@ -45,7 +47,7 @@ class LiteCore(withDebug: Boolean=false,debugBase: BigInt=0x10000,withRVFI: Bool
     val order=RegInit(0.U(64.W));val firstAfterInterrupt=RegInit(false.B)
     val irqEvent=RegInit(false.B);irqEvent:=false.B;interruptTaken:=irqEvent
     val notStarted=RegInit(true.B);halted:=notStarted;sleeping:=asleep
-    clockHold:=RegNext(running && (!asleep || pendingInterrupt),false.B)
+    val hold=RegNext(running && (!asleep || pendingInterrupt),false.B);clockHold:=hold
     def read(index: UInt): UInt=MuxLookup(index,0.U(32.W))((1 to 15).map(i=>i.U->registers(i-1)))
     val state=Wire(new CoreState)
     state.pc:=pc;state.operation:=operation;state.instruction:=instruction;state.address:=address
@@ -158,5 +160,19 @@ class LiteCore(withDebug: Boolean=false,debugBase: BigInt=0x10000,withRVFI: Bool
       assert(!debug.map(_.stopped).get || !requestValid && !responseReady)
     }
     csr:=nextCsr
+    // T41 local HOLD initialization is synchronous under the shared warm reset.
+    // The owner drains first and acknowledges only after this edge. RAM lives
+    // outside this module; every register that old client reset cleared is here.
+    initialize.foreach { clear=>when(clear) {
+      running:=false.B;asleep:=false.B;phase:=boundary;pc:=0.U;operation:=Operation.Fetch.U
+      instruction:=0.U;address:=0.U;storeData:=0.U;mask:=0.U
+      registers:=VecInit((1 to 15).map(initializedRegister));csr:=0.U.asTypeOf(csr)
+      debugMode:=false.B;debugPc:=0.U;debugScratch:=VecInit(Seq.fill(2)(0.U(32.W)))
+      debugCause:=0.U;ebreakMachine:=false.B
+      requestValid:=false.B;requestBits:=0.U.asTypeOf(requestBits);responseReady:=false.B
+      retired:=0.U.asTypeOf(retired);report:=0.U.asTypeOf(report);order:=0.U
+      firstAfterInterrupt:=false.B;irqEvent:=false.B;notStarted:=true.B;hold:=false.B
+      source1:=0.U;source2:=0.U;value1:=0.U;value2:=0.U
+    }}
   }
 }

@@ -1,10 +1,10 @@
-# Production boot contract — PLAN05
+# Production boot contract — PLAN05, amended by T41
 
-Queued T41/D103 amendment (not implemented here): consolidate cold, warm,
+T41/D103 contract amendment (implementation acceptance pending): consolidate cold, warm,
 debug and unchanged USB-transport cohorts. Both watchdogs join warm; causes,
 debug and RAM survive warm. Warm ROM validates both images before releasing
 lite, skips flash copies only if both match, otherwise reloads. This replaces
-the performance-only/surviving-watcher reset contract when T41 lands. Existing
+the performance-only/surviving-watcher reset contract. Existing
 PLAN05 implementation/evidence remains its historical baseline; no USB/analog
 interface change or completed proof is implied. See plan10 and the T41 brief.
 
@@ -43,8 +43,8 @@ stable; main released; performance ROM executes:
 BOOT_MODE is a reset-sampled alternate function of GPIO1/AON MOSI, with board
 pull-down for normal boot or pull-up for recovery. Keep outputs disabled while
 sampling, freeze the selection before enabling serial outputs; radio CS has a
-board pull-up. Performance-only reset uses the retained boot context rather
-than resampling or reselecting a bundle.
+board pull-up. Warm reset uses the retained boot context rather than reselecting
+a bundle; any strap resampling during warm reset does not affect that path.
 
 ## Lite memory authority
 
@@ -59,31 +59,32 @@ positive SBA tests in data memory and explicitly test program-write rejection.
 This is integrity, not security; D34/D41 remain.
 
 Retained RAM stays powered. Size and program/data split follow the measured
-watcher under D96, not an arbitrary default. Resetting performance does not
-reset lite, reopen a program-write window, or alter its RAM. Whole-chip reset
-holds lite again. Existing lite-watchdog whole-chip behavior remains; if a
-lite-only reset scope is later enabled, it must hold lite and notify performance
-via mailbox for explicit reload/release, as C5 requires.
+watcher under D96, not an arbitrary default. Under T41 both watchdogs request
+warm reset, which holds lite again while preserving its RAM. Before program
+writes are admitted, the local lite initialization must be acknowledged and
+accepted transactions drained. Debug halt alone does not grant write authority.
 
-## Performance-only reset
+## Warm reset (D103, replacing PLAN05 C4/C5)
 
-D70 preserves DMA and shared services. Enter a stackless ROM preamble and wait
-for existing DMA and QSPI activity to drain before any SRAM writes or stack use.
-Use a bounded wait; on timeout remain fail-closed in ROM until whole-chip reset.
-Do not abort/reset DMA, reconstruct its buffers, negotiate with lite or force a
-shared-service reset. Test a permanently stalled DMA channel as well as normal
-drain. This admission guard prevents a surviving bus master racing ROM's stack,
-CRC/reload or application initialization.
+Warm resets DMA, QSPI and both cores along with ordinary services. Causes,
+debug and RAM survive. The obsolete surviving-DMA admission guard may be
+removed only after its replacement warm-reset tests pass. Dormant wake without
+a reset remains resume-after-WFI.
 
 A retained validated context identifies the originally selected generation and
-slot/record. Verify the same-generation performance image CRC in SRAM. If it
-matches, skip flash copy; otherwise validate and reload that same image from
-flash. Never reselect a newer bundle or touch lite memory/reset. Application
-startup always initializes data/bss. If a valid same-generation image cannot
-be established, fail closed in ROM until whole-chip reset. Exact context fields,
-CRC coverage of immutable image versus runtime data, reserved stack/context
-bounds and finite wait counts must be reviewed before implementation; no
-unreviewed ABI or numeric timeout is implied here.
+slot/record. With lite held, verify both performance and lite image CRCs in RAM.
+If both match, skip both flash copies; otherwise reload and verify both from
+that same bundle. Confirm both before applying the lite-start flag. Retain
+configuration bytes without claiming that image/context CRCs revalidate them.
+Never reselect a newer bundle or negotiate with a surviving application.
+Application startup always initializes data/bss. Invalid context or unavailable
+same-generation bundle fails closed. Normal-mode external pin reset is warm
+and cannot escape this condition: recovery needs genuine cold reset/power cycle
+or unlocked JTAG. In POR_BYPASS mode the pin is the cold source.
+
+The exact reset ownership, retained context and application cause ABI are in
+[the T41 implementation contract](t41-reset-implementation.md). This changes no
+flash selection, bounds, memory permission or analog interface contract.
 
 ## Bundle and flash policy
 
@@ -134,7 +135,7 @@ dormant through oscillator startup qualification; lite watchdog remains active.
 
 Keep T36 original boot/update/power-loss/malformed-image/serial-wire obligations
 and affected two-hart debug/core checks. Add lite release, program-write denial,
-performance-only reset/same-generation and failed-DMA-drain cases. Account for
+warm reset/same-generation, both-image CRC/reload and reset-during-DMA cases. Account for
 every retired loader/seal/handoff test under the explicit PLAN05 removals.
 Independent review covers this contract, exact encodings and implementation.
 Run fast CI at Phase2 and Phase3 ends; D91 scoped tests apply only to iterations.
@@ -204,6 +205,9 @@ separate runtime allocation and clears bss on every entry. Lite startup likewise
 initializes data in0x30000400-0x300007ff from constants in program RAM. Program
 and data never overlap. Configuration is copied to the reserved readout below;
 application entry registers a0/a1 give its address/length, a2 gives generation.
+T41 adds a3: cause history bits 0 POR, 1 brownout, 2 pin, 3 performance watchdog,
+4 lite watchdog, 5 debug ndmreset; bit 6 marks cold entry, and bits 7–31 are zero.
+There is no existing software reset command. Cause history clears only on cold.
 
 ### ROM working memory and reset classification
 
@@ -213,38 +217,39 @@ context128bytes at0x20003900, staging256bytes at0x20003980, firmware globals
 through0x20003dff, stack512bytes at0x20003e00-0x20003fff. Linker assertions and
 measured stack/high-water must fit; no allocation growth is implied.
 
-A hardware read-only boot-status bit3 records a fresh performance-watchdog
-reset since the current whole-chip boot epoch. It clears with boot-control
-whole/AON reset; a stale watchdog reset-hold spanning that reset does not set
-it (observe hold low before a later rising edge). Whole reset dominates. This
+A hardware read-only boot-status bit3 records a fresh warm reset since cold.
+It clears on cold only; initial warm hold spanning cold does not set it
+(observe qualified AON warm release before a later assertion). Cold dominates. This
 is reset metadata, not a program-write seal; C3 permissions are unchanged.
 It distinguishes reset during context preparation too: a set bit requires
 current-epoch committed context or fail-closed, never reselects. A clear bit
 follows the cold path. Read-only status bit4 is `contextReady`, cleared by
-whole/AON reset and preserved across performance-only reset. The performance
+cold reset and preserved across warm reset. The performance
 owner sets it by writing key0x434f4e54 to boot-control offset0x14 only after
 the context is complete. A wrong key has no effect and sets the existing
 command_error event; denied origins/partial writes return the existing bus
 error without effect. This
-metadata prevents surviving RAM from a previous whole-chip epoch being accepted
-if the performance watchdog interrupts cold context preparation. It neither
+metadata prevents surviving RAM from a previous cold epoch being accepted
+if any warm reset interrupts cold context preparation. It neither
 grants access nor changes C3's write rule. Reset dominates a simultaneous key.
 
 The128byte context uses words0-4 for magic/version/stride/flash-capacity/slot,
 words5-28 for the complete96byte header, word29 for CRC of words1-28, and
 words30-31 zero. It is committed with magic last after copies verify
 and before the hardware context-ready key, lite release/application entry.
-Performance-only reset requires hardware context-ready, then validates
+Warm reset requires hardware context-ready, then validates
 context structure/CRC/bounds and revalidates the same slot/header/generation in
-flash. Matching immutable SRAM CRC skips copying; otherwise reload exactly that
-performance image. Never write lite/configuration or reselect A/B. Missing,
-changed or corrupt context/header/image fails closed until whole-chip reset.
+flash. Both matching image CRCs skip copying; otherwise reload and verify both
+performance and lite images. Never reselect A/B or overwrite configuration on
+warm restart. Missing or changed context/header, or an image that cannot be
+restored, fails closed until genuine cold reset or JTAG intervention.
 
-A stackless reset preamble waits for DMA busy=0 and QSPI busy=0 before any SRAM
+Historical PLAN05 implementation pending replacement tests: a stackless reset
+preamble waits for DMA busy=0 and QSPI busy=0 before any SRAM
 write. Assumed drain timeout2s at nominal8MHz, enforced with unsigned cycle
 elapsed plus a finite poll bound; no timeout extension, DMA abort or recovery.
 After drain, initialize only ROM globals/stack, preserving committed context.
-A fresh performance reset before context commit therefore fails closed safely.
+A fresh warm reset before context commit therefore fails closed safely.
 
 ### Firmware UART capability and update commands
 

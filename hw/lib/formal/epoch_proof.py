@@ -16,6 +16,7 @@ from tools.formal import validate_job
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--output', required=True)
+    ap.add_argument('--raw-capture', action='store_true')
     args = ap.parse_args()
     out = (ROOT / args.output).resolve(); out.relative_to(ROOT / 'build')
     if (out / 'result.json').exists(): raise ValueError('Retain prior evidence; use fresh output')
@@ -25,7 +26,7 @@ def main():
         'hw/lib/formal/CdcEpochFormal.scala',
         'tools/formal.py','tools/sbt.py','tools/env/lock.json','build.sbt')]+[Path(__file__)]
     hashes=lambda:{p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
-    receipt = dict(status='running', width=8, depth=2, runs=[],
+    receipt = dict(status='running', raw_capture=args.raw_capture, width=8, depth=2, runs=[],
         assumptions=['reset_n asserted initially; subsequently reset and cancel are arbitrary',
                      'ideal digital sampling; no analog metastability model'],
         clock_model='actual independent unconstrained clocks; SBY multiclock, no async2sync',
@@ -41,7 +42,7 @@ def main():
         receipt['runs'].append(record)
         return result.returncode,record
     try:
-        code,_=run([sys.executable,'tools/sbt.py',f'hw/runMain deadhorse.lib.EmitCdcEpochFormal {out}/emit'],'emit',600)
+        code,_=run([sys.executable,'tools/sbt.py',f'hw/runMain deadhorse.lib.EmitCdcEpochFormal {out}/emit {"raw" if args.raw_capture else "qualified"}'],'emit',600)
         if code: raise RuntimeError('CDC formal emission failed')
         receipt['emitted_sha256']={p.relative_to(out).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
             for p in (out/'emit').rglob('*.sv')}

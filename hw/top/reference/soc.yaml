@@ -1,4 +1,4 @@
-# PLAN05 production target contract; RTL migration and acceptance pending.
+# T41 production reset contract; final consolidation acceptance pending.
 schema: 1
 name: deadhorse_soc
 clocks:
@@ -21,10 +21,8 @@ clocks:
 resets:
 - cold
 - warm
-- main_core
-- main_service
-- aon_service
-- usb_service
+- debug
+- usb_transport
 sram:
   lock: hw/vendor/gf180_sram/gf180_sram.lock.json
   performance_sram:
@@ -63,7 +61,7 @@ regions:
   - main
   - aon
   kind: model
-  reset: cold
+  reset: debug
 - name: boot_rom
   base: 0
   size: 65536
@@ -71,7 +69,7 @@ regions:
   domains:
   - main
   kind: model
-  reset: main_service
+  reset: warm
 - name: xip
   base: 268435456
   size: 268435456
@@ -79,7 +77,7 @@ regions:
   domains:
   - main
   kind: model
-  reset: main_service
+  reset: warm
 - name: performance_sram
   base: 536870912
   size: 16384
@@ -87,7 +85,7 @@ regions:
   domains:
   - main
   kind: model
-  reset: main_service
+  reset: warm
 - name: retained_sram
   base: 805306368
   size: 2048
@@ -96,7 +94,7 @@ regions:
   - main
   - aon
   kind: model
-  reset: aon_service
+  reset: warm
 - name: power_reset_timer
   base: 1073741824
   size: 4096
@@ -105,7 +103,7 @@ regions:
   - main
   - aon
   kind: container
-  reset: aon_service
+  reset: warm
 - name: mailbox
   base: 1073745920
   size: 256
@@ -123,7 +121,7 @@ regions:
   domains:
   - main
   kind: real
-  reset: main_service
+  reset: warm
   regmap: hw/ip/uart/uart.regmap.yaml
 - name: uart1
   base: 1073807616
@@ -132,7 +130,7 @@ regions:
   domains:
   - main
   kind: real
-  reset: main_service
+  reset: warm
   regmap: hw/ip/uart/uart.regmap.yaml
 - name: uart2
   base: 1073807872
@@ -141,7 +139,7 @@ regions:
   domains:
   - main
   kind: real
-  reset: main_service
+  reset: warm
   regmap: hw/ip/uart/uart.regmap.yaml
 - name: spi_host
   base: 1073808128
@@ -150,7 +148,7 @@ regions:
   domains:
   - main
   kind: real
-  reset: main_service
+  reset: warm
   regmap: hw/ip/spi_host/spi_host.regmap.yaml
 - name: i2c_host
   base: 1073808384
@@ -159,7 +157,7 @@ regions:
   domains:
   - main
   kind: real
-  reset: main_service
+  reset: warm
   regmap: hw/ip/i2c_host/i2c_host.regmap.yaml
 - name: dma
   base: 1073811456
@@ -168,7 +166,7 @@ regions:
   domains:
   - main
   kind: real
-  reset: main_service
+  reset: warm
   regmap: hw/ip/dma/dma.regmap.yaml
 - name: gpio_pinmux
   base: 1073815552
@@ -177,7 +175,7 @@ regions:
   domains:
   - main
   kind: container
-  reset: main_service
+  reset: warm
 - name: qspi_control
   base: 1073819648
   size: 4096
@@ -185,7 +183,7 @@ regions:
   domains:
   - main
   kind: real
-  reset: main_service
+  reset: warm
   regmap: hw/ip/qspi/qspi.regmap.yaml
 - name: aon_spi
   base: 1073872896
@@ -194,7 +192,7 @@ regions:
   domains:
   - aon
   kind: real
-  reset: aon_service
+  reset: warm
   regmap: hw/ip/aon_spi/aon_spi.regmap.yaml
 - name: aon_gpio
   base: 1073873152
@@ -203,7 +201,7 @@ regions:
   domains:
   - aon
   kind: real
-  reset: aon_service
+  reset: warm
   regmap: hw/ip/aon_gpio/aon_gpio.regmap.yaml
 - name: general_timers
   base: 1073938432
@@ -212,7 +210,7 @@ regions:
   domains:
   - main
   kind: real
-  reset: main_service
+  reset: warm
   regmap: hw/ip/timers/timers.regmap.yaml
 - name: gateway_reserved
   base: 1074003968
@@ -221,7 +219,7 @@ regions:
   domains:
   - main
   kind: reserved
-  reset: main_service
+  reset: warm
 - name: usb
   base: 1074006016
   size: 256
@@ -229,7 +227,7 @@ regions:
   domains:
   - main
   kind: real
-  reset: usb_service
+  reset: usb_transport
   regmap: hw/ip/usb/usb.regmap.yaml
 - name: future_bridge
   base: 1610612736
@@ -300,7 +298,7 @@ dma:
   offset: 0
   size: 256
   clock: main
-  reset: main_service
+  reset: warm
   owner: performance
   memory: performance_sram
   regmap: hw/ip/dma/dma.regmap.yaml
@@ -309,7 +307,7 @@ pinmux:
   offset: 512
   size: 256
   clock: main
-  reset: main_service
+  reset: warm
   owner: performance
   regmap: hw/ip/pinmux/pinmux.regmap.yaml
   sources:
@@ -500,7 +498,7 @@ watchdog:
   size: 256
   count: 2
   clock: aon
-  reset: aon_service
+  reset: warm
   owners:
   - performance
   - lite
@@ -510,7 +508,7 @@ boot_control:
   offset: 768
   size: 256
   clock: aon
-  reset: whole_epoch
+  reset: warm
   owner: performance
   regmap: hw/ip/boot_control/boot_control.regmap.yaml
 power_reset:
@@ -518,7 +516,7 @@ power_reset:
   offset: 1280
   size: 256
   clock: aon
-  reset: aon_service
+  reset: warm
   owner: performance
   regmap: hw/ip/power_reset/power_reset.regmap.yaml
 osc_ctrl:
@@ -526,13 +524,13 @@ osc_ctrl:
   offset: 1024
   size: 256
   clock: aon
-  reset: whole_epoch
+  reset: warm
   owner: performance
   regmap: hw/ip/osc_ctrl/osc_ctrl.regmap.yaml
 qspi:
   region: qspi_control
   clock: main
-  reset: main_service
+  reset: warm
   reset_owner: performance
   owners:
   - performance
@@ -541,7 +539,7 @@ qspi_xip:
   region: xip
   control: qspi_control
   clock: main
-  reset: main_service
+  reset: warm
   owner: performance
   regmap: hw/ip/qspi_xip/qspi_xip.regmap.yaml
 retained_layout:
@@ -559,20 +557,20 @@ general_timers:
   offset: 0
   size: 1024
   clock: main
-  reset: main_service
+  reset: warm
   owner: performance
   regmap: hw/ip/timers/timers.regmap.yaml
 aon_io:
   aon_spi:
     region: aon_spi
     clock: aon
-    reset: aon_service
+    reset: warm
     owner: lite
     regmap: hw/ip/aon_spi/aon_spi.regmap.yaml
   aon_gpio:
     region: aon_gpio
     clock: aon
-    reset: aon_service
+    reset: warm
     owner: lite
     regmap: hw/ip/aon_gpio/aon_gpio.regmap.yaml
 pad_mux:

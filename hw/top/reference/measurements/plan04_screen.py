@@ -41,7 +41,8 @@ def clock_manifest(mod):
         return bits[0]
     roots={mod['ports']['oscIn']['bits'][0]:'usb',
         mod['ports']['pins_inactive_jtagTck']['bits'][0]:'tck',
-        net('clocks._divider_divided'):'main',net('digital.subsystem.usb.aonClock'):'aon'}
+        net('_clocks_ungatedClock' if '_clocks_ungatedClock' in mod['netnames'] else 'clocks._divider_divided'):'main',
+        net('digital.subsystem.usb.aonClock'):'aon'}
     drivers={}
     for name,c in mod['cells'].items():
         for pin,bs in c['connections'].items():
@@ -83,7 +84,7 @@ def clock_manifest(mod):
     return result
 
 
-def audit_clock_envelope(text,divider,strap,frozen,select):
+def audit_clock_envelope(text,divider,strap,frozen,select,mode_pin=None):
     # OpenSTA's canonical SDC: allow precisely this one generated clock and
     # these two static operating-mode cases. Everything else is still audited
     # by the existing strict exception checker.
@@ -95,8 +96,9 @@ def audit_clock_envelope(text,divider,strap,frozen,select):
         else:remaining.append(line)
     expected=f'create_generated_clock -name main -source [get_ports {{oscIn}}] -divide_by 6 [get_pins {{{divider}}}]'
     if generated!=[expected]:raise ValueError('Unexpected generated-clock envelope: '+str(generated))
-    expected_cases={f'set_case_analysis 1 [get_pins {{{frozen}}}]',f'set_case_analysis {select} [get_pins {{{strap}}}]'}
-    if len(cases)!=2 or set(cases)!=expected_cases:raise ValueError('Unexpected static-clock cases')
+    expected_cases=({f'set_case_analysis {select} [get_pins {{{mode_pin}}}]'} if mode_pin else
+        {f'set_case_analysis 1 [get_pins {{{frozen}}}]',f'set_case_analysis {select} [get_pins {{{strap}}}]'})
+    if len(cases)!=len(expected_cases) or set(cases)!=expected_cases:raise ValueError('Unexpected static-clock cases')
     return '\n'.join(remaining)
 
 
@@ -148,13 +150,24 @@ def main(base,reference,screen_name='screen',sram_corner=None):
         found=[name+'/Q' for name,c in mod['cells'].items() if c['connections'].get('Q')==bits and 'CLK' in c['connections']]
         assert len(found)==1,(net,found)
         return found[0]
-    divider=flop_driver('clocks._divider_divided')
+    consolidated='_clocks_ungatedClock' in mod['netnames']
+    divider=flop_driver('_clocks_ungatedClock' if consolidated else 'clocks._divider_divided')
+    assert 'OscDivider.sv' in mod['cells'][divider.removesuffix('/Q')].get('attributes',{}).get('src','')
     strap=flop_driver('clocks.bootstrap.clockStrap')
-    frozen=flop_driver('clocks.bootstrap.frozen')
+    frozen=None if consolidated else flop_driver('clocks.bootstrap.frozen')
     expected_clocks=clock_manifest(mod)
     (out/'expected-clocks.json').write_text(json.dumps(expected_clocks,indent=2)+'\n')
     analog=json.loads((mapped/'analog-sockets.json').read_text())
     rc=next(i['ports']['clock'] for i in analog if i['module']=='LfRcMacro')
+    mode_pin=None
+    if consolidated:
+        candidates=[n+'/S' for n,c in mod['cells'].items()
+            if c['type'].startswith('gf180mcu_fd_sc_mcu7t5v0__mux2_') and
+            c['connections'].get('I0')==mod['ports'][rc]['bits'] and
+            c['connections'].get('I1')==mod['ports']['aonClockIn']['bits'] and
+            c['connections'].get('S')==mod['netnames']['clocks.bootstrap.select']['bits']]
+        assert len(candidates)==1,('Ambiguous AON clock mux',candidates)
+        mode_pin=candidates[0]
     threshold=mapping.get('threshold_socket')
     threshold_tcl=''
     if threshold:
@@ -213,13 +226,14 @@ close $tf
     for mode,select in [('rc',0),('external',1)]:
         dest=out/mode;dest.mkdir()
         tcl=dest/'timing.tcl'
+        static_case=(f'set_case_analysis {select} [get_pins {{{mode_pin}}}]' if mode_pin else
+            f'set_case_analysis 1 [get_pins {{{frozen}}}]\nset_case_analysis {select} [get_pins {{{strap}}}]')
         tcl.write_text(f'''read_liberty {lib}
 {chr(10).join(f'read_liberty {p}' for p in macro_libs)}
 read_verilog {mapped}/mapped.v
 link_design DeadhorseSoc
 set_units -time ns -capacitance pF
-set_case_analysis 1 [get_pins {{{frozen}}}]
-set_case_analysis {select} [get_pins {{{strap}}}]
+{static_case}
 create_clock -name usb -period [expr {{1000.0/48}}] [get_ports oscIn]
 create_generated_clock -name main -source [get_ports oscIn] -divide_by 6 [get_pins {{{divider}}}]
 create_clock -name aon -period 31250 [get_ports {rc if select==0 else 'aonClockIn'}]
@@ -328,7 +342,7 @@ puts PLAN04_SCREEN_COMPLETE
         run=subprocess.run(['sta','-no_init','-exit',str(tcl)],cwd=ROOT,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         (dest/'sta.log').write_text(run.stdout)
         assert run.returncode==0 and 'PLAN04_SCREEN_COMPLETE' in run.stdout and not any(l.startswith('Error') for l in run.stdout.splitlines()),run.stdout[-2000:]
-        audit=audit_exceptions(audit_clock_envelope((dest/'applied.sdc').read_text(),divider,strap,frozen,select),cert)
+        audit=audit_exceptions(audit_clock_envelope((dest/'applied.sdc').read_text(),divider,strap,frozen,select,mode_pin),cert)
         with (dest/'clocks.tsv').open() as stream:clock_rows=list(csv.DictReader(stream,delimiter='\t'))
         actual_clocks={r['pin']:r['clock'] for r in clock_rows}
         assert len(actual_clocks)==len(clock_rows) and actual_clocks==expected_clocks,'STA clock assignment differs from audited mapped lineage'
@@ -381,7 +395,7 @@ puts PLAN04_SCREEN_COMPLETE
     (out/'result.json').write_text(json.dumps(dict(status='measured_screen',modes=summary,input_sha256=input_hashes,
         tools_sha256={'sta':sta_sha256},
         constraint_sha256={p.relative_to(out).as_posix():digest(p) for p in out.rglob('*') if p.name in ('timing.tcl','applied.sdc')},
-        mapped_sha256=digest(mapped/'canonical.json'),generated_clock_pin=divider,
+        mapped_sha256=digest(mapped/'canonical.json'),generated_clock_pin=divider,clock_mux_mode_pin=mode_pin,
         strap_modes='D84 frozen strap state; startup/reset transitions excluded from static modes and separately proved',
         assumptions='Nominal 48MHz/32kHz/100kHz TCK, ideal pre-CTS clocks, no wires; generated phase is not a CDC waiver'),indent=2)+'\n')
 

@@ -22,7 +22,7 @@ def main(output, selected=None):
         assumptions=['Initial epoch reset low; independent service/epoch resets and inputs arbitrary thereafter; one AON clock',
                      'Owner case drives denied origins 0,2..7; control case has no command protocol assumption',
                      'Strap qualification and pad arbitrary; only initial whole reset asserted, arbitrary thereafter',
-                     'Owner case performanceHold tied low; denied-origin context-ready and release must remain clear; context case hold/commit/key arbitrary'])
+                     'Owner case warmHold tied low; denied-origin context-ready and release must remain clear; context case hold/commit/key arbitrary'])
     def command(argv,log):
         begin=time.monotonic()
         with log.open('w') as f:

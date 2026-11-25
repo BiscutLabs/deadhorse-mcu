@@ -8,8 +8,8 @@ import org.scalatest.funsuite.AnyFunSuite
 
 /** Real SRAM/controller/fabrics/endpoints; software bus substitutes for the CPU.
   * UART and SPI pads have explicit digital loopbacks, not mocked FIFO requests. */
-class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),bypassWatchdogEpoch: Boolean=false) extends RawModule {
-  require(!bypassWatchdogEpoch || config.watchdog.isDefined)
+class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),retainMemoryOnWatchdog: Boolean=false) extends RawModule {
+  require(!retainMemoryOnWatchdog || config.watchdog.isDefined)
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val coreReset_n=IO(Input(Bool()))
   val aonReset_n=IO(Input(Bool()));val bus=IO(new LocalBus);val lite=IO(new LocalBus)
   val irq=IO(Output(UInt(15.W)));val hold=IO(Output(Bool()));val pwm=IO(Output(UInt(9.W)))
@@ -26,6 +26,7 @@ class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),bypa
   // checked by SocDormantSpec, not by this bus/reset scenario.
   p.pins.clockControl.stable:=withClockAndReset(clk,(!reset_n).asAsyncReset) {RegNext(p.pins.clockControl.qualify,false.B)}
   p.pins.clockControl.closed:=false.B;clockReady:=p.pins.clockControl.gateRequest
+  p.pins.clockControl.clearAck:=0.U
   p.pins.clockControl.jtagWake:=false.B
   p.performanceDebugMode:=false.B;p.performanceReset_n:=false.B
   p.sramReset_n:=reset_n;p.sramTest.result:=0.U
@@ -34,14 +35,16 @@ class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),bypa
   val up=Module(new ResetRelease);up.clk:=clk;up.reset_n:=reset_n && !whole
   val core=Module(new ResetRelease);core.clk:=clk;core.reset_n:=reset_n && coreReset_n && !whole && !performance
   val mem=Module(new SocLocalMemory(SocTestFiles.description,SocTestFiles.memoryRom,dmaEnabled=true,xipEnabled=true))
-  mem.clk:=clk;mem.serviceReset_n:=up.released;mem.clientReset_n:=core.released
+  mem.clk:=clk
+  mem.serviceReset_n:=(if(retainMemoryOnWatchdog) reset_n else up.released)
+  mem.clientReset_n:=(if(retainMemoryOnWatchdog) reset_n && coreReset_n else core.released)
   mem.data<>bus;mem.dma.get<>p.dmaMemory.get
   mem.xip.get<>p.nativeXip.get
   if(config.watchdog.isDefined) {
     p.main.req:=mem.peripheral.req && !stallPeripheral.get;p.main.bits:=mem.peripheral.bits
     mem.peripheral.gnt:=p.main.gnt && !stallPeripheral.get
     mem.peripheral.rvalid:=p.main.rvalid;mem.peripheral.rdata:=p.main.rdata;mem.peripheral.err:=p.main.err
-    p.performanceReady.get:=(if(bypassWatchdogEpoch) true.B else mem.epochReady)
+    p.performanceReady.get:=mem.epochReady
     epochReady.get:=mem.epochReady;watchdogReset.get:=performance
   } else mem.peripheral<>p.main
   mem.instruction.req:=false.B;mem.instruction.bits:=0.U.asTypeOf(new BusPayload)

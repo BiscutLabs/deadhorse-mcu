@@ -85,7 +85,7 @@ def walk(typ,path,ports=None):
  for n,v in m.get('netnames',{}).items():
   if not v.get('hide_name'):
    for i,b in enumerate(v['bits']):aliases[bit(b)].add(path+'.'+n+(f'[{i}]' if len(v['bits'])>1 else ''))
- if typ.split('$')[0]=='ResetRelease':
+ if re.fullmatch(r'ResetRelease(?:_[0-9]+)?',typ.split('$')[0]):
   releases.append({'instance':path,'clk':bit(m['ports']['clk']['bits'][0]),'source':bit(m['ports']['reset_n']['bits'][0]),'output':bit(m['ports']['released']['bits'][0])})
  for n,c in m.get('cells',{}).items():
   p=path+'.'+n; con={k:[bit(b) for b in bs] for k,bs in c['connections'].items()};ct=c['type']

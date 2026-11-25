@@ -38,7 +38,8 @@ On-die POR/brownout and active-low external reset assert asynchronously;
 shared release primitives count/qualify AON first, then external clock/main.
 Lite remains held reset. Performance ROM validates/loads the bundle and may
 release lite. D83 bypass-mode external reset initializes cold state; normal
-pin reset and D70 watchdog containment retain their existing scopes. Cause
+pin reset and both watchdogs request the T41/D103 warm cohort. Causes, debug
+and RAM survive warm; ordinary logic and lite boot hold reset. Cause
 recording, threshold-switching guarantees and analog assumptions remain in
 [soc-power-reset.md](soc-power-reset.md), [LF contract](../../analog/lf_rc/README.md)
 and [POR contract](../../analog/por_brownout/README.md). Behavioral macros do not
@@ -133,9 +134,10 @@ flushes handshakes, never RAM contents. No loader lock or seal epoch remains.
 
 The [boot contract](boot-rom-proposal.md) specifies paired A/B/golden images,
 CRC and bounds, commit-last updates, no generation wrap, A-wins-ties and UART0
-firmware-recovery subset. Performance-only reset does not stop/touch lite; use
-a stackless bounded DMA/QSPI idle guard, then verify/reload the same generation
-and initialize performance data/bss. Fail closed if it cannot be established.
+firmware-recovery subset. After warm reset, verify both retained images against
+the committed same-generation context; skip copying only if both match, otherwise
+reload both. Confirm the lite image before release; application data/bss still
+initialize. Fail closed if the same-generation bundle cannot be established.
 No cross-core negotiation, DMA-buffer recovery or flash re-selection is added.
 
 T32 TAP/DTM/DM and independent debug clocks remain. T35 destructive March BIST
@@ -151,7 +153,7 @@ two retired loader pads and one spare. SPI uses four alternates, leaving radio
 IRQ/power GPIO simultaneously. BOOT_MODE is reset-sampled on GPIO1/MOSI with
 outputs disabled; external pull-down means normal, pull-up means UART recovery.
 CS has an external pull-up. Main/AON ownership transitions require acknowledged
-safe output disable; selection survives performance-only reset. Details and
+safe output disable; warm reset restores safe defaults. Details and
 pulse-width/rearm assumptions are in [plan05-integration.md](plan05-integration.md).
 
 Estimated physical demand is40output-capable/12input-only against unchanged

@@ -13,7 +13,7 @@ from tools.formal import assertion_names, validate_job
 
 CASES={'channel':('WatchdogFormal',12,5,20),'break':('TimerBreakFormal',3,2,8),'pad':('PadDisableFormal',2,3,8)}
 
-def run(output,cases):
+def run(output,cases,variants=None):
     out=(ROOT/output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
     paths=[p for root in ('hw/lib','hw/ip/watchdog/src/main','hw/ip/watchdog/formal','hw/ip/timers/src/main','hw/ip/pinmux/src/main')
            for p in (ROOT/root).rglob('*') if p.is_file() and p.suffix in ('.scala','.py')]
@@ -23,7 +23,7 @@ def run(output,cases):
     receipt=dict(status='running',source_sha256=hashes(),cases={},
         commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True,cwd=ROOT).strip(),
         assumptions=['Initially por_n=0 and reset_n=0; thereafter both reset inputs and all commands/settings arbitrary; one AON sample clock'],
-        scope='Full production widths; unbounded safety, finite cover/fault witnesses; no pad/CDC timing claim')
+        scope='Full production widths; only listed jobs executed. Correct jobs seek unbounded safety; cover/fault jobs give finite witnesses only; no pad/CDC timing claim')
     def command(argv,log):
         start=time.monotonic()
         with log.open('w') as stream:
@@ -40,8 +40,12 @@ def run(output,cases):
                 f'hw/runMain deadhorse.watchdog.{emitter} {directory}/emit'],directory/'emit.log')
             entry['emission']=row
             if row['returncode']:raise RuntimeError(case+' emission failed')
-            variants=('cover','early','hold','retention','correct') if case=='channel' else ('cover','corrupt','correct')
-            for variant in variants:
+            selected=('cover','early','hold','retention','correct') if case=='channel' else ('cover','corrupt','correct')
+            if variants is not None:
+                if not set(variants)<=set(selected):raise ValueError('Variant not available for '+case)
+                selected=tuple(variants)
+            entry['selected_variants']=selected
+            for variant in selected:
                 sv=sorted((directory/'emit'/variant).glob('*.sv'))
                 if not sv:raise RuntimeError('Missing model')
                 mode='cover' if variant=='cover' else 'bmc' if variant not in ('correct','cover') else 'prove'
@@ -83,5 +87,8 @@ def run(output,cases):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',required=True)
-    p.add_argument('--cases',nargs='+',choices=CASES,default=list(CASES));a=p.parse_args()
-    sys.exit(0 if run(a.output,a.cases)['status']=='pass' else 1)
+    p.add_argument('--cases',nargs='+',choices=CASES,default=list(CASES))
+    p.add_argument('--variants',nargs='+',choices=('cover','early','hold','retention','corrupt','correct'),
+        help='Run only named existing jobs; default runs every job for the selected cases')
+    a=p.parse_args()
+    sys.exit(0 if run(a.output,a.cases,a.variants)['status']=='pass' else 1)

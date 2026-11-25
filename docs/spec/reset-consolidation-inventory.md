@@ -577,3 +577,43 @@ not assume Boolean equivalence or infer an allowed reset source from a name.
 | R150 | clocks.bootstrap.edges[0], clocks.bootstrap.edges[1], clocks.bootstrap.edges[2], clocks.bootstrap.edges[3], clocks.bootstrap.frozen, clocks.bootstrap.released.second, digital.bootReleased, threshold[1] |
 
 Hierarchy SHA-256: `cc5d733b8b93a7552020328ba3410393f12f82ac363fa08d6107a0ae11a61597`.
+
+## T41 consolidated measurement (2026-11-25, task branch)
+
+The baseline above remains the committed pre-change inventory. Fresh production
+emission uses `EmitSoc build/t41/consolidated-timing02/emit production 8` on
+`3f11e32` plus the receipt-hashed working changes. Recount command:
+`python tools/env/run.py run -- python hw/top/reference/measurements/reset_inventory.py --hier build/t41/consolidated-timing02/map/hier.json --output build/t41/consolidated-inventory03`.
+Measured traversal wall time: 2.077 s. The identical script recounts baseline
+`inventory04/hier.json` without changing its counts. Numeric ResetRelease
+module suffixes are included; the initial 28-instance diagnostic was incorrect.
+
+| Measured item | Before | After |
+| --- | ---: | ---: |
+| Shared release instances | 89 | 30 |
+| Release state bits | 178 | 60 |
+| Alias/inversion-normalized reset controls | 150 | 59 |
+| Unique reset-controlled explicit FF bits | 15071 | 14998 |
+| All explicit FF bits | 23113 | 23040 |
+| Non-reset FF bits | 8042 | 8042 |
+
+The four logical cohorts do not mean four physical reset wires. The measured
+30 releases are four cold, two warm, two shared pin-capture, six DMI/bridge
+cancellation and sixteen unchanged USB-related releases (fourteen inside USB,
+two slot/application boundaries). D106/D107 explicitly authorize the capture
+fences; they do not reset payload banks. Exact instance/reset-net/consumer
+identities are in the sealed `reset-inventory.json`, `release-table.md` and
+`reset-table.md` under `build/t41/consolidated-inventory03`.
+The implementation/source predicates and crossings are in
+[soc-power-reset.md](soc-power-reset.md). No physical RDC signoff is implied.
+
+Controller area measured by `plan04_area.py --base build/t41/baseline-area01`
+and `--base build/t41/consolidated-timing02`, same SS125 library, mapping goals
+and assumed 50 fF load: 0.0687404928 -> 0.0713242432 mm². These are isolated,
+nonoverlapping controller blocks, including the new sibling SocResetDomains
+in the after total. Explicit acknowledged epoch clearing adds control state;
+sharing releases removes state elsewhere. Whole mapped logic is
+3.5423810688 -> 3.5510477184 mm² (baseline PLAN05 receipt and fresh T41 map),
+including the changed initialized ROM. The T35 budget method estimates
+11.3344345975 mm² total and 1.5855654025 mm² headroom after T41. The physical
+allowances and 0.55 utilization are unchanged assumptions; no layout claim.

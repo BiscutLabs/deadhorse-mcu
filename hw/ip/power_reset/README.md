@@ -6,7 +6,7 @@ registered bus adapter and generated register block; no peripheral map moves.
 
 | Offset | Register | Meaning |
 | --- | --- | --- |
-| 0x00 | reason | RO: bit0 POR, bit1 brownout, bit2 external pin, bit3 performance watchdog, bit4 lite watchdog |
+| 0x00 | reason | RO: bit0 POR, bit1 brownout, bit2 external pin, bit3 performance watchdog, bit4 lite watchdog, bit5 debug ndmreset (T41) |
 | 0x04 | threshold | RW two-bit shadow selector, reset00 |
 | 0x08 | apply | WO full-word key0x42524f57; reads0 |
 | 0x0c | active | RO applied two-bit selector |

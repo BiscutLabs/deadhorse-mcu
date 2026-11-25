@@ -67,6 +67,7 @@ def validate(data):
     check(isinstance(data['resets'], list) and data['resets'], 'Missing resets')
     for n in data['resets']: name(n)
     check(len(set(data['resets'])) == len(data['resets']), 'Duplicate reset')
+    check(set(data['resets']) == {'cold', 'warm', 'debug', 'usb_transport'}, 'T41 reset cohorts differ')
     check(isinstance(data['masters'], dict) and data['masters'], 'Missing masters')
     origins = set()
     for n, m in data['masters'].items():
@@ -144,7 +145,7 @@ def validate(data):
         keys(p, ('parent','offset','size','count','clock','reset','owners','regmap'))
         check(all(type(p[n]) is int for n in ('offset','size','count')), 'Invalid watchdog range')
         check(p == dict(parent='power_reset_timer', offset=256, size=256, count=2,
-                        clock='aon', reset='aon_service', owners=['performance','lite'],
+                        clock='aon', reset='warm', owners=['performance','lite'],
                         regmap='hw/ip/watchdog/watchdog.regmap.yaml'), 'Watchdog binding differs from D70 contract')
         parent=next((r for r in data['regions'] if r['name']==p['parent']),None)
         check(parent is not None and parent['home']=='aon' and p['offset']+p['count']*p['size']<=parent['size'],
@@ -157,7 +158,7 @@ def validate(data):
         keys(p, ('parent','offset','size','clock','reset','owner','regmap'))
         check(all(type(p[n]) is int for n in ('offset','size')), 'Invalid boot control range')
         check(p == dict(parent='power_reset_timer', offset=768, size=256, clock='aon',
-                        reset='whole_epoch', owner='performance', regmap='hw/ip/boot_control/boot_control.regmap.yaml'),
+                        reset='warm', owner='performance', regmap='hw/ip/boot_control/boot_control.regmap.yaml'),
               'Boot control binding differs from contract')
         check('watchdog' in data, 'Boot control requires the AON service fabric')
         parent=next((r for r in data['regions'] if r['name']==p['parent']),None)
@@ -167,14 +168,14 @@ def validate(data):
     if 'osc_ctrl' in data:
         p = data['osc_ctrl']
         check(p == dict(parent='power_reset_timer', offset=1024, size=256, clock='aon',
-                        reset='whole_epoch', owner='performance', regmap='hw/ip/osc_ctrl/osc_ctrl.regmap.yaml'),
+                        reset='warm', owner='performance', regmap='hw/ip/osc_ctrl/osc_ctrl.regmap.yaml'),
               'Oscillator controller binding differs from PLAN04')
         check(1 << load_regmap(ROOT / p['regmap'])['address_width'] == p['size'],
               'Oscillator controller regmap width differs')
     if 'power_reset' in data:
         p = data['power_reset']
         check(p == dict(parent='power_reset_timer', offset=1280, size=256, clock='aon',
-                        reset='aon_service', owner='performance', regmap='hw/ip/power_reset/power_reset.regmap.yaml'),
+                        reset='warm', owner='performance', regmap='hw/ip/power_reset/power_reset.regmap.yaml'),
               'Power/reset controller binding differs from T33')
         check('osc_ctrl' in data and 'watchdog' in data, 'Power/reset requires production causes and clock control')
         parent = next(r for r in data['regions'] if r['name'] == p['parent'])
@@ -183,14 +184,14 @@ def validate(data):
               'Power/reset regmap width differs')
     if 'qspi' in data:
         p=data['qspi']
-        check(p==dict(region='qspi_control',clock='main',reset='main_service',reset_owner='performance',
+        check(p==dict(region='qspi_control',clock='main',reset='warm',reset_owner='performance',
                       owners=['performance'],regmap='hw/ip/qspi/qspi.regmap.yaml'), 'QSPI binding differs')
         region=next((r for r in data['regions'] if r['name']==p['region']),None)
         check(region is not None and region['home']=='main' and region['base']==0x40013000 and
               region['size']==1 << load_regmap(ROOT/p['regmap'])['address_width'], 'QSPI aperture differs')
     if 'qspi_xip' in data:
         p=data['qspi_xip']
-        check(p==dict(region='xip',control='qspi_control',clock='main',reset='main_service',
+        check(p==dict(region='xip',control='qspi_control',clock='main',reset='warm',
                       owner='performance',regmap='hw/ip/qspi_xip/qspi_xip.regmap.yaml'), 'XIP binding differs')
         check('qspi' in data, 'XIP requires QSPI')
         region=next((r for r in data['regions'] if r['name']==p['region']),None)
@@ -205,7 +206,7 @@ def validate(data):
         keys(p, ('parent','offset','size','clock','reset','owner','regmap','sources','channels','timer_channels','timer_pads'))
         check(type(p['offset']) is int and type(p['size']) is int and
               isinstance(p['channels'], list) and all(type(n) is int for n in p['channels']), 'Invalid pinmux subwindow/channel')
-        check(p == dict(parent='gpio_pinmux', offset=512, size=256, clock='main', reset='main_service',
+        check(p == dict(parent='gpio_pinmux', offset=512, size=256, clock='main', reset='warm',
                         owner='performance', regmap='hw/ip/pinmux/pinmux.regmap.yaml',
                         sources=['disconnected','gpio','timer_compare','pwm'], channels=[0,1,2],
                         timer_channels=list(range(12)), timer_pads=dict(actuator=9,timer=4)),
@@ -219,7 +220,7 @@ def validate(data):
         p = data['dma']
         keys(p, ('parent', 'offset', 'size', 'clock', 'reset', 'owner', 'memory', 'regmap'))
         check(type(p['offset']) is int and type(p['size']) is int, 'Invalid DMA subwindow')
-        check(p == dict(parent='dma', offset=0, size=256, clock='main', reset='main_service',
+        check(p == dict(parent='dma', offset=0, size=256, clock='main', reset='warm',
                         owner='performance', memory='performance_sram', regmap='hw/ip/dma/dma.regmap.yaml'),
               'DMA binding differs from contract')
         check('general_timers' in data, 'DMA profile requires PWM metadata')
@@ -233,7 +234,7 @@ def validate(data):
         keys(p, ('parent', 'offset', 'size', 'clock', 'reset', 'owner', 'regmap'))
         check(type(p['offset']) is int and type(p['size']) is int, 'Invalid PWM subwindow')
         check(p == dict(parent='general_timers', offset=0, size=1024, clock='main',
-                        reset='main_service', owner='performance', regmap='hw/ip/timers/timers.regmap.yaml'),
+                        reset='warm', owner='performance', regmap='hw/ip/timers/timers.regmap.yaml'),
               'PWM binding differs from contract')
         parent = next((r for r in data['regions'] if r['name'] == p['parent']), None)
         check(parent is not None, 'Missing PWM parent')
@@ -274,7 +275,7 @@ def validate(data):
             check(r['domains']==['main'], 'Lite access to main peripheral remains')
     check(set(data['aon_io'])=={'aon_spi','aon_gpio'}, 'AON service inventory differs')
     for n,base in [('aon_spi',0x40020000),('aon_gpio',0x40020100)]:
-        check(data['aon_io'][n]==dict(region=n,clock='aon',reset='aon_service',owner='lite',regmap=f'hw/ip/{n}/{n}.regmap.yaml'), 'AON peripheral binding differs')
+        check(data['aon_io'][n]==dict(region=n,clock='aon',reset='warm',owner='lite',regmap=f'hw/ip/{n}/{n}.regmap.yaml'), 'AON peripheral binding differs')
         r=next(r for r in data['regions'] if r['name']==n)
         check(r['base']==base and r['size']==256 and r['home']=='aon' and r['domains']==['aon'], 'AON service aperture differs')
     check(data['lite_interrupts']==dict(aon_spi=0,aon_gpio=1,power_reset_timer=2,mailbox=3), 'Lite IRQ sources differ')
@@ -418,13 +419,13 @@ def emit(data, output):
         p = data['general_timers']; parent = next(r for r in data['regions'] if r['name'] == p['parent'])
         header += [f'#define DH_SOC_TIMERS_BASE 0x{parent["base"] + p["offset"]:08x}u',
                    f'#define DH_SOC_TIMERS_SIZE 0x{p["size"]:x}u']
-        markdown += ['', 'Production PWM uses main-service reset, preserving core-only reset;',
+        markdown += ['', 'Production timer outputs disable immediately on shared warm reset;',
                      'watchdog output-disable is connected.']
     if 'dma' in data:
         p = data['dma']; parent = next(r for r in data['regions'] if r['name'] == p['parent'])
         header += [f'#define DH_SOC_DMA_REG_SIZE 0x{p["size"]:x}u']
         markdown += ['', 'Production DMA: four finite-count channels, performance SRAM, UART/SPI bytes and PWM words;',
-                     'main-service reset. Endpoint addresses are derived from the peripheral register maps.']
+                     'shared warm reset. Endpoint addresses are derived from the peripheral register maps.']
     if 'pinmux' in data:
         p=data['pinmux'];parent=next(r for r in data['regions'] if r['name']==p['parent'])
         header += [f'#define DH_SOC_PINMUX_BASE 0x{parent["base"]+p["offset"]:08x}u',

@@ -70,3 +70,20 @@ Fresh concrete models match all historical variants. Original assertions,
 assumptions, depths and120-second caps remain. No helper or unchanged retry.
 Exact per-assertion times, model sizes, fault limitations, historical evidence
 audits and next scoped work are in [the debt report](../spec/soc-verification-debt.md).
+
+## T41 retained cause negative — 2026-11-25
+
+`python tools/env/run.py run -- python hw/ip/watchdog/formal/check.py --cases channel --variants retention --output build/t41/cause-retention01`
+rejects the existing retained-bank-reset mutation in measured0.367 s (runner
+17.223 s). The witness violates crash-count retention before a cause is latched;
+it does not by itself demonstrate clearing a previously set cause. The new
+selector leaves the default full portfolio, assertions and caps unchanged.
+
+`python tools/env/run.py run -- python tools/sbt.py "hw/testOnly deadhorse.watchdog.WatchdogSpec -- -z latched"`
+passes both the correct and deliberate-fault cases, measured Scala12.286 s /
+sbt23 s. It completes a real expiry and its reset hold, requires cause=1 and
+crashes=1, then asserts warm with no intervening clock. The existing
+`retainedReset := por_n && reset_n` fault fails specifically at
+`WATCHDOG_WARM_CAUSE_LOST`; correct RTL retains cause through warm and clears it
+on cold. Source: `3f11e32` plus T41 receipt-hashed changes. No assertion was
+removed, and the full-width positive proof remains unresolved as above.

@@ -2,9 +2,26 @@
 import copy
 import unittest
 from hw.top.reference.measurements.plan04_screen import class_limit,clock_manifest,audit_clock_envelope,physical_diagnostics
+from hw.top.reference.measurements.plan04_usb_binding import drop_unused_input
 
 
 class Plan04TimingTests(unittest.TestCase):
+    def test_unused_counter_input_cannot_hide_logic_or_output_dependency(self):
+        unused={'ports':{'oscillatorOn':{'direction':'input','bits':[2]}},'cells':{}}
+        clean=copy.deepcopy(unused);drop_unused_input(clean,'oscillatorOn')
+        self.assertEqual(clean['ports'],{})
+        for bad in (dict(unused,cells={'gate':{'connections':{'A':[2],'Y':[3]}}}),
+                    dict(unused,ports={**unused['ports'],'out':{'direction':'output','bits':[2]}})):
+            with self.assertRaises(AssertionError):drop_unused_input(bad,'oscillatorOn')
+
+    def test_consolidated_clock_mode_only_constrains_mux_select_pin(self):
+        correct=('create_generated_clock -name main -source [get_ports {oscIn}] -divide_by 6 [get_pins {div/Q}]\n'
+            'set_case_analysis 1 [get_pins {clock_mux/S}]\ncreate_clock -name usb -period 20.8333 [get_ports {oscIn}]')
+        self.assertTrue(audit_clock_envelope(correct,'div/Q','strap/Q',None,1,'clock_mux/S').startswith('create_clock'))
+        for bad in (correct.replace('clock_mux/S','selector/Z'),correct.replace('-divide_by 6','-divide_by 5'),
+                    correct+'\nset_case_analysis 1 [get_pins {reset/Q}]',correct.replace('set_case_analysis 1','set_case_analysis 0')):
+            with self.assertRaises(ValueError):audit_clock_envelope(bad,'div/Q','strap/Q',None,1,'clock_mux/S')
+
     def test_physical_violations_cannot_disappear_into_screen_pass(self):
         line='core/CLK (high) 1.712000 -700.110168 -701.822205 (VIOLATED)'
         result=physical_diagnostics('HOLD_RESET_BEGIN\n'+line+'\nHOLD_RESET_END')

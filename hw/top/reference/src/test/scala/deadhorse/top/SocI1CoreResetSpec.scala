@@ -12,10 +12,10 @@ class SocI1CoreResetBench(corrupt: Boolean) extends SocExternalClockTest(
   "build/t20/map/soc.json","build/t20/i0-firmware/uart_regs.json",
   Paths.get("build/t20/i0-firmware/boot.hex").toAbsolutePath.toString,
   i1Config=Some(SocProduction.config(realUsb=false))) {
-  val firstByteOffered=IO(Output(Bool()))
+  val firstByteOffered=IO(Output(Bool()));val faultActive=IO(Input(Bool()))
   firstByteOffered:=memory.peripheral.req && memory.peripheral.bits.we &&
     memory.peripheral.bits.addr==="h4001000c".U && memory.peripheral.bits.wdata===73.U
-  if(corrupt) memory.serviceReset_n:=coreRelease.released
+  if(corrupt) {memory.serviceReset_n:=Mux(faultActive,coldReset_n,serviceUp);memory.clientReset_n:=Mux(faultActive,coldReset_n,coreUp)}
 }
 
 class SocI1CoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
@@ -39,8 +39,9 @@ class SocI1CoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintCon
     }
     bytes.mkString
   }
-  for(corrupt<-Seq(false,true)) test(s"core-only reset retains the offered I1 MMIO side effect, corrupt=$corrupt") {
+  for(corrupt<-Seq(false,true)) test(s"T41 warm reset cancels the offered I1 MMIO transaction, corrupt=$corrupt") {
     simulateRaw(new SocI1CoreResetBench(corrupt),firtoolOpts=gates,settings=settings) { d =>
+      d.faultActive.poke(false.B)
       val p=d.i1.get
       d.uartRx.poke(true.B);d.coldReset_n.poke(false.B);d.warmReset_n.poke(false.B)
       d.mainCoreReset_n.poke(false.B);d.mainServiceReset_n.poke(false.B)
@@ -65,7 +66,14 @@ class SocI1CoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintCon
       var n=0
       while(!d.firstByteOffered.peek().litToBoolean && n<3000) {tick();n+=1}
       assert(d.firstByteOffered.peek().litToBoolean,"I1_CORE_RESET_PHASE_NOT_REACHED")
+      d.faultActive.poke(corrupt.B)
       d.mainCoreReset_n.poke(false.B)
+      def resetCheck(): Unit=assert(!d.coreReady.peek().litToBoolean,"WARM_MEMORY_CLIENT_NOT_RESET")
+      if(corrupt) {
+        val failure=intercept[org.scalatest.exceptions.TestFailedException] {resetCheck()}
+        assert(failure.getMessage.contains("WARM_MEMORY_CLIENT_NOT_RESET"))
+      } else resetCheck()
+      if(!corrupt) {
       for(_<-0 until 4) tick()
       d.mainCoreReset_n.poke(true.B)
       var retired=0
@@ -78,12 +86,10 @@ class SocI1CoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintCon
         }
       }
       assert(retired>30,"I1_CORE_RESET_NO_REBOOT")
-      // The retained old 'I' completes once, then the reboot prints I0\n.
-      def check(): Unit=assert(decode(samples.toSeq)=="II0\n","I1_CORE_RESET_MMIO_ORACLE")
-      if(corrupt) {
-        val failure=intercept[org.scalatest.exceptions.TestFailedException] {check()}
-        assert(failure.getMessage.contains("I1_CORE_RESET_MMIO_ORACLE"))
-      } else check()
+      // D103 replaces the old retained-offer obligation: warm cancels the
+      // entire application transaction, then reboot prints exactly I0\n.
+      assert(decode(samples.toSeq)=="I0\n","I1_WARM_RESET_MMIO_ORACLE")
+      }
     }
   }
 }

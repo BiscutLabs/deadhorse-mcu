@@ -6,20 +6,20 @@ import _root_.circt.stage.ChiselStage
 
 /** Independent sequence oracle; clocks may stop and cancellation is arbitrary.
   * No fairness or DUT-state assumptions. This checks digital safety only. */
-class CdcEpochFormal(variant: String) extends RawModule {
+class CdcEpochFormal(variant: String,rawCapture: Boolean=false) extends RawModule {
   val wc=IO(Input(Clock()));val rc=IO(Input(Clock()));val observe=IO(Input(Clock()))
   val reset_n=IO(Input(Bool()));val cancel_n=IO(Input(Bool()))
   val push=IO(Input(Bool()));val pop=IO(Input(Bool()));val data=IO(Input(UInt(8.W)))
   val wr=Module(new ResetRelease);val rd=Module(new ResetRelease)
   wr.clk:=wc;rd.clk:=rc;wr.reset_n:=reset_n;rd.reset_n:=reset_n
-  val e=Module[CdcEpoch](if(variant=="early") new CdcEpoch {
+  val e=Module[CdcEpoch](if(variant=="early") new CdcEpoch(rawCapture) {
     override protected def admitted(local: Bool,peer: Bool): Bool=local
-  } else new CdcEpoch)
+  } else new CdcEpoch(rawCapture))
   e.aClock:=wc;e.bClock:=rc;e.aReset_n:=wr.released;e.bReset_n:=rd.released
   if(variant=="delayed") {
     val s=Module(new CdcSync(1));s.clk:=rc;s.reset_n:=rd.released;s.in:=cancel_n.asUInt
-    e.cancel_n:=s.out.asBool
-  } else e.cancel_n:=cancel_n
+    e.cancel_n:=(if(rawCapture) reset_n && s.out.asBool else s.out.asBool)
+  } else e.cancel_n:=(if(rawCapture) reset_n && cancel_n else cancel_n)
   val f=Module[CdcFifo](if(variant=="corrupt") new CdcFifo(8,qualifiedResets=true,synchronousFlush=true) {
     override protected def makeReader(): CdcRead=new CdcRead(8,2,withClear=true) {
       override protected def capture(v: UInt): UInt=v ^ 1.U
@@ -66,7 +66,7 @@ class CdcEpochFormal(variant: String) extends RawModule {
 
 object EmitCdcEpochFormal extends App {
   for(v<-Seq("correct","early","delayed","corrupt","cover"))
-    ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new CdcEpochFormal(v)),
+    ChiselStage.emitSystemVerilogFile(chisel3.layer.elideBlocks(new CdcEpochFormal(v,args.lift(1).contains("raw"))),
       Array("--target-dir",s"${args(0)}/$v"),
       Array("--disable-all-randomization","--verification-flavor=immediate","--lower-to-core","-strip-debug-info"))
 }

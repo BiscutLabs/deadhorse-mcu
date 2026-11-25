@@ -21,7 +21,7 @@ class SocOscSleepProbe(boot: String="boot") extends SocAnalogModelTest("build/t2
   observe.hold:=digital.clockHold;observe.gate:=digital.i1.get.clockControl.gateRequest
   observe.qualify:=digital.i1.get.clockControl.qualify
   observe.ndmReset:=BoringUtils.bore(digital.debugReset)
-  observe.serviceUp:=BoringUtils.bore(digital.serviceRelease.released)
+  observe.serviceUp:=BoringUtils.bore(digital.serviceUp)
   observe.pc:=digital.rvfi("rvfi_pc_rdata").asUInt;observe.retire:=digital.rvfi("rvfi_valid").asUInt.asBool
   observe.fetch:=BoringUtils.bore(digital.core.ports("fetch_enable_i")).asUInt
   observe.instruction:=BoringUtils.bore(digital.core.ports("instr_addr_o")).asUInt
@@ -109,7 +109,7 @@ class SocClockResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
       d.status.servicesReleased.expect(false.B);d.status.mainLevel.expect(false.B);d.oscEn.expect(true.B)
     }
   }
-  test("real JTAG ndmreset leaves its clock alive and recovers the existing source epoch") {
+  test("real JTAG ndmreset preserves debug and requalifies its clock before warm release") {
     val probeSettings=Settings.defaultRaw[SocOscSleepProbe].copy(
       randomization=Randomization.random.copy(memories=false)).withLibraryPaths(Seq(Paths.get(
       "hw/vendor/ibex_ref/vendor/lowrisc_ip/ip/prim_generic/rtl/prim_generic_clock_gating.sv").toAbsolutePath.toString))
@@ -117,8 +117,10 @@ class SocClockResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
       pins(d);d.porBypass.poke(false.B);d.aonClockSelect.poke(false.B);d.externalReset_n.poke(true.B)
       val m=d.model.get;m.supplyMv.poke(0.U);m.porReference.step(3);m.lfClock.step(4)
       m.supplyMv.poke(3300.U);m.porReference.step(1002)
+      var aonTicks=0;var warmAt= -1
       def tick(n: Int=1): Unit=for(_<-0 until n) {
-        d.oscIn.step(1500);m.porReference.step(31);m.lfClock.step()
+        d.oscIn.step(1500);m.porReference.step(31);m.lfClock.step();aonTicks+=1
+        if(d.observe.ndmReset.peek().litToBoolean && warmAt<0) warmAt=aonTicks
       }
       tick(580);d.status.sourceStable.expect(true.B);d.observe.serviceUp.expect(true.B)
       def tap(tms: Boolean,tdi: Boolean=false): Boolean={
@@ -145,10 +147,21 @@ class SocClockResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
       }
       writeControl(1) // dmactive, without halt or a firmware test path.
       for(duration<-Seq(1,4,16)) {
+        warmAt= -1
         writeControl(3);d.observe.ndmReset.expect(true.B)
         d.observe.serviceUp.expect(false.B)
-        tick(duration);d.oscEn.expect(true.B);d.observe.gate.expect(true.B)
-        d.status.sourceStable.expect(true.B);d.status.fault.expect(false.B)
+        tick(duration);d.oscEn.expect(true.B);d.observe.gate.expect(false.B)
+        d.status.sourceStable.expect(false.B);d.status.fault.expect(false.B)
+        // T41 replaces the preserved policy epoch with a fresh warm epoch.
+        // Use the existing POR startup bound; ndmreset remains asserted while
+        // cold-owned execution restores the debug clock independently of warm.
+        assert(warmAt>=0 && aonTicks-warmAt<550,"WARM_START_OBSERVATION_BOUND")
+        while(aonTicks-warmAt<550) {
+          d.oscEn.expect(true.B);d.status.fault.expect(false.B)
+          d.observe.ndmReset.expect(true.B);d.observe.serviceUp.expect(false.B);tick()
+        }
+        d.observe.gate.expect(true.B);d.status.sourceStable.expect(true.B)
+        d.status.fault.expect(false.B)
         // The write that releases reset must work while all ordinary clients
         // are held reset. A dead DM clock cannot complete this transaction.
         writeControl(1);d.observe.ndmReset.expect(false.B);tick(24)

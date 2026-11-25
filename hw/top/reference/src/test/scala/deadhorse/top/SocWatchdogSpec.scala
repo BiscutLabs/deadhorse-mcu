@@ -44,38 +44,39 @@ class SocWatchdogSpec extends SocIoSpec {
     // Main stopped: AON expiry must still disable dedicated and muxed PWM.
     n=0
     while(!high(d.supervision.get.performanceReset)) {d.pins.aonClock.step();n+=1;assert(n<500)}
-    assert(!high(d.supervision.get.wholeReset),"WATCHDOG_CONTAINMENT")
+    assert(high(d.supervision.get.wholeReset),"WATCHDOG_CONTAINMENT")
     d.performanceReady.get.poke(false.B)
     assert(d.pins.inactive.actuatorEnable.peek().litValue==0)
-    assert(d.pins.inactive.gpioEnable.peek().litValue==2 && d.pins.inactive.gpioOut.peek().litValue==2)
+    assert(d.pins.inactive.gpioEnable.peek().litValue==0 && d.pins.inactive.gpioOut.peek().litValue==0)
+    assert(!high(d.dmaMemory.get.req),"WATCHDOG_CANCEL_DMA_REQUEST")
     for(_<-0 until 3) {d.pins.aonClock.step();assert(high(d.supervision.get.performanceReset))}
     d.pins.aonClock.step();assert(!high(d.supervision.get.performanceReset))
     tick(d,20)
-    // A retained pre-reset CPU STOP drains while the upstream epoch is closed.
-    good(d,d.main,pwm+48,true,0)
     d.performanceReady.get.poke(true.B);tick(d,5)
-    assert(good(d,d.main,dma+0x20)==0x20000100L && good(d,d.main,dma+0x30)==1)
-    assert(high(d.dmaMemory.get.req),"WATCHDOG_PRESERVE_DMA_REQUEST")
-    assert(good(d,d.main,pwm+0x40)==999 && good(d,d.main,pwm+0xc0)==1000)
-    // Complete the real DMA's pre-fault memory read only after watchdog release.
-    d.dmaMemory.get.gnt.poke(true.B);tick(d);d.dmaMemory.get.gnt.poke(false.B)
-    d.dmaMemory.get.rdata.poke(750.U);d.dmaMemory.get.rvalid.poke(true.B);tick(d)
-    d.dmaMemory.get.rvalid.poke(false.B);tick(d,150)
-    assert(good(d,d.main,dma+8)==0 && (good(d,d.main,dma+12)&1)==1,"WATCHDOG_DMA_COMPLETES")
-    assert(good(d,d.main,pwm+0xc0)==750 && d.pins.inactive.actuatorEnable.peek().litValue==0,"WATCHDOG_DMA_CANNOT_RESTART")
+    assert(good(d,d.main,dma+0x20)==0 && good(d,d.main,dma+0x30)==0)
+    assert(!high(d.dmaMemory.get.req),"WATCHDOG_CANCEL_DMA_REQUEST")
+    assert(good(d,d.main,pwm+0x40)==0 && good(d,d.main,pwm+0xc0)==0)
+    assert(good(d,d.main,dma+8)==0 && good(d,d.main,dma+12)==0,"WATCHDOG_DMA_RESET_STATE")
+    assert(d.pins.inactive.actuatorEnable.peek().litValue==0,"WATCHDOG_DMA_CANNOT_RESTART")
     assert(good(d,d.pins.lite,0x30000400L)==0x12345678)
     assert(good(d,d.main,perf+28)==1 && good(d,d.main,perf+20)==8)
-    good(d,d.main,pwm+48,true,0);good(d,d.main,pwm+20,true,1);good(d,d.main,pwm+48,true,1)
+    // Warm cleared the complete timer and pad configuration. Reinitialize it
+    // explicitly before software may enable outputs again.
+    good(d,d.main,pwm+48,true,0);good(d,d.main,mux+0x40,true,0)
+    good(d,d.main,pwm+128,true,5);good(d,d.main,pwm+0x40,true,999);good(d,d.main,pwm+0xc0,true,1000)
+    good(d,d.main,gpio,true,2);good(d,d.main,gpio+4,true,2)
+    good(d,d.main,mux,true,3);good(d,d.main,mux+4,true,1)
+    good(d,d.main,pwm+20,true,1);good(d,d.main,pwm+48,true,1)
     assert(d.pins.inactive.actuatorEnable.peek().litValue==1 && d.pins.inactive.gpioEnable.peek().litValue==3)
     assert((good(d,d.main,0x40000500L)&8)!=0,"POWER_PERFORMANCE_RESET_REASON")
   }
-  test("performance watchdog preserves shared state and disables all PWM routes while main is stopped") {
+  test("performance watchdog resets ordinary state, retains RAM/causes and disables PWM with main stopped") {
     simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,profile))(performanceScope)
   }
-  test("wrongly widening performance watchdog reset is rejected") {
+  test("wrongly narrowing performance watchdog warm reset is rejected") {
     val e=intercept[org.scalatest.exceptions.TestFailedException] {
       simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,profile) {
-        override protected def wholeWatchdogReset(p: Bool,l: Bool): Bool=p || l
+        override protected def wholeWatchdogReset(p: Bool,l: Bool): Bool=l
       })(performanceScope)
     };assert(e.getMessage.contains("WATCHDOG_CONTAINMENT"))
   }

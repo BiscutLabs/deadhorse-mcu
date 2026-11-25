@@ -143,10 +143,21 @@ j 2b
  # These cases measure loading only; the Phase2 dormant test executes watcher.
  for name,data in [('watcher-held',watched),('max-lite-held',watched+bytes(1024-len(watched)))]:
   cases[name]=flash({1:bundle(held_perf,data,b'CFG1',generation=1,start_lite=False,lite_data=8,lite_stack=16)})
- # Watchdog reset uses the real MMIO path; the watcher continues incrementing
- # retained data while performance ROM validates/reloads its own image.
- for name in ('warm-match','warm-reload','warm-bad-context','warm-bad-context-reset','warm-flash-missing','warm-flash-corrupt','warm-newer','warm-dma-drain','warm-dma-stall'):
-  damage={'warm-match':'','warm-newer':'','warm-flash-missing':'','warm-dma-drain':'','warm-dma-stall':'','warm-reload':'''li t0,0x20000000
+ # T41 watchdog warm reset uses real MMIO. Both cores restart; ROM validates
+ # both retained images before releasing lite, whose protocol counter restarts.
+ for name in ('warm-match','warm-reload','warm-lite-reload','warm-bad-context','warm-bad-context-reset','warm-flash-missing','warm-flash-corrupt','warm-newer','warm-dma-drain','warm-dma-stall'):
+  damage={'warm-lite-reload':'''li t0,0x40000300
+li t1,0x484f4c44
+sw t1,12(t0)
+held_for_damage:
+lw t1,0(t0)
+andi t1,t1,1
+beqz t1,held_for_damage
+li t0,0x30000000
+lw t1,0(t0)
+xori t1,t1,1
+sw t1,0(t0)
+''','warm-match':'','warm-newer':'','warm-flash-missing':'','warm-dma-drain':'','warm-dma-stall':'','warm-reload':'''li t0,0x20000000
 lw t1,0(t0)
 xori t1,t1,1
 sw t1,0(t0)
@@ -223,8 +234,20 @@ sw t0,12(s0)
 2: wfi
 j 2b
 restarted:
+# Performance watchdog cause is handed to the application in a3.
+andi t0,a3,8
+beqz t0,failed
 li s1,0x40001000
-li a0,2
+li t1,0x57415443
+fresh_watcher:
+lw t2,12(s1)
+andi t2,t2,2
+beqz t2,fresh_watcher
+lw t2,8(s1)
+bne t1,t2,failed
+li t0,2
+sw t0,4(s1)
+li a0,1
 call exchange
 li t0,0x20003710
 lw t1,0(t0)
@@ -265,8 +288,8 @@ j 2b
   source_sha256={str(q):hashlib.sha256(q.read_bytes()).hexdigest() for q in [pathlib.Path(__file__),SRC/'image.py',ROOT/a.rom,*[watcher/n for n in ('start.S','watcher.c','crc16.h','watcher.ld')]]},
   cases={n:dict(scenario=n if n.startswith('warm-') else 'held' if n in ('held','watcher-held','max-lite-held') else 'recovery' if n=='empty' or n.startswith('bad-') else 'strap' if n=='strap' else 'normal',
    marker={'core-smoke':0xa5,'a':0xa1,'newest-b':0xb2,'golden':0xc3,'held':0xd4,'corrupt-newest':0xa1,'uncommitted':0xa1,'empty':0,'strap':0,
-     'warm-match':0xe2,'warm-reload':0xe2,'warm-bad-context':0xf1,'warm-bad-context-reset':0xf1,'tie-a':0xa1,
-     'warm-flash-missing':0xf1,'warm-flash-corrupt':0xf1,'warm-newer':0xe2,'warm-dma-drain':0xe2,'warm-dma-stall':0xf1,
+     'warm-match':0xe2,'warm-reload':0xe2,'warm-lite-reload':0xe2,'warm-bad-context':0xf1,'warm-bad-context-reset':0xf1,'tie-a':0xa1,
+     'warm-flash-missing':0xf1,'warm-flash-corrupt':0xf1,'warm-newer':0xe2,'warm-dma-drain':0xe2,'warm-dma-stall':0xe2,
      'bad-directory':0,'bad-range':0,'bad-generation':0,'bad-compatibility':0,'bad-extent':0,'watcher-held':0xd4,'max-lite-held':0xd4}[n],
    selected_slot=None if n in ('empty','strap') or n.startswith('bad-') else 0 if n=='golden' else 2 if n=='newest-b' else 1) for n in cases},
   artifact_sha256={str(q.relative_to(out)):hashlib.sha256(q.read_bytes()).hexdigest() for q in out.rglob('*') if q.is_file()}),indent=2)+'\n')

@@ -15,5 +15,6 @@ int dh_uart_read(void);
 int dh_uart_errors(void);
 int dh_uart_write(uint8_t value);
 void dh_uart_initialize(void);
+void dh_enter(uint32_t entry,uint32_t config,uint32_t bytes,uint32_t generation,uint32_t causes) __attribute__((noreturn));
 void dh_run_recovery(const dh_directory *directory,int directory_valid) __attribute__((noreturn));
 #endif
