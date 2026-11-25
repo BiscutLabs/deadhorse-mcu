@@ -6,6 +6,7 @@ import deadhorse.lib._
 
 class BusBridge(limit: Int = 131072) extends RawModule {
   protected def sourceEndpoint(): BridgeSource = new BridgeSource(limit)
+  protected def transportEpoch(source: Bool,target: Bool,abort: Bool): Bool=source && target && !abort
   require(limit >= 32)
   val sourceClock = IO(Input(Clock())); val targetClock = IO(Input(Clock()))
   val sourceReset_n = IO(Input(Bool())); val targetReset_n = IO(Input(Bool()))
@@ -20,7 +21,7 @@ class BusBridge(limit: Int = 131072) extends RawModule {
   localTargetReset.clk := targetClock; localTargetReset.reset_n := targetReset_n
   val producer = Module(sourceEndpoint()); val consumer = Module(new BridgeTarget)
   val abort = producer.abort
-  val transportReset_n = sourceReset_n && targetReset_n && !abort
+  val transportReset_n = transportEpoch(sourceReset_n,targetReset_n,abort)
   val sourceTransport = Module(new ResetRelease); val targetTransport = Module(new ResetRelease)
   sourceTransport.clk := sourceClock; targetTransport.clk := targetClock
   sourceTransport.reset_n := transportReset_n; targetTransport.reset_n := transportReset_n

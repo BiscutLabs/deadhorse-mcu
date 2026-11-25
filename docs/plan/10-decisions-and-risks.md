@@ -173,6 +173,12 @@ No retained cohort or survivor may be added silently.
 | --- | --- | --- |
 | **D105** | Physical base is the wafer.space gf180mcu project template at a pinned commit; PDK moves to that template's PDK_COMMIT; no Coldfoot pad ring, slot or flow material | User direction 2026-11-24; T43 precedes T38 on its own branch. Supersedes D9 source selection. Pin latest main at execution, hashes/licenses and reviewed patches; compare libraries/SRAM and rerun only library-dependent area/timing checks, no aggregate fast/full CI. Mixed SV chip-top/template collateral around the Chisel core is a narrow D16/D20/source-location exception, not permission for new SV peripheral/core RTL. Pad-library choice requires approval; keep pinned SRAM on differences pending approval. Stop for missing used cells, new timing failures, negative headroom, pad overflow or more than minor template edits. Resolve the requested twenty1024x8 macros against PLAN05's sixteen1024x8 plus four512x8 before configuration; no memory growth is implied. No implementation or physical qualification is claimed. |
 
+## T41 DMI cancellation exception
+
+| ID | Decision | Approved scope |
+| --- | --- | --- |
+| **D106** | DMI-only asynchronous cancellation exception | User-approved2026-11-25: retain immediate asynchronous cancellation/quarantine on the TAP registered hard-clear, followed by acknowledged FIFO flushing, while the debug module remains cold-reset-only. Amends D103 only for DMI transport. Preserve accepted SBA/BIST work, pending-flush wake/clock demand, all original cancellation/data/once assertions and negative controls. Minimize and inventory asynchronous event/valid state in the shared crossing library; no vendor patch, USB/analog change, new fairness/pulse assumption or general transport exemption. Approval does not claim implementation, proof or physical acceptance. [Proposal](../spec/t41-dmi-clear-exception.md). |
+
 ## Risks and evidence still required
 
 

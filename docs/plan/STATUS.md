@@ -116,6 +116,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D103 | Four reset cohorts; performance watchdog joins warm | User-approved2026-11-24; T41 queued after PLAN05; no RTL or acceptance |
 | [x] | D104 | Temporary maximum lite-image load exception | User-approved2026-11-24; T42 retains250ms target; all other checks and D101 remain |
 | [x] | D105 | Official wafer.space physical base and template PDK | User-approved2026-11-24; supersedes D9 source; T43 scoped migration and logical chip top before T38; pad/SRAM stops retained; no implementation |
+| [x] | D106 | DMI-only asynchronous cancellation | User-approved2026-11-25; immediate hard-clear quarantine and acknowledged flush; DM cold-only; implementation unverified |
 
 ## Tasks
 
@@ -172,7 +173,7 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36/T43; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
 | [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
 | [ ] | T40 | [DMA circular UART RX](tasks/T40-dma-circular-uart-rx.md) | unassigned | D102; PLAN05 design changes/Phase 2 qualification; T23 | Scheduled only; [planning receipt](tasks/reports/T40-planning.md). UART RX only, shadow reload, strict area cap; implementation and acceptance unverified |
-| [!] | T41 | [Reset consolidation](tasks/T41-reset-consolidation.md) | Codex | D103; completed PLAN05/T36; T33/T34/T32 interfaces | Blocked on [DMI cancellation exception](../spec/t41-dmi-clear-exception.md): cold-only transport conflicts with immediate hard-clear cancellation. Inventory committed; focused production/negative tests pass; [receipt](tasks/reports/T41.md). No consolidation accepted; no aggregate CI |
+| [!] | T41 | [Reset consolidation](tasks/T41-reset-consolidation.md) | Codex | D103; completed PLAN05/T36; T33/T34/T32 interfaces | D106 approved; [remaining bus/BIST cancellation decision](../spec/t41-cancellation-boundaries.md) pending. Bus timeout diagnostic/negative pass; full source-family audit recorded. [Receipt](tasks/reports/T41.md); consolidation unimplemented, no aggregate CI |
 | [ ] | T42 | [Lite boot-transfer latency](tasks/T42-lite-boot-transfer.md) | unassigned | D104; PLAN05; coordinate T41 | Queued investigation/proposal; hardware changes need approval; maximum-image250ms target remains open |
 | [ ] | T43 | [wafer.space template and PDK](tasks/T43-wafer-space-physical-base.md) | unassigned | D105; current production; prerequisite for T38 | [Planning receipt](tasks/reports/T43-planning.md); no migration, chip top or physical acceptance; resolve macro-count mismatch before execution |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
@@ -287,6 +288,10 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-25: Completed remaining-source audit: bridge timeout also needs immediate quarantine; synchronized-abort negative is caught by a public-port phase sweep. Proposed a combined bridge exception and explicit preservation of BIST pin-abort capture; D106 remains DMI-only. T41 blocked pending this decision; no new cohort or weakened cancellation implemented.
+
+- 2026-11-25: Recorded D106 user approval for the DMI-only asynchronous cancellation exception. Resume T41; audit other source families before replacing protocol resets. No broader exception or implementation acceptance inferred.
 
 - 2026-11-25: T41 cancellation diagnostic passes2 tests: current transport cancels a queued request with main stopped; synchronized-clear fault is rejected. Independent review identifies a required DMI-only asynchronous quarantine exception to cold-only debug transport; no approval recorded, no assertion weakened. T41 blocked pending decision.
 

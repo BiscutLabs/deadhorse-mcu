@@ -1,4 +1,8 @@
-# T41 DMI cancellation boundary — decision required
+# T41 DMI cancellation boundary — approved D106
+
+User approved the recommended DMI-only exception on2026-11-25 (D106).
+Implementation and qualification remain pending. The original conflict and
+diagnostic below are retained as the decision rationale.
 
 ## Conflict
 
@@ -47,14 +51,14 @@ The existing formal oracle independently defines the same epoch boundary in
 `hw/ip/debug/formal/DebugTransportFormal.scala`. That proof was inspected, not
 rerun here. No assertion, clock assumption or timeout was relaxed.
 
-## Recommended narrow exception (not approved)
+## Approved narrow exception (D106)
 
 Allow a DMI-transport-only asynchronous cancellation/quarantine control triggered
 by cold reset or the TAP's registered hard-clear. Keep the DM, TAP protocol
 state, hart debug state and ordinary cold reset distribution under their existing
 cold-only reset contract. Do not introduce a new pin or vendor patch.
 
-Implementation requirements after approval:
+Implementation requirements:
 
 - Assert quarantine without waiting for main clock edges, suppressing request
   acceptance and stale response visibility at the old cancellation boundary.
@@ -79,7 +83,7 @@ Its implementation and measurements have not run. Alternatively, keeping the
 literal cold-only transport restriction requires an explicit change to the DMI
 cancellation contract; that is not recommended or implemented here.
 
-## Why work stops here
+## Original approval boundary
 
 The T41 brief says: “Ask before retaining any cohort beyond the four above”
 and forbids unapproved behavior changes. Both retaining an extra asynchronous
@@ -87,4 +91,4 @@ transport control and delaying the existing cancellation boundary cross that
 decision boundary. Independent review examined the vendor interface, current
 formal oracle and synchronized/event-capture alternatives and confirmed the
 need for this narrow decision. Inventory and diagnostic checks may be committed;
-the reset consolidation must not be marked complete pending approval.
+the reset consolidation must not be marked complete merely because D106 is approved.
