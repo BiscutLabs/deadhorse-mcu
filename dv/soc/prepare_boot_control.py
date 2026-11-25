@@ -1,4 +1,4 @@
-"""Prepare opt-in lite-first release registers and two firmware images; no CI."""
+"""Prepare performance-first lite-loading diagnostic images; no CI."""
 from pathlib import Path
 import subprocess
 import sys
@@ -16,8 +16,8 @@ def main():
              '-Wl,-T,'+str(linker),f'dv/soc/boot_release_{name}.S','-o',str(out/(name+'.elf'))])
         run(['riscv64-unknown-elf-objcopy','-O','binary',str(out/(name+'.elf')),str(out/(name+'.bin'))])
         raw=(out/(name+'.bin')).read_bytes()
-        assert len(raw)%4==0 and 16<len(raw)<=2048
+        assert len(raw)%4==0 and 16<len(raw)<=(1024 if name=="lite" else 65536-128)
         if name=='boot':raw=bytes(128)+raw;raw+=bytes(65536-len(raw))
         (out/(name+'.hex')).write_text(''.join(f'{int.from_bytes(raw[i:i+4],"little"):08x}\n' for i in range(0,len(raw),4)))
-    print('PASS lite-first release firmware prepared')
+    print('PASS performance-first release firmware prepared')
 if __name__=='__main__':main()

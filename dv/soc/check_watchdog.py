@@ -28,7 +28,7 @@ def main():
         run([sys.executable,'hw/top/reference/test_soc_map.py'],'map-tests')
         run([sys.executable,'tools/check_structure.py','--include-untracked'],'structure')
         suites=['deadhorse.watchdog.WatchdogSpec','deadhorse.watchdog.WatchdogMmioSpec',
-                'deadhorse.pwm.PwmWatchdogSpec','deadhorse.pinmux.PinmuxWatchdogSpec',
+                'deadhorse.timers.GeneralTimersControlSpec','deadhorse.pinmux.PinmuxWatchdogSpec',
                 'deadhorse.top.SocWatchdogSpec','deadhorse.top.SocWatchdogCoreSpec',
                 'deadhorse.top.SocWatchdogEpochSpec',
                 'deadhorse.top.SocLiteSpec','deadhorse.top.SocI1ResetSpec',

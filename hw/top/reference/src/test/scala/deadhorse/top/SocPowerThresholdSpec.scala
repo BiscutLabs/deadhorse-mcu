@@ -7,8 +7,8 @@ import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
 /** Observe the actual digital-to-analog threshold boundary; no injected bus. */
-class SocPowerThresholdProbe extends SocAnalogModelTest("build/t20/map/soc.json",SocProduction.config().uart,
-    Paths.get("build/t33/threshold-firmware/boot.hex").toAbsolutePath.toString) {
+class SocPowerThresholdProbe(badKey: Boolean=false) extends SocAnalogModelTest("build/t20/map/soc.json",SocProduction.config().uart,
+    Paths.get(s"build/t33/threshold-firmware/${if(badKey) "boot-bad-key" else "boot"}.hex").toAbsolutePath.toString) {
   val macroThreshold=IO(Output(UInt(2.W)))
   val macroReset_n=IO(Output(Bool()))
   macroThreshold:=threshold;macroReset_n:=supplyReset
@@ -25,11 +25,11 @@ class SocPowerThresholdSpec extends AnyFunSuite with ChiselSim with SocDebugLint
     "--ckg-enable=en_i","--ckg-test-enable=test_en_i")
 
   for((brownout,badKey)<-Seq((false,false),(true,false),(false,true)))
-  test(s"real lite MMIO threshold change and software reset reason, brownout=$brownout badKey=$badKey") {
-    simulateRaw(new SocPowerThresholdProbe,settings=settings,firtoolOpts=gate) {d=>
-      d.pins.uartRx.foreach(_.poke(true.B));d.pins.spiMiso.poke(false.B)
+  test(s"real performance MMIO threshold change and software reset reason, brownout=$brownout badKey=$badKey") {
+    simulateRaw(new SocPowerThresholdProbe(badKey),settings=settings,firtoolOpts=gate) {d=>
+      d.pins.aonExtraIn.poke(0.U);d.pins.uartRx.foreach(_.poke(true.B));d.pins.spiMiso.poke(false.B)
       d.pins.i2cSclIn.poke(true.B);d.pins.i2cSdaIn.poke(true.B)
-      d.pins.recoveryScl.poke(true.B);d.pins.recoverySda.poke(true.B)
+
       d.pins.usbVbus.poke(false.B);d.pins.usbDpRx.poke(false.B);d.pins.usbDnRx.poke(false.B)
       val p=d.pins.inactive
       p.qspiDqIn.poke(0.U);p.jtagTck.poke(false.B);p.jtagTms.poke(true.B);p.jtagTdi.poke(false.B)
@@ -43,30 +43,7 @@ class SocPowerThresholdSpec extends AnyFunSuite with ChiselSim with SocDebugLint
       // All voltages/delays are the existing assumed digital macro contract.
       m.supplyMv.poke(3300.U);m.porReference.step(1002);tick(580)
       d.status.servicesReleased.expect(true.B);d.macroThreshold.expect(0.U)
-      var hostLow=false
-      def wireStep(n: Int): Unit=for(_<-0 until n) {
-        d.pins.recoverySda.poke((!hostLow && !high(d.pins.recoverySdaLow)).B);tick()
-        d.pins.recoverySda.poke((!hostLow && !high(d.pins.recoverySdaLow)).B)
-      }
-      def line(scl: Boolean,low: Boolean): Unit={hostLow=low;d.pins.recoveryScl.poke(scl.B);wireStep(5)}
-      def send(v: Int): Unit={
-        for(bit<-7 to 0 by -1) {val low=(v&(1<<bit))==0;line(false,low);line(true,low);line(false,low)}
-        line(false,false);line(true,false);assert(!high(d.pins.recoverySda),"POWER_LOAD_ACK");line(false,false)
-      }
-      def bytes(v: Long): Seq[Int]=(0 until 4).map(i=>((v>>>(8*i))&255).toInt)
-      def command(op: Int,words: Long*): Unit={
-        line(true,false);line(true,true);line(false,true);send(0x6a);send(op)
-        words.flatMap(bytes).foreach(send)
-        line(false,true);line(true,true);line(true,false);wireStep(8)
-      }
-      val imageName=if(badKey) "lite-bad-key" else "lite"
-      val source=scala.io.Source.fromFile(s"build/t33/threshold-firmware/$imageName.hex")
-      val image=try source.getLines().map(x=>java.lang.Long.parseUnsignedLong(x,16)).toVector finally source.close()
-      val crc=new java.util.zip.CRC32;image.flatMap(bytes).foreach(crc.update)
-      def load(): Unit={
-        command(1,image.size*4,16,crc.getValue,0x10000,16,0,0,0x2025)
-        image.zipWithIndex.foreach {case(w,i)=>command(2,i*4,w)};command(3);command(6)
-      }
+      def load(): Unit=p.gpioIn.poke(1.U) // Board stimulus releases the diagnostic wait.
       def expectReport(value: Int): Unit={
         var elapsed=0
         while(p.gpioOut.peek().litValue!=value && elapsed<10000) {tick();elapsed+=1}
@@ -91,6 +68,7 @@ class SocPowerThresholdSpec extends AnyFunSuite with ChiselSim with SocDebugLint
         while(high(d.status.aonReleased) && elapsed<10000) {tick();elapsed+=1}
         assert(!high(d.status.aonReleased),"POWER_THRESHOLD_BROWNOUT_MISSING")
         d.macroReset_n.expect(false.B);d.status.servicesReleased.expect(false.B);d.macroThreshold.expect(0.U)
+        p.gpioIn.poke(0.U)
         tick(40);d.status.aonReleased.expect(false.B)
         m.supplyMv.poke(3300.U);m.porReference.step(998)
         d.macroReset_n.expect(false.B);d.status.aonReleased.expect(false.B)
@@ -98,8 +76,7 @@ class SocPowerThresholdSpec extends AnyFunSuite with ChiselSim with SocDebugLint
         d.status.aonReleased.expect(false.B);d.status.servicesReleased.expect(false.B);tick(580)
         d.status.servicesReleased.expect(true.B);d.status.resetCauses.expect(2.U)
         d.macroThreshold.expect(0.U)
-        // Brownout is cold reset: loader ownership is reopened and the same
-        // real firmware can read the recorded reason through its MMIO window.
+        // Brownout restarts the single boot master, which reads the actual reason.
         load();expectReport(2)
       }
     }

@@ -12,12 +12,12 @@ import org.scalatest.funsuite.AnyFunSuite
 class SocOscSleepProbe(boot: String="boot") extends SocAnalogModelTest("build/t20/map/soc.json",SocProduction.config().uart,
     Paths.get(s"build/plan04/sleep-firmware/$boot.hex").toAbsolutePath.toString) {
   val observe=IO(Output(new Bundle {
-    val programmed=Bool();val locked=Bool();val hold=Bool();val gate=Bool();val qualify=Bool()
+    val liteHeld=Bool();val hold=Bool();val gate=Bool();val qualify=Bool()
     val pc=UInt(32.W);val retire=Bool();val ndmReset=Bool();val serviceUp=Bool()
     val fetch=UInt(4.W);val instruction=UInt(32.W);val instructionError=Bool()
     val firstPc=Vec(16,UInt(32.W));val firstInsn=Vec(16,UInt(32.W));val retired=UInt(5.W)
   }))
-  observe.programmed:=digital.i1.get.loaderProgrammed;observe.locked:=digital.i1.get.loaderLocked
+  observe.liteHeld:=BoringUtils.bore(digital.subsystem.get.liteBootHeld)
   observe.hold:=digital.clockHold;observe.gate:=digital.i1.get.clockControl.gateRequest
   observe.qualify:=digital.i1.get.clockControl.qualify
   observe.ndmReset:=BoringUtils.bore(digital.debugReset)
@@ -53,9 +53,9 @@ class SocClockResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
   def design=new SocAnalogModelTest("build/t20/map/soc.json",SocProduction.config().uart,
     Paths.get("build/t20/i0-firmware/boot.hex").toAbsolutePath.toString)
   def pins(d: SocAnalogModelTest): Unit={
-    d.pins.uartRx.foreach(_.poke(true.B));d.pins.spiMiso.poke(false.B)
+    d.pins.aonExtraIn.poke(0.U);d.pins.uartRx.foreach(_.poke(true.B));d.pins.spiMiso.poke(false.B)
     d.pins.i2cSclIn.poke(true.B);d.pins.i2cSdaIn.poke(true.B)
-    d.pins.recoveryScl.poke(true.B);d.pins.recoverySda.poke(true.B)
+
     d.pins.usbVbus.poke(false.B);d.pins.usbDpRx.poke(false.B);d.pins.usbDnRx.poke(false.B)
     val p=d.pins.inactive
     p.qspiDqIn.poke(0.U);p.jtagTck.poke(false.B);p.jtagTms.poke(true.B);p.jtagTdi.poke(false.B)
@@ -165,11 +165,11 @@ class SocClockResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
       ("lite-jtag",Seq(7),"oscillator-off JTAG wake"),
       ("lite-usb",Seq(5),"oscillator-on USB resume")))
   test(if(imageName=="lite-reset") "real lite watchdog wakes the stopped oscillator and resets services" else
-      s"real loader and WFI firmware retain main state through $label") {
+      s"real performance and WFI firmware retain main state through $label") {
     val probeSettings=Settings.defaultRaw[SocOscSleepProbe].copy(
       randomization=Randomization.random.copy(memories=false)).withLibraryPaths(Seq(Paths.get(
       "hw/vendor/ibex_ref/vendor/lowrisc_ip/ip/prim_generic/rtl/prim_generic_clock_gating.sv").toAbsolutePath.toString))
-    val boot=if(imageName=="lite-gpio") "boot-gpio" else if(imageName=="lite-usb") "boot-usb" else "boot"
+    val boot="boot-"+imageName
     simulateRaw(new SocOscSleepProbe(boot),settings=probeSettings,firtoolOpts=gate) {d=>
       pins(d);d.porBypass.poke(false.B);d.aonClockSelect.poke(false.B);d.externalReset_n.poke(true.B)
       if(imageName=="lite-usb") {d.pins.usbVbus.poke(true.B);d.pins.usbDpRx.poke(true.B)}
@@ -191,28 +191,7 @@ class SocClockResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
         d.pins.inactive.jtagTck.poke(false.B)
       }
       if(imageName=="lite-jtag") {for(_<-0 until 16) tap(true);tap(false);for(_<-0 until 16) tap(false)}
-      var hostLow=false
-      def wireStep(n: Int): Unit=for(_<-0 until n) {
-        d.pins.recoverySda.poke((!hostLow && !high(d.pins.recoverySdaLow)).B);tick()
-        d.pins.recoverySda.poke((!hostLow && !high(d.pins.recoverySdaLow)).B)
-      }
-      def line(scl: Boolean,low: Boolean): Unit={hostLow=low;d.pins.recoveryScl.poke(scl.B);wireStep(5)}
-      def send(v: Int): Unit={
-        for(bit<-7 to 0 by -1) {val low=(v&(1<<bit))==0;line(false,low);line(true,low);line(false,low)}
-        line(false,false);line(true,false);assert(!high(d.pins.recoverySda),"OSC_BOOT_ACK");line(false,false)
-      }
-      def bytes(v: Long): Seq[Int]=(0 until 4).map(i=>((v>>>(8*i))&255).toInt)
-      def command(op: Int,words: Long*): Unit={
-        line(true,false);line(true,true);line(false,true);send(0x6a);send(op)
-        words.flatMap(bytes).foreach(send)
-        line(false,true);line(true,true);line(true,false);wireStep(8)
-      }
-      val source=scala.io.Source.fromFile(s"build/plan04/sleep-firmware/$imageName.hex")
-      val image=try source.getLines().map(x=>java.lang.Long.parseUnsignedLong(x,16)).toVector finally source.close()
-      val crc=new java.util.zip.CRC32;image.flatMap(bytes).foreach(crc.update)
-      command(1,image.size*4,16,crc.getValue,0x10000,16,0,0,0x2025)
-      image.zipWithIndex.foreach {case(w,i)=>command(2,i*4,w)};command(3)
-      d.observe.programmed.expect(true.B);command(6);d.observe.locked.expect(true.B)
+      // Performance ROM copies/releases the AON-only helper; no loader transport.
       for(wake<-wakes) {
         var elapsed=0
         if(wake==5) {
@@ -261,9 +240,8 @@ class SocClockResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
           // wake the production assembly without testbench wake injection.
           elapsed=0
           while(!high(d.oscEn)) {tick();elapsed+=1;assert(elapsed<20000,s"OSC_AON_WAKE_LOST source=$wake")}
-          // Internal reset restores conservative startup settings. The frozen
-          // loader's warm-reset contract invalidates its image and retains its
-          // lock; this test does not invent automatic firmware restart.
+          // Internal reset restores conservative startup; the sole boot master
+          // reports the watchdog cause and deliberately leaves the hung helper held.
           // Existing wake cases retain their original observation interval.
           tick(if(wake==8) 2000 else 74)
         }
@@ -271,8 +249,8 @@ class SocClockResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
         d.status.fault.expect(false.B)
         if(wake==8) {
           d.observe.serviceUp.expect(true.B);d.observe.gate.expect(true.B)
-          d.observe.programmed.expect(false.B);d.observe.locked.expect(true.B)
-          d.status.coreReady.expect(false.B);d.pins.inactive.gpioEnable.expect(0.U)
+          d.observe.liteHeld.expect(true.B)
+          d.status.coreReady.expect(true.B);d.pins.inactive.gpioOut.expect(1.U)
         } else d.status.coreReady.expect(true.B)
       }
       var elapsed=0

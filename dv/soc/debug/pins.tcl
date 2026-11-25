@@ -1,4 +1,4 @@
-# Sideband controls change only external clock/reset/recovery-I2C pins.
+# Sideband controls change only external clock/reset pins.
 set pin_sequence 0
 proc pins {action} {
     global sim_control pin_sequence

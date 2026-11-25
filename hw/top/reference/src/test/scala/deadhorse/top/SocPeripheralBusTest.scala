@@ -13,6 +13,7 @@ class SocPeripheralBusTest(d: SocDescription,c: SocI1Config)
 
 object SocTestPorts extends PeekPokeAPI {
   def idle(d: SocI1Peripherals): Unit = {
+    d.pins.aonExtraIn.poke(0.U)
     d.sramReset_n.poke(true.B);d.sramTest.result.poke(0.U)
     d.pins.clockControl.reset_n.poke(true.B);d.pins.clockControl.coreIdle.poke(false.B)
     d.pins.clockControl.stable.poke(false.B);d.pins.clockControl.closed.poke(false.B)
@@ -25,6 +26,7 @@ object SocTestPorts extends PeekPokeAPI {
     }
   }
   def tieIdle(d: SocI1Peripherals): Unit = {
+    d.pins.aonExtraIn:=0.U
     d.sramReset_n:=true.B;d.sramTest.result:=0.U
     d.pins.clockControl.reset_n:=true.B;d.pins.clockControl.coreIdle:=false.B
     d.pins.clockControl.stable:=false.B;d.pins.clockControl.closed:=false.B

@@ -25,7 +25,7 @@ def main(output):
         run([sys.executable,'dv/soc/prepare_production.py'],'prepare')
         run([sys.executable,'hw/top/reference/test_soc_map.py'],'map-tests')
         run([sys.executable,'tools/check_structure.py','--include-untracked'],'structure')
-        suites=['deadhorse.boot_control.BootControlSpec','deadhorse.boot_control.BootReleaseSpec',
+        suites=['deadhorse.boot_control.BootControlSpec','deadhorse.boot_control.LiteBootStateSpec deadhorse.boot_control.BootModeStrapSpec',
                 'deadhorse.top.SocBootReleaseSpec','deadhorse.top.SocWatchdogCoreSpec',
                 'deadhorse.top.SocWatchdogEpochSpec','deadhorse.top.SocI1ResetSpec','deadhorse.top.SocLiteSpec']
         run([sys.executable,'tools/sbt.py','hw/testOnly '+' '.join(suites)],'simulation')

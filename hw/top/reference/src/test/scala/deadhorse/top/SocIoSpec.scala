@@ -26,7 +26,7 @@ class SocIoSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguratio
     d.uartRx.poke(true.B);d.pins.uartRx.foreach(_.poke(true.B))
     d.pins.spiMiso.poke(false.B);d.pins.spiTimeNow.poke(0.U)
     d.pins.i2cSclIn.poke(true.B);d.pins.i2cSdaIn.poke(true.B)
-    d.pins.recoveryScl.poke(true.B);d.pins.recoverySda.poke(true.B)
+
     d.pins.usbVbus.poke(false.B);d.pins.usbDpRx.poke(false.B);d.pins.usbDnRx.poke(false.B)
     d.pins.liteHalted.poke(true.B);d.pins.resetReason.poke(0.U);d.pins.crashCount.poke(0.U)
     SocInactiveTestInputs.drive(d.pins.inactive,0)
@@ -53,7 +53,7 @@ class SocIoSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguratio
   test("functional I/O decode, ownership, pad outputs and timer IRQ") {
     simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d)
-      val gpio=BigInt(0x40012000L);val timer=gpio+256
+      val gpio=BigInt(0x40012000L);val timer=BigInt(0x40030000L)
       for(i<-0 until 3) good(d,d.main,0x40012200L+4*i,true,1)
       good(d,d.main,gpio,true,5);good(d,d.main,gpio+4,true,7)
       assert(d.pins.inactive.gpioOut.peek().litValue==5 && d.pins.inactive.gpioEnable.peek().litValue==7)
@@ -61,13 +61,21 @@ class SocIoSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguratio
       good(d,d.main,gpio+12,true,1);good(d,d.main,gpio+24,true,1)
       d.pins.inactive.gpioIn.poke(1.U);tick(d,6);assert(d.fastIrq.peek().litValue.testBit(9))
       good(d,d.main,gpio+20,true,7);tick(d,4);assert(!d.fastIrq.peek().litValue.testBit(9))
-      good(d,d.main,timer,true,1);good(d,d.main,timer+0x20,true,7)
-      val now=good(d,d.main,timer+12)
-      good(d,d.main,timer+0x40,true,now+100);good(d,d.main,timer+0x14,true,1);good(d,d.main,timer+8,true,1)
+      // General timer 0/channel 0 output compare, routed to the first timer pad.
+      good(d,d.main,0x40012264L,true,0)
+      good(d,d.main,timer+0x30,true,0) // Explicit stop acknowledges the reset break.
+      good(d,d.main,timer,true,1)
+      val now=good(d,d.main,timer+4);tick(d,80)
+      assert(good(d,d.main,timer+4)>now,"IO_MICROSECOND_TIMEBASE")
+      good(d,d.main,timer+0x40,true,799)
+      good(d,d.main,timer+0x80,true,6);good(d,d.main,timer+0xc0,true,100)
+      good(d,d.main,timer+0x14,true,1);good(d,d.main,timer+0x1c,true,1)
+      good(d,d.main,timer+0x30,true,1)
       assert(d.pins.inactive.timerEnable.peek().litValue==1 && high(d.mainHold))
-      tick(d,820);assert(d.pins.inactive.timerOut.peek().litValue==1 && d.fastIrq.peek().litValue.testBit(11))
-      good(d,d.main,timer,true,0);assert(d.pins.inactive.timerEnable.peek().litValue==0)
-      for(a<-Seq(0x40012080L,0x40012180L,0x40012280L,0x40000400L,0x40020100L))
+      tick(d,120);assert(d.pins.inactive.timerOut.peek().litValue==1 && d.fastIrq.peek().litValue.testBit(10))
+      good(d,d.main,timer+0x30,true,0);good(d,d.main,timer,true,0)
+      assert(d.pins.inactive.timerEnable.peek().litValue==0)
+      for(a<-Seq(0x40012080L,0x40012180L,0x400122fcL,0x400004fcL,0x40020200L))
         assert(access(d,d.main,a)._2,"IO_HOLE")
       assert(access(d,d.main,0x40000020L,true,100)._2 && access(d,d.main,0x40020000L,true,1)._2)
       d.mainServiceReset_n.poke(false.B);tick(d,2)

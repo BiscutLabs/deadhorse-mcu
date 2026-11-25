@@ -1,49 +1,285 @@
+# PLAN05 production target contract; RTL migration and acceptance pending.
 schema: 1
 name: deadhorse_soc
-# One production configuration (D72/D78); physical pad freeze remains open.
 clocks:
-  main: {hz: [8000000], source: osc_in_div6}
-  aon: {hz: [32000], source: lf_rc_or_reset_strap}
-  tck: {hz: [100000], source: external_test_input}
-  usb: {hz: [48000000], source: osc_in}
-resets: [cold, warm, main_core, main_service, aon_service, usb_service]
+  main:
+    hz:
+    - 8000000
+    source: osc_in_div6
+  aon:
+    hz:
+    - 32000
+    source: lf_rc_or_reset_strap
+  tck:
+    hz:
+    - 100000
+    source: external_test_input
+  usb:
+    hz:
+    - 48000000
+    source: osc_in
+resets:
+- cold
+- warm
+- main_core
+- main_service
+- aon_service
+- usb_service
 sram:
-  macro: gf180mcu_ocd_ip_sram__sram1024x8m8wm1
   lock: hw/vendor/gf180_sram/gf180_sram.lock.json
-  performance_sram: {banks: 4, lanes: 4, rows: 1024, accessible_words: 4096}
-  retained_sram: {banks: 1, lanes: 4, rows: 1024, accessible_words: 768}
-  bist: {dmi_base: 0x70, dmi_words: 16, regmap: hw/ip/sram/sram.regmap.yaml, admission: acknowledged_ndmreset}
+  performance_sram:
+    macro: gf180mcu_ocd_ip_sram__sram1024x8m8wm1
+    banks: 4
+    lanes: 4
+    rows: 1024
+    accessible_words: 4096
+  retained_sram:
+    macro: gf180mcu_ocd_ip_sram__sram512x8m8wm1
+    banks: 1
+    lanes: 4
+    rows: 512
+    accessible_words: 512
+  bist:
+    dmi_base: 112
+    dmi_words: 16
+    regmap: hw/ip/sram/sram.regmap.yaml
+    admission: acknowledged_ndmreset
 masters:
-  lite: {origin: 0, implementation: real}
-  performance: {origin: 1, implementation: real}
-  gateway_debug: {origin: 2, implementation: real}
+  lite:
+    origin: 0
+    implementation: real
+  performance:
+    origin: 1
+    implementation: real
+  gateway_debug:
+    origin: 2
+    implementation: real
 regions:
-  - {name: debug_mem, base: 0x00010000, size: 0x1000, home: debug leaf, domains: [main, aon], kind: model, reset: cold}
-  - {name: boot_rom, base: 0x00000000, size: 0x10000, home: main local, domains: [main], kind: model, reset: main_service}
-  - {name: xip, base: 0x10000000, size: 0x10000000, home: main local, domains: [main], kind: model, reset: main_service}
-  - {name: performance_sram, base: 0x20000000, size: 0x4000, home: main local, domains: [main], kind: model, reset: main_service}
-  - {name: retained_sram, base: 0x30000000, size: 0x0c00, home: aon, domains: [main, aon], kind: model, reset: aon_service}
-  - {name: power_reset_timer, base: 0x40000000, size: 0x1000, home: aon, domains: [main, aon], kind: container, reset: aon_service}
-  - {name: mailbox, base: 0x40001000, size: 0x0100, home: each domain local, domains: [main, aon], kind: local_pair, reset: warm, regmap: hw/ip/mailbox/mailbox.regmap.yaml}
-  - {name: uart0, base: 0x40010000, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/uart/uart.regmap.yaml}
-  - {name: uart1, base: 0x40010100, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/uart/uart.regmap.yaml}
-  - {name: uart2, base: 0x40010200, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/uart/uart.regmap.yaml}
-  - {name: spi_host, base: 0x40010300, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/spi_host/spi_host.regmap.yaml}
-  - {name: i2c_host, base: 0x40010400, size: 0x0100, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/i2c_host/i2c_host.regmap.yaml}
-  - {name: dma, base: 0x40011000, size: 0x1000, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/dma/dma.regmap.yaml}
-  - {name: gpio_pinmux, base: 0x40012000, size: 0x1000, home: main, domains: [main, aon], kind: container, reset: main_service}
-  - {name: qspi_control, base: 0x40013000, size: 0x1000, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/qspi/qspi.regmap.yaml}
-  - {name: unassigned_aon, base: 0x40020000, size: 0x10000, home: aon, domains: [main, aon], kind: reserved, reset: aon_service}
-  - {name: actuator, base: 0x40030000, size: 0x1000, home: main, domains: [main, aon], kind: real, reset: main_service, regmap: hw/ip/pwm/pwm.regmap.yaml}
-  - {name: gateway_reserved, base: 0x40040000, size: 0x0800, home: main, domains: [main, aon], kind: reserved, reset: main_service}
-  - {name: usb, base: 0x40040800, size: 0x0100, home: main/usb/aon, domains: [main, aon], kind: real, reset: usb_service, regmap: hw/ip/usb/usb.regmap.yaml}
-  - {name: future_bridge, base: 0x60000000, size: 0x10000000, home: each domain, domains: [main, aon], kind: reserved, reset: warm}
+- name: debug_mem
+  base: 65536
+  size: 4096
+  home: debug leaf
+  domains:
+  - main
+  - aon
+  kind: model
+  reset: cold
+- name: boot_rom
+  base: 0
+  size: 65536
+  home: main local
+  domains:
+  - main
+  kind: model
+  reset: main_service
+- name: xip
+  base: 268435456
+  size: 268435456
+  home: main local
+  domains:
+  - main
+  kind: model
+  reset: main_service
+- name: performance_sram
+  base: 536870912
+  size: 16384
+  home: main local
+  domains:
+  - main
+  kind: model
+  reset: main_service
+- name: retained_sram
+  base: 805306368
+  size: 2048
+  home: aon
+  domains:
+  - main
+  - aon
+  kind: model
+  reset: aon_service
+- name: power_reset_timer
+  base: 1073741824
+  size: 4096
+  home: aon
+  domains:
+  - main
+  - aon
+  kind: container
+  reset: aon_service
+- name: mailbox
+  base: 1073745920
+  size: 256
+  home: each domain local
+  domains:
+  - main
+  - aon
+  kind: local_pair
+  reset: warm
+  regmap: hw/ip/mailbox/mailbox.regmap.yaml
+- name: uart0
+  base: 1073807360
+  size: 256
+  home: main
+  domains:
+  - main
+  kind: real
+  reset: main_service
+  regmap: hw/ip/uart/uart.regmap.yaml
+- name: uart1
+  base: 1073807616
+  size: 256
+  home: main
+  domains:
+  - main
+  kind: real
+  reset: main_service
+  regmap: hw/ip/uart/uart.regmap.yaml
+- name: uart2
+  base: 1073807872
+  size: 256
+  home: main
+  domains:
+  - main
+  kind: real
+  reset: main_service
+  regmap: hw/ip/uart/uart.regmap.yaml
+- name: spi_host
+  base: 1073808128
+  size: 256
+  home: main
+  domains:
+  - main
+  kind: real
+  reset: main_service
+  regmap: hw/ip/spi_host/spi_host.regmap.yaml
+- name: i2c_host
+  base: 1073808384
+  size: 256
+  home: main
+  domains:
+  - main
+  kind: real
+  reset: main_service
+  regmap: hw/ip/i2c_host/i2c_host.regmap.yaml
+- name: dma
+  base: 1073811456
+  size: 4096
+  home: main
+  domains:
+  - main
+  kind: real
+  reset: main_service
+  regmap: hw/ip/dma/dma.regmap.yaml
+- name: gpio_pinmux
+  base: 1073815552
+  size: 4096
+  home: main
+  domains:
+  - main
+  kind: container
+  reset: main_service
+- name: qspi_control
+  base: 1073819648
+  size: 4096
+  home: main
+  domains:
+  - main
+  kind: real
+  reset: main_service
+  regmap: hw/ip/qspi/qspi.regmap.yaml
+- name: aon_spi
+  base: 1073872896
+  size: 256
+  home: aon
+  domains:
+  - aon
+  kind: real
+  reset: aon_service
+  regmap: hw/ip/aon_spi/aon_spi.regmap.yaml
+- name: aon_gpio
+  base: 1073873152
+  size: 256
+  home: aon
+  domains:
+  - aon
+  kind: real
+  reset: aon_service
+  regmap: hw/ip/aon_gpio/aon_gpio.regmap.yaml
+- name: general_timers
+  base: 1073938432
+  size: 4096
+  home: main
+  domains:
+  - main
+  kind: real
+  reset: main_service
+  regmap: hw/ip/timers/timers.regmap.yaml
+- name: gateway_reserved
+  base: 1074003968
+  size: 2048
+  home: main
+  domains:
+  - main
+  kind: reserved
+  reset: main_service
+- name: usb
+  base: 1074006016
+  size: 256
+  home: main/usb/aon
+  domains:
+  - main
+  kind: real
+  reset: usb_service
+  regmap: hw/ip/usb/usb.regmap.yaml
+- name: future_bridge
+  base: 1610612736
+  size: 268435456
+  home: each domain
+  domains:
+  - main
+  - aon
+  kind: reserved
+  reset: warm
 groups:
-  serial: {base: 0x40010000, size: 0x10000, members: [uart0, uart1, uart2, spi_host, i2c_host, dma, gpio_pinmux, qspi_control]}
-  gateway: {base: 0x40040000, size: 0x1000, members: [gateway_reserved, usb]}
+  serial:
+    base: 1073807360
+    size: 65536
+    members:
+    - uart0
+    - uart1
+    - uart2
+    - spi_host
+    - i2c_host
+    - dma
+    - gpio_pinmux
+    - qspi_control
+  gateway:
+    base: 1074003968
+    size: 4096
+    members:
+    - gateway_reserved
+    - usb
+  aon_io:
+    base: 1073872896
+    size: 65536
+    members:
+    - aon_spi
+    - aon_gpio
 fabrics:
-  main: [serial, mailbox, actuator, gateway, retained_sram, power_reset_timer, unassigned_aon, future_bridge]
-  aon: [retained_sram, power_reset_timer, mailbox, unassigned_aon, serial, actuator, gateway, future_bridge]
+  main:
+  - serial
+  - mailbox
+  - general_timers
+  - gateway
+  - retained_sram
+  - power_reset_timer
+  - future_bridge
+  aon:
+  - retained_sram
+  - power_reset_timer
+  - mailbox
+  - aon_io
+  - future_bridge
 interrupts:
   uart0: 0
   uart1: 1
@@ -55,51 +291,209 @@ interrupts:
   future_bridge: 7
   dma: 8
   gpio_pinmux: 9
-  actuator: 10
   power_reset_timer: 11
-# Production functional register bindings.
-pwm: {parent: actuator, offset: 0, size: 0x100, clock: main, reset: main_service, owner: performance, regmap: hw/ip/pwm/pwm.regmap.yaml}
-dma: {parent: dma, offset: 0, size: 0x100, clock: main, reset: main_service, owner: performance, memory: performance_sram, regmap: hw/ip/dma/dma.regmap.yaml}
-pinmux: {parent: gpio_pinmux, offset: 0x200, size: 0x100, clock: main, reset: main_service, owner: performance, regmap: hw/ip/pinmux/pinmux.regmap.yaml, sources: [disconnected, gpio, timer_compare, pwm], channels: [0, 1, 2]}
+  general_timers: 10
+  timer1: 12
+  timer2: 13
+dma:
+  parent: dma
+  offset: 0
+  size: 256
+  clock: main
+  reset: main_service
+  owner: performance
+  memory: performance_sram
+  regmap: hw/ip/dma/dma.regmap.yaml
+pinmux:
+  parent: gpio_pinmux
+  offset: 512
+  size: 256
+  clock: main
+  reset: main_service
+  owner: performance
+  regmap: hw/ip/pinmux/pinmux.regmap.yaml
+  sources:
+  - disconnected
+  - gpio
+  - timer_compare
+  - pwm
+  channels:
+  - 0
+  - 1
+  - 2
+  timer_channels:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+  - 11
+  timer_pads:
+    actuator: 9
+    timer: 4
 flight_io:
-  gpio: {parent: gpio_pinmux, offset: 0, size: 0x100, clock: main, owner: performance, regmap: hw/ip/gpio/gpio.regmap.yaml}
-  timers: {parent: gpio_pinmux, offset: 0x100, size: 0x100, clock: main, owner: performance, regmap: hw/ip/timers/timers.regmap.yaml}
-  aon_timer: {parent: power_reset_timer, offset: 0, size: 0x100, clock: aon, owner: lite, regmap: hw/ip/aon_timer/aon_timer.regmap.yaml}
-# Nominal capacity from plan08; not physical pad/PHY qualification or G1 freeze.
-# Dedicated clock/reset and analog pads counted separately in that source.
-pin_budget: {bidirectional: 40, input_only: 12}
-# Logical simultaneous production functions; outputs disabled at reset.
+  gpio:
+    parent: gpio_pinmux
+    offset: 0
+    size: 256
+    clock: main
+    owner: performance
+    regmap: hw/ip/gpio/gpio.regmap.yaml
+  aon_timer:
+    parent: power_reset_timer
+    offset: 0
+    size: 256
+    clock: aon
+    owner: lite
+    regmap: hw/ip/aon_timer/aon_timer.regmap.yaml
+pin_budget:
+  bidirectional: 40
+  input_only: 12
 pins:
-  osc_in: {width: 1, direction: input, clock: usb, safe: input, pad_class: dedicated_clock}
-  osc_en: {width: 1, direction: output, clock: aon, safe: high}
-  aon_clk_in: {width: 1, direction: input, clock: aon, safe: input}
-  aon_clk_sel: {width: 1, direction: input, clock: aon, safe: input, strap: reset_sampled}
-  por_bypass: {width: 1, direction: input, clock: aon, safe: input, strap: static_powered}
-  gpio: {width: 3, direction: bidirectional, clock: main, safe: disabled}
-  timer: {width: 4, direction: bidirectional, clock: main, safe: disabled}
-  # T32 TAP clock is external; its DMI transport uses shared CDC.
-  jtag_tck: {width: 1, direction: input, clock: tck, safe: input}
-  jtag_tms: {width: 1, direction: input, clock: tck, safe: input}
-  jtag_tdi: {width: 1, direction: input, clock: tck, safe: input}
-  jtag_tdo: {width: 1, direction: output, clock: tck, safe: disabled}
-  uart_tx: {width: 3, direction: output, clock: main, safe: disabled}
-  uart_rx: {width: 3, direction: input, clock: main, safe: input}
-  spi_sclk: {width: 1, direction: output, clock: main, safe: disabled}
-  spi_mosi: {width: 1, direction: output, clock: main, safe: disabled}
-  spi_miso: {width: 1, direction: input, clock: main, safe: input}
-  spi_cs_n: {width: 2, direction: output, clock: main, safe: disabled}
-  imu_drdy: {width: 1, direction: input, clock: main, safe: input}
-  i2c_host: {width: 2, direction: open_drain, clock: main, safe: released}
-  i2c_recovery: {width: 2, direction: open_drain, clock: aon, safe: released}
-  qspi_sclk: {width: 1, direction: output, clock: main, safe: disabled}
-  qspi_dq: {width: 4, direction: bidirectional, clock: main, safe: disabled}
-  qspi_cs_n: {width: 2, direction: output, clock: main, safe: disabled}
-  actuator: {width: 9, direction: output, clock: main, safe: disabled}
-  usb_data: {width: 2, direction: bidirectional, clock: usb, safe: disabled}
-  usb_vbus: {width: 1, direction: input, clock: usb, safe: input}
-  usb_pullup: {width: 1, direction: output, clock: usb, safe: disabled}
-
-# Production D70 digital supervision.
+  osc_in:
+    width: 1
+    direction: input
+    clock: usb
+    safe: input
+    pad_class: dedicated_clock
+  osc_en:
+    width: 1
+    direction: output
+    clock: aon
+    safe: high
+  aon_clk_in:
+    width: 1
+    direction: input
+    clock: aon
+    safe: input
+  aon_clk_sel:
+    width: 1
+    direction: input
+    clock: aon
+    safe: input
+    strap: reset_sampled
+  por_bypass:
+    width: 1
+    direction: input
+    clock: aon
+    safe: input
+    strap: static_powered
+  gpio:
+    width: 3
+    direction: bidirectional
+    clock: main
+    safe: disabled
+  timer:
+    width: 4
+    direction: bidirectional
+    clock: main
+    safe: disabled
+  jtag_tck:
+    width: 1
+    direction: input
+    clock: tck
+    safe: input
+  jtag_tms:
+    width: 1
+    direction: input
+    clock: tck
+    safe: input
+  jtag_tdi:
+    width: 1
+    direction: input
+    clock: tck
+    safe: input
+  jtag_tdo:
+    width: 1
+    direction: output
+    clock: tck
+    safe: disabled
+  uart_tx:
+    width: 3
+    direction: output
+    clock: main
+    safe: disabled
+  uart_rx:
+    width: 3
+    direction: input
+    clock: main
+    safe: input
+  spi_sclk:
+    width: 1
+    direction: output
+    clock: main
+    safe: disabled
+  spi_mosi:
+    width: 1
+    direction: output
+    clock: main
+    safe: disabled
+  spi_miso:
+    width: 1
+    direction: input
+    clock: main
+    safe: input
+  spi_cs_n:
+    width: 2
+    direction: output
+    clock: main
+    safe: disabled
+  imu_drdy:
+    width: 1
+    direction: input
+    clock: main
+    safe: input
+  i2c_host:
+    width: 2
+    direction: open_drain
+    clock: main
+    safe: released
+  qspi_sclk:
+    width: 1
+    direction: output
+    clock: main
+    safe: disabled
+  qspi_dq:
+    width: 4
+    direction: bidirectional
+    clock: main
+    safe: disabled
+  qspi_cs_n:
+    width: 2
+    direction: output
+    clock: main
+    safe: disabled
+  actuator:
+    width: 9
+    direction: output
+    clock: main
+    safe: disabled
+  usb_data:
+    width: 2
+    direction: bidirectional
+    clock: usb
+    safe: disabled
+  usb_vbus:
+    width: 1
+    direction: input
+    clock: usb
+    safe: input
+  usb_pullup:
+    width: 1
+    direction: output
+    clock: usb
+    safe: disabled
+  aon_extra:
+    width: 3
+    direction: bidirectional
+    clock: aon
+    safe: disabled
 watchdog:
   parent: power_reset_timer
   offset: 256
@@ -107,47 +501,42 @@ watchdog:
   count: 2
   clock: aon
   reset: aon_service
-  owners: [performance, lite]
+  owners:
+  - performance
+  - lite
   regmap: hw/ip/watchdog/watchdog.regmap.yaml
-
-# Production lite-first release; transport remains AON-service reset.
 boot_control:
   parent: power_reset_timer
   offset: 768
   size: 256
   clock: aon
   reset: whole_epoch
-  owner: lite
+  owner: performance
   regmap: hw/ip/boot_control/boot_control.regmap.yaml
-
 power_reset:
   parent: power_reset_timer
   offset: 1280
   size: 256
   clock: aon
   reset: aon_service
-  owner: lite
+  owner: performance
   regmap: hw/ip/power_reset/power_reset.regmap.yaml
-
 osc_ctrl:
   parent: power_reset_timer
   offset: 1024
   size: 256
   clock: aon
   reset: whole_epoch
-  owner: lite
+  owner: performance
   regmap: hw/ip/osc_ctrl/osc_ctrl.regmap.yaml
-
-# Shared command and native XIP controller.
 qspi:
   region: qspi_control
   clock: main
   reset: main_service
-  reset_owner: lite
-  owners: [lite, performance]
+  reset_owner: performance
+  owners:
+  - performance
   regmap: hw/ip/qspi/qspi.regmap.yaml
-
-# T30 native port bypasses the peripheral fabric and its watchdog.
 qspi_xip:
   region: xip
   control: qspi_control
@@ -155,3 +544,55 @@ qspi_xip:
   reset: main_service
   owner: performance
   regmap: hw/ip/qspi_xip/qspi_xip.regmap.yaml
+retained_layout:
+  program_bytes: 1024
+  data_bytes: 1024
+  writer: performance
+  write_condition: boot_held_reset
+lite_interrupts:
+  aon_spi: 0
+  aon_gpio: 1
+  power_reset_timer: 2
+  mailbox: 3
+general_timers:
+  parent: general_timers
+  offset: 0
+  size: 1024
+  clock: main
+  reset: main_service
+  owner: performance
+  regmap: hw/ip/timers/timers.regmap.yaml
+aon_io:
+  aon_spi:
+    region: aon_spi
+    clock: aon
+    reset: aon_service
+    owner: lite
+    regmap: hw/ip/aon_spi/aon_spi.regmap.yaml
+  aon_gpio:
+    region: aon_gpio
+    clock: aon
+    reset: aon_service
+    owner: lite
+    regmap: hw/ip/aon_gpio/aon_gpio.regmap.yaml
+pad_mux:
+  aon_gpio:
+  - gpio0
+  - gpio1
+  - gpio2
+  - aon_extra0
+  - aon_extra1
+  - aon_extra2
+  aon_spi:
+    sclk: 0
+    mosi: 1
+    miso: 2
+    cs_n: 3
+  radio_gpio:
+  - 4
+  - 5
+  boot_mode:
+    pad: gpio1
+    strap: reset_sampled
+    normal: 0
+    recovery: 1

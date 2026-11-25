@@ -20,10 +20,10 @@ class SocWatchdogOfferedSpec extends AnyFunSuite with ChiselSim with SocDebugLin
       val p=d.pins.inactive;val o=d.observe;val m=d.model.get
       d.pins.uartRx.foreach(_.poke(true.B));d.pins.spiMiso.poke(false.B)
       d.pins.i2cSclIn.poke(true.B);d.pins.i2cSdaIn.poke(true.B)
-      d.pins.recoveryScl.poke(true.B);d.pins.recoverySda.poke(true.B)
+
       d.pins.usbVbus.poke(false.B);d.pins.usbDpRx.poke(false.B);d.pins.usbDnRx.poke(false.B)
       p.qspiDqIn.poke(0.U);p.jtagTck.poke(false.B);p.jtagTms.poke(true.B);p.jtagTdi.poke(false.B)
-      p.imuDrdy.poke(false.B);p.gpioIn.poke(0.U);p.timerIn.poke(0.U)
+      p.imuDrdy.poke(false.B);p.gpioIn.poke(0.U);p.timerIn.poke(0.U);d.pins.aonExtraIn.poke(0.U)
       d.porBypass.poke(false.B);d.aonClockSelect.poke(false.B)
       d.externalReset_n.poke(false.B);d.monitorReset_n.poke(false.B)
       m.supplyMv.poke(0.U);m.porReference.step(3)
@@ -46,29 +46,9 @@ class SocWatchdogOfferedSpec extends AnyFunSuite with ChiselSim with SocDebugLin
         }
       }
       tick(4);m.supplyMv.poke(3300.U);m.porReference.step(1002);d.externalReset_n.poke(true.B)
-      tick(580);d.status.servicesReleased.expect(true.B);d.status.coreReady.expect(false.B)
+      tick(580);d.status.servicesReleased.expect(true.B);d.status.coreReady.expect(true.B)
       d.monitorReset_n.poke(true.B)
-      var hostLow=false
-      def wireStep(n: Int): Unit=for(_<-0 until n) {
-        d.pins.recoverySda.poke((!hostLow && !high(d.pins.recoverySdaLow)).B);tick()
-        d.pins.recoverySda.poke((!hostLow && !high(d.pins.recoverySdaLow)).B)
-      }
-      def line(scl: Boolean,low: Boolean): Unit={hostLow=low;d.pins.recoveryScl.poke(scl.B);wireStep(5)}
-      def send(byte: Int): Unit={
-        for(bit<-7 to 0 by -1) {val low=(byte&(1<<bit))==0;line(false,low);line(true,low);line(false,low)}
-        line(false,false);line(true,false);assert(!high(d.pins.recoverySda),"WATCHDOG_LOADER_ACK");line(false,false)
-      }
-      def bytes(v: Long): Seq[Int]=(0 until 4).map(i=>((v>>>(8*i))&255).toInt)
-      def command(op: Int,words: Seq[Long]=Seq.empty): Unit={
-        line(true,false);line(true,true);line(false,true);send(0x6a);send(op)
-        words.flatMap(bytes).foreach(send);line(false,true);line(true,true);line(true,false);wireStep(8)
-      }
-      val source=scala.io.Source.fromFile("build/t33/client-firmware/release.hex")
-      val image=try source.getLines().map(x=>java.lang.Long.parseUnsignedLong(x,16)).toVector finally source.close()
-      val crc=new java.util.zip.CRC32;image.flatMap(bytes).foreach(crc.update)
-      command(1,Seq(image.size*4L,16,crc.getValue,0x10000,16,0,0,0x2025))
-      image.zipWithIndex.foreach {case(word,index)=>command(2,Seq(index*4L,word))}
-      command(3);armed=true;command(6)
+      armed=true;p.gpioIn.poke(4.U) // physical trigger after monitor initialization
       var elapsed=0
       while(!(sawExpiry && high(o.ready) && high(d.status.coreSleeping) && p.gpioOut.peek().litValue==2) && elapsed<1000) {
         tick();elapsed+=1

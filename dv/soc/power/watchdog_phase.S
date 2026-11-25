@@ -8,6 +8,10 @@ _start:
   lw t0, 20(s0)
   andi t0, t0, 8
   bnez t0, restarted
+trigger:
+  lw t0,8(s1)
+  andi t0,t0,4
+  beqz t0,trigger
   li t0, 1
   sw t0, 512(s1)
   sw t0, 516(s1)

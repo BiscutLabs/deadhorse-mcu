@@ -4,7 +4,8 @@ package deadhorse.watchdog
 import chisel3._
 import chisel3.util._
 
-class WatchdogChannel extends RawModule {
+class WatchdogChannel(withPause: Boolean=false) extends RawModule {
+  val pause=if(withPause) Some(IO(Input(Bool()))) else None
   val clk=IO(Input(Clock()));val por_n=IO(Input(Bool()));val reset_n=IO(Input(Bool()))
   val period=IO(Input(UInt(32.W)));val window=IO(Input(UInt(32.W)));val warning=IO(Input(UInt(32.W)))
   val start=IO(Input(Bool()));val feed=IO(Input(Bool()))
@@ -25,13 +26,17 @@ class WatchdogChannel extends RawModule {
     val running=RegInit(false.B);val left=RegInit(0.U(32.W))
     val limit=RegInit(0.U(32.W));val lastEarly=RegInit(0.U(32.W));val threshold=RegInit(0.U(32.W))
     val warningOut=RegInit(false.B);val bad=RegInit(false.B)
+    // Extend pause through the first resumed AON edge. The counter is retained;
+    // no refill or tick is borrowed from the lite watchdog's independent state.
+    val paused=if(withPause) pause.get || RegNext(pause.get,false.B) else false.B
     val early=earlyViolation(feed && !start && left-1.U>lastEarly)
-    trip:=reset_n && por_n && running && !resetHold && (left===1.U || early)
+    trip:=reset_n && por_n && running && !resetHold && !paused && (left===1.U || early)
     bad:=false.B
     when(resetHold) {bad:=start || feed}
       .elsewhen(running) {
         bad:=start
-        when(trip) {running:=false.B;left:=0.U;warningOut:=false.B}
+        when(paused) {bad:=start || feed}
+          .elsewhen(trip) {running:=false.B;left:=0.U;warningOut:=false.B}
           .elsewhen(feed && !start) {left:=limit;warningOut:=false.B}
           .otherwise {left:=left-1.U;warningOut:=threshold=/=0.U && left-1.U<=threshold}
       }.elsewhen(start && !feed && period=/=0.U && window<period && warning<period) {

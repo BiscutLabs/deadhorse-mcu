@@ -17,13 +17,18 @@ class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),bypa
   val stallPeripheral=config.watchdog.map(_=>IO(Input(Bool())))
   val epochReady=config.watchdog.map(_=>IO(Output(Bool())))
   val watchdogReset=config.watchdog.map(_=>IO(Output(Bool())))
+  val clockReady=IO(Output(Bool()))
   val p=Module(new SocPeripheralBusTest(SocTestFiles.description,config))
   // This focused fixture supplies continuous external clocks; clock-source
   // policy is exercised by the production wrapper tests, not this bus driver.
   p.pins.clockControl.reset_n:=true.B;p.pins.clockControl.coreIdle:=false.B
-  p.pins.clockControl.stable:=false.B;p.pins.clockControl.closed:=false.B
+  // Continuous-clock fixture acknowledges qualification; physical startup is
+  // checked by SocDormantSpec, not by this bus/reset scenario.
+  p.pins.clockControl.stable:=withClockAndReset(clk,(!reset_n).asAsyncReset) {RegNext(p.pins.clockControl.qualify,false.B)}
+  p.pins.clockControl.closed:=false.B;clockReady:=p.pins.clockControl.gateRequest
   p.pins.clockControl.jtagWake:=false.B
   p.performanceDebugMode:=false.B;p.performanceReset_n:=false.B
+  p.sramReset_n:=reset_n;p.sramTest.result:=0.U
   val whole=p.supervision.map(_.wholeReset).getOrElse(false.B)
   val performance=p.supervision.map(_.performanceReset).getOrElse(false.B)
   val up=Module(new ResetRelease);up.clk:=clk;up.reset_n:=reset_n && !whole
@@ -45,11 +50,11 @@ class SocDmaHarness(config: SocI1Config=SocProduction.config(realUsb=false),bypa
   p.pins.lite<>lite;p.pins.liteHalted:=true.B;p.pins.resetReason:=0.U;p.pins.crashCount:=0.U
   p.uartRx:=p.uartTx;p.pins.uartRx.foreach(_:=true.B);uartTx:=p.uartTx
   p.pins.spiMiso:=p.pins.spiMosi;p.pins.spiTimeNow:=0.U
-  p.pins.i2cSclIn:=true.B;p.pins.i2cSdaIn:=true.B;p.pins.recoveryScl:=true.B;p.pins.recoverySda:=true.B
+  p.pins.i2cSclIn:=true.B;p.pins.i2cSdaIn:=true.B;
   p.pins.usbVbus:=false.B;p.pins.usbDpRx:=false.B;p.pins.usbDnRx:=false.B
   p.pins.inactive.qspiDqIn:=0.U;p.pins.inactive.jtagTck:=false.B;p.pins.inactive.jtagTms:=false.B
   p.pins.inactive.jtagTdi:=false.B;p.pins.inactive.imuDrdy:=false.B;p.pins.inactive.gpioIn:=0.U
-  p.pins.inactive.timerIn:=0.U
+  p.pins.inactive.timerIn:=0.U;p.pins.aonExtraIn:=0.U
   irq:=p.fastIrq;hold:=p.mainHold;pwm:=p.pins.inactive.actuatorOut;pwmEnable:=p.pins.inactive.actuatorEnable
 }
 
@@ -66,6 +71,8 @@ class SocDmaSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfigurati
     Seq(d.bus,d.lite).foreach {p=>p.req.poke(false.B);p.bits.poke(0.U.asTypeOf(new BusPayload))}
     d.reset_n.poke(false.B);d.coreReset_n.poke(false.B);d.aonReset_n.poke(false.B);d.clk.step(4)
     d.reset_n.poke(true.B);d.coreReset_n.poke(true.B);d.aonReset_n.poke(true.B);d.clk.step(40)
+    var startup=0;while(!high(d.clockReady)) {d.clk.step();startup+=1;assert(startup<1024,"CONTINUOUS_CLOCK_READY")}
+    d.clk.step(4)
   }
   def access(d: SocDmaHarness,a: BigInt,w: Boolean=false,v: BigInt=0,remote: Boolean=false): (BigInt,Boolean)={
     val p=if(remote) d.lite else d.bus;p.req.poke(true.B);p.bits.addr.poke(a.U);p.bits.we.poke(w.B)
@@ -108,20 +115,22 @@ class SocDmaSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfigurati
   }
   test("PWM DMA updates survive held core/AON resets; service reset cancels") {
     simulateRaw(new SocDmaHarness,settings=settings) {d=>
-      init(d);wr(d,pwm+4,1);wr(d,pwm+0x40,999);wr(d,pwm+0xc0,0);wr(d,pwm+0x18,1);wr(d,pwm,1)
+      init(d);wr(d,pwm+48,0);wr(d,0x40012240L,0);wr(d,pwm+0x40,999);wr(d,pwm+128,5);wr(d,pwm+0xc0,0);wr(d,pwm+32,1);wr(d,pwm+20,1);wr(d,pwm+48,1)
       wr(d,ram+0x300,250);wr(d,ram+0x304,500);wr(d,ram+0x308,750)
       channel(d,0,0x300,3,8);wr(d,dma,1)
       d.coreReset_n.poke(false.B);d.aonReset_n.poke(false.B);d.clk.step(5000)
       val samples=(0 until 2000).map {_=>val v=d.pwm.peek().litValue;d.clk.step();v}
       assert(samples.count(_.testBit(0))==1500 && samples.drop(1000)==samples.dropRight(1000),"DMA_PWM_WIRE_RESET")
-      d.coreReset_n.poke(true.B);d.aonReset_n.poke(true.B);d.clk.step(40);completed(d,1)
+      d.coreReset_n.poke(true.B);d.aonReset_n.poke(true.B);d.clk.step(40)
+    var startup=0;while(!high(d.clockReady)) {d.clk.step();startup+=1;assert(startup<1024,"CONTINUOUS_CLOCK_READY")}
+    d.clk.step(4);completed(d,1)
       assert(rd(d,dma+0x50)==0 && rd(d,dma+0x60)==ram+0x30c)
-      wr(d,pwm+4,1);wr(d,ram+0x300,1001);channel(d,0,0x300,1,8);wr(d,dma+12,0xffff)
-      wr(d,pwm,1);wr(d,dma,1);d.clk.step(2000)
+      wr(d,pwm+48,0);wr(d,ram+0x300,1001);channel(d,0,0x300,1,8);wr(d,dma+12,0xffff)
+      wr(d,pwm+20,1);wr(d,pwm+48,1);wr(d,dma,1);d.clk.step(2000)
       assert((rd(d,dma+12)&16)!=0 && rd(d,dma+0x70)==9 && rd(d,pwm+0xc0)==750,"DMA_INVALID_PWM_NO_WRITE")
       channel(d,0,0x300,100,0);wr(d,dma,1);d.reset_n.poke(false.B)
       assert(d.pwmEnable.peek().litValue==0);d.clk.step(3);d.reset_n.poke(true.B);d.clk.step(40)
-      assert(rd(d,dma+8)==0 && rd(d,dma+12)==0 && rd(d,pwm+8)==0,"DMA_SERVICE_RESET")
+      assert(rd(d,dma+8)==0 && rd(d,dma+12)==0 && rd(d,pwm+48)==0,"DMA_SERVICE_RESET")
     }
   }
 }

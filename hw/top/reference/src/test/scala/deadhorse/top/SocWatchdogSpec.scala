@@ -10,16 +10,18 @@ class SocWatchdogSpec extends SocIoSpec {
     d.performanceReady.get.poke(true.B)
     d.dmaMemory.get.gnt.poke(false.B);d.dmaMemory.get.rvalid.poke(false.B)
     d.dmaMemory.get.rdata.poke(0.U);d.dmaMemory.get.err.poke(false.B);reset(d)
+    tick(d,600);d.pins.clockControl.stable.poke(true.B);tick(d,12)
+    assert(high(d.pins.clockControl.gateRequest),"WATCHDOG_CONTINUOUS_CLOCK_READY")
   }
   def performanceScope(d: SocI1Peripherals): Unit={
     initialize(d)
-    good(d,d.main,pwm+4,true,511);good(d,d.main,pwm+0x40,true,999)
-    good(d,d.main,pwm+0xc0,true,1000);good(d,d.main,pwm,true,1)
+    good(d,d.main,pwm+48,true,0);good(d,d.main,mux+0x40,true,0);good(d,d.main,pwm+128,true,5);good(d,d.main,pwm+0x40,true,999)
+    good(d,d.main,pwm+0xc0,true,1000);good(d,d.main,pwm+20,true,1);good(d,d.main,pwm+48,true,1)
     good(d,d.main,gpio,true,2);good(d,d.main,gpio+4,true,2)
     good(d,d.main,mux,true,3);good(d,d.main,mux+4,true,1)
     good(d,d.main,dma+0x20,true,0x20000100L);good(d,d.main,dma+0x30,true,1)
-    good(d,d.main,dma+0x40,true,8);good(d,d.main,pwm+0x18,true,1)
-    good(d,d.pins.lite,0x30000800L,true,0x12345678)
+    good(d,d.main,dma+0x40,true,8);good(d,d.main,pwm+32,true,1)
+    good(d,d.pins.lite,0x30000400L,true,0x12345678)
     assert(d.pins.inactive.gpioEnable.peek().litValue==3)
     assert(access(d,d.pins.lite,perf,true,500)._2,"WATCHDOG_SOC_OWNER")
     good(d,d.main,perf,true,500);good(d,d.main,perf+8,true,250)
@@ -50,7 +52,7 @@ class SocWatchdogSpec extends SocIoSpec {
     d.pins.aonClock.step();assert(!high(d.supervision.get.performanceReset))
     tick(d,20)
     // A retained pre-reset CPU STOP drains while the upstream epoch is closed.
-    good(d,d.main,pwm+4,true,1)
+    good(d,d.main,pwm+48,true,0)
     d.performanceReady.get.poke(true.B);tick(d,5)
     assert(good(d,d.main,dma+0x20)==0x20000100L && good(d,d.main,dma+0x30)==1)
     assert(high(d.dmaMemory.get.req),"WATCHDOG_PRESERVE_DMA_REQUEST")
@@ -60,12 +62,12 @@ class SocWatchdogSpec extends SocIoSpec {
     d.dmaMemory.get.rdata.poke(750.U);d.dmaMemory.get.rvalid.poke(true.B);tick(d)
     d.dmaMemory.get.rvalid.poke(false.B);tick(d,150)
     assert(good(d,d.main,dma+8)==0 && (good(d,d.main,dma+12)&1)==1,"WATCHDOG_DMA_COMPLETES")
-    assert(good(d,d.main,pwm+0xc0)==750 && good(d,d.main,pwm+8)==0,"WATCHDOG_DMA_CANNOT_RESTART")
-    assert(good(d,d.pins.lite,0x30000800L)==0x12345678)
+    assert(good(d,d.main,pwm+0xc0)==750 && d.pins.inactive.actuatorEnable.peek().litValue==0,"WATCHDOG_DMA_CANNOT_RESTART")
+    assert(good(d,d.pins.lite,0x30000400L)==0x12345678)
     assert(good(d,d.main,perf+28)==1 && good(d,d.main,perf+20)==8)
-    good(d,d.main,pwm+4,true,1);good(d,d.main,pwm,true,1)
-    assert(good(d,d.main,pwm+8)==1 && d.pins.inactive.gpioEnable.peek().litValue==3)
-    assert((good(d,d.pins.lite,0x40000500L)&8)!=0,"POWER_PERFORMANCE_RESET_REASON")
+    good(d,d.main,pwm+48,true,0);good(d,d.main,pwm+20,true,1);good(d,d.main,pwm+48,true,1)
+    assert(d.pins.inactive.actuatorEnable.peek().litValue==1 && d.pins.inactive.gpioEnable.peek().litValue==3)
+    assert((good(d,d.main,0x40000500L)&8)!=0,"POWER_PERFORMANCE_RESET_REASON")
   }
   test("performance watchdog preserves shared state and disables all PWM routes while main is stopped") {
     simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,profile))(performanceScope)
@@ -79,7 +81,7 @@ class SocWatchdogSpec extends SocIoSpec {
   }
   test("lite watchdog resets all ordinary services but retains causes and SRAM") {
     simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,profile)) {d=>
-      initialize(d);good(d,d.main,dma+0x30,true,29);good(d,d.pins.lite,0x30000800L,true,0x76543210)
+      initialize(d);good(d,d.main,dma+0x30,true,29);good(d,d.pins.lite,0x30000400L,true,0x76543210)
       assert(access(d,d.main,lite,true,100)._2)
       good(d,d.pins.lite,lite,true,100);good(d,d.pins.lite,lite+12,true,0x57445354L)
       var n=0;while(!high(d.supervision.get.wholeReset)) {tick(d);n+=1;assert(n<150)}
@@ -87,8 +89,8 @@ class SocWatchdogSpec extends SocIoSpec {
       for(_<-0 until 3) {tick(d);assert(high(d.supervision.get.wholeReset))}
       tick(d,40);assert(!high(d.supervision.get.wholeReset))
       assert(good(d,d.main,dma+0x30)==0 && good(d,d.pins.lite,lite+28)==1)
-      assert(good(d,d.pins.lite,0x30000800L)==0x76543210)
-      assert((good(d,d.pins.lite,0x40000500L)&16)!=0,"POWER_LITE_RESET_REASON")
+      assert(good(d,d.pins.lite,0x30000400L)==0x76543210)
+      assert((good(d,d.main,0x40000500L)&16)!=0,"POWER_LITE_RESET_REASON")
     }
   }
 }

@@ -11,8 +11,8 @@ import org.scalatest.funsuite.AnyFunSuite
   * They select reset phases; the response oracle uses the exposed top buses.
   */
 class SocI1ObservedCrossings extends SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false)) {
-  val accepted=IO(Output(Vec(2,Bool())));val dispatched=IO(Output(Vec(2,Bool())))
-  for((b,i)<-Seq(toAon,toMain).zipWithIndex) {
+  val accepted=IO(Output(Vec(1,Bool())));val dispatched=IO(Output(Vec(1,Bool())))
+  for((b,i)<-Seq(toAon).zipWithIndex) {
     accepted(i):=b.source.req && b.source.gnt
     dispatched(i):=b.target.req && b.target.gnt
   }
@@ -22,18 +22,19 @@ class SocI1ResetBench extends RawModule {
   val reset_n=IO(Input(Bool()));val mainReset_n=IO(Input(Bool()));val aonReset_n=IO(Input(Bool()))
   val ignoreAonReset=IO(Input(Bool()));val ignoreMainReset=IO(Input(Bool()))
   val main=IO(new LocalBus);val aon=IO(new LocalBus)
-  val accepted=IO(Output(Vec(2,Bool())));val dispatched=IO(Output(Vec(2,Bool())))
+  val accepted=IO(Output(Vec(1,Bool())));val dispatched=IO(Output(Vec(1,Bool())))
   val d=Module(new SocI1ObservedCrossings)
   SocTestPorts.tieIdle(d)
   SocInactiveTestInputs.tieOff(d.pins.inactive)
   d.mainClock:=mainClock;d.pins.aonClock:=aonClock;d.pins.usbClock:=mainClock
   d.coldReset_n:=reset_n;d.warmReset_n:=true.B;d.mainServiceReset_n:=mainReset_n || ignoreMainReset
   d.pins.aonServiceReset_n:=aonReset_n || ignoreAonReset;d.pins.usbServiceReset_n:=true.B
+  d.pins.aonExtraIn:=0.U
   d.main<>main;d.pins.lite<>aon
   d.uartRx:=true.B;d.pins.uartRx.foreach(_:=true.B)
   d.pins.liteHalted:=true.B;d.pins.resetReason:=0.U;d.pins.crashCount:=0.U
   d.pins.spiMiso:=false.B;d.pins.spiTimeNow:=0.U
-  d.pins.i2cSclIn:=true.B;d.pins.i2cSdaIn:=true.B;d.pins.recoveryScl:=true.B;d.pins.recoverySda:=true.B
+  d.pins.i2cSclIn:=true.B;d.pins.i2cSdaIn:=true.B;
   d.pins.usbVbus:=false.B;d.pins.usbDpRx:=false.B;d.pins.usbDnRx:=false.B
   accepted:=d.accepted;dispatched:=d.dispatched
 }
@@ -43,7 +44,7 @@ class SocI1ResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfigu
     def getDirectory=Paths.get("build/t20/i1/reset-simulation").toAbsolutePath
   }
   def high(pin: Bool): Boolean=pin.peek().litToBoolean
-  test("accepted crossings cancel once on stopped-clock peer reset and source reset drains dispatched work") {
+  test("retained toAon crossings cancel once on stopped-clock peer reset and source reset drains dispatched work") {
     simulateRaw(new SocI1ResetBench) { d =>
       def tick(n: Int=1): Unit=for(_<-0 until n) {d.mainClock.step();d.aonClock.step()}
       def drive(bus: LocalBus,address: Long,write: Boolean=false,value: Long=0): Unit = {
@@ -64,11 +65,11 @@ class SocI1ResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfigu
         val result=(bus.rdata.peek().litValue,high(bus.err));tick(3);assert(!high(bus.rvalid));result
       }
       def run(direction: Int,sourceReset: Boolean,corrupt: Boolean=false): Unit = {
-        initialize();assert(!access(d.aon,0x30000800L,true,0x12345678L)._2)
+        initialize();assert(!access(d.aon,0x30000400L,true,0x12345678L)._2)
         d.ignoreAonReset.poke((corrupt && direction==0).B)
         d.ignoreMainReset.poke((corrupt && direction==1).B)
         val bus=if(direction==0) d.main else d.aon
-        val address=if(direction==0) 0x30000800L else 0x40010000L
+        val address=if(direction==0) 0x30000400L else 0x40010000L
         val event=if(sourceReset) d.dispatched(direction) else d.accepted(direction)
         drive(bus,address)
         var taken=false;var reached=false;var cycles=0
@@ -101,8 +102,8 @@ class SocI1ResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfigu
         if(direction==0) assert(result==(BigInt(0x12345678L),false),"I1_RESET_FRESH_READ")
         else assert(result==(BigInt(0),true),"I1_RESET_FRESH_OWNER_CHECK")
       }
-      for(direction<-0 until 2;sourceReset<-Seq(false,true)) run(direction,sourceReset)
-      for(direction<-0 until 2) {
+      for(direction<-0 until 1;sourceReset<-Seq(false,true)) run(direction,sourceReset)
+      for(direction<-0 until 1) {
         val failure=intercept[org.scalatest.exceptions.TestFailedException] {run(direction,false,corrupt=true)}
         assert(failure.getMessage.contains("I1_PEER_RESET_EXACTLY_ONCE"))
       }

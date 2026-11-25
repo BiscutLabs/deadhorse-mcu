@@ -33,8 +33,9 @@ class SocResetPhaseSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
     simulateRaw(new SocResetPhaseProbe,settings=settings,firtoolOpts=gate) {d=>
       d.pins.uartRx.foreach(_.poke(true.B));d.pins.spiMiso.poke(false.B)
       d.pins.i2cSclIn.poke(true.B);d.pins.i2cSdaIn.poke(true.B)
-      d.pins.recoveryScl.poke(true.B);d.pins.recoverySda.poke(true.B)
+
       d.pins.usbVbus.poke(false.B);d.pins.usbDpRx.poke(false.B);d.pins.usbDnRx.poke(false.B)
+      d.pins.aonExtraIn.poke(0.U)
       val p=d.pins.inactive;val o=d.observe
       p.qspiDqIn.poke(0.U);p.jtagTck.poke(false.B);p.jtagTms.poke(true.B);p.jtagTdi.poke(false.B)
       p.imuDrdy.poke(false.B);p.gpioIn.poke(0.U);p.timerIn.poke(0.U)
@@ -91,7 +92,8 @@ class SocResetPhaseSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
       }
       m.supplyMv.poke(3300.U);m.porReference.step(1002);d.externalReset_n.poke(true.B)
       advance(1500*580);d.status.servicesReleased.expect(true.B);d.monitorReset_n.poke(true.B)
-      d.status.coreReady.expect(false.B) // no loader release or fabricated core traffic
+      d.status.coreReady.expect(true.B)
+      d.status.coreSleeping.expect(true.B) // diagnostic ROM is quiescent; no fabricated core traffic
       def tap(tms: Boolean,tdi: Boolean=false): Boolean={
         p.jtagTck.poke(false.B);p.jtagTms.poke(tms.B);p.jtagTdi.poke(tdi.B);advance(240)
         val result=high(p.jtagTdo);p.jtagTck.poke(true.B);advance(240);p.jtagTck.poke(false.B);result
@@ -141,7 +143,7 @@ class SocResetPhaseSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
       var caseId=0
       for(route<-Seq(false,true);phase<-phases) {
         retained=route;selectedPhase=phase;caseId+=1
-        val address=BigInt(if(route) "30000800" else "20003000",16)+4*caseId
+        val address=BigInt(if(route) "30000400" else "20003000",16)+4*caseId
         val initial=BigInt("10203000",16)+caseId
         val attempted=BigInt("51a00000",16)+caseId
         val fresh=BigInt("26b00000",16)+caseId

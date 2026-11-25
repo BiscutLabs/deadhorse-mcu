@@ -30,9 +30,9 @@ class SocPinmuxCoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLin
       d.mainCoreReset_n.poke(false.B);d.mainServiceReset_n.poke(false.B)
       p.aonServiceReset_n.poke(false.B);p.usbServiceReset_n.poke(false.B)
       p.lite.req.poke(false.B);p.lite.bits.poke(0.U.asTypeOf(p.lite.bits))
-      p.liteHalted.poke(true.B);p.resetReason.poke(0.U);p.crashCount.poke(0.U)
+      p.aonExtraIn.poke(0.U);p.liteHalted.poke(true.B);p.resetReason.poke(0.U);p.crashCount.poke(0.U)
       p.uartRx.foreach(_.poke(true.B));p.spiMiso.poke(false.B);p.spiTimeNow.poke(0.U)
-      p.i2cSclIn.poke(true.B);p.i2cSdaIn.poke(true.B);p.recoveryScl.poke(true.B);p.recoverySda.poke(true.B)
+      p.i2cSclIn.poke(true.B);p.i2cSdaIn.poke(true.B);
       p.usbVbus.poke(false.B);p.usbDpRx.poke(false.B);p.usbDnRx.poke(false.B)
       SocInactiveTestInputs.drive(p.inactive,0)
       def tick(): Unit={d.mainClock.step();p.aonClock.step();p.usbClock.step()}

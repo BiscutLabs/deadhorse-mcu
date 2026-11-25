@@ -26,7 +26,7 @@ class PowerReset(json: String,base: BigInt=BigInt("40000500",16)) extends RawMod
   val causes=IO(Input(UInt(5.W)));val threshold=IO(Output(UInt(2.W)))
   protected def makeSelector(): BrownoutSelect=new BrownoutSelect
   val regs=Module(new RegBlock(json));regs.clk:=clk;regs.rst_n:=reset_n
-  val adapter=Module(new BusRegAdapter(8,base,0))
+  val adapter=Module(new BusRegAdapter(8,base,1))
   adapter.clk:=clk;adapter.reset_n:=reset_n;adapter.bus<>bus;regs.bus<>adapter.registers
   val control=Module(makeSelector())
   control.clk:=clk;control.reset_n:=reset_n

@@ -1,11 +1,9 @@
 .section .start,"ax"
 .option norvc
 .option norelax
-.space 16
 .globl _start
 _start:
-  lui s0, 0x30001
-  addi s0, s0, -2048
+  li s0, 0x30000400
   lui s1, 0x40001
   lui a0, 0x40000
   sw zero, 0(s0)

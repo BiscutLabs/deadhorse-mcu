@@ -29,7 +29,7 @@ def main():
         run([sys.executable,'tools/check_structure.py','--include-untracked'],'structure')
         suites=['deadhorse.pinmux.PinmuxSpec','deadhorse.top.SocPinmuxSpec','deadhorse.top.SocPinmuxCoreResetSpec',
                 'deadhorse.dma.DmaEngineSpec','deadhorse.top.SocDmaMemorySpec','deadhorse.top.SocDmaSpec',
-                'deadhorse.top.SocMemorySpec','deadhorse.pwm.PwmChannelSpec','deadhorse.pwm.PwmSpec','deadhorse.top.SocPwmSpec',
+                'deadhorse.top.SocMemorySpec','deadhorse.timers.GeneralTimersSpec','deadhorse.timers.GeneralTimersControlSpec','deadhorse.timers.TimerDmaSpec','deadhorse.top.SocPwmSpec',
                 'deadhorse.top.SocPwmCoreResetSpec','deadhorse.gpio.GpioSpec',
                 'deadhorse.timers.TimersSpec','deadhorse.top.SocI1Spec','deadhorse.top.SocI1ResetSpec',
                 'deadhorse.top.SocI1CoreResetSpec','deadhorse.top.SocI1UsbSpec','deadhorse.top.SocNestedSpec']

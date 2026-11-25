@@ -4,14 +4,14 @@ halt
 targets deadhorse.perf
 halt
 riscv set_mem_access sysbus
-mww 0x30000100 0x91827364
-mww 0x30000104 0x5a6bc7d8
+mww 0x30000500 0x91827364
+mww 0x30000504 0x5a6bc7d8
 poll off
 foreach reset {main-service-reset aon-reset} {
     # Freeze the real destination domain to force retained-path backpressure.
     pins aon-stop
     riscv dmi_write 0x38 0x140000
-    riscv dmi_write 0x39 0x30000100
+    riscv dmi_write 0x39 0x30000500
     set busy [riscv dmi_read 0x38]
     if {($busy & 0x200000) == 0} {error "SBA request did not remain outstanding under backpressure"}
     pins $reset
@@ -28,7 +28,7 @@ foreach reset {main-service-reset aon-reset} {
     # Clear the prior error and demand data from a distinct request/address.
     # An old response cannot satisfy this operation with the old sentinel.
     riscv dmi_write 0x38 0x547000
-    riscv dmi_write 0x39 0x30000104
+    riscv dmi_write 0x39 0x30000504
     set status [riscv dmi_read 0x38]
     if {($status & 0x607000) != 0} {error "new SBA request did not recover: $status"}
     set value [riscv dmi_read 0x3c]

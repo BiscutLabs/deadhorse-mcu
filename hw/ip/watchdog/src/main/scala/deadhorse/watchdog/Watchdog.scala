@@ -3,7 +3,8 @@ import chisel3._
 import chisel3.util._
 import deadhorse.lib._
 
-class Watchdog(json: String,base: BigInt=0,owner: Int=1) extends RawModule {
+class Watchdog(json: String,base: BigInt=0,owner: Int=1,withPause: Boolean=false) extends RawModule {
+  val pause=if(withPause) Some(IO(Input(Bool()))) else None
   val clk=IO(Input(Clock()));val por_n=IO(Input(Bool()));val reset_n=IO(Input(Bool()))
   val bus=IO(new LocalBus)
   val active=IO(Output(Bool()));val warn=IO(Output(Bool()));val resetHold=IO(Output(Bool()))
@@ -15,7 +16,8 @@ class Watchdog(json: String,base: BigInt=0,owner: Int=1) extends RawModule {
   adapter.bus.bits.origin:=Mux(permitted(bus.bits.origin),0.U,7.U)
   bus.gnt:=adapter.bus.gnt;bus.rvalid:=adapter.bus.rvalid;bus.rdata:=adapter.bus.rdata;bus.err:=adapter.bus.err
   regs.bus<>adapter.registers
-  val channel=Module(new WatchdogChannel);channel.clk:=clk;channel.por_n:=por_n;channel.reset_n:=reset_n
+  val channel=Module(new WatchdogChannel(withPause));channel.clk:=clk;channel.por_n:=por_n;channel.reset_n:=reset_n
+  channel.pause.foreach(_:=pause.get)
   channel.period:=regs.hw("period_ticks_q");channel.window:=regs.hw("window_ticks_q")
   channel.warning:=regs.hw("warning_ticks_q")
   val startWrite=regs.hw("start_key_we").asBool;val feedWrite=regs.hw("feed_key_we").asBool

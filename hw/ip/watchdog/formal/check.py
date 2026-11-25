@@ -11,11 +11,11 @@ ROOT=Path(__file__).resolve().parents[4]
 sys.path.insert(0,str(ROOT))
 from tools.formal import assertion_names, validate_job
 
-CASES={'channel':('WatchdogFormal',12,5,20),'break':('PwmBreakFormal',3,2,8),'pad':('PadDisableFormal',2,3,8)}
+CASES={'channel':('WatchdogFormal',12,5,20),'break':('TimerBreakFormal',3,2,8),'pad':('PadDisableFormal',2,3,8)}
 
 def run(output,cases):
     out=(ROOT/output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
-    paths=[p for root in ('hw/lib','hw/ip/watchdog/src/main','hw/ip/watchdog/formal','hw/ip/pwm/src/main','hw/ip/pinmux/src/main')
+    paths=[p for root in ('hw/lib','hw/ip/watchdog/src/main','hw/ip/watchdog/formal','hw/ip/timers/src/main','hw/ip/pinmux/src/main')
            for p in (ROOT/root).rglob('*') if p.is_file() and p.suffix in ('.scala','.py')]
     paths += [ROOT/'hw/ip/watchdog/watchdog.regmap.yaml',ROOT/'build/t26/watchdog/watchdog_regs.json',
               ROOT/'build.sbt',ROOT/'tools/formal.py',ROOT/'tools/sbt.py',ROOT/'tools/env/lock.json']

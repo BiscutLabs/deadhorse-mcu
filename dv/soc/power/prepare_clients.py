@@ -10,16 +10,16 @@ def main():
         subprocess.run(command,check=True);commands.append(list(map(str,command)))
     for name,filename,flags,isa,abi,base in (
             ('lite','client_lite.S',[],'rv32e_zicsr','ilp32e',0x30000000),
-            ('release','client_lite.S',['-DRELEASE_PERF'],'rv32e_zicsr','ilp32e',0x30000000),
+            ('boot-lite','client_perf.S',['-DLITE_CLIENT'],'rv32i_zicsr','ilp32',0x80),
             ('boot','client_perf.S',[],'rv32i_zicsr','ilp32',0x80)):
         linker=out/(name+'.ld');linker.write_text(f'ENTRY(_start)\nSECTIONS {{ . = {base}; .text : {{ *(.start) }} }}\n')
         run(['riscv64-unknown-elf-gcc','-march='+isa,'-mabi='+abi,'-nostdlib','-Wl,--no-relax',
             *flags,'-Wl,-T,'+str(linker),str(source/filename),'-o',str(out/(name+'.elf'))])
         run(['riscv64-unknown-elf-objcopy','-O','binary',str(out/(name+'.elf')),str(out/(name+'.bin'))])
         raw=(out/(name+'.bin')).read_bytes();assert len(raw)%4==0
-        if name=='boot':
+        if name.startswith('boot'):
             raw=bytes(128)+raw;assert len(raw)<=65536;raw+=bytes(65536-len(raw))
-        else:assert 16<len(raw)<=2048
+        else:assert 0<len(raw)<=1024
         (out/(name+'.hex')).write_text(''.join(f'{int.from_bytes(raw[i:i+4],"little"):08x}\n' for i in range(0,len(raw),4)))
     digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
     receipt=dict(status='built_not_simulated',commands=commands,

@@ -20,8 +20,7 @@ def description():
 
 def firmware():
     out=ROOT/'build/t30/firmware';out.mkdir(parents=True,exist_ok=True)
-    for name,arch,abi,base in [('lite','rv32e_zicsr','ilp32e',0x30000000),
-                              ('boot','rv32i','ilp32',0x80),('flash','rv32i','ilp32',0x10000000)]:
+    for name,arch,abi,base in [('boot','rv32i','ilp32',0x80),('flash','rv32i','ilp32',0x10000000)]:
         linker=out/(name+'.ld')
         linker.write_text(f'ENTRY(_start)\nSECTIONS {{ . = {base}; .text : {{ *(.start) }} }}\n')
         subprocess.run(['riscv64-unknown-elf-gcc','-march='+arch,'-mabi='+abi,'-nostdlib','-Wl,--no-relax',

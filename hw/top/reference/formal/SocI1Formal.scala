@@ -13,7 +13,7 @@ class BadI1Slot extends SocResetSlot {
   override protected def responseValid(value: Bool): Bool= !value
 }
 class BadI1Memory(d: SocDescription) extends SocRetainedMemory(d) {
-  override protected def completion(value: Bool): Bool= !value
+  override protected def programWriteAllowed(remote: Bool,held: Bool): Bool=true.B
 }
 
 /** Contract monitors with a generated legal, stable, one-outstanding requester.
@@ -25,9 +25,7 @@ class BadI1Memory(d: SocDescription) extends SocRetainedMemory(d) {
 class SocI1Formal(kind: String, variant: String) extends RawModule {
   val clock=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val peerReset_n=IO(Input(Bool()))
   val offer=IO(Input(Bool()));val command=IO(Input(new BusPayload))
-  val halted=IO(Input(Bool()));val started=IO(Input(Bool()));val locked=IO(Input(Bool()))
-  val loaderBusy=IO(Input(Bool()));val loaderOffer=IO(Input(Bool()))
-  val loaderOffset=IO(Input(UInt(32.W)));val loaderWord=IO(Input(UInt(32.W)))
+  val bootHeld=IO(Input(Bool()))
   val bus=Wire(new LocalBus)
   withClockAndReset(clock,(!reset_n).asAsyncReset) {
     val active=RegInit(false.B);val req=RegInit(false.B);val packet=Reg(new BusPayload)
@@ -77,26 +75,24 @@ class SocI1Formal(kind: String, variant: String) extends RawModule {
       val description=new SocDescription("build/t20/map/soc.json")
       val d=Module(if(variant=="corrupt") new BadI1Memory(description) else new SocRetainedMemory(description))
       d.clk:=clock;d.reset_n:=reset_n;d.bus<>bus
-      d.halted:=halted;d.started:=started;d.locked:=locked;d.loaderBusy:=loaderBusy
-      d.memValid:=loaderOffer;d.memOffset:=loaderOffset;d.memWord:=loaderWord
-      // Independent architectural permissions from docs/spec/soc.md.
-      val program=bus.bits.addr>="h30000000".U && bus.bits.addr<"h30000800".U
-      val work=bus.bits.addr>="h30000800".U && bus.bits.addr<"h30000c00".U
+      d.bootHeld:=bootHeld
+      // Independent C3 program/data permissions, checked on the grant edge.
+      val program=bus.bits.addr>="h30000000".U && bus.bits.addr<"h30000400".U
+      val work=bus.bits.addr>="h30000400".U && bus.bits.addr<"h30000800".U
       val lite=bus.bits.origin===0.U;val main=bus.bits.origin===1.U
       val allowed= !bus.bits.addr(1,0).orR && (
-        program && !bus.bits.we && (lite && (halted || started) || main && halted && !loaderBusy) ||
-        work && !loaderBusy && (lite || main && halted))
+        program && Mux(bus.bits.we,main && bootHeld,lite || main) ||
+        work && (lite || main && bootHeld))
       val expectedError=RegEnable(!allowed,accepted);val wasWrite=RegEnable(bus.bits.we,accepted)
       val quick=RegNext(accepted && (!allowed || bus.bits.we),false.B)
       val read=RegNext(RegNext(accepted && allowed && !bus.bits.we,false.B),false.B)
       assert(bus.rvalid===(quick || read),"I1_RETAINED_RESPONSE_TIMING")
       assert(!bus.rvalid || bus.err===expectedError,"I1_RETAINED_PERMISSION")
       assert(!bus.rvalid || !(wasWrite || bus.err) || bus.rdata===0.U,"I1_RETAINED_ZERO_REPLY")
-      val load=loaderOffer && d.memReady
-      val earned=load && halted && !locked && loaderOffset<2048.U && !loaderOffset(1,0).orR
-      assert(d.memDone===RegNext(earned,false.B),"I1_LOADER_EARNED_DONE")
-      assert(!(accepted && load),"I1_MEMORY_EXCLUSIVE_PORT")
-      if(variant=="cover") {cover(d.memDone);cover(bus.rvalid && !bus.err && !wasWrite)}
+      if(variant=="cover") {
+        cover(accepted && program && bus.bits.we && allowed)
+        cover(bus.rvalid && !bus.err && !wasWrite)
+      }
     }
   }
 }

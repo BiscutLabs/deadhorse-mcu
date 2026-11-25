@@ -7,12 +7,13 @@ import deadhorse.osc_ctrl._
 
 /** Existing logical pad functions, before T38 physical pad-cell binding. */
 class SocPhysicalPins extends Bundle {
+  val aonExtraIn=Input(UInt(3.W));val aonExtraOut=Output(UInt(3.W));val aonExtraEnable=Output(UInt(3.W))
   val inactive=new SocInactivePins
   val uartRx=Input(Vec(3,Bool()));val uartTx=Output(Vec(3,Bool()));val uartTxEnable=Output(Vec(3,Bool()))
   val spiMiso=Input(Bool());val spiSclk=Output(Bool());val spiMosi=Output(Bool())
   val spiCs_n=Output(UInt(2.W));val spiEnable=Output(Bool())
   val i2cSclIn=Input(Bool());val i2cSdaIn=Input(Bool());val i2cSclLow=Output(Bool());val i2cSdaLow=Output(Bool());val i2cEnable=Output(Bool())
-  val recoveryScl=Input(Bool());val recoverySda=Input(Bool());val recoverySdaLow=Output(Bool())
+
   val usbVbus=Input(Bool());val usbDpRx=Input(Bool());val usbDnRx=Input(Bool())
   val usbDpTx=Output(Bool());val usbDnTx=Output(Bool());val usbTxEnable=Output(Bool());val usbPullup=Output(Bool())
 }
@@ -58,7 +59,7 @@ class DeadhorseSoc(config: String,uartJson: String,romImage: String,
   clocks.oscIn:=oscIn;clocks.rcClock:=rc;clocks.aonClockIn:=aonClockIn
   clocks.externalReset_n:=externalReset_n;clocks.supplyReset_n:=supplyReset
   clocks.aonClockSelect:=aonClockSelect;clocks.porBypass:=porBypass
-  val digital=Module(new SocDigitalAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config))
+  val digital=Module(new SocDigitalAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config,withRvfi=analogModels))
   digital.mainClock:=clocks.mainClock;digital.coldReset_n:=clocks.coldReset_n
   digital.warmReset_n:=clocks.warmReset_n;digital.mainServiceReset_n:=clocks.serviceReset_n
   digital.mainCoreReset_n:=true.B
@@ -79,13 +80,13 @@ class DeadhorseSoc(config: String,uartJson: String,romImage: String,
   p.liteHalted:=false.B;p.crashCount:=0.U;p.spiTimeNow:=0.U
   threshold:=p.clockControl.threshold
   p.inactive<>pins.inactive
+  p.aonExtraIn:=pins.aonExtraIn;pins.aonExtraOut:=p.aonExtraOut;pins.aonExtraEnable:=p.aonExtraEnable
   digital.uartRx:=pins.uartRx(0);pins.uartTx(0):=digital.uartTx;pins.uartTxEnable(0):=digital.uartTxEnable
   for(i<-0 until 2) {p.uartRx(i):=pins.uartRx(i+1);pins.uartTx(i+1):=p.uartTx(i);pins.uartTxEnable(i+1):=p.uartTxEnable(i)}
   p.spiMiso:=pins.spiMiso;pins.spiSclk:=p.spiSclk;pins.spiMosi:=p.spiMosi
   pins.spiCs_n:=p.spiCs_n;pins.spiEnable:=p.spiEnable
   p.i2cSclIn:=pins.i2cSclIn;p.i2cSdaIn:=pins.i2cSdaIn
   pins.i2cSclLow:=p.i2cSclLow;pins.i2cSdaLow:=p.i2cSdaLow;pins.i2cEnable:=p.i2cEnable
-  p.recoveryScl:=pins.recoveryScl;p.recoverySda:=pins.recoverySda;pins.recoverySdaLow:=p.recoverySdaLow
   p.usbVbus:=pins.usbVbus;p.usbDpRx:=pins.usbDpRx;p.usbDnRx:=pins.usbDnRx
   pins.usbDpTx:=p.usbDpTx;pins.usbDnTx:=p.usbDnTx;pins.usbTxEnable:=p.usbTxEnable;pins.usbPullup:=p.usbPullup
   status.aonReleased:=clocks.aonReset_n;status.servicesReleased:=clocks.serviceReset_n

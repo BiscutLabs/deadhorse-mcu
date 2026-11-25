@@ -17,11 +17,11 @@ from formal import validate_job, assertion_names
 INVENTORY = {
     'error': {'SocI1Formal': 4, 'SocDrainCredit': 2},
     'slot': {'SocI1Formal': 7, 'SocResetSlot': 4},
-    'memory': {'SocI1Formal': 7, 'SocRetainedMemory': 5},
+    'memory': {'SocI1Formal': 5, 'SocRetainedMemory': 2},
     'nested': {'SocNestedFormal': 1, 'SocNestedDrain': 1},
 }
 HARNESS_BINDINGS = {
-    'SocI1Formal.scala': 'ba9d62a6181a919a1583098e1a93594cf3956f9ee9dc37eb5483d18e44dbb9a2',
+    'SocI1Formal.scala': '5ee514714cc97144c9bd4a1c1fc937e9416b1f6ea69356442ab5d7fd879aba2e',
     'SocNestedFormal.scala': 'aa13715cc1521a99a6e238fe388be4e14664254e41de3313c7d9e26894f0d195',
 }
 
@@ -48,6 +48,7 @@ def main():
                ROOT / 'hw/top/reference/src/main/scala/deadhorse/top/SocNestedDrain.scala',
                ROOT / 'hw/ip/bus/src/main/scala/deadhorse/bus/BusFabric.scala',
                *sorted((ROOT / 'hw/lib/src/main/scala').rglob('*.scala')),
+               *sorted((ROOT / 'hw/ip/sram/src/main/scala').rglob('*.scala')),
                Path(__file__), Path(__file__).with_name('SocI1Formal.scala'),
                Path(__file__).with_name('SocNestedFormal.scala'),
                ROOT / 'build/t20/map/soc.json', ROOT / 'tools/formal.py',
@@ -63,7 +64,7 @@ def main():
                                 'Generated one-outstanding requester holds payload/request through acceptance'],
                    scope={'error': 'Real error target composed with destination drain credit',
                           'slot': 'Real reset slot with ResetRelease and finite error backend; sampled reset proof, no subcycle timing claim',
-                          'memory': 'Full 768-word geometry admission/completion only; no memory data integrity or retention proof',
+                          'memory': 'Full512-word C3 geometry admission/completion only; no memory data integrity or retention proof',
                           'nested': 'Real 128-edge child fabric and drain; legal variable-latency endpoint model; no upstream request restrictions'}[args.block],
                    runs=[])
     if args.block == 'nested':
@@ -93,11 +94,11 @@ def main():
             raise RuntimeError('Emission failed')
         expected_faults = {'error': {'assert__chisel3_builtin', 'assert__chisel3_builtin_1', 'credit.assert__chisel3_builtin_0'},
                            'slot': {'assert__chisel3_builtin', 'assert__chisel3_builtin_3', 'assert__chisel3_builtin_4'},
-                           'memory': {'assert__chisel3_builtin_4'},
+                           'memory': {'d.assert__chisel3_builtin', 'assert__chisel3_builtin_2'},
                            'nested': {'assert__chisel3_builtin', 'd.assert__chisel3_builtin'}}[args.block]
         required_faults = {'error': {'assert__chisel3_builtin_1', 'credit.assert__chisel3_builtin_0'},
                            'slot': {'assert__chisel3_builtin', 'assert__chisel3_builtin_3'},
-                           'memory': {'assert__chisel3_builtin_4'},
+                           'memory': {'d.assert__chisel3_builtin'},
                            'nested': {'d.assert__chisel3_builtin'}}[args.block]
         for variant, mode, engine in [('cover', 'cover', 'smtbmc z3'),
                                       ('corrupt', 'bmc', 'smtbmc z3'),

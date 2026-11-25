@@ -46,16 +46,16 @@ def probe(binary, script, output, sleep=False, aon=1000000):
                 raise RuntimeError('Simulator binary changed during probe')
             host=(output/'openocd.log').read_text();rtl=(output/'sim.log').read_text()
             if 'PASS T32' not in host:raise RuntimeError('No completed test marker')
-            counts=dict(re.findall(r'(?<![a-z_])(application_addi|stopped_ns|wakes|reset_pulses|main_edges_during_reset|loader_starts|loader_busy_stops|aon_stopped_ns|service_reset_pulses)=(\d+)',rtl))
+            counts=dict(re.findall(r'(?<![a-z_])(application_addi|stopped_ns|wakes|reset_pulses|main_edges_during_reset|aon_stopped_ns|service_reset_pulses|reset_halt_observed)=(\d+)',rtl))
             receipt['observations']={k:int(v) for k,v in counts.items()}
             if 'PASS T32 BASIC' in host and counts.get('application_addi')!='1':
                 raise RuntimeError('Expected exactly one application ADDI retirement')
+            if 'PASS T32 RESET' in host and counts.get('reset_halt_observed')!='1':
+                raise RuntimeError('Reset-halt release monitor never activated')
             if sleep and (int(counts.get('stopped_ns','0'))<=0 or counts.get('wakes')!='1'):
                 raise RuntimeError('Missing real stopped-clock wake')
             if 'PASS T32 INDEPENDENT RESET' in host and (counts.get('reset_pulses')!='1' or counts.get('main_edges_during_reset')!='0'):
                 raise RuntimeError('Did not test short reset with main stopped')
-            if 'PASS T32 LOADER OWNERSHIP' in host and (counts.get('loader_starts')!='1' or counts.get('loader_busy_stops')!='1' or int(counts.get('aon_stopped_ns','0'))<=0):
-                raise RuntimeError('Missing loader busy/ownership/explicit START race')
             if 'PASS T32 INFLIGHT RESET' in host and (counts.get('service_reset_pulses')!='2' or int(counts.get('aon_stopped_ns','0'))<=0):
                 raise RuntimeError('Missing stopped-destination service resets')
             receipt['status']='pass'

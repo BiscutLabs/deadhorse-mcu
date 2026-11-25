@@ -46,7 +46,7 @@ proc healthy_sba {} {
     if {[lindex $value 0] != 0x5a9132e7} {error "SBA did not recover after error"}
 }
 healthy_sba
-foreach address {0x20004000 0x30000c00 0x40010000} {
+foreach address {0x20004000 0x30000800 0x40010000} {
     if {![catch {read_memory $address 32 1}]} {error "invalid SBA address succeeded: $address"}
     healthy_sba
 }

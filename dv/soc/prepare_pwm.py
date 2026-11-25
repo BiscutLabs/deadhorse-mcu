@@ -8,7 +8,6 @@ ROOT=Path(__file__).resolve().parents[2]
 def main():
     def run(args):subprocess.run(args,cwd=ROOT,check=True)
     run([sys.executable,'dv/soc/prepare_io.py'])
-    run([sys.executable,'hw/regmap/regmap.py','hw/ip/pwm/pwm.regmap.yaml','--out','build/t22/pwm'])
     out=ROOT/'build/t22/firmware';out.mkdir(parents=True,exist_ok=True)
     linker=out/'boot.ld';linker.write_text('ENTRY(_start)\nSECTIONS { . = 0x80; .text : { *(.start) } }\n')
     run(['riscv64-unknown-elf-gcc','-march=rv32i','-mabi=ilp32','-nostdlib','-Wl,--no-relax',

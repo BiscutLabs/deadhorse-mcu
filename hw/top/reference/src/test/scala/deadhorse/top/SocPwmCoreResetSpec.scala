@@ -12,7 +12,7 @@ class SocPwmCoreResetBench extends SocExternalClockTest(
   // Observe an actual MMIO acceptance, not private PWM state.
   val applied=IO(Output(Bool()))
   applied:=memory.peripheral.req && memory.peripheral.gnt && memory.peripheral.bits.we &&
-    memory.peripheral.bits.addr==="h40030000".U
+    memory.peripheral.bits.addr==="h40030014".U
 }
 class SocPwmCoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfiguration {
   implicit val outputDirectory: HasTestingDirectory=new HasTestingDirectory {
@@ -30,9 +30,9 @@ class SocPwmCoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintCo
       d.mainCoreReset_n.poke(false.B);d.mainServiceReset_n.poke(false.B)
       p.aonServiceReset_n.poke(false.B);p.usbServiceReset_n.poke(false.B)
       p.lite.req.poke(false.B);p.lite.bits.poke(0.U.asTypeOf(p.lite.bits))
-      p.liteHalted.poke(true.B);p.resetReason.poke(0.U);p.crashCount.poke(0.U)
+      p.aonExtraIn.poke(0.U);p.liteHalted.poke(true.B);p.resetReason.poke(0.U);p.crashCount.poke(0.U)
       p.uartRx.foreach(_.poke(true.B));p.spiMiso.poke(false.B);p.spiTimeNow.poke(0.U)
-      p.i2cSclIn.poke(true.B);p.i2cSdaIn.poke(true.B);p.recoveryScl.poke(true.B);p.recoverySda.poke(true.B)
+      p.i2cSclIn.poke(true.B);p.i2cSdaIn.poke(true.B);
       p.usbVbus.poke(false.B);p.usbDpRx.poke(false.B);p.usbDnRx.poke(false.B)
       SocInactiveTestInputs.drive(p.inactive,0)
       def tick(): Unit={d.mainClock.step();p.aonClock.step();p.usbClock.step()}
@@ -49,7 +49,7 @@ class SocPwmCoreResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintCo
         if(enabled && startedAt<0) startedAt=cycle
         if(startedAt>=0) {
           val elapsed=cycle-startedAt
-          val expected=if(elapsed<10000) elapsed<5000 else (elapsed-10000)%8<2
+          val expected=if(elapsed<10000) elapsed<5000 else (elapsed-10000)%10000<2
           assert(enabled && p.inactive.actuatorOut.peek().litValue.testBit(0)==expected,"PWM_CORE_RESET_WAVEFORM")
         }
       }

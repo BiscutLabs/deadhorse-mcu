@@ -43,7 +43,7 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
     d.uartRx.poke(true.B);d.pins.uartRx.foreach(_.poke(true.B))
     d.pins.spiMiso.poke(false.B);d.pins.spiTimeNow.poke(0.U)
     d.pins.i2cSclIn.poke(true.B);d.pins.i2cSdaIn.poke(true.B)
-    d.pins.recoveryScl.poke(true.B);d.pins.recoverySda.poke(true.B)
+
     d.pins.usbVbus.poke(false.B);d.pins.usbDpRx.poke(false.B);d.pins.usbDnRx.poke(false.B)
     d.pins.liteHalted.poke(true.B);d.pins.resetReason.poke(0.U);d.pins.crashCount.poke(0.U)
     tick(d,4)
@@ -89,18 +89,18 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
       // These were stub apertures in I1; production exposes their registers.
       // Keep the error oracle on the reserved padding in each aperture.
       // PLAN04/T33 assign children 0x400/0x500; child 0x600 remains reserved.
-      assert(good(d,d.pins.lite,0x40000408L)==512,"OSCILLATOR_CHILD_DEFAULT")
-      assert(access(d,d.main,0x40000408L)._2,"OSCILLATOR_CHILD_OWNER")
-      assert(good(d,d.pins.lite,0x4000050cL)==0,"POWER_THRESHOLD_DEFAULT")
-      assert(access(d,d.main,0x4000050cL)._2,"POWER_CHILD_OWNER")
-      val errors=Seq(0x40000600L,0x40011100L,0x40012300L,0x40013200L,0x40020000L,0x40020100L,0x4002fffcL,
-        0x40030100L,0x40040000L,0x40040800L,0x60000000L,0x40010500L,0x40040900L,0xffffffffL)
+      assert(good(d,d.main,0x40000408L)==512,"OSCILLATOR_CHILD_DEFAULT")
+      assert(access(d,d.pins.lite,0x40000408L)._2,"OSCILLATOR_CHILD_OWNER")
+      assert(good(d,d.main,0x4000050cL)==0,"POWER_THRESHOLD_DEFAULT")
+      assert(access(d,d.pins.lite,0x4000050cL)._2,"POWER_CHILD_OWNER")
+      val errors=Seq(0x40000600L,0x40011100L,0x40012300L,0x40013200L,0x400200fcL,0x400201fcL,0x4002fffcL,
+        0x400301fcL,0x40040000L,0x40040800L,0x60000000L,0x40010500L,0x40040900L,0xffffffffL)
       for(address<-errors;bus<-Seq(d.main,d.pins.lite)) {
         val(v,e,_)=access(d,bus,address);assert(e && v==0,s"I1_STUB_OR_HOLE $address")
       }
       for(bus<-Seq(d.main,d.pins.lite)) {
-        val(v,e,_)=access(d,bus,0x40020000L,write=true,data=1)
-        assert(e && v==0,"RETIRED_ADC_WINDOW_WRITE")
+        val(v,e,_)=access(d,bus,0x40020200L,write=true,data=1)
+        assert(e && v==0,"AON_UNASSIGNED_WINDOW_WRITE")
       }
       assert(!high(d.pins.usbTxEnable) && !high(d.pins.usbPullup))
       assert(!high(d.pins.spiEnable) && d.pins.spiCs_n.peek().litValue==3)
@@ -116,29 +116,32 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
       good(d,d.pins.lite,mailbox,true,0x76543210);good(d,d.pins.lite,mailbox+4,true,1)
       tick(d,30);assert(d.fastIrq.peek().litValue.testBit(5));assert(good(d,d.main,mailbox+8)==0x76543210)
       good(d,d.main,mailbox+4,true,2)
-      val working=BigInt(0x30000800L)
+      val working=BigInt(0x30000400L)
       good(d,d.pins.lite,working,true,0x11223344)
       good(d,d.main,working,true,0xaabbccddL,5)
       assert(good(d,d.pins.lite,working)==0x11bb33ddL)
-      for(bus<-Seq(d.main,d.pins.lite)) {
-        assert(access(d,bus,0x30000000L,true,0xdeadbeefL)._2,"I1_PROGRAM_WRITE_BYPASS")
-        assert(access(d,bus,0x30000c00L)._2,"I1_RETAINED_PADDING")
-      }
+      good(d,d.main,0x30000000L,true,0xdeadbeefL)
+      assert(access(d,d.pins.lite,0x30000000L,true,0)._2,"I1_PROGRAM_WRITE_BYPASS")
+      for(bus<-Seq(d.main,d.pins.lite)) assert(access(d,bus,0x30000800L)._2,"I1_RETAINED_PADDING")
+      good(d,d.main,0x40000304L,true,0x50455246L)
       d.pins.liteHalted.poke(false.B)
       assert(access(d,d.main,working)._2,"I1_RUNNING_REMOTE_MEMORY")
       assert(good(d,d.pins.lite,working)==0x11bb33ddL)
-      d.pins.liteHalted.poke(true.B)
+      d.pins.liteHalted.poke(true.B) // Stand-in halt cannot grant program/data access.
+      assert(access(d,d.main,working)._2,"I1_FORGED_HALT_OWNERSHIP")
+      good(d,d.main,0x4000030cL,true,0x484f4c44L);tick(d,40)
+      assert(good(d,d.main,0x40000300L)==1,"I1_DRAINED_HOLD")
       d.mainServiceReset_n.poke(false.B);tick(d,3);d.mainServiceReset_n.poke(true.B);tick(d,45)
       assert(good(d,d.main,working)==0x11bb33ddL)
       assert((good(d,d.pins.lite,mailbox+16)&4)!=0,"I1_MAILBOX_PEER_RESET")
     }
   }
-  test("opposite-direction traffic completes without circular bridge admission") {
+  test("toAon traffic and a denied lite-to-main request complete independently") {
     simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       aonPeriod=3
       try {
-      reset(d);good(d,d.pins.lite,0x30000800L,true,0x1234)
-      drive(d.main,0x30000800L);drive(d.pins.lite,0x40010000L)
+      reset(d);good(d,d.pins.lite,0x30000400L,true,0x1234)
+      drive(d.main,0x30000400L);drive(d.pins.lite,0x40010000L)
       var mg=false;var ag=false;var mr=false;var ar=false;var cycles=0
       while(!mr || !ar) {
         val aonEdge=(sample+1)%aonPeriod==0
@@ -172,54 +175,21 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
       good(d,d.main,usb,true,0)
     }
   }
-  test("recovery I2C wire loads actual retained SRAM, rejects bad CRC and preserves lock across warm reset") {
+  test("performance program loading, release protection and whole reset retain RAM") {
     simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d)
-      var hostLow=false;var starts=0
-      def wireStep(n: Int): Unit=for(_<-0 until n) {
-        d.pins.recoverySda.poke((!hostLow && !high(d.pins.recoverySdaLow)).B)
-        tick(d)
-        d.pins.recoverySda.poke((!hostLow && !high(d.pins.recoverySdaLow)).B)
-        if(high(d.pins.liteStart)) starts+=1
-      }
-      def line(scl: Boolean,low: Boolean): Unit = {
-        hostLow=low;d.pins.recoveryScl.poke(scl.B);wireStep(5)
-      }
-      def start(): Unit={line(true,false);line(true,true);line(false,true)}
-      def stop(): Unit={line(false,true);line(true,true);line(true,false);wireStep(8)}
-      def send(value: Int): Unit = {
-        for(bit<-7 to 0 by -1) {
-          val low=(value&(1<<bit))==0;line(false,low);line(true,low);line(false,low)
-        }
-        line(false,false);line(true,false)
-        assert(!high(d.pins.recoverySda),"I1_RECOVERY_WIRE_ACK")
-        line(false,false)
-      }
-      def bytes(value: Long): Seq[Int]=(0 until 4).map(i=>((value>>>(i*8))&255).toInt)
-      def command(op: Int,words: Long*): Unit = {
-        start();send(0x6a);send(op);words.flatMap(bytes).foreach(send);stop()
-      }
-      def crc(words: Seq[Long]): Long = {
-        val c=new java.util.zip.CRC32;words.flatMap(bytes).foreach(c.update);c.getValue
-      }
-      def upload(words: Seq[Long],checksum: Long): Unit = {
-        command(1,words.size*4,0,checksum,0x10000,16,0,0,0x2011)
-        words.zipWithIndex.foreach {case(w,i)=>command(2,i*4,w)}
-        command(3)
-      }
       val image=Seq(0x13579bdfL,0x2468ace0L,0xff00aa55L,0x01234567L)
-      upload(image,crc(image)^1);assert(!high(d.pins.loaderProgrammed),"I1_RECOVERY_BAD_CRC")
-      command(5);assert(starts==0,"I1_RECOVERY_INVALID_START")
-      upload(image,crc(image));assert(high(d.pins.loaderProgrammed),"I1_RECOVERY_COMMIT")
+      for((word,i)<-image.zipWithIndex) good(d,d.main,BigInt(0x30000000L+i*4),true,word)
       for((word,i)<-image.zipWithIndex)
-        assert(good(d,d.pins.lite,BigInt(0x30000000L+i*4))==word,"I1_RECOVERY_MEMORY_MODEL")
-      command(6);assert(starts==1 && high(d.pins.loaderLocked),"I1_RECOVERY_START_LOCK")
+        assert(good(d,d.pins.lite,BigInt(0x30000000L+i*4))==word,"I1_PROGRAM_MEMORY_MODEL")
+      good(d,d.main,0x40000304L,true,0x50455246L);tick(d,30)
+      for(bus<-Seq(d.main,d.pins.lite))
+        assert(access(d,bus,0x30000000L,true,0)._2,"I1_RUNNING_PROGRAM_WRITE")
       d.warmReset_n.poke(false.B);tick(d,4);d.warmReset_n.poke(true.B);tick(d,40)
-      assert(high(d.pins.loaderLocked),"I1_RECOVERY_WARM_UNLOCK")
-      command(1,4,0,0,0x10000,16,0,0,0x2012)
-      command(2,0,0);command(5)
-      assert(starts==1,"I1_RECOVERY_LOCKED_START")
-      assert(good(d,d.pins.lite,0x30000000L)==image.head,"I1_RECOVERY_LOCKED_WRITE")
+      assert(good(d,d.main,0x40000300L)==1,"I1_WHOLE_RESET_HOLD")
+      for((word,i)<-image.zipWithIndex)
+        assert(good(d,d.main,BigInt(0x30000000L+i*4))==word,"I1_PROGRAM_RESET_RETENTION")
+      // Loader wire/CRC/lock checks retire under D93; T36 supplies recovery CRC.
     }
   }
   test("integrated SPI reads a BMI270 chip-ID wire fixture and detects corrupted MISO") {

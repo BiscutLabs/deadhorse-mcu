@@ -9,8 +9,11 @@ verify_reg fp 0x13572468
 verify_reg pc 0x30000000
 echo "PASS lite register access"
 riscv set_mem_access sysbus
-mww 0x30000000 0x0000006f
-set value [read_memory 0x30000000 32 1]
+if {![catch {mww 0x30000000 0x00000013}]} {error "SBA program write succeeded"}
+set image [read_memory 0x30000000 32 1]
+if {[lindex $image 0] != 0x0000006f} {error "SBA denial changed lite program"}
+mww 0x30000400 0x0000006f
+set value [read_memory 0x30000400 32 1]
 if {[lindex $value 0] != 0x0000006f} {error "retained SBA readback"}
 resume
 halt

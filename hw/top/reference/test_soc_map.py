@@ -20,6 +20,20 @@ class SocMapTests(unittest.TestCase):
         def region(m): return m['regions'][0]
         faults = {
             'unknown key': lambda m: m.update(typo=True),
+            'retained write authority': lambda m: m['retained_layout'].update(writer='lite'),
+            'retained unsafe condition': lambda m: m['retained_layout'].update(write_condition='debug_halted'),
+            'retained capacity drift': lambda m: next(r for r in m['regions'] if r['name']=='retained_sram').update(size=3072),
+            'retained physical row drift': lambda m: m['sram']['retained_sram'].update(rows=1024),
+            'retained wrong macro': lambda m: m['sram']['retained_sram'].update(macro='gf180mcu_ocd_ip_sram__sram1024x8m8wm1'),
+            'AON service owner': lambda m: m['aon_io']['aon_spi'].update(owner='performance'),
+            'missing AON service': lambda m: m['aon_io'].pop('aon_gpio'),
+            'lite main peripheral access': lambda m: next(r for r in m['regions'] if r['name']=='uart0').update(domains=['main','aon']),
+            'toMain restoration': lambda m: m['fabrics']['aon'].append('serial'),
+            'lite IRQ drift': lambda m: m['lite_interrupts'].update(aon_spi=3),
+            'pad radio collision': lambda m: m['pad_mux'].update(radio_gpio=[2,5]),
+            'unsafe BOOT_MODE pad': lambda m: m['pad_mux']['boot_mode'].update(pad='gpio0'),
+            'removed timer pad': lambda m: m['pinmux']['timer_pads'].update(timer=3),
+            'missing timer channel': lambda m: m['pinmux'].update(timer_channels=list(range(11))),
             'production missing DMA': lambda m: m.pop('dma'),
             'production lite stand-in': lambda m: m['masters']['lite'].update(implementation='test_standin'),
             'duplicate origin': lambda m: m['masters']['lite'].update(origin=1),
@@ -42,20 +56,20 @@ class SocMapTests(unittest.TestCase):
             'watchdog overlap': lambda m: m['watchdog'].update(offset=0),
             'watchdog boolean count': lambda m: m['watchdog'].update(count=True),
             'boot scope': lambda m: m['boot_control'].update(reset='aon_service'),
-            'boot owner': lambda m: m['boot_control'].update(owner='performance'),
+            'boot owner': lambda m: m['boot_control'].update(owner='lite'),
             'boot overlap': lambda m: m['boot_control'].update(offset=512),
-            'power reset owner': lambda m: m['power_reset'].update(owner='performance'),
+            'power reset owner': lambda m: m['power_reset'].update(owner='lite'),
             'power reset overlap': lambda m: m['power_reset'].update(offset=1024),
             'power reset main domain': lambda m: m['power_reset'].update(clock='main'),
-            'oscillator owner': lambda m: m['osc_ctrl'].update(owner='performance'),
+            'oscillator owner': lambda m: m['osc_ctrl'].update(owner='lite'),
             'oscillator overlap': lambda m: m['osc_ctrl'].update(offset=768),
             'oscillator main reset': lambda m: m['osc_ctrl'].update(reset='main_service'),
             'qspi scope': lambda m: m['qspi'].update(reset='main_core'),
-            'qspi owner': lambda m: m['qspi'].update(reset_owner='performance'),
-            'PWM reset mismatch': lambda m: m['pwm'].update(reset='warm'),
-            'PWM alias window': lambda m: m['pwm'].update(size=4096),
-            'PWM ownership mismatch': lambda m: m['pwm'].update(owner='lite'),
-            'PWM boolean offset': lambda m: m['pwm'].update(offset=False),
+            'qspi owner': lambda m: m['qspi'].update(reset_owner='lite'),
+            'PWM reset mismatch': lambda m: m['general_timers'].update(reset='warm'),
+            'PWM alias window': lambda m: m['general_timers'].update(size=4096),
+            'PWM ownership mismatch': lambda m: m['general_timers'].update(owner='lite'),
+            'PWM boolean offset': lambda m: m['general_timers'].update(offset=False),
             'DMA owner': lambda m: m['dma'].update(owner='lite'),
             'DMA memory': lambda m: m['dma'].update(memory='retained_sram'),
             'DMA reset': lambda m: m['dma'].update(reset='main_core'),
@@ -94,8 +108,8 @@ class SocMapTests(unittest.TestCase):
             'invalid groups container': lambda m: m.update(groups=[]),
             'invalid fabrics container': lambda m: m.update(fabrics=[]),
             'invalid member type': lambda m: m['groups']['serial']['members'].__setitem__(0,[]),
-            'timer overlaps GPIO': lambda m: m['flight_io']['timers'].update(offset=0),
-            'timer wrong domain': lambda m: m['flight_io']['timers'].update(clock='aon'),
+            'timer overlaps GPIO': lambda m: m['general_timers'].update(parent='gpio_pinmux',offset=0),
+            'timer wrong domain': lambda m: m['general_timers'].update(clock='aon'),
             'retired ADC binding': lambda m: m['flight_io'].update(adc=dict(m['flight_io']['aon_timer'])),
             'retired ADC pins': lambda m: m['pins'].update(adc_miso=dict(m['pins']['spi_miso'])),
             'GPIO wrong map': lambda m: m['flight_io']['gpio'].update(regmap='hw/ip/uart/uart.regmap.yaml'),
@@ -117,11 +131,11 @@ class SocMapTests(unittest.TestCase):
             0x4001020c,0x40010210,0x40010310,0x40010314])
         self.assertEqual(table['command_value'], [0,2,0,2,0,2,0,4]+[1<<i for i in range(9)])
         self.assertEqual(table['data'][8:], [0x400300c0+4*i for i in range(9)])
-        self.assertEqual(table['period'], [0x40030040+4*i for i in range(9)])
-        self.assertEqual(table['pending'], 0x4003000c)
+        self.assertEqual(table['period'], [0x40030040+4*(i//4) for i in range(9)])
+        self.assertEqual(table['pending'], 0x40030010)
 
-    def test_pin_accounting_counts_simultaneous_interfaces_without_sharing(self):
-        self.assertEqual(soc.pin_usage(self.model), {'bidirectional': 39, 'input_only': 12})
+    def test_pin_accounting_counts_physical_groups_once(self):
+        self.assertEqual(soc.pin_usage(self.model), {'bidirectional': 40, 'input_only': 12})
         for direction, bucket in [('input', 'input_only'), ('output', 'bidirectional'),
                                   ('bidirectional', 'bidirectional'), ('open_drain', 'bidirectional')]:
             model=copy.deepcopy(self.model)
@@ -131,8 +145,9 @@ class SocMapTests(unittest.TestCase):
     def test_direction_contract_rejects_a_fault_that_still_fits_both_capacities(self):
         model=copy.deepcopy(self.model)
         model['pins']['spi_miso'].update(direction='output', safe='disabled')
-        self.assertEqual(soc.pin_usage(model), {'bidirectional': 40, 'input_only': 11})
-        with self.assertRaisesRegex(ValueError, 'Logical pin contract differs: spi_miso'):
+        model['pins']['spi_mosi'].update(direction='input', safe='input')
+        self.assertEqual(soc.pin_usage(model), {'bidirectional': 40, 'input_only': 12})
+        with self.assertRaisesRegex(ValueError, 'Logical pin contract differs: spi_mosi'):
             soc.validate(model)
 
     def test_xip_binding_rejects_reset_or_owner_drift(self):
@@ -152,7 +167,7 @@ class SocMapTests(unittest.TestCase):
                 soc.validate(model)
 
     def test_interrupt_contract_drift_is_rejected(self):
-        self.model['interrupts']['uart0'] = 13
+        self.model['interrupts']['uart0'] = 14
         soc.validate(self.model)
         with self.assertRaisesRegex(ValueError, 'interrupt table differs'):
             soc.check_contract(self.model, (soc.ROOT / 'docs/spec/soc.md').read_text())
@@ -175,9 +190,9 @@ class SocMapTests(unittest.TestCase):
             output = Path(d); soc.emit(soc.validate(self.model), output)
             self.assertEqual({p.name for p in output.iterdir()}, {'soc.h', 'SocMap.scala', 'soc-map.md', 'soc.json'})
             header = (output / 'soc.h').read_text()
-            self.assertIn('#define DH_SOC_RETAINED_SRAM_SIZE 0xc00u', header)
+            self.assertIn('#define DH_SOC_RETAINED_SRAM_SIZE 0x800u', header)
             self.assertIn('#define DH_SOC_FUTURE_BRIDGE_FAST_IRQ 7u', header)
-            self.assertIn('#define DH_SOC_IO_TIMERS_BASE 0x40012100u', header)
+            self.assertIn('#define DH_SOC_TIMERS_BASE 0x40030000u', header)
             self.assertIn('#define DH_SOC_PINMUX_BASE 0x40012200u', header)
             self.assertIn('#define DH_SOC_PINMUX_PWM 3u', header)
             self.assertNotIn('Region("adc",', (output / 'SocMap.scala').read_text())

@@ -74,9 +74,8 @@ class SocResetSlot extends RawModule {
   }
 }
 
-/** Retained synchronous SRAM; ordinary resets flush handshakes, never data.
-  * An invalid loader offer is not acknowledged as a write. If permission is
-  * withdrawn during an advertised registered grant, quarantine until reset.
+/** Retained SRAM: program writes require the performance-owned reset hold.
+  * Reset flushes protocol state, never RAM. Debug cannot bypass program authority.
   */
 class SocRetainedMemory(description: SocDescription,debugAccess: Boolean=false,
     sramTarget: deadhorse.sram.SramTarget=deadhorse.sram.SramTarget.Model,
@@ -84,84 +83,57 @@ class SocRetainedMemory(description: SocDescription,debugAccess: Boolean=false,
   val testPort=if(bistEnabled) Some(IO(Flipped(new deadhorse.sram.SramPort(12)))) else None
   val testOwn=if(bistEnabled) Some(IO(Input(Bool()))) else None
   val debugWriteAllowed=if(debugAccess) Some(IO(Input(Bool()))) else None
-  val debugExecute=if(debugAccess) Some(IO(Input(Bool()))) else None
   private val region=description.region("retained_sram")
-  require(region.size==3072)
+  require(region.size==2048 && description.retainedProgramBytes==1024)
   val clk=IO(Input(Clock()));val reset_n=IO(Input(Bool()));val bus=IO(new LocalBus)
-  val halted=IO(Input(Bool()));val started=IO(Input(Bool()))
-  val loaderBusy=IO(Input(Bool()));val locked=IO(Input(Bool()))
-  val memValid=IO(Input(Bool()));val memOffset=IO(Input(UInt(32.W)));val memWord=IO(Input(UInt(32.W)))
-  val memReady=IO(Output(Bool()));val memDone=IO(Output(Bool()));val busy=IO(Output(Bool()))
+  val bootHeld=IO(Input(Bool()));val busy=IO(Output(Bool()))
+  protected def stored(value: UInt): UInt=value
+  protected def programWriteAllowed(remote: Bool,held: Bool): Bool=remote && held
   testOwn.foreach {own=>withClockAndReset(clk,false.B) {
     assert(!own || !reset_n)
-    assert(!testPort.get.enable || own && testPort.get.address<768.U)
+    assert(!testPort.get.enable || own && testPort.get.address<(region.size/4).U)
   }}
-  protected def stored(value: UInt): UInt=value
-  protected def completion(value: Bool): Bool=value
   withClockAndReset(clk,(!reset_n).asAsyncReset) {
-    val idle :: busGrant :: loaderGrant :: readReturn :: reply :: quarantine :: Nil=Enum(6)
-    val state=RegInit(idle)
-    val grant=RegInit(false.B);val ready=RegInit(false.B)
-    val valid=RegInit(false.B);val done=RegInit(false.B)
+    val idle :: busGrant :: readReturn :: reply :: Nil=Enum(4)
+    val state=RegInit(idle);val grant=RegInit(false.B);val valid=RegInit(false.B)
     val error=RegInit(false.B);val result=RegInit(0.U(32.W))
-    val memory=Module(new deadhorse.sram.SramWordBank(1024,sramTarget));memory.clk:=clk
+    val memory=Module(new deadhorse.sram.SramWordBank(512,sramTarget));memory.clk:=clk
     val offset=bus.bits.addr-region.base.U
     val inRange=bus.bits.addr>=region.base.U && bus.bits.addr<(region.base+region.size).U && !bus.bits.addr(1,0).orR
-    val program=offset<2048.U
+    val program=offset<description.retainedProgramBytes.U
     val local=bus.bits.origin===description.origin("lite").U
     val remote=bus.bits.origin===description.origin("performance").U
     val ordinaryPermitted=inRange && Mux(program,
-      !bus.bits.we && (local && (halted || started || debugExecute.getOrElse(false.B)) || remote && halted && !loaderBusy),
-      !loaderBusy && (local || remote && halted))
+      Mux(bus.bits.we,programWriteAllowed(remote,bootHeld),local || remote),local || remote && bootHeld)
     val debugOwner=if(debugAccess) bus.bits.origin===description.origin("gateway_debug").U else false.B
-    val debugPermitted=inRange && debugOwner && !loaderBusy &&
-      (!bus.bits.we || debugWriteAllowed.getOrElse(false.B))
+    val debugPermitted=inRange && debugOwner &&
+      (!bus.bits.we || !program && debugWriteAllowed.getOrElse(false.B))
     val permitted=ordinaryPermitted || debugPermitted
-    val loaderAllowed=halted && !locked && !memOffset(1,0).orR && memOffset<2048.U
-    val takeBus=state===busGrant && grant && bus.req
-    val takeLoader=state===loaderGrant && ready && memValid
-    val writeBus=takeBus && ordinaryPermitted && bus.bits.we
-    val writeDebug=takeBus && debugPermitted && bus.bits.we
-    val writeLoader=takeLoader && loaderAllowed
-    val readBus=takeBus && permitted && !bus.bits.we
-    val address=Mux(writeLoader,memOffset>>2,offset>>2)
-    val word=Mux(writeLoader,stored(memWord),stored(bus.bits.wdata))
-    val mask=Mux(writeLoader,15.U,bus.bits.be)
+    val take=state===busGrant && grant && bus.req
+    val write=take && permitted && bus.bits.we
+    val read=take && permitted && !bus.bits.we
     val testing=testOwn.getOrElse(false.B)
-    memory.port.address:=Mux(testing,testPort.map(_.address).getOrElse(0.U),address)
-    memory.port.data:=Mux(testing,testPort.map(_.data).getOrElse(0.U),word)
-    memory.port.mask:=Mux(testing,testPort.map(_.mask).getOrElse(0.U),mask)
-    memory.port.write:=Mux(testing,testPort.map(_.write).getOrElse(false.B),writeBus || writeDebug || writeLoader)
-    memory.port.enable:=Mux(testing,testPort.map(p=>p.enable && p.address<768.U).getOrElse(false.B),
-      reset_n && (writeBus || writeDebug || writeLoader || readBus))
-    val readData=memory.port.result
-    testPort.foreach(_.result:=readData)
-    grant:=false.B;ready:=false.B;valid:=false.B;done:=false.B
-    when(state===idle) {
-      when(memValid && loaderAllowed) {ready:=true.B;state:=loaderGrant}
-        .elsewhen(bus.req) {grant:=true.B;state:=busGrant}
-    }
+    val testAddress=testPort.map(_.address).getOrElse(0.U)
+    memory.port.address:=Mux(testing,testAddress,offset>>2)
+    memory.port.data:=Mux(testing,testPort.map(_.data).getOrElse(0.U),stored(bus.bits.wdata))
+    memory.port.mask:=Mux(testing,testPort.map(_.mask).getOrElse(0.U),bus.bits.be)
+    memory.port.write:=Mux(testing,testPort.map(_.write).getOrElse(false.B),write)
+    memory.port.enable:=Mux(testing,testPort.map(p=>p.enable && p.address<(region.size/4).U).getOrElse(false.B),reset_n && (write || read))
+    testPort.foreach(_.result:=memory.port.result)
+    grant:=false.B;valid:=false.B
+    when(state===idle && bus.req) {grant:=true.B;state:=busGrant}
     when(state===busGrant) {
-      when(takeBus) {
+      when(take) {
         result:=0.U;error:= !permitted
-        when(readBus) {state:=readReturn}.otherwise {valid:=true.B;state:=reply}
+        when(read) {state:=readReturn}.otherwise {valid:=true.B;state:=reply}
       }.otherwise {state:=idle}
     }
-    when(state===loaderGrant) {
-      when(takeLoader) {
-        when(loaderAllowed) {done:=true.B;state:=reply}.otherwise {state:=quarantine}
-      }.otherwise {state:=idle}
-    }
-    when(state===readReturn) {result:=readData;valid:=true.B;state:=reply}
+    when(state===readReturn) {result:=memory.port.result;valid:=true.B;state:=reply}
     when(state===reply) {state:=idle}
-    bus.gnt:=grant;bus.rvalid:=valid;bus.rdata:=result;bus.err:=error
-    memReady:=ready;memDone:=completion(done);busy:=state=/=idle
-    assert(!(takeBus && takeLoader))
-    assert(!writeBus || !program)
-    assert(!writeDebug || debugWriteAllowed.getOrElse(false.B) && !loaderBusy)
-    assert(!writeLoader || halted && !locked && memOffset<2048.U)
-    assert(done===RegNext(writeLoader,false.B))
-    assert(!readBus || permitted)
+    bus.gnt:=grant;bus.rvalid:=valid;bus.rdata:=result;bus.err:=error;busy:=state=/=idle
+    assert(!write || !program || remote && bootHeld)
+    assert(!write || !debugOwner || !program && debugWriteAllowed.getOrElse(false.B))
+    assert(!read || permitted)
   }
 }
 
@@ -179,21 +151,22 @@ class SocClockControlPins extends Bundle {
 
 /** Digital assembly boundary; production derives clocks/resets in its wrapper. */
 class SocI1Pins extends Bundle {
+  val aonExtraIn=Input(UInt(3.W));val aonExtraOut=Output(UInt(3.W));val aonExtraEnable=Output(UInt(3.W))
   val clockControl=new SocClockControlPins
   val inactive=new SocInactivePins
   val aonClock=Input(Clock());val usbClock=Input(Clock())
   val aonServiceReset_n=Input(Bool());val usbServiceReset_n=Input(Bool())
   val lite=new LocalBus
   val liteHalted=Input(Bool());val resetReason=Input(UInt(32.W));val crashCount=Input(UInt(32.W))
-  val liteStart=Output(Bool());val liteEntry=Output(UInt(32.W));val loaderLocked=Output(Bool())
-  val loaderBusy=Output(Bool());val loaderProgrammed=Output(Bool());val aonIrq=Output(Bool())
+  val liteStart=Output(Bool());val liteEntry=Output(UInt(32.W));
+  val aonIrq=Output(Bool())
   val uartRx=Input(Vec(2,Bool()));val uartTx=Output(Vec(2,Bool()));val uartTxEnable=Output(Vec(2,Bool()))
   val spiMiso=Input(Bool());val spiTimeNow=Input(UInt(32.W));val spiSclk=Output(Bool());val spiMosi=Output(Bool())
   val spiCs_n=Output(UInt(2.W));val spiEnable=Output(Bool())
   val i2cSclIn=Input(Bool());val i2cSdaIn=Input(Bool());val i2cSclLow=Output(Bool());val i2cSdaLow=Output(Bool());val i2cEnable=Output(Bool())
-  val recoveryScl=Input(Bool());val recoverySda=Input(Bool());val recoverySdaLow=Output(Bool())
+
   val usbVbus=Input(Bool());val usbDpRx=Input(Bool());val usbDnRx=Input(Bool())
   val usbDpTx=Output(Bool());val usbDnTx=Output(Bool());val usbTxEnable=Output(Bool());val usbPullup=Output(Bool())
   val usbWake=Output(Bool());val usbClockRequest=Output(Bool())
-  val mainDemand=Output(Bool());val aonDemand=Output(Bool());val loaderWake=Output(Bool())
+  val mainDemand=Output(Bool());val aonDemand=Output(Bool());
 }

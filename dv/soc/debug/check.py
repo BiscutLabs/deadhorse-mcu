@@ -34,6 +34,7 @@ def main(output):
 
     try:
         run('prepare',[sys.executable,'dv/soc/prepare_production.py'])
+        run('prepare-debug',[sys.executable,'dv/soc/debug/prepare.py'])
         run('vendor-debug',[sys.executable,'hw/vendor/riscv_dbg/prepare.py'])
         run('vendor-usb',[sys.executable,'hw/vendor/usb/prepare.py'])
         for variant in ('correct','missing-halt'):
@@ -43,7 +44,7 @@ def main(output):
                 f'hw/runMain deadhorse.top.EmitDebugSoc {emit.relative_to(ROOT)} {variant}'])
             run('compile-'+variant,[sys.executable,'dv/soc/debug/compile.py','--emitted',str(emit),'--output',str(folder/'sim')])
             binary=folder/'sim/obj/VSocExternalClockTest'
-            cases=[('basic',False,1000000),('basic',True,1000000),('basic',False,32000),('reset',False,1000000),('errors',False,1000000),('independent_reset',False,1000000),('counters',False,1000000),('inflight_reset',False,1000000),('loader',False,1000000)] if variant=='correct' else [('basic',False,1000000)]
+            cases=[('basic',False,1000000),('basic',True,1000000),('basic',False,32000),('reset',False,1000000),('errors',False,1000000),('independent_reset',False,1000000),('counters',False,1000000),('inflight_reset',False,1000000)] if variant=='correct' else [('basic',False,1000000)]
             for script,sleep,aon in cases:
                 label=script+('-sleep' if sleep else '')+('-aon32k' if aon==32000 else '')
                 row=probe(binary,ROOT/'dv/soc/debug'/(script+'.tcl'),folder/label,sleep,aon)

@@ -3,7 +3,9 @@
 PLAN03 consolidates the existing blocks into one `DeadhorseSoc` under D72.
 The current contract and profile history are in
 [soc.md](../../../docs/spec/soc.md). Production includes the actual lite hart,
-boot release, watchdogs, PWM/DMA, pinmux and native QSPI/XIP. USB is real by
+performance-controlled lite boot, watchdogs, general timers/DMA, pinmux, AON
+SPI/GPIO and native QSPI/XIP. PLAN05 removes the loader and ordinary toMain
+bridge. USB is real by
 default; `usb-stub-test` is a named simulation substitution. `SocMinimalI0`
 is a named minimal boot/performance fixture. ADC is unassigned under D74.
 No new peripheral is implemented by consolidation.
@@ -16,7 +18,10 @@ python tools/env/run.py run -- python tools/sbt.py "hw/runMain deadhorse.top.Emi
 These are preparation/emission commands, not acceptance claims. PLAN03 results
 are tracked in STATUS. D76 requires fast CI on main and full CI at integration
 stage ends; old no-CI notes below are historical. Clock/power/analog/JTAG,
-production boot firmware, memory macros and physical qualification remain open.
+production boot firmware and physical qualification remain open. SRAM macros,
+clock/reset controller and digital analog interfaces are implemented; their
+physical signoff remains open. PLAN05 phase-end fast CI is required; full CI
+is deferred under the current scoped-test policy.
 
 ## Historical integration notes
 
@@ -268,7 +273,8 @@ existing reserved window/pins. `soc.yaml` records the profile's main-service
 reset, owner and low 256-byte decode. The original I1 and I/O profiles are
 unchanged. IRQ10 and clock demand are connected; external DMA acknowledgement
 is tied low until the separate controller exists. See the
-[PWM contract](../../ip/pwm/README.md).
+historical `hw/ip/pwm/README.md`, retired by PLAN05 D97 in favor of the
+[general timers](../../ip/timers/README.md).
 
 ```sh
 python3 dv/soc/prepare_pwm.py

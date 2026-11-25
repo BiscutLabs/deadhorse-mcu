@@ -37,7 +37,7 @@ class SocI1UsbBench extends Module with UsbWirePorts {
   d.uartRx:=true.B;d.pins.uartRx.foreach(_:=true.B)
   d.pins.spiMiso:=false.B;d.pins.spiTimeNow:=0.U
   d.pins.i2cSclIn:=true.B;d.pins.i2cSdaIn:=true.B
-  d.pins.recoveryScl:=true.B;d.pins.recoverySda:=true.B
+
   d.pins.usbVbus:=vbus
   d.pins.usbDpRx:=Mux(d.pins.usbTxEnable,d.pins.usbDpTx,Mux(hostDrive,hostDp,d.pins.usbPullup))
   d.pins.usbDnRx:=Mux(d.pins.usbTxEnable,d.pins.usbDnTx,Mux(hostDrive,hostDn,false.B))

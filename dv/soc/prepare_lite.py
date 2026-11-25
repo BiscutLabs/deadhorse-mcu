@@ -1,4 +1,4 @@
-"""Prepare the opt-in recovery-loaded RV32E profile; no CI."""
+"""Prepare performance-loaded RV32E integration firmware; no CI."""
 from pathlib import Path
 import subprocess
 import sys
@@ -13,7 +13,7 @@ def main():
         '-Wl,-T,'+str(linker),'dv/soc/lite_recovery.S','-o',str(out/'lite.elf')],cwd=ROOT,check=True)
     subprocess.run(['riscv64-unknown-elf-objcopy','-O','binary',str(out/'lite.elf'),str(out/'lite.bin')],cwd=ROOT,check=True)
     raw=(out/'lite.bin').read_bytes()
-    assert 16<len(raw)<=2048 and len(raw)%4==0
+    assert 0<len(raw)<=1024 and len(raw)%4==0
     (out/'lite.hex').write_text(''.join(f'{int.from_bytes(raw[i:i+4],"little"):08x}\n' for i in range(0,len(raw),4)))
-    print('PASS global RV32E recovery image, entry offset 16')
+    print('PASS global RV32E image, entry at program base')
 if __name__=='__main__':main()

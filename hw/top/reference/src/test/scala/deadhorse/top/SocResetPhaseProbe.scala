@@ -17,7 +17,7 @@ class SocResetPhaseWrite extends Bundle {
 /** Passive public-bus observations and independent event counters. The test
   * drives only real serial/pad interfaces; monitors cannot drive functional RTL. */
 class SocResetPhaseProbe extends SocAnalogModelTest("build/t20/map/soc.json",SocProduction.config().uart,
-    Paths.get("build/t20/i0-firmware/boot.hex").toAbsolutePath.toString) {
+    Paths.get("build/plan04/sleep-firmware/boot.hex").toAbsolutePath.toString) {
   val monitorReset_n=IO(Input(Bool()))
   val observe=IO(Output(new Bundle {
     val source=new SocResetPhaseBus
@@ -47,7 +47,6 @@ class SocResetPhaseProbe extends SocAnalogModelTest("build/t20/map/soc.json",Soc
   observe.mainUp:=BoringUtils.bore(peripherals.mainUp)
   observe.aonUp:=BoringUtils.bore(peripherals.aonUp)
   val retainedPermission=BoringUtils.bore(peripherals.retained.debugWriteAllowed.get)
-  val loaderBusy=BoringUtils.bore(peripherals.retained.loaderBusy)
   val sba=peripherals.debugger.sba
   val dmUp=BoringUtils.bore(sba.reset_n)
   val dmRequest=BoringUtils.bore(sba.req);val dmGrant=BoringUtils.bore(sba.grant)
@@ -77,7 +76,8 @@ class SocResetPhaseProbe extends SocAnalogModelTest("build/t20/map/soc.json",Soc
     val count=RegInit(0.U(16.W))
     val last=RegInit(0.U.asTypeOf(new SocResetPhaseWrite))
     when(observe.aonUp && observe.retained.request && observe.retained.grant &&
-        observe.retained.write && retainedPermission && !loaderBusy) {
+        observe.retained.write && retainedPermission && observe.retained.address>=BigInt("30000400",16).U &&
+        observe.retained.address<BigInt("30000800",16).U) {
       count:=count+1.U;record(observe.retained,last)
     }
     observe.retainedWrites:=count;observe.retainedLast:=last

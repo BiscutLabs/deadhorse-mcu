@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import deadhorse.lib._
 
-/** Lite-owned AON register boundary. Existing peripheral maps are untouched. */
+/** Performance-owned AON register boundary. Existing peripheral maps are untouched. */
 class OscCtrl(json: String,base: BigInt=BigInt("40000400",16)) extends RawModule {
   protected def configurationReset(value: Bool): Bool=value
   protected def delayValue(value: UInt): UInt=value
@@ -30,7 +30,7 @@ class OscCtrl(json: String,base: BigInt=BigInt("40000400",16)) extends RawModule
   val configUp=epochReset_n && !forceRun
   val configReady=withClockAndReset(clk,(!(epochReset_n && reset_n)).asAsyncReset) {RegNext(configUp,false.B)}
   val regs=Module(new RegBlock(json));regs.clk:=clk;regs.rst_n:=configurationReset(configUp)
-  val adapter=Module(new BusRegAdapter(8,base,0))
+  val adapter=Module(new BusRegAdapter(8,base,1))
   adapter.clk:=clk;adapter.reset_n:=reset_n && configUp && configReady
   adapter.bus<>bus;regs.bus<>adapter.registers
   val control=Module(new OscSequencer)

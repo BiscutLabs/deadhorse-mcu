@@ -15,9 +15,9 @@ def main():
     p.add_argument('--blocks',nargs='+',choices=('watchdog','pwm','pinmux'),default=['watchdog','pwm','pinmux'])
     a=p.parse_args()
     out=(ROOT/a.output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
-    paths=[p for name in ('hw/lib','hw/ip/watchdog/src/main','hw/ip/pwm/src/main','hw/ip/pinmux/src/main','tools/timing') for p in (ROOT/name).rglob('*')
+    paths=[p for name in ('hw/lib','hw/ip/watchdog/src/main','hw/ip/timers/src/main','hw/ip/pinmux/src/main','tools/timing') for p in (ROOT/name).rglob('*')
            if p.is_file() and p.suffix in ('.scala','.py','.tcl')]
-    paths += [Path(__file__),ROOT/'hw/ip/pwm/pwm.regmap.yaml',ROOT/'build/t22/pwm/pwm_regs.json',
+    paths += [Path(__file__),ROOT/'hw/ip/timers/timers.regmap.yaml',ROOT/'build/t21/timers/timers_regs.json',
               ROOT/'hw/ip/watchdog/watchdog.regmap.yaml',ROOT/'build/t26/watchdog/watchdog_regs.json',
               ROOT/'hw/ip/pinmux/pinmux.regmap.yaml',ROOT/'build/t24/pinmux/pinmux_regs.json',
               ROOT/'build.sbt',ROOT/'tools/env/lock.json',ROOT/'phys/gf180-ws-1x1/block-timing.json']
@@ -26,7 +26,7 @@ def main():
         scope='Mapped pre-layout, no real wire delay; 9MHz conservative for the 8/9MHz profiles; physical qualification separate')
     try:
         receipt['blocks']={}
-        for block,top in [('watchdog','Watchdog'),('pwm','Pwm'),('pinmux','Pinmux')]:
+        for block,top in [('watchdog','Watchdog'),('pwm','GeneralTimers'),('pinmux','Pinmux')]:
             if block not in a.blocks:continue
             directory=out/block;directory.mkdir()
             command=[sys.executable,'tools/sbt.py',f'hw/runMain deadhorse.watchdog.EmitWatchdogBindings {block} {directory}/emit']

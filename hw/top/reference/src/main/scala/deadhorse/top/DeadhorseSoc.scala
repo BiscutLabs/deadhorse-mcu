@@ -12,7 +12,7 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
                    gateTarget: ClockGateTarget = ClockGateTarget.Model,
                    readLatency: Int = 1, banks: Int = 4,
                    verificationFixture: Boolean = false, ramImages: Seq[String] = Seq.empty,
-                   i1Config: Option[SocI1Config] = None) extends RawModule {
+                   i1Config: Option[SocI1Config] = None,withRvfi: Boolean=true) extends RawModule {
   protected def bootPermit(released: Bool): Bool=released
   protected def debugRequest(request: Bool): Bool=request
   require(verificationFixture || ramImages.isEmpty, "Preloaded SRAM is verification-only")
@@ -57,7 +57,7 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
     t.iAddr:=memory.instruction.bits.addr; t.iValid:=memory.instruction.rvalid
     t.dReq:=memory.data.req; t.dGnt:=memory.data.gnt
   }
-  val core = Module(new IbexTop(gateTarget, WithRVFI=true, RegisteredExecution=false, WithF=true,
+  val core = Module(new IbexTop(gateTarget, WithRVFI=withRvfi, RegisteredExecution=false, WithF=true,
     DmHaltAddr=if(i1Config.nonEmpty) description.region("debug_mem").base+0x800 else BigInt("1a110800",16),
     DmExceptionAddr=if(i1Config.nonEmpty) description.region("debug_mem").base+0x810 else BigInt("1a110808",16)))
   core.clk_i := mainClock; core.rst_ni := coreRelease.released
@@ -95,7 +95,7 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   }
 
   val subsystem=i1Config.map(c=>Module(new SocI1Peripherals(description,c,
-    if(gateTarget==ClockGateTarget.Asic) deadhorse.sram.SramTarget.Asic else deadhorse.sram.SramTarget.Model)).suggestName("subsystem"))
+    if(gateTarget==ClockGateTarget.Asic) deadhorse.sram.SramTarget.Asic else deadhorse.sram.SramTarget.Model,withRvfi)).suggestName("subsystem"))
   if(i1Config.nonEmpty) {
     val peripherals=this.subsystem.get
     peripherals.performanceDebugMode:=core.debug_mode_o
@@ -148,9 +148,9 @@ class SocCoreAssembly(config: String, uartJson: String, romImage: String,
   * Every production feature remains present; this is not a chip profile. */
 class SocDigitalAssembly(config: String, uartJson: String, romImage: String,
     gateTarget: ClockGateTarget=ClockGateTarget.Model, readLatency: Int=1, banks: Int=4,
-    i1Config: Option[SocI1Config]=Some(SocProduction.config()))
-  extends SocCoreAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config=i1Config) {
-  require(i1Config.exists(c => c.io.nonEmpty && c.pwm.nonEmpty && c.dma.nonEmpty &&
+    i1Config: Option[SocI1Config]=Some(SocProduction.config()),withRvfi: Boolean=false)
+  extends SocCoreAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config=i1Config,withRvfi=withRvfi) {
+  require(i1Config.exists(c => c.io.nonEmpty && c.dma.nonEmpty &&
     c.pinmux.nonEmpty && c.liteCore && c.watchdog.nonEmpty && c.bootControl.nonEmpty &&
     c.qspi.nonEmpty && c.xip), "The complete digital assembly requires every production feature")
 }
@@ -158,7 +158,7 @@ class SocDigitalAssembly(config: String, uartJson: String, romImage: String,
 class SocExternalClockTest(config: String,uartJson: String,romImage: String,
     gateTarget: ClockGateTarget=ClockGateTarget.Model,readLatency: Int=1,banks: Int=4,
     i1Config: Option[SocI1Config]=Some(SocProduction.config()))
-  extends SocDigitalAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config)
+  extends SocDigitalAssembly(config,uartJson,romImage,gateTarget,readLatency,banks,i1Config,withRvfi=true)
 
 /** Named minimal boot/performance fixture; never a production feature profile. */
 class SocMinimalI0(config: String, uartJson: String, romImage: String,

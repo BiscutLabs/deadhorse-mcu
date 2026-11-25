@@ -9,7 +9,7 @@ import java.nio.file.Paths
 /** Passive observations of the real client and register interfaces. */
 class SocClientPhaseProbe(lite: Boolean) extends SocAnalogModelTest(
     "build/t20/map/soc.json",SocProduction.config().uart,
-    Paths.get("build/t33/client-firmware/boot.hex").toAbsolutePath.toString) {
+    Paths.get(s"build/t33/client-firmware/${if(lite) "boot-lite" else "boot"}.hex").toAbsolutePath.toString) {
   val monitorReset_n=IO(Input(Bool()))
   val trackRead=IO(Input(Bool()))
   val observe=IO(Output(new Bundle {
@@ -26,16 +26,16 @@ class SocClientPhaseProbe(lite: Boolean) extends SocAnalogModelTest(
     val loadRetirements=UInt(16.W);val loadData=UInt(32.W);val sleeping=Bool();val trap=Bool()
     val phaseFlags=UInt(11.W)
     val shadow=UInt(32.W);val mainUp=Bool();val aonUp=Bool()
-    val liteHalted=Bool();val loaderLocked=Bool();val loaderProgrammed=Bool()
+    val liteHalted=Bool();val liteHeld=Bool();val responseErrors=UInt(16.W);val rebootDataErrors=UInt(16.W)
   }))
   val peripherals=digital.subsystem.get
   val hart=peripherals.liteHart.get
-  val regs=if(lite) peripherals.qspiBlock.get.regs else peripherals.watchdogBlocks.head.regs
+  val regs=peripherals.watchdogBlocks(if(lite) 1 else 0).regs
   val downstream=if(lite) hart.bus else digital.memory.peripheral
-  val target=if(lite) peripherals.qspiBlock.get.bus else peripherals.watchdogBlocks.head.bus
-  val bridge=if(lite) peripherals.toMain.source else peripherals.toAon.source
-  val address=if(lite) BigInt("4001300c",16) else BigInt("40000100",16)
-  val offset=if(lite) 12 else 0
+  val target=peripherals.watchdogBlocks(if(lite) 1 else 0).bus
+  val bridge=if(lite) peripherals.af.master(0) else peripherals.toAon.source
+  val address=if(lite) BigInt("40000200",16) else BigInt("40000100",16)
+  val offset=0
   def trace(source: LocalBus,dest: SocResetPhaseBus): Unit={
     dest.request:=BoringUtils.bore(source.req);dest.grant:=BoringUtils.bore(source.gnt)
     dest.response:=BoringUtils.bore(source.rvalid);dest.error:=BoringUtils.bore(source.err)
@@ -46,12 +46,11 @@ class SocClientPhaseProbe(lite: Boolean) extends SocAnalogModelTest(
   trace(downstream,observe.downstream);trace(target,observe.target);trace(bridge,observe.bridge)
   observe.mainUp:=BoringUtils.bore(peripherals.mainUp);observe.aonUp:=BoringUtils.bore(peripherals.aonUp)
   observe.liteHalted:=BoringUtils.bore(hart.halted)
-  observe.loaderLocked:=BoringUtils.bore(peripherals.pins.loaderLocked)
-  observe.loaderProgrammed:=BoringUtils.bore(peripherals.pins.loaderProgrammed)
-  observe.shadow:=BoringUtils.bore(regs.hw(if(lite) "address_value_q" else "period_ticks_q"))
+  observe.liteHeld:=BoringUtils.bore(peripherals.liteBootHeld)
+  observe.shadow:=BoringUtils.bore(regs.hw("period_ticks_q"))
 
   val clientClock=if(lite) clocks.aonClock else clocks.mainClock
-  val targetClock=if(lite) clocks.mainClock else clocks.aonClock
+  val targetClock=clocks.aonClock
   val clientEpoch=if(lite) BoringUtils.bore(hart.reset_n) else BoringUtils.bore(digital.memory.clientReset_n)
   val request=if(lite) BoringUtils.bore(hart.adapter.request.valid) &&
     BoringUtils.bore(hart.adapter.request.bits.operation)===Mux(trackRead,Operation.Read.U,Operation.Write.U) &&
@@ -72,6 +71,9 @@ class SocClientPhaseProbe(lite: Boolean) extends SocAnalogModelTest(
     val insn=BoringUtils.bore(digital.rvfi("rvfi_insn").asUInt)
     insn(6,0)==="b0000011".U && insn(14,12)===2.U
   }
+  val allRequest=if(lite) BoringUtils.bore(hart.adapter.request.valid) else BoringUtils.bore(digital.memory.data.req)
+  val insn=if(lite) BoringUtils.bore(hart.rvfi.insn) else BoringUtils.bore(digital.rvfi("rvfi_insn").asUInt)
+  val memoryInstruction=insn(6,0)==="b0000011".U || insn(6,0)==="b0100011".U
   observe.trap:= (if(lite) BoringUtils.bore(hart.rvfi.trap) else BoringUtils.bore(digital.rvfi("rvfi_trap").asInstanceOf[Bool]))
   observe.sleeping:= (if(lite) BoringUtils.bore(hart.sleeping) else BoringUtils.bore(digital.coreSleeping))
   observe.clientData:= (if(lite) BoringUtils.bore(hart.adapter.response.bits.data) else BoringUtils.bore(digital.memory.data.rdata))
@@ -84,17 +86,32 @@ class SocClientPhaseProbe(lite: Boolean) extends SocAnalogModelTest(
   }
   observe.invalidated:=invalidated
   withClockAndReset(clientClock,(!monitorReset_n).asAsyncReset) {
-    val pending=RegInit(false.B);val accepted=RegInit(0.U(16.W));val consumed=RegInit(0.U(16.W))
+    val pending=RegInit(false.B);val selected=RegInit(false.B);val accepted=RegInit(0.U(16.W));val consumed=RegInit(0.U(16.W))
     val lateReturns=RegInit(0.U(16.W));val lateRetirements=RegInit(0.U(16.W))
     val downstreamAccepted=RegInit(0.U(16.W));val loads=RegInit(0.U(16.W));val lastLoad=RegInit(0.U(32.W))
-    when(clientEpoch && request && ready) {pending:=true.B;accepted:=accepted+1.U}
-    when(pending && reply && consume) {pending:=false.B;consumed:=consumed+1.U}
-    when((invalidated || !clientEpoch) && reply) {lateReturns:=lateReturns+1.U}
-    when((invalidated || !clientEpoch) && retirement) {lateRetirements:=lateRetirements+1.U}
+    val responseErrors=RegInit(0.U(16.W));val rebootDataErrors=RegInit(0.U(16.W))
+    val tracking=RegInit(false.B);val freshAfterReset=RegInit(false.B)
+    when(clientEpoch && allRequest && ready) {
+      when(pending && (!invalidated || freshAfterReset)) {responseErrors:=responseErrors+1.U}
+      tracking:=true.B;when(invalidated) {freshAfterReset:=true.B}
+      pending:=true.B;selected:=request
+      when(request) {accepted:=accepted+1.U}
+    }
+    when(reply && consume) {
+      when(tracking && !pending) {responseErrors:=responseErrors+1.U}
+      pending:=false.B
+      when(pending && selected) {consumed:=consumed+1.U}
+    }
+    when((invalidated || !clientEpoch) && reply && (selected || !pending || lite.B)) {lateReturns:=lateReturns+1.U}
+    when((invalidated || !clientEpoch) && retirement && (lite.B || memoryInstruction && loadAddress===address.U)) {lateRetirements:=lateRetirements+1.U}
+    // Every post-reset GPIO poll must return the actual board value0. A stale
+    // selected reply relabelled as this fresh request cannot pass unnoticed.
+    when(invalidated && retirement && isLoad && loadAddress==="h40012008".U && loadData=/=0.U) {rebootDataErrors:=rebootDataErrors+1.U}
+    observe.responseErrors:=responseErrors;observe.rebootDataErrors:=rebootDataErrors
     when(clientEpoch && observe.downstream.request && observe.downstream.grant &&
         observe.downstream.write=== !trackRead && observe.downstream.address===address.U) {downstreamAccepted:=downstreamAccepted+1.U}
     when(clientEpoch && retirement && isLoad && loadMask.orR && loadAddress===address.U) {loads:=loads+1.U;lastLoad:=loadData}
-    observe.clientBuffered:=pending && reply
+    observe.clientBuffered:=pending && selected && reply
     observe.clientAccepted:=accepted;observe.clientConsumed:=consumed
     observe.lateReturns:=lateReturns;observe.lateRetirements:=lateRetirements
     observe.downstreamAccepted:=downstreamAccepted;observe.loadRetirements:=loads;observe.loadData:=lastLoad

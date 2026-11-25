@@ -44,7 +44,7 @@ def guard_review(out):
         if digest(ROOT/'build/t26/frozen01/result.json')!=old['prior_receipt_sha256']:
             raise ValueError('Original frozen receipt changed')
         receipt['transforms']={}
-        for block,top in (('watchdog','Watchdog'),('pwm','Pwm')):
+        for block,top in (('watchdog','Watchdog'),('pwm','GeneralTimers')):
             directory=prior/'timing'/block/'timing'
             original=json.loads((directory/'reset-unbuffered.json').read_text())['modules'][top]
             expected=json.loads((directory/'reset-buffered.json').read_text())['modules'][top]

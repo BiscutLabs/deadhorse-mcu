@@ -31,7 +31,7 @@ def main():
     try:
         with (output/'emit.log').open('w') as log:
             subprocess.run(commands,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
-        for name,top in [('gpio','GpioTiming'),('main8','MainTimers'),('main9','MainTimers'),('aon','AonTimers')]:
+        for name,top in [('gpio','GpioTiming'),('main8','GeneralTimers'),('main9','GeneralTimers'),('aon','AonTimers')]:
             sv=[str(p) for p in sorted((output/name/'emit').glob('*.sv'))]
             result=measure(top,sv,'clk',output/name/'timing',operating_point='main-9mhz')
             receipt['blocks'][name]=result

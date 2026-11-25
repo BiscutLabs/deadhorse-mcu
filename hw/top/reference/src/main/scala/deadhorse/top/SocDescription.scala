@@ -23,23 +23,23 @@ class SocDescription(path: String) {
   }
   def bootControlRegion: Region = {
     val p=document("boot_control")
-    require(p("clock").str=="aon" && p("reset").str=="whole_epoch" && p("owner").str=="lite")
+    require(p("clock").str=="aon" && p("reset").str=="whole_epoch" && p("owner").str=="performance")
     Region("boot_control",region(p("parent").str).base+BigInt(p("offset").num.toLong),BigInt(p("size").num.toLong))
   }
   def powerResetRegion: Region = {
     val p=document("power_reset")
-    require(p("clock").str=="aon" && p("reset").str=="aon_service" && p("owner").str=="lite")
+    require(p("clock").str=="aon" && p("reset").str=="aon_service" && p("owner").str=="performance")
     Region("power_reset",region(p("parent").str).base+BigInt(p("offset").num.toLong),BigInt(p("size").num.toLong))
   }
   def oscControlRegion: Region = {
     val p=document("osc_ctrl")
-    require(p("clock").str=="aon" && p("reset").str=="whole_epoch" && p("owner").str=="lite")
+    require(p("clock").str=="aon" && p("reset").str=="whole_epoch" && p("owner").str=="performance")
     Region("osc_ctrl",region(p("parent").str).base+BigInt(p("offset").num.toLong),BigInt(p("size").num.toLong))
   }
   def qspiRegion: Region = {
     val p=document("qspi")
-    require(p("clock").str=="main" && p("reset").str=="main_service" && p("reset_owner").str=="lite")
-    require(p("owners").arr.map(_.str).toSeq==Seq("lite","performance"))
+    require(p("clock").str=="main" && p("reset").str=="main_service" && p("reset_owner").str=="performance")
+    require(p("owners").arr.map(_.str).toSeq==Seq("performance"))
     region(p("region").str)
   }
   def xipRegion: Region = {
@@ -50,8 +50,9 @@ class SocDescription(path: String) {
     require(r.base==BigInt("10000000",16) && r.size==BigInt("10000000",16))
     r
   }
+  def retainedProgramBytes: Int=document("retained_layout")("program_bytes").num.toInt
   def pwmRegion: Region = {
-    val p=document("pwm")
+    val p=document("general_timers")
     require(p("reset").str=="main_service" && p("clock").str=="main" && p("owner").str=="performance")
     val parent=region(p("parent").str)
     Region("pwm",parent.base+BigInt(p("offset").num.toLong),BigInt(p("size").num.toLong))

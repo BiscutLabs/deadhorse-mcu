@@ -13,8 +13,6 @@ sys.path.insert(0, str(ROOT / 'tools'))
 from formal import validate_job, assertion_names
 
 CASES = {
-    'main8': ('MainTimerFormal', 'prove', 48, 6, 2),
-    'main9': ('MainTimerFormal', 'prove', 48, 6, 2),
     'aon': ('AonTimerFormal', 'prove', 32, 4, 1),
     'wake': ('GpioWakeFormal', 'prove', 8, 4, 2),
     'gpio_denied': ('GpioDeniedFormal', 'prove', 16, 7, 1),
@@ -64,7 +62,7 @@ def run(output, cases):
                 if not sv: raise RuntimeError('Missing emitted model')
                 inventory={p.stem:tuple(re.findall(r'(assert__\w+):',p.read_text())) for p in sv}
                 inventory={n:v for n,v in inventory.items() if v}
-                module={'main8':'MainTimers','main9':'MainTimers','aon':'AonTimers'}.get(case,top)
+                module={'aon':'AonTimers'}.get(case,top)
                 if variant=='corrupt':
                     inventory={module if n==top+'_Anon' else n:v for n,v in inventory.items()}
                 if inventory!=({} if variant=='cover' else {module:assertion_names(assertions)}):
@@ -89,8 +87,7 @@ def run(output, cases):
                 if result=='TIMEOUT':
                     row['status']='unresolved'
                 else:
-                    faults={'main8':{'d.assert__chisel3_builtin'},'main9':{'d.assert__chisel3_builtin'},
-                            'aon':{'d.'+a for a in assertion_names(4)},
+                    faults={'aon':{'d.'+a for a in assertion_names(4)},
                             'wake':set(assertion_names(4)[1:]),
                             'gpio_denied':set(assertion_names(7))}[case]
                     row['failed_properties']=validate_job(directory/variant, 'cover' if variant=='cover' else 'negative' if variant=='corrupt' else 'proof',row['returncode'],result,faults if variant=='corrupt' else None)

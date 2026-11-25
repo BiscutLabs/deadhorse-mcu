@@ -51,7 +51,7 @@ class SocBootSpec extends AnyFunSuite with ChiselSim with SocDebugLintConfigurat
         p.lite.req.poke(false.B);p.lite.bits.poke(0.U.asTypeOf(p.lite.bits))
         p.liteHalted.poke(true.B);p.resetReason.poke(0.U);p.crashCount.poke(0.U)
         p.uartRx.foreach(_.poke(true.B));p.spiMiso.poke(false.B);p.spiTimeNow.poke(0.U)
-        p.i2cSclIn.poke(true.B);p.i2cSdaIn.poke(true.B);p.recoveryScl.poke(true.B);p.recoverySda.poke(true.B)
+        p.i2cSclIn.poke(true.B);p.i2cSdaIn.poke(true.B);
         p.usbVbus.poke(false.B);p.usbDpRx.poke(false.B);p.usbDnRx.poke(false.B)
       }
       def tick(): Unit = {
