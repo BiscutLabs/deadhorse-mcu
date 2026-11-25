@@ -1,5 +1,11 @@
 # T14 bus contract
 
+PLAN05 production binding: remove general toMain and lite main-peripheral
+access; retain toAon, mailbox and the dedicated lite execution-debug bridge.
+The reusable bridge protocol below is unchanged. The authoritative production
+map and ownership are in [soc.md](soc.md); earlier address examples below are
+historical T14 assumptions, not an additional production map.
+
 Draft for independent review. This specifies reusable blocks, not SoC wiring.
 Addresses and bounds below are implementation configuration assumptions pending
 G1 integration. No peripheral, core, clock controller or reset controller is

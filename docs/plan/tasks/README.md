@@ -15,6 +15,7 @@ checkpoints; current progress and evidence live only in STATUS.
 | PLAN02 | [General-purpose MCU scope](PLAN02-general-mcu.md) | User decision D69 | Documentation only; no CI or RTL changes |
 | PLAN03 | [SoC consolidation and tape-out planning](PLAN03-soc-consolidation.md) | User decisions D72–D76 | Assigned on main; ordered B1–B6; no new peripheral RTL |
 | PLAN04 | [Tapeout clock/reset architecture](PLAN04-clock-reset.md) | D78/D79/D81/D82; production clock/wake/reset contracts | Assigned on main; acceptance unverified; oscillator control and POR subset of T33 |
+| PLAN05 | [Dormant coprocessor and single-master boot](PLAN05-dormant-coprocessor.md) | D92-D101; T36 revision | Phase1 contracts/measurement before RTL; fast CI at Phase2/3 ends; acceptance unverified |
 | T08 | [Pinned Linux environment](T08-environment.md) | None | Brief ready; commands not yet run |
 | T01 | [Scaffold and CI](T01-scaffold.md) | T08 | After pinned environment |
 | T02 | [Historical flight-loop CI](T02-flight-loop-ci.md) | T01, T08 | Historical workload only |
@@ -32,8 +33,8 @@ checkpoints; current progress and evidence live only in STATUS.
 | T14 | [Bus, bridge and mailbox](T14-bus-mailbox.md) | T07, T09 | Write `docs/spec/bus.md` first |
 | T15 | [UART peripheral](T15-uart.md) | T05, T07, T09, T14 | User assigned standalone peripheral implementation; core optimization deferred |
 | T16 | [SPI host](T16-spi-host.md) | T05, T07, T09, T14, T15 | User assigned standalone SPI controller; core optimization deferred |
-| T17 | [I2C controller](T17-i2c-host.md) | T05, T07, T09, T14, T16 | User assigned next serial peripheral; controller only, retained loader separate |
-| T18 | [Lite I2C recovery loader](T18-i2c-recovery-loader.md) | T06, T07, T09, T14 | Pinned clocked adoption and end-to-end recovery test brief ready |
+| T17 | [I2C controller](T17-i2c-host.md) | T05, T07, T09, T14, T16 | User assigned next serial peripheral; controller only; PLAN05 removes the separate recovery loader |
+| T18 | [Lite I2C recovery loader](T18-i2c-recovery-loader.md) | T06, T07, T09, T14 | Historical adopted block; removal assigned to PLAN05 D93 |
 | T19 | [USB CDC-ACM](T19-usb.md) | T05, T07, T08, T09, T14 | User assigned adoption; source assessment must resolve vendor timing/CDC exceptions before production integration |
 | T20 | [Reference SoC integration, I0–I1](T20-soc-integration.md) | T05, T07, T09, T13, T14–T19, S3 | Write `docs/spec/soc.md` first; Q15/Q16 stay open |
 | T21 | [GPIO, timers and retained ADC](T21-flight-io.md) | T05, T07, T09, T14, T20 interfaces | User assigned functional implementations; no CI; D68 split timer services approved |
@@ -46,7 +47,7 @@ checkpoints; current progress and evidence live only in STATUS.
 | T28 | [Lite-first performance release](T28-boot-release.md) | T25/T26/T27 interfaces | Continued RTL; reviewed digital handoff from validated loader START; no CI |
 | T29 | [Bounded QSPI command interface](T29-qspi-command.md) | Plans04/07, T28 interfaces | Continued RTL; reviewed command subset, no CI |
 | T30 | [Native QSPI read path](T30-qspi-xip.md) | Plans03/07, T29 interfaces | Continued RTL; reviewed native read/arbitration contract; no CI |
-| T31 | [Retained locked-image restart](T31-retained-loader-restart.md) | D73 | Withdrawn; recovery loader frozen, no extension without a new decision |
+| T31 | [Retained locked-image restart](T31-retained-loader-restart.md) | D73 | Withdrawn; D93 now removes the recovery loader |
 | T32 | [Two-hart JTAG debug](T32-jtag-debug.md) | PLAN03; T33 interface coordination | Unimplemented; acceptance unverified |
 | T33 | [Clock/reset/power controller](T33-clock-reset-power.md) | PLAN04; T32/T34 interface coordination | Remaining full reset sequencing/reason, threshold selection and retained sleep beyond PLAN04; acceptance unverified |
 | T34 | [Analog interfaces/models](T34-analog-models.md) | PLAN04 interfaces | LF RC plus POR/brownout only; no internal HF; acceptance unverified |
@@ -79,8 +80,8 @@ implementation and T34 model evidence retain their
 recorded exceptions; T39 does not require their deferred proofs to close first.
 Then T35/T36, followed by T37/T38, replay affected T39 checks after their changes.
 Each ends with the single production top and existing system tests.
-T36 explicitly resolves autonomous lite boot without extending D73's
-frozen loader. Analog layout/extraction, board/silicon work and complete stage
+PLAN05 revises T36 to one performance ROM with explicit lite release; D93
+removes the loader and D94 removes general toMain. Analog layout/extraction, board/silicon work and complete stage
 application/FPGA acceptance need later briefs; no implicit new work is assigned.
 T31 is withdrawn. D18 and chip-to-chip work remain deferred.
 

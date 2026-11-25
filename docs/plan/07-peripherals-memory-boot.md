@@ -1,5 +1,9 @@
 # 07 Peripherals, memory, boot and debug
 
+PLAN05 D92-D101 is the current target contract; production migration remains
+pending in STATUS. The I2C recovery loader is removed, superseding its freeze.
+Keep all nine PWM and four timer physical pins for twelve muxed channels.
+
 Approved architecture is in [03-architecture.md](03-architecture.md).
 Capacities/counts are requirements; unmeasured rates, latencies, area and
 buffer depths remain targets/assumptions until the relevant task reports.
@@ -11,17 +15,17 @@ buffer depths remain targets/assumptions until the relevant task reports.
 | UART | Three | 8N1, inversion, target up to 921,600 baud, FIFOs; receive/wake-only/disabled sleep modes |
 | SPI controller | One, two chip selects | Modes 0/3, target at least 4 MHz; timestamped IMU acquisition, DMA |
 | I2C controller | One | 100/400 kHz targets, clock stretching and stuck-bus recovery |
-| I2C target | One, RISCay carryover | Existing recovery loader frozen by D73; T31 withdrawn |
+| AON SPI | One chip select, lite-owned | Mode0/3, programmable LF divider, eight-byte TX/RX FIFOs and completion interrupt; no external oscillator required |
+| AON GPIO | Six GPIO-capable pads with limited alternates | Four SPI signals plus two GPIO simultaneously; short-pulse edge capture, lite IRQ, radio power output |
 | External ADC access | Firmware through general SPI, DMA where needed | D74 retires the dedicated ADC block; its former window and pins are unassigned |
 | QSPI flash | Boot/XIP and separate logging chip selects | Bounded arbitration; no flash program/erase blocking the control loop |
 | USB | Full-speed CDC-ACM in the production top | Separate domain and FIFO boundary; existing physical cutoff remains a future explicit decision, not an opt-in profile |
-| Timers | Four capture/compare plus microsecond timebase | Timer-driven control loop; timestamp sensor events |
-| Timer/PWM outputs | Capacity for the first board; generic channels | Programmable periods/compare, buffered updates and DMA; no motor/servo roles or command timeout engine (D69) |
+| General timers | Microsecond timebase plus three timers with four channels each | Shared prescaler/period per timer; each channel PWM/output compare/input capture; period-boundary shadow compares; all running channels hold main clock |
 | Basic DMA | SPI and UART | Ownership/memory checks, bounded bursts, completion/error IRQ; no linked descriptors initially |
 | GPIO/pin mux | Remaining pins | Limited alternate functions, wake, reset-disabled outputs |
 | Interrupt/debug | Both cores | Bounded interrupt service; JTAG halt/step/register/memory access |
 
-Serial peripheral ownership is exclusive and programmable. Ownership checks
+Main UART/SPI/I2C/QSPI ownership is exclusively performance; AON SPI/GPIO belong to lite. Ownership checks
 apply equally to local bus, bridged and DMA requests. Clock bridges and
 bounded arbitration must preserve latency bounds and prevent partial ownership
 transfer. Shared peripherals may run while the performance core sleeps; HF
@@ -82,8 +86,8 @@ storage requirement in R-PER-8; do not treat a throughput estimate as a proof.
 | Memory | Approved baseline | Organization |
 | --- | --- | --- |
 | Performance SRAM | 16 KiB | 32-bit word-wide interface, byte-write enables, configurable banks |
-| Lite SRAM | 3 KiB retained | RISCay program/data starting organization; configurable banking |
-| Boot ROM | Capacity not measured | Two-core boot and recovery code |
+| Lite SRAM | 2 KiB retained, D96 | Proposed 1 KiB program + 1 KiB data from measured watcher; implementation pending |
+| Boot ROM | Capacity/area not yet measured | One performance ROM at0x0, reset entry0x80; no lite ROM |
 | External QSPI NOR | Part/capacity to qualify | Boot images and cold-code XIP |
 
 Four byte-wide qualified macros in parallel per bank provide word-wide access
@@ -101,17 +105,16 @@ does not establish full-firmware fit.
 
 ## Boot and debug
 
-T36 implements production ROM firmware; T32 implements unlocked two-hart debug.
-The existing I2C recovery loader is frozen at its current features and reset/lock
-policy (D73); no T31 extension is authorized. Before autonomous QSPI boot, T36
-must resolve the current loader-only lite start/protected-program path without
-silently changing ownership or extending the loader.
+T36 implements the reviewed [single-master boot contract](../spec/boot-rom-proposal.md).
+Performance ROM validates the paired A/B/golden bundle, loads both images,
+and releases lite if requested. Only performance may write lite program RAM,
+and only while boot control holds lite reset. The application can later hold,
+reload and release a watcher. Other program writes error without effect.
 
-Keep the RISCay CRC/compatibility checks, A/B and golden recovery approach and
-programming lock, adapting to two images and a QSPI controller. Lite boots
-first, loads valid calibration/configuration and its image, then releases the
-performance core to validate/load its hot image and start. Recovery loading
-remains available through the loader/gateway when images are invalid.
+Recovery uses performance-ROM UART0 plus JTAG, with no I2C loader or handoff.
+Performance-only reset validates/reloads the same generation without touching
+lite state; fail closed if ownership/drain or image validity cannot be established.
+Sleep wake resumes after WFI and does not execute ROM.
 
 **No signed firmware.** CRC detects corruption, not authenticity. Unlocked
 JTAG and UART gateway permit physical debug/programming access. The programming
@@ -125,9 +128,10 @@ Use limited register-selectable alternate functions; general-purpose outputs
 disabled at reset. Dedicated external clock/reset and JTAG pins remain.
 The initial chip has no chip-to-chip QSPI pads or required LF crystal driver.
 
-PLAN04's estimated simultaneous logical demand is 39 output-capable and 12
-input-only pads, against assumed capacities 40 and 12. This adds OSC_EN and
-the three AON/fallback strap inputs to the T32 inventory. OSC_IN reuses the
+PLAN05's estimated physical demand is 40 output-capable and 12 input-only
+pads against unchanged assumed capacities 40 and 12. Remove two loader pads,
+add three AON-extra pads and reuse three existing GPIO pads as alternates.
+BOOT_MODE reuses GPIO1/MOSI; all nine PWM and four timer pads remain. OSC_IN reuses the
 dedicated clock pad; external reset and analog pads remain separately counted.
 This is an inventory estimate, not pad placement or electrical qualification.
 

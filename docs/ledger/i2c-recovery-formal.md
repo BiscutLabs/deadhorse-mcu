@@ -1,7 +1,10 @@
 # T18 recovery loader formal ledger
 
+Historical evidence: PLAN05 D93 removes this block; these results do not qualify
+the replacement performance-ROM recovery path. Its source remains in git history.
+
 Base `35738fe` plus the T18 sources identified by the aggregate receipt. The
-[harness documentation](../../hw/ip/i2c_recovery_loader/formal/README.md)
+historical `hw/ip/i2c_recovery_loader/formal/README.md`
 records the external stimulus, environmental restrictions and fault controls.
 The production control uses 2048-byte program and 1024-byte working-memory
 configurations in these jobs.

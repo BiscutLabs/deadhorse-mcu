@@ -1,5 +1,13 @@
 # Production clock, reset and sleep boundaries
 
+PLAN05 target amendment: performance owns oscillator/power/reset MMIO through
+toAon and is the single boot master. Whole-chip reset holds lite until explicit
+release; performance-only reset preserves watcher state. Committed dormant
+freezes only the performance watchdog through oscillator qualification, while
+lite watchdog continues. Radio GPIO/SPI IRQs wake lite; validated mailbox
+wakes main. AON pad ownership survives performance reset. Implementation and
+composition evidence remain pending; [PLAN05 contract](plan05-integration.md).
+
 T33 supplements [the production SoC contract](soc.md). This is the digital
 boundary inventory and qualification checklist, not physical signoff. Clock
 rates are the D78 design contract: OSC_IN 48 MHz, divided main 8 MHz, AON
@@ -10,7 +18,7 @@ nominal 32 kHz. TCK is independent. Related main/USB clocks retain their CDC.
 | Cohort | Assert sources | Release / consumers | Retention |
 | --- | --- | --- | --- |
 | Supply cold | On-die POR/brownout; external pin instead when static POR_BYPASS is high | Shared ResetRelease, then clock bootstrap sequencing | No promise across power loss; initializes debug and watchdog history |
-| Pin warm | External active-low pin in normal mode | Asynchronous assertion, per-domain synchronized release | Cold-only loader/watchdog state survives |
+| Pin warm | External active-low pin in normal mode | Asynchronous assertion, per-domain synchronized release | Cold-only watchdog state survives; no loader under D93 |
 | Main service | Cold, pin, lite watchdog, ndmreset, main-service qualification | Main ResetRelease; shared fabrics, peripherals, DMA and client adapters | Normal sleep does not reset this cohort |
 | AON service | Cold, pin, lite watchdog, ndmreset, AON-service qualification | AON ResetRelease; AON fabric, lite service, power/reset MMIO, UART-mode transfer | Reset flushes transfer endpoints; does not reset the source qualification epoch |
 | Performance client/PWM | Main-service sources plus performance watchdog | Core/client ResetRelease and separate PWM ResetRelease | Shared DMA, buses, peripherals, lite and retained memory survive performance-only reset |
@@ -18,7 +26,7 @@ nominal 32 kHz. TCK is independent. Related main/USB clocks retain their CDC.
 | Debug module/transport | Cold only | Existing shared main/TCK reset-release primitives | ndmreset does not reset its own debug controller or remove the clock needed to clear it |
 | Oscillator policy epoch | Cold, pin, bootstrap release | AON ResetRelease | Internal service resets cancel sleep through forceRun; they do not discard qualification or a latched source fault |
 | Source qualification / gate command epoch | Bootstrap reset or OSC_EN low | Source and ungated-main ResetRelease; shared FIFO endpoint release | A new oscillator epoch requires fresh qualification; light sleep retains the epoch |
-| Watchdog causes | Cold initialization; existing watchdog capture | Existing AON watchdog registers | Performance resets preserve recorded reasons; existing loader ABI stays unchanged |
+| Watchdog causes | Cold initialization; existing watchdog capture | Existing AON watchdog registers | Performance resets preserve recorded reasons; loader removed by D93 |
 
 Reset assertion paths are intentionally asynchronous. Reset **release** is
 synchronized at each destination; asynchronous assertion is not a data CDC

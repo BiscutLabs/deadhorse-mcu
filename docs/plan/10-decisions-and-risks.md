@@ -112,6 +112,23 @@ licence grants or signoff. This register supersedes the earlier alternatives.
 
 | **D91** | T36 scoped verification | User direction 2026-11-24: implement T36 under the same policies as T35. Run boot-ROM and affected integration tests only; no aggregate fast/full CI or unrelated IP tests. Defer proofs needing extensive timeout work, retaining assertions, assumptions, caps and unresolved evidence. Independent contract and final review remain required. This does not approve a new memory/ownership/image policy, loader extension, capacity increase, or physical/stage signoff; T36's explicit feasibility and stop conditions remain. |
 
+## PLAN05 dormant coprocessor decisions
+
+Approved by the user 2026-11-24. Implementation and acceptance remain unverified.
+
+| ID | Topic | Approved scope |
+| --- | --- | --- |
+| **D92** | Single performance boot master | PLAN05 E1: performance is the sole boot master. No lite ROM; performance releases lite into its program RAM. Supersedes lite-first boot in plan07 and the earlier T36 proposal. C1-C9 in PLAN05 define the replacement boot contract; approval is not implementation evidence. |
+| **D93** | Remove recovery loader | PLAN05 E2: remove the I2C recovery loader, replacing D73's freeze, D72's production-loader inclusion, D82's loader service contract and the loader portion of D1. Performance-ROM UART recovery and JTAG remain. The 32 kHz-only AON clock architecture remains unchanged. |
+| **D94** | Performance-owned main peripherals | PLAN05 E3: remove general toMain and lite access to main-domain peripherals; retain toAon and mailbox. Main UART/SPI/I2C/QSPI belong to performance, including QSPI reset ownership. Amend D7/D24 shared sleep-peripheral ownership. Dedicated debug transport is not ordinary lite peripheral access. |
+| **D95** | AON watcher peripherals | PLAN05 E4: add lite-owned SPI mode0/3, one CS, programmable AON-clock divider, small TX/RX FIFOs and completion interrupt; at least four AON GPIOs with output, asynchronous short-pulse capture and wake. Operate on 32 kHz with external oscillator stopped; pulse-width/rearm and physical pin contracts require explicit qualification. |
+| **D96** | Watcher-sized retained memory | PLAN05 E5: select the smallest of 2 or 3 KiB fitting measured watcher code, data and stack with at least 25% margin. Derive program/data split from measurement. This supersedes the fixed 3 KiB allocation only after that evidence; no larger memory is authorized. |
+| **D97** | Unified general timers | PLAN05 E6: replace main timers and generic PWM with a microsecond timebase and three timers, each sharing prescaler/period across four PWM/output-compare/input-capture channels. Shadow compares apply at period boundaries. Twelve channels map through pinmux to the existing nine PWM and four timer pins; any running channel holds main clock. Supersedes separate main timer/PWM implementation, not AON deadlines. |
+| **D98** | Verification-only RVFI | PLAN05 E7: production excludes RVFI; verification and lockstep retain it. Non-RVFI outputs and state must be equivalent; no functional core change is approved. |
+| **D99** | Measure main SRAM options only | PLAN05 E8: report freed area and costs/fit for 16, 24 and 32 KiB main SRAM. No main SRAM growth is decided; production remains 16 KiB pending a later decision. |
+| **D100** | Powered retained memory in dormant modes | PLAN05 E9: retained RAM is never powered down. Dormant savings come from stopping main clocks and the external oscillator. Lite/AON services continue; performance watchdog freezes through committed dormant and oscillator restart, lite watchdog remains active. Wake resumes retained WFI state, not ROM. |
+| **D101** | PLAN05 phase-end qualification | User PLAN05 rules: run fast CI at the ends of Phase2 and Phase3 and fix failures before commits/push to main. D91 scoped testing applies only to T36 iterations, not these checks. Independent reviews and all original limits remain. Full CI/stage/physical signoff is not implied. |
+
 ## Risks and evidence still required
 
 

@@ -1,156 +1,271 @@
-# T36 boot-path feasibility and proposed contract
+# Production boot contract — PLAN05
 
-Proposal for approval, not the implemented SoC contract. Inspected at main
-`27307fcad45985582cd0b28400933abdfb8b11ba`. D91 authorizes scoped verification;
-it does not resolve the mapping/ownership decisions required by T36.
+Approved architectural replacement under D92–D101 (user 2026-11-24).
+Implementation and acceptance remain unverified. This replaces the former
+lite-first proposal, not historical evidence. Phase1 contracts require
+independent review before RTL; exact firmware recovery encodings require review
+before tests. See [PLAN05](../plan/tasks/PLAN05-dormant-coprocessor.md).
 
-## What exists
+## One boot master
 
-| Boundary | Current production behavior | Consequence |
+There is one immutable ROM in main, in the existing 0x00000000 aperture, reset
+entry 0x80. Performance boots first. Lite has no ROM and remains reset until
+performance releases it to its program-RAM base. No boot sequencer modes,
+ROM-copy seal epochs or cross-core readiness/commit handshake are needed.
+Measure ROM content bytes and mapped area against plan08's existing allowance;
+the aperture is not an authorization to grow that allowance.
+
+Whole-chip sequence: POR/brownout and external pin released; AON source running
+and count-qualified; AON released with lite held reset; external oscillator
+stable; main released; performance ROM executes:
+
+1. Read reset-sampled BOOT_MODE: normal selection or UART recovery wait.
+2. Read and validate the factory directory. Select newest fully valid A/B
+   paired bundle, otherwise golden, otherwise recovery. A wins ties; reject
+   generation exhaustion rather than wrap. No mixed-generation images.
+3. Copy and verify performance image into main SRAM.
+4. Copy and verify lite image into retained program RAM while lite is held
+   reset. Apply the bundle's lite-start flag: release now or leave held for
+   the application. All bundle records/images are validated before release.
+5. Enter performance application, whose startup initializes data and bss.
+
+BOOT_MODE is a reset-sampled alternate function of GPIO1/AON MOSI, with board
+pull-down for normal boot or pull-up for recovery. Keep outputs disabled while
+sampling, freeze the selection before enabling serial outputs; radio CS has a
+board pull-up. Performance-only reset uses the retained boot context rather
+than resampling or reselecting a bundle.
+
+## Lite memory authority
+
+Only performance-origin transactions may write lite program RAM, and only while
+boot control holds lite in reset. ROM and applications use the same hold/write/
+release procedure. Halt/drain the lite client before acknowledging the writable
+hold; debug ownership cannot masquerade as boot hold. Release starts at program
+base. Other program writes return errors without modifying memory. Lite cannot
+write its own code. Direct debug SBA program writes are denied too; unlocked
+JTAG can use performance-hart execution to load it under boot hold. Preserve
+positive SBA tests in data memory and explicitly test program-write rejection.
+This is integrity, not security; D34/D41 remain.
+
+Retained RAM stays powered. Size and program/data split follow the measured
+watcher under D96, not an arbitrary default. Resetting performance does not
+reset lite, reopen a program-write window, or alter its RAM. Whole-chip reset
+holds lite again. Existing lite-watchdog whole-chip behavior remains; if a
+lite-only reset scope is later enabled, it must hold lite and notify performance
+via mailbox for explicit reload/release, as C5 requires.
+
+## Performance-only reset
+
+D70 preserves DMA and shared services. Enter a stackless ROM preamble and wait
+for existing DMA and QSPI activity to drain before any SRAM writes or stack use.
+Use a bounded wait; on timeout remain fail-closed in ROM until whole-chip reset.
+Do not abort/reset DMA, reconstruct its buffers, negotiate with lite or force a
+shared-service reset. Test a permanently stalled DMA channel as well as normal
+drain. This admission guard prevents a surviving bus master racing ROM's stack,
+CRC/reload or application initialization.
+
+A retained validated context identifies the originally selected generation and
+slot/record. Verify the same-generation performance image CRC in SRAM. If it
+matches, skip flash copy; otherwise validate and reload that same image from
+flash. Never reselect a newer bundle or touch lite memory/reset. Application
+startup always initializes data/bss. If a valid same-generation image cannot
+be established, fail closed in ROM until whole-chip reset. Exact context fields,
+CRC coverage of immutable image versus runtime data, reserved stack/context
+bounds and finite wait counts must be reviewed before implementation; no
+unreviewed ABI or numeric timeout is implied here.
+
+## Bundle and flash policy
+
+Retain the pinned RISCay CRC/compatibility, A/B/golden and commit-last approach,
+adapted to a versioned paired performance/lite/configuration bundle:
+
+- CRC-protected factory directory defines disjoint aligned A/B/golden regions
+  inside declared flash capacity. Invalid directory enters recovery; do not
+  guess a golden address.
+- Versioned ABI includes generation, image source/destination lengths, entries,
+  CRCs, configuration and lite-start flag. Validate alignment, bounds, overlaps,
+  program/data/stack allocations and compatibility before execution. Explicitly
+  bound and cover any cold XIP segment. CRC is not signed authentication.
+- Select newest fully valid A/B, A on ties, then golden, then recovery.
+  Validate the complete paired bundle before releasing lite. After application
+  entry, changing generations requires whole-chip boot, not live negotiation.
+- Stream bounded chunks to inactive field slot, preserving directory, golden
+  and previous usable slot. Verify body/header readback, program/verify commit
+  magic last. Power loss must preserve the previous complete bootable bundle.
+- QSPI belongs to performance from reset. Ordinary mode0 NOR baseline remains
+  READ/RDSR/WREN/PAGE PROGRAM/sector erase, 24-bit addresses, 256-byte pages and
+  4 KiB sectors. These are compatibility assumptions, not a qualified board
+  part. Bound polling against independently reviewed part assumptions.
+
+Reference provenance: RISCay commit
+`4671317186003740ceb61360ba08c59bbdf10136`, `tools/boot_image.py`,
+`tools/boot_slots.py`, `firmware/boot/boot.c`. Preserve licensing for adopted
+code. Its single-image ABI/loader MMIO is not the new paired ABI and must not
+be copied into the production interface.
+
+## Recovery and sleep
+
+UART0 performance-ROM recovery retains gateway v1 COBS/CRC/sequence/duplicate
+framing with an explicitly advertised firmware capability subset. Use native
+core permissions, never gateway/debug impersonation. LOAD/WRITE32 may access
+only reserved staging RAM, excluding live stack/context. Unsupported addresses,
+operations and reset commands error. Exact command/capability encodings require
+independent review before serial-wire tests. Enter on BOOT_MODE or absence of a
+valid bundle. JTAG is full fallback. No I2C loader, loader-wait/handoff or
+runtime ownership transfer remains.
+
+Sleep and dormant wake resume the retained performance core after WFI, never
+ROM. A valid watcher packet requests wake through mailbox; raw radio GPIO and
+AON SPI IRQs wake lite only. The performance watchdog is frozen for committed
+dormant through oscillator startup qualification; lite watchdog remains active.
+
+## Required evidence
+
+Keep T36 original boot/update/power-loss/malformed-image/serial-wire obligations
+and affected two-hart debug/core checks. Add lite release, program-write denial,
+performance-only reset/same-generation and failed-DMA-drain cases. Account for
+every retired loader/seal/handoff test under the explicit PLAN05 removals.
+Independent review covers this contract, exact encodings and implementation.
+Run fast CI at Phase2 and Phase3 ends; D91 scoped tests apply only to iterations.
+No phase acceptance, ROM fit, physical qualification or gate closure is claimed.
+
+PLAN05 BOOT_MODE readback: performance reads bit0 of boot-control offset0x10
+(`0x40000310`), read-only. GPIO1/AON MOSI is sampled on AON edges while
+whole-chip reset qualification is pending and frozen before AON clients release.
+Main-only or AON service reset does not resample it; a new whole-chip reset does.
+A board strap must remain stable through whole-chip reset qualification.
+
+## T36 concrete ABI (independently reviewed; acceptance pending)
+
+This section fixes independently reviewed implementation choices for Phase3;
+it is not a completed implementation or a new memory-capacity decision.
+All integers are unsigned little-endian. CRC uses gateway CRC-32/ISO-HDLC.
+
+### Directory and paired record
+
+Retain the pinned eight-word factory directory: magic0x32425352, version2,
+sector-aligned slot stride, sector-aligned declared flash bytes (at most16MiB),
+A address=4096+stride, B=4096+2*stride, golden=4096, CRC over the first28bytes.
+Require positive stride and4096+3*stride <= declared capacity using subtraction
+bounds before arithmetic. Directory and golden are never field-erased.
+
+A paired header is96bytes at slot base, followed by erased padding through
+byte255 and contiguous performance, lite and configuration payloads from256.
+No arbitrary segment offsets or XIP entry is accepted in ABI3; all executable
+bytes are copied to the two existing RAM apertures. Later cold-XIP formats
+require a separately reviewed ABI, never an unchecked entry in this format.
+
+| Word | Meaning / validation |
+| --- | --- |
+| 0 | Paired magic0x33424844 |
+| 1 | Format3 |
+| 2 | Generation: golden0; A/B1 through0xfffffffe; no wrap |
+| 3 | Flags: bit0 releases lite after copy; all other bits zero |
+| 4 | Performance image bytes: nonzero, multiple4, <=14336 |
+| 5 | Performance entry offset: halfword aligned, inside image |
+| 6 | Performance image CRC |
+| 7 | Lite program bytes: nonzero, multiple4, <=1024 |
+| 8 | Lite entry offset: zero, matching boot-control fixed base |
+| 9 | Lite program CRC |
+| 10 | Configuration bytes: multiple4, <=256; zero permitted |
+| 11 | Configuration CRC (zero for empty payload) |
+| 12 | Performance total image/runtime/data/bss/stack allocation: >=image bytes, <=14336 |
+| 13 | Lite runtime data/bss bytes |
+| 14 | Lite stack bytes: >=16; data+stack <=1024 with subtraction bounds |
+| 15 | Required performance MISA: RV32 plus subset of implemented IMFC |
+| 16 | Required lite MISA: RV32E, exactly0x40000010 |
+| 17 | Hardware ABI1 |
+| 18 | Extent: exactly256+performance+lite+configuration, <=slot stride |
+| 19-21 | Reserved zero |
+| 22 | CRC over first88header bytes |
+| 23 | Commit0x54494d43, programmed only after complete verification |
+
+Validate every header, destination, CRC and paired payload before selection.
+Validate complete A/B candidates; choose higher generation, A on equality;
+otherwise validate golden. Bad directory enters recovery without a guessed
+flash destination. Required performance MISA must include RV32I and contain no
+unsupported bits; the actual hart supplies IMFC. Header allocation claims are
+compatibility bounds, not a proof of arbitrary application memory safety.
+
+Performance starts at0x20000000+entry. Its CRC-covered image remains immutable
+in place; application startup copies initialized data from that image into its
+separate runtime allocation and clears bss on every entry. Lite startup likewise
+initializes data in0x30000400-0x300007ff from constants in program RAM. Program
+and data never overlap. Configuration is copied to the reserved readout below;
+application entry registers a0/a1 give its address/length, a2 gives generation.
+
+### ROM working memory and reset classification
+
+Reserve0x20003800-0x20003fff (2048bytes) in the firmware ABI, without changing
+hardware SRAM size or access permissions: configuration256bytes at0x20003800,
+context128bytes at0x20003900, staging256bytes at0x20003980, firmware globals
+through0x20003dff, stack512bytes at0x20003e00-0x20003fff. Linker assertions and
+measured stack/high-water must fit; no allocation growth is implied.
+
+A hardware read-only boot-status bit3 records a fresh performance-watchdog
+reset since the current whole-chip boot epoch. It clears with boot-control
+whole/AON reset; a stale watchdog reset-hold spanning that reset does not set
+it (observe hold low before a later rising edge). Whole reset dominates. This
+is reset metadata, not a program-write seal; C3 permissions are unchanged.
+It distinguishes reset during context preparation too: a set bit requires
+current-epoch committed context or fail-closed, never reselects. A clear bit
+follows the cold path. Read-only status bit4 is `contextReady`, cleared by
+whole/AON reset and preserved across performance-only reset. The performance
+owner sets it by writing key0x434f4e54 to boot-control offset0x14 only after
+the context is complete; other origins or keys error without effect. This
+metadata prevents surviving RAM from a previous whole-chip epoch being accepted
+if the performance watchdog interrupts cold context preparation. It neither
+grants access nor changes C3's write rule. Reset dominates a simultaneous key.
+
+The128byte context uses words0-4 for magic/version/stride/flash-capacity/slot,
+words5-28 for the complete96byte header, word29 for CRC of words1-28, and
+words30-31 zero. It is committed with magic last after copies verify
+and before the hardware context-ready key, lite release/application entry.
+Performance-only reset requires hardware context-ready, then validates
+context structure/CRC/bounds and revalidates the same slot/header/generation in
+flash. Matching immutable SRAM CRC skips copying; otherwise reload exactly that
+performance image. Never write lite/configuration or reselect A/B. Missing,
+changed or corrupt context/header/image fails closed until whole-chip reset.
+
+A stackless reset preamble waits for DMA busy=0 and QSPI busy=0 before any SRAM
+write. Assumed drain timeout2s at nominal8MHz, enforced with unsigned cycle
+elapsed plus a finite poll bound; no timeout extension, DMA abort or recovery.
+After drain, initialize only ROM globals/stack, preserving committed context.
+A fresh performance reset before context commit therefore fails closed safely.
+
+### Firmware UART capability and update commands
+
+UART0 uses8N1, assumed115200baud at8MHz (integer fractional increment selected
+and measured by the build); no USB recovery transport. Keep gateway-v1 framing,
+CRC, sequence/duplicate handling, status meanings and256byte payload cap.
+Partial receive idle timeout assumed100ms at8MHz. Noise/overflow/timeout drains
+to delimiter, with no command effects. An identical immediate duplicate replays
+the reply; same sequence/different bytes is BAD_REQUEST. Reset ends the session.
+
+INFO after status returns one protocol-version byte1, four-byte implementation
+ID0x35304844, four-byte capability bitmap0x00000117 (READ32/WRITE32/LOAD/INFO,
+plus bit8 paired update). READ32/WRITE32/LOAD are restricted to staging only.
+WRITE32 preserves byte-enable semantics; LOAD replies with completed count even
+on failure. RESET and all unknown commands are BAD_REQUEST/no effect. No native
+MMIO, application, stack, context, configuration or lite memory is exposed.
+
+| Opcode | Request | Result |
 | --- | --- | --- |
-| Lite reset/start | `SocI1Peripherals` supplies START only from a validated, idle loader, with an aligned entry below 2048 bytes | No autonomous boot |
-| ROM | `soc.yaml` maps 0x00000000–0x0000ffff main-local; `SocLocalMemory` admits performance and authorized debug | Lite cannot fetch trusted ROM |
-| Retained program | `SocRetainedMemory` rejects ordinary writes to the first 2048 bytes; remaining 1024 bytes are working RAM | Lite firmware cannot load its own image |
-| Performance release | `BootRelease.bootSeen` means a validated loader START was observed | ROM startup cannot currently authorize release |
-| Recovery ownership | Loader program writes require the actual lite hart halted and loader unlocked | WFI is not a recovery handoff; the running hart must really relinquish its client |
-| UART/QSPI | UARTs belong to performance; QSPI resets to lite, with idle-only owner handoff | UART recovery belongs in performance ROM; flash access must be handed over |
-| Gateway | v1 specifies a distinct gateway-origin master; firmware emits its core origin | Firmware cannot claim general gateway-master permissions |
+| 0x10 BEGIN | Address0=A or1=B, payload96byte uncommitted header (commit=0xffffffff) | Validate header/geometry, newest-generation rule and inactive slot; erase only that slot; retain candidate header in ROM working RAM |
+| 0x11 DATA | Address is next expected slot-relative offset, payload nonempty/multiple4<=256 | Stream from offset256 to declared extent, strict sequence; word writes do not cross256byte pages; verify readback before acknowledgment |
+| 0x12 COMMIT | Address0, empty payload | Require complete extent, verify all payload CRCs, program/verify header words0-22, program/verify commit word23 last |
 
-Source owners: `hw/top/reference/src/main/scala/deadhorse/top/` for the
-assembly and memory boundaries, `hw/ip/boot_control/`, `hw/ip/lite_core/`,
-and [gateway v1](gateway-protocol.md). No RTL has changed for this proposal.
+Update generation must exceed every currently valid field-slot generation;
+reject exhaustion. The newest valid field slot is never erased; if no field
+slot is valid, either field slot is eligible while golden remains untouched.
+No update is possible without a valid factory directory. A failed operation
+invalidates the update session and requires a new BEGIN; duplicate replay must
+not erase/program twice. COMMIT returns to UART recovery; application entry
+requires a whole-chip reset, which also loads the paired lite image.
 
-## Recommended boot binding
-
-1. Give each core a synchronous, immutable local ROM view in the existing
-   0x00000000–0x0000ffff aperture. Lite's view resides in AON and needs no
-   main-clock progress to fetch. Performance keeps its existing reset entry
-   at 0x80; lite starts its own ROM at zero after qualified reset. This adds
-   a local ROM binding, not shared access to performance SRAM or a new address
-   window. Actual ROM contents and mapped area must be measured; the aperture
-   is not permission for an arbitrary ROM capacity increase.
-2. Add a small top-level boot sequencer with explicit ROM, sealed application
-   and loader-wait modes. Debug halt-on-reset takes priority and cannot lose
-   the pending ROM start. It must not manufacture loader validity or START.
-3. During trusted lite ROM boot only, allow checked writes to the existing
-   2048-byte program region. Close this permission irreversibly for the whole-
-   reset epoch before application entry. Ordinary application writes remain
-   denied. A later jump back into ROM cannot reopen it. CRC, bounds and entry
-   validation remain firmware obligations, tested at actual instruction entry;
-   a boot-phase bit is not a hardware CRC proof or an authentication claim.
-4. This ROM-copy authority is separate from the frozen loader's lock: a whole
-   reset may revalidate and refill from flash even when that loader lock is
-   retained. It never clears the lock or enables host programming. This is
-   an explicit new trusted write authority requiring approval, not an implicit
-   exception to the current program-write assertion.
-5. Feed qualified trusted-ROM startup, as well as real validated loader START,
-   into the existing performance-release sequencing. Preserve its key and
-   existing offsets. In ordinary boot, lite validates configuration and its
-   image before releasing trusted performance ROM, which validates/copies its
-   own image before application entry. Lite stays in ROM until both cores have
-   agreed that the same selected bundle is valid and completed a current-epoch
-   readiness/commit handshake; neither application starts on partial success.
-   Lite never writes performance SRAM.
-6. In the no-valid-image case, permit trusted performance ROM to run for UART
-   recovery even though no lite application was validated. Both applications
-   remain unentered. This is a specific recovery exception to ordinary boot
-   order, not permission to execute an unchecked image.
-
-Whole-chip reset restarts the sequence from immutable ROM. A reset confined
-to a client or AON service must not reopen a sealed program-write permission,
-reuse stale handoffs or overwrite memory owned by a surviving application.
-If that reset prevents safe continuation, fail closed and require a whole-
-chip reset; do not invent a retained-image restart of the frozen loader.
-Performance-only reset returns to trusted performance ROM without resetting
-shared peripherals, DMA or the lite core (D70). Before reloading performance
-SRAM or reentering the application, it must obtain explicit ownership/drain
-confirmation and a same-generation handshake with the surviving lite application.
-Acquire QSPI through its existing idle handoff, never by forcing shared-service
-reset. It must not select another paired generation or overwrite a live DMA
-buffer. If this cannot be established, fail closed pending a whole-chip reset;
-autonomous restart is not promised.
-
-## Recovery and update boundary
-
-Use UART0 in performance ROM with its existing owner and register interface.
-Preserve v1 COBS, CRC, sequence/duplicate handling and framing, but advertise a
-distinct firmware-recovery capability profile. It uses native core permissions;
-it does not impersonate gateway/debug origin. Only explicitly reserved recovery
-staging RAM is writable by LOAD/WRITE32; live ROM stack and control data are
-excluded. Unsupported accesses and reset operations are rejected. JTAG remains
-the full physical debug/programming path. Exact capability and recovery-command
-encodings must be specified and independently reviewed before firmware tests.
-
-Transfer lite payload/configuration through the existing checked mailbox to
-lite ROM while it still owns its boot phase; performance copies its own data.
-Use the existing QSPI idle handoff for flash programming. Updates run in trusted
-recovery firmware, with applications not running. Stream bounded chunks into
-the inactive flash slot, then validate the complete stored bundle before commit;
-do not require a full image plus recovery stack to fit in RAM at once. No generic
-hardware UART gateway or recovery-loader extension is added.
-
-The I2C fallback must be real: finish outstanding ROM/bridge/mailbox work,
-close ROM-copy permission, acknowledge the handoff command, then reset/drain
-the lite client and leave it actually not started. Disable automatic ROM start
-in loader-wait mode. Only the existing loader's validated START can then launch
-the uploaded lite image. Do not spoof `halted`, reuse JTAG ownership as boot
-authority or mix transport payloads. Inhibit loader mutations through its
-existing integration interlock while ROM owns the program memory; preserve
-status and existing busy/error semantics. Locked warm-reset recovery remains
-locked and requires the existing cold-reset procedure for host programming.
-The UART service must relinquish shared flash/mailbox resources before the
-loader-started image takes over.
-
-## Paired-image policy to approve
-
-Adopt the pinned RISCay CRC/compatibility, A/B/golden and commit-last approach,
-adapting the record to a **paired lite/performance/configuration bundle**:
-
-- A factory-owned, CRC-protected directory describes disjoint aligned A, B
-  and golden regions within the declared flash capacity. Bad directory means
-  serial recovery, not guessing a golden address.
-- A bundle binds architecture/ABI, generation, configuration, each image's
-  source/destination lengths, entry points and CRCs. Reject wrap, overlap,
-  unsupported versions and SRAM/stack violations before copying or entry.
-  Each executable segment, including any declared cold XIP segment, must have
-  explicit bounds and integrity coverage. There is no signed authentication.
-  Configuration is bounded, versioned data for existing supported controls and
-  the application; unsupported trim/control settings are rejected, not an
-  authorization to add T34 analog calibration hardware.
-- Select the newest fully usable field bundle; A wins equal generations.
-  Try the other field bundle, then golden, then recovery. Never combine cores
-  or configuration from different generations. Performance validates its own
-  selected record before application entry; any late failure keeps both
-  applications from entering until the current-epoch commit. After either
-  application has entered, a later fault is runtime recovery, not a retroactive
-  boot-validation guarantee; whole-chip reset is required before changing bundles.
-- Update only the inactive field slot after validating the previous usable
-  bundle. Keep directory, golden and the previous usable field slot intact.
-  Verify body and header readback, then program and verify the commit magic
-  last. Reject generation exhaustion instead of wrapping. Interrupted update
-  must leave the previous complete bundle bootable. No watchdog-based health
-  scoring or automatic rollback of a CRC-valid application is introduced.
-- Initially support the pinned baseline's ordinary NOR command family:
-  mode-0 READ/RDSR/WREN/PAGE PROGRAM/sector erase, 24-bit addresses, 256-byte
-  pages and 4 KiB sectors. These are proposed compatibility requirements,
-  not a qualified board part. Firmware polling is bounded; actual part,
-  erase/program bounds and pad timing remain qualification obligations.
-
-The pinned source is RISCay `4671317186003740ceb61360ba08c59bbdf10136`,
-`tools/boot_image.py`, `tools/boot_slots.py`, `firmware/boot/boot.c` and their
-contracts. Its existing format is single-image and its ROM uses loader MMIO
-absent from Deadhorse. Do not copy that loader interface, its retained restart
-policy or unrelated/asynchronous RTL. Preserve licensing/provenance for code
-actually adopted. The two-core binary ABI must be versioned, not presented as
-compatible with the old format or the unchanged I2C BEGIN record.
-
-## Acceptance after approval
-
-Keep T36's original boot/update/serial-wire, malformed-image, power-loss,
-two-hart debug and affected T39 checks. Add ownership/seal/reset and loader-
-handoff properties with negative controls; scoped timeouts stay unproved under
-D91. Compare image parsing against an independent oracle. Measure both ROMs,
-working-RAM/stack, boot/recovery time, flight cycles, mapped timing and the
-whole area budget. Stop for fit/limit failures rather than raising capacities.
-No CI, unrelated IP tests, full gateway compliance, physical signoff or stage
-exit is claimed by this proposal.
+NOR assumptions: mode0 single-bit READ03, RDSR05, WREN06, PP02 and sector
+ERASE20;24bit addresses,256byte pages,4096byte sectors. QSPI half-period4main
+cycles gives estimated1MHz SCK at8MHz. WIP polls are bounded by assumed2s per
+erase/program and finite iteration count, matching the prior proposal's
+conservative operation budget; timeout is reported, never treated as success.
+Physical flash selection/characterization remains separate.

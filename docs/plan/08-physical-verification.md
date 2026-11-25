@@ -1,5 +1,52 @@
 # 08 Physical implementation and verification
 
+## PLAN05 Phase2 mapped estimate
+
+Measured on main `29cab7e5` plus emitted source hashes in
+`build/plan05/timing03/map/result.json`; latest Phase2 RTL; phase-end CI remains separate.
+Commands in the pinned environment: `python tools/sbt.py 'hw/runMain
+deadhorse.top.EmitSoc build/plan05/timing03/emit production 8'`, then
+`plan04_map.py --base build/plan05/timing03 --usb-reference
+build/t33/pre-fast03/fast/usb/timing/usb --stability-reference
+build/plan04/digital-timing06/stability --threshold-control --sram`,
+`plan04_area.py --base build/plan05/timing03`,
+`t35_budget.py --base build/plan05/timing03` and
+`plan05_area_leakage.py --base build/plan05/timing03`, scripts under
+`hw/top/reference/measurements/`.
+
+| Item | Area, mm2 | Provenance |
+| --- | ---: | --- |
+| Built standard-cell logic | 3.427122093 | Measured mapped cells, hard SRAM excluded |
+| Scan substitution | 0.400487898 | Estimated from measured cells and library substitutes |
+| Remaining clock/reset/power | 0.020333997 | Estimated .10 minus built isolated logic and scan |
+| ROM / scan glue | 0.550000000 | Assumed .50 + .05, unchanged |
+| Digital subtotal at .55 utilization | 7.996261795 | Estimated sum above / assumed .55 |
+| Main16KiB + retained2KiB SRAM | 2.874558676 | Estimated16 x measured1024x8 LEF footprint plus4 x measured512x8 footprint |
+| LF RC / POR / pads / SRAM halo | 1.150000000 | Assumed .10 + .15 + .50 + .40, unchanged |
+| Total | **12.020820471** | Estimated planning use, not placement |
+| Headroom against12.92 | **0.899179529** | Estimated subtraction |
+
+Physical retained SRAM is now four512x8 macros, not merely a smaller accessible
+window in four1024x8 macros. Both model and vendor512-word tests passed; paired
+slow-corner pre-layout timing was measured. Physical SRAM signoff remains open.
+The SRAM hard-macro footprint reduction is estimated0.233712384mm2. Mapped
+standard-cell reduction from historical T35 is measured0.212477798mm2 by subtracting
+its recorded3.639599891 from the current3.427122093; different snapshots/mapper
+optimization prevent attributing that entire reduction to any single block.
+
+| Main capacity option | Extra macros | Estimated total mm2 | Estimated headroom mm2 |
+| --- | ---: | ---: | ---: |
+| 16KiB (unchanged) | 0 | 12.020820471 | 0.899179529 |
+| 24KiB | 8 | 13.264128895 | -0.344128895 |
+| 32KiB | 16 | 14.507437319 | -1.587437319 |
+
+Alternatives add measured LEF footprint only, before extra decoder/control cost;
+neither larger option fits this estimate. D99 makes no memory-growth decision.
+All original physical/analog/ROM allowances remain. T40's separate plan branch
+reserves up to estimated0.018181818mm2 placed area and must rebase this budget
+after PLAN05; it is not implemented or included above. Estimated physical-pad
+inventory remains40 output-capable/12 input-only; T38 qualifies placement/electrics.
+
 Deadhorse is entirely clocked (decision D17), so it uses a standard
 synchronous flow: synthesis, clock-tree synthesis, static timing analysis,
 scan insertion. Nothing in this document needs custom asynchronous tooling.

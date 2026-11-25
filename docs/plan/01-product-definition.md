@@ -1,5 +1,10 @@
 # 01 Product definition
 
+PLAN05 D92-D101 extends the general-purpose MCU with a dormant/IoT watcher.
+Performance is the sole ROM boot master; lite executes only from program RAM
+after performance releases it. UART ROM recovery and JTAG replace the I2C
+loader. These are approved target contracts; implementation is tracked in STATUS.
+
 D69 (2026-11-21): this is a moderately general-purpose MCU. Flight control is
 the first reference application. Peripheral scope stays comparable to ordinary
 MCUs; no flight-specific command controller or automatic application policy
@@ -14,12 +19,13 @@ contains **no neuromorphic IP and no chip-to-chip link**.
 
 - Chisel Ibex-derived RV32IMFC performance core with an area-focused multicycle
   FPU, selective HardFloat reuse, and measured improvement work; no core bakeoff.
-- Clocked lite core, retained clock-gated sleep, programmable sleep SPI/I2C/UART,
-  timer/event/JTAG wake and bounded DMA with exclusive ownership checks.
-- Baseline 16 KiB word-wide performance SRAM and 3 KiB retained lite SRAM,
+- Clocked lite coprocessor watches radios/sensors on nominal 32 kHz using its
+  own AON SPI/GPIO. It filters requests before waking performance by mailbox.
+  Main serial peripherals and DMA are performance-owned; all RAM stays powered.
+- Baseline 16 KiB word-wide performance SRAM and watcher-sized 2 KiB retained lite SRAM (PLAN05 implementation pending),
   byte-write enables and configurable banking; external QSPI boot/XIP.
-- Internal nominal 32 kHz LF source, restartable HF, external-clock divider
-  and glitch-free fallback path.
+- On-die nominal 32 kHz LF RC, external 48 MHz oscillator with standby,
+  main divide-by-six and reset-selected LF fallback; no internal HF oscillator.
 - General-purpose timer/PWM/capture/compare and DMA support. Application
   protocols and command/failsafe policy are firmware responsibilities (D69).
   The first board's output capacity remains a planning input, not fixed motor

@@ -11,7 +11,10 @@ are in `build/t22/formal-frozen/result.json`. Command:
 | dma | 5 | proved | ABC PDR | 0.265 s | PASS / intended request fault rejected |
 | denied | 7 | proved | ABC PDR | 1.467 s | PASS / intended owner fault rejected |
 
-Assumptions and precise scope are in the [block formal contract](../../hw/ip/pwm/formal/README.md).
+Assumptions and precise scope are in the historical
+`hw/ip/pwm/formal/README.md` at the source revision above. PLAN05 D97 retires
+this block; the [general timer formal contract](../../hw/ip/timers/formal/README.md)
+records replacement claims and the preserved DMA/ownership helpers.
 No waveform-progress, whole-SoC, physical-reset or DMA-controller proof is implied.
 
 ## Channel timeout triage

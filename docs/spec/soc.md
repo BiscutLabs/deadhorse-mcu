@@ -1,5 +1,171 @@
 # Production SoC contract
 
+PLAN05 D92-D101 defines the single production DeadhorseSoc target below.
+Phase1 contracts precede RTL migration; STATUS records current implementation
+and evidence. Historical implementation descriptions are in the appendix and
+do not authorize production profiles. No physical, boot or phase acceptance is
+claimed by this map. Q15 remains main8MHz from external48MHz divided by six.
+
+## Assembly and ownership
+
+Performance is the single boot master: faithful Chisel RV32IMFC with shared
+MAC, one main ROM, local banked16KiB SRAM and QSPI XIP. Main fabric binds three
+UARTs, SPI, I2C, USB, GPIO/pinmux, unified general timers and DMA. Main serial
+controllers belong to performance; QSPI is performance-owned from reset.
+
+AON contains lite RV32E,2KiB retained memory, AON timers, both watchdogs,
+oscillator/power/reset control, lite boot hold/release, mailbox, AON SPI and
+AON GPIO. The main-to-AON bridge remains. Lite cannot access main peripherals;
+the general toMain bridge and I2C recovery loader are removed. Dedicated lite
+execution-debug CDC and the memory-only debug SBA path remain. All CDC uses
+shared primitives; related main/USB clocks do not remove existing crossings.
+
+SocProduction and soc.yaml describe one chip. Named minimal/core-boundary or
+USB-stub test fixtures do not define production variants. Production emission
+excludes RVFI; verification/lockstep builds retain it with required non-RVFI
+state/output equivalence. No new peripheral is optional in production.
+
+## Clock, reset and dormant operation
+
+OSC_IN is dedicated48MHz CMOS, feeding USB and registered50%-duty divide-by-six
+for main8MHz through the shared ICG. OSC_EN is AON-controlled, high on reset,
+with board pull-up. AON runs only from nominal32kHz LF RC or reset-selected
+AON_CLK_IN. AON_CLK_SEL is sampled under reset; POR_BYPASS is a static powered
+board strap under D84. No internal HF oscillator, runtime source switch or
+fast AON mode is added.
+
+On-die POR/brownout and active-low external reset assert asynchronously;
+shared release primitives count/qualify AON first, then external clock/main.
+Lite remains held reset. Performance ROM validates/loads the bundle and may
+release lite. D83 bypass-mode external reset initializes cold state; normal
+pin reset and D70 watchdog containment retain their existing scopes. Cause
+recording, threshold-switching guarantees and analog assumptions remain in
+[soc-power-reset.md](soc-power-reset.md), [LF contract](../../analog/lf_rc/README.md)
+and [POR contract](../../analog/por_brownout/README.md). Behavioral macros do not
+qualify physical oscillator, supply or SRAM margins.
+
+Sleep means performance WFI with oscillator running and main consumers allowed.
+Dormant requires DMA idle, UART TX drained, all timer channels stopped, USB
+disabled under D81 and all main holds released. Gate main before oscillator
+standby. Lite and AON SPI/GPIO continue on LF; raw radio IRQ wakes lite only.
+Only a valid watcher's mailbox request wakes performance. AON pad ownership
+and all RAM stay retained. Wake qualifies the oscillator and resumes after
+WFI, never ROM. Main watchdog freezes throughout committed dormant/startup;
+WFI alone does not freeze it. Lite watchdog remains active. Exact admission,
+cancelled-entry, pending-event and reset priorities follow the
+[PLAN05 integration contract](plan05-integration.md).
+
+## Authoritative map
+
+soc.yaml and register YAMLs define regions, child windows, trusted origins,
+interrupts and physical pad groups. Unmapped, reserved, misaligned and denied
+requests error without effect. No existing bus deadline changes. Main/AON
+fabrics remain registered; local performance fetch/SRAM arbitration is unchanged.
+
+| Endpoint | Base | Size | Home | Implementation |
+| --- | --- | --- | --- | --- |
+| debug_mem | 0x00010000 | 0x1000 | debug leaf | execution debug ROM/data/flags |
+| boot_rom | 0x00000000 | 0x10000 | main local | one performance ROM; entry0x80; capacity/area qualification pending |
+| xip | 0x10000000 | 0x10000000 | main local | performance native QSPI |
+| performance_sram | 0x20000000 | 0x4000 | main local | T35 macros/BIST |
+| retained_sram | 0x30000000 | 0x0800 | aon | target2KiB; B8 physical resizing pending |
+| power_reset_timer | 0x40000000 | 0x1000 | aon | timer/watchdogs/boot/oscillator/power children |
+| mailbox | 0x40001000 | 0x0100 | each domain local | paired endpoints |
+| uart0 | 0x40010000 | 0x0100 | main | performance |
+| uart1 | 0x40010100 | 0x0100 | main | performance |
+| uart2 | 0x40010200 | 0x0100 | main | performance |
+| spi_host | 0x40010300 | 0x0100 | main | performance |
+| i2c_host | 0x40010400 | 0x0100 | main | performance |
+| dma | 0x40011000 | 0x1000 | main | four channels, low256bytes |
+| gpio_pinmux | 0x40012000 | 0x1000 | main | GPIO and pinmux; old timer child retired |
+| qspi_control | 0x40013000 | 0x1000 | main | performance command/native-XIP control |
+| aon_spi | 0x40020000 | 0x0100 | aon | lite-owned; B6 pending |
+| aon_gpio | 0x40020100 | 0x0100 | aon | lite-owned; B6 pending |
+| general_timers | 0x40030000 | 0x1000 | main | timebase plus3x4channels, low1024bytes; B9 pending |
+| gateway_reserved | 0x40040000 | 0x0800 | main | reserved error target |
+| usb | 0x40040800 | 0x0100 | main/usb/aon | performance application access |
+| future_bridge | 0x60000000 | 0x10000000 | each domain | reserved error target |
+
+AON parent offsets: timer0, performance watchdog0x100, lite watchdog0x200,
+boot0x300, oscillator0x400, power/reset0x500. Boot/oscillator/power are now
+performance-owned through toAon; AON timer remains lite-owned. GPIO parent:
+GPIO0, pinmux0x200; former timer child0x100 is an error hole. Native XIP controls
+remain at QSPI offset0x100. The removed loader had no separate CPU region or
+IRQ; its dedicated pad interface is replaced, not aliased at another address.
+
+| Source | Fast index | Production binding |
+| --- | --- | --- |
+| uart0 | 0 | UART0 |
+| uart1 | 1 | UART1 |
+| uart2 | 2 | UART2 |
+| spi_host | 3 | main SPI |
+| i2c_host | 4 | main I2C |
+| mailbox | 5 | main endpoint |
+| usb | 6 | USB application |
+| future_bridge | 7 | reservation |
+| dma | 8 | DMA |
+| gpio_pinmux | 9 | main GPIO |
+| general_timers | 10 | timer0 |
+| power_reset_timer | 11 | AON timer through existing synchronization |
+| timer1 | 12 | timer1 |
+| timer2 | 13 | timer2 |
+
+Lite interrupt source indices in soc.yaml are SPI0, GPIO1, AON timer2 and
+mailbox3. They OR into the hart's existing machine-external interrupt; peripheral
+pending registers identify causes. They are not additional ISA interrupt lines.
+Radio and SPI events do not directly request the main oscillator.
+
+## Memory, boot and debug
+
+Retained program spans0x30000000-0x300003ff; data spans0x30000400-0x300007ff.
+D96 chooses2KiB from measured604bytes with estimated755bytes including25%
+margin (command and hashes in PLAN05 report). Four pinned512x8 byte macros
+implement the retained memory; sixteen1024x8 macros implement main SRAM.
+Retained BIST covers512words, without inaccessible spare rows. Digital wrapper,
+masking and March tests pass; physical macro integration remains a later gate.
+
+Trusted origins remain lite0, performance1 and debug SBA2. Only performance
+may write lite program RAM and only while boot-control acknowledged reset hold
+is active. Lite self-writes and direct SBA program writes error, including
+while debug-halted. JTAG can load through performance execution under boot
+hold. Preserve permitted data-memory SBA and debug epoch tests. Service reset
+flushes handshakes, never RAM contents. No loader lock or seal epoch remains.
+
+The [boot contract](boot-rom-proposal.md) specifies paired A/B/golden images,
+CRC and bounds, commit-last updates, no generation wrap, A-wins-ties and UART0
+firmware-recovery subset. Performance-only reset does not stop/touch lite; use
+a stackless bounded DMA/QSPI idle guard, then verify/reload the same generation
+and initialize performance data/bss. Fail closed if it cannot be established.
+No cross-core negotiation, DMA-buffer recovery or flash re-selection is added.
+
+T32 TAP/DTM/DM and independent debug clocks remain. T35 destructive March BIST
+still requires acknowledged whole-system ndmreset and the independent test hold;
+ordinary permissions return after relinquishing ports. No new debug bypass of
+program-write authority or memory ownership is implied.
+
+## Pads and register details
+
+Keep every dedicated clock/reset/JTAG/USB/main-serial pad and all nine PWM plus
+four timer pads. Six AON-capable GPIO pads use the existing three GPIO pads,
+two retired loader pads and one spare. SPI uses four alternates, leaving radio
+IRQ/power GPIO simultaneously. BOOT_MODE is reset-sampled on GPIO1/MOSI with
+outputs disabled; external pull-down means normal, pull-up means UART recovery.
+CS has an external pull-up. Main/AON ownership transitions require acknowledged
+safe output disable; selection survives performance-only reset. Details and
+pulse-width/rearm assumptions are in [plan05-integration.md](plan05-integration.md).
+
+Estimated physical demand is40output-capable/12input-only against unchanged
+assumed40/12capacity, plus separately counted dedicated clock/reset/analog pads.
+Alternate input functions do not consume extra input-only pads. Timer pinmux
+routes twelve channels to thirteen existing pads; no pad is deleted to claim fit.
+This remains an inventory estimate, not pad-ring placement/electrical signoff.
+
+## Appendix: historical profile contracts
+
+### Pre-PLAN05 production description (historical)
+
+# Production SoC contract
+
 PLAN03 / D72: `DeadhorseSoc` is the single production assembly. This contract
 describes digital integration, not a pad-level or physically qualified chip.
 Q15 is resolved by D78; Q16 (application loop rate) remains open.
@@ -330,7 +496,9 @@ T19/T23/T25/T26 proof or physical obligation is waived. D76 now requires fast CI
 on main and full CI at integration-stage ends; historical no-CI notes below do
 not govern current acceptance.
 
-## Appendix: historical profile contracts
+
+### Earlier profile history
+
 
 The following is the pre-PLAN03 contract, retained as history with retired-source
 links redirected to the historical report. Its
@@ -553,7 +721,7 @@ at the same reserved address and pins. Its validated `pwm` metadata defines a
 warm or main-service reset asynchronously disables outputs and clears all PWM
 state; core-only and AON-service reset preserve active and queued configurations.
 The existing I1 and T21 profiles remain unchanged. See the
-[PWM contract](../../hw/ip/pwm/README.md). IRQ10 and main-clock demand are bound;
+historical `hw/ip/pwm/README.md` (retired by PLAN05 D97). IRQ10 and main-clock demand were bound;
 DMA requests remain local in that profile. The opt-in T23 `SocDmaFiles` profile
 additionally binds UART/SPI and PWM requests to four finite-count DMA channels.
 The low 256 bytes of the reserved DMA window become performance-owned MMIO;
@@ -969,3 +1137,9 @@ data and DMA traffic may proceed independently. No cache or prefetch is added.
 See hw/ip/qspi_xip/README.md for the complete contract and estimated bound.
 Production image selection/recovery, flash-part compatibility, system
 performance and physical qualification remain separate.
+
+PLAN05 BOOT_MODE readback: performance reads bit0 of boot-control offset0x10
+(`0x40000310`), read-only. GPIO1/AON MOSI is sampled on AON edges while
+whole-chip reset qualification is pending and frozen before AON clients release.
+Main-only or AON service reset does not resample it; a new whole-chip reset does.
+A board strap must remain stable through whole-chip reset qualification.

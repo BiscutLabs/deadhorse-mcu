@@ -2,97 +2,96 @@
 
 ## Goal, inputs and readiness
 
-Implement I4 production ROM firmware after T32/T33 completion and alongside T35. Use the
-existing lite-first boot release, QSPI command/XIP, UART gateway contract and
-frozen I2C recovery loader. Read plan04/07, boot-image formats, D34/D73, T18,
-T28–T30 reports and ownership contracts. No signed boot or loader extension.
+Implement the PLAN05 C1-C9 single-performance-master boot contract after the
+PLAN05 Phase2 production changes. No lite ROM or I2C recovery loader remains.
+Performance ROM loads paired performance/lite/configuration bundles; lite starts
+only by explicit performance release. Dormant wake resumes WFI and is not boot.
+D34 CRC-only integrity and D41 unlocked debug remain unchanged.
 
 ## Deliverables
 
-1. Reviewed image/manifest ABI: architecture, lengths/ranges, compatibility,
-   CRC coverage, entry points, A/B and golden selection and deterministic failure
-   policy. CRC detects corruption only. Validate each application image and destination
-   before entering that image; trusted ROM execution/release follows the per-core
-   sequence below. Avoid overlaps, overflow and unintended owners.
-2. Lite boots first and validates calibration/configuration and its own image,
-   then releases trusted performance ROM through boot control. The performance
-   core validates/copies its own hot image before application entry, preserving
-   the existing exclusive performance-SRAM ownership. Cold XIP follows current
-   ownership/arbitration. Measure complete ROM and SRAM/stack footprint.
-   Before implementation, enumerate the cold-reset instruction source, program
-   load path and release/lock transitions: current LiteHart starts only from
-   loader START and cannot write its protected program region. Autonomous
-   lite-first QSPI boot is not already supplied by these bindings. Review a
-   narrow top-level ROM/start selection against the existing map; stop for a
-   concrete mapping/ownership decision if needed, without extending the loader.
-3. Power-loss-safe A/B update/recovery protocol, keeping a known bootable image;
-   golden fallback and serial recovery when no image is usable. UART gateway
-   implements the reviewed packet protocol in firmware where feasible; existing
-   I2C loader and programming-lock/reset policy are unchanged (D73).
-4. ROM build reproducible in pinned toolchain, generated images only in build/.
-   State fixed ROM contents and physical implementation requirements for T38.
-   Debug halt-on-reset must work without bypassing reset/loader safety.
+1. Independently reviewed versioned paired-bundle/directory ABI: lengths,
+   ranges, compatibility, CRC coverage, entries, configuration, lite-start flag,
+   generation exhaustion and A-wins-ties policy. Validate complete bundles
+   before releasing lite or entering an application. Select newest fully valid
+   A/B, else golden, else UART recovery. Invalid directory cannot supply a
+   guessed golden address. CRC is not authentication.
+2. One immutable main ROM in the existing0x00000000 aperture, reset entry0x80.
+   Read BOOT_MODE; copy/verify main SRAM and held lite program RAM; obey the
+   lite-start flag; enter performance application. Application startup always
+   initializes data/bss. No lite ROM, boot handshake or program-write seal.
+3. Performance-only reset preserves the running watcher and all lite memory.
+   After a bounded stackless drain of surviving DMA/QSPI, validate the retained
+   same-generation context and performance SRAM CRC. Skip flash copy if valid,
+   otherwise validate/reload only that same image. Never reselect flash slots,
+   reset lite, recover DMA buffers or negotiate with the watcher. Fail closed
+   until whole-chip reset if the same generation cannot be established.
+4. UART0 firmware recovery using gateway v1 COBS/CRC/sequence/duplicate framing
+   and reviewed capability/opcode encodings, native-core permissions, reserved
+   staging RAM excluding stack/context. Unsupported addresses and reset commands
+   error. Stream updates only to the inactive field slot; preserve directory,
+   golden and previous usable bundle; verify body/header and program commit last.
+   Power loss at every update phase preserves a complete bootable bundle.
+5. Reproducible pinned-toolchain build; generated images only under build/.
+   Measure ROM content and mapped area against the existing allowance, SRAM
+   allocation/high-water/stack, boot/recovery cycles and elapsed time. Keep JTAG
+   halt-on-reset and C3 permissions, including direct SBA program-write denial.
+   Hand off fixed ROM contents and physical implementation requirements to T38.
 
 ## Read first
 
-AGENTS.md; plan README, STATUS, 03, 06, 07, 08, 10, 11–14 and 16;
-docs/spec/soc.md and bus.md; PLAN03 report and the verification-debt register.
+AGENTS.md; plan README, STATUS,03,06,07,08,10,11-14,16; PLAN05 brief/report;
+docs/spec/soc.md, bus.md, gateway-protocol.md, boot-rom-proposal.md and
+soc-power-reset.md; T28/T33/T35 reports and verification-debt register.
 Skills: deadhorse-task-execution, clocked-chisel-block-design,
 reference-model-testing, chisel-formal-properties, gf180-synth-timing-check,
-formal-timeout-triage; regmap-authoring for new registers.
-
-## Shared acceptance and publication (unverified)
-
-All acceptance below is **unverified**. Proposed new checker interfaces are
-deliverables to create, not existing or passing tools. Each checker must emit
-source/tool hashes, commands, classified results, assumptions, covers and actual
-fault controls under build/. No source-text matching tests. Preserve existing
-tests, assertions, solver caps, timing budgets and inherited debt.
-
-Integrate in the single production DeadhorseSoc and soc.yaml; no feature
-profiles. Use named test fixtures only. Obtain independent contract review before
-RTL, then independent implementation/evidence review. Run the fast tier on main
-before starting and on the frozen final snapshot, and the full tier if completing
-I2, I3, I4 or I5 (D76). Record both tier statuses and all deferrals. Update the task
-report and STATUS; commit/push only after required checks/review. Do not tick
-this brief's acceptance boxes or a gate.
-
-Pinned invocation prefix: `python tools/env/run.py run --`. Existing checks:
-`python hw/top/reference/check_soc_map.py`,
-`python tools/check_structure.py --include-untracked`,
-`python tools/ci.py --tier fast --output build/<task>/fast`.
-Use the reviewed USB evidence interface when required; never skip USB.
+formal-timeout-triage; regmap-authoring for reviewed register additions.
 
 ## May change
 
-sw/boot and supporting HAL/host image tools, dv/soc boot models/fixtures,
-narrow top-level ROM/start binding after the feasibility contract is approved,
-image-format docs and own report/ledger.
-No new recovery-loader RTL, signed authentication or new peripheral. Stop if
-the UART transport needs an unbriefed hardware gateway rather than firmware.
+sw/boot and supporting HAL/host image tools; dv/soc boot models/fixtures;
+narrow production ROM/boot-control bindings required by C1-C9; image-format
+specification, own report and PLAN05-authorized plan reconciliation. No new
+peripheral, loader, signed authentication, memory capacity or ownership policy.
 
-## Task acceptance (unverified)
+## Acceptance and publication (unverified)
 
-- `python dv/soc/boot/check.py --output build/t36/boot`: real production ROM,
-  QSPI model and serial wires; A/B/golden valid/invalid/CRC/range/compatibility
-  cases; interrupts/reset/power-loss at update phases; recovery through UART
-  and existing I2C; independent image/parser oracle and bad-CRC/range faults.
-- Verify no unvalidated application executes (trusted perf ROM may run before
-  its image validation), correct lite release sequencing, correct
-  lock/owner boundaries and no stale release across reset. Use formal checks
-  for digital handoff contracts and firmware-directed/seeded tests for parsing;
-  do not call finite firmware tests an unbounded boot proof.
-- Measure ROM bytes, SRAM high-water/stack, boot/recovery time and integrated
-  cycles; replace the assumed ROM allowance with actual implementation area.
-  Run two-hart JTAG boot interaction and full tier at I4 exit.
+All checks below are unverified deliverables, not claims that tools exist or
+pass. Receipts bind source/tool hashes, commands, assumptions, actual fault
+controls and classified results. No RTL-source-matching tests. Scoped tests and
+short capped proofs during iterations; record deferred costly proofs. PLAN05
+requires fast CI on the frozen Phase3 snapshot; full CI is not run under the
+user's scoped policy. Do not mark I4 or physical gates complete.
 
-D88/T39 follow-through: replay affected core/SoC qualification through the
-new production ROM and release path; preserve ISA expectations and authenticate
-new firmware/RTL hashes. The earlier T39 loader/bootstrap result does not qualify
-production boot. Retain all T36 boot/update/recovery acceptance checks.
+- `python dv/soc/boot/check.py --output build/t36/boot`: actual production ROM,
+  independent QSPI NOR peer and UART wires; valid/invalid A/B/golden, CRC,
+  bounds/overflow/overlap, compatibility, generation/tie cases, malformed frames,
+  duplicates, interrupts/reset/power loss during update phases and stalled transport. Test
+  expected firmware capability restrictions, not gateway-origin impersonation.
+- Lite held/write/release, leave-held flag, unauthorized program writes,
+  instruction-boundary hold/drain, no stale release across reset, no unvalidated application entry, and JTAG
+  interaction. Firmware-directed tests are finite tests, not boot proofs.
+- Performance-only reset with unchanged/corrupted SRAM, same-generation flash
+  valid/missing/corrupt, newer competing slot, running watcher untouched, DMA
+  normal drain/permanent stall, and whole-chip reset after fail-closed state.
+- CRC/parser oracle and deliberate bad-CRC/range/early-release/commit-order
+  controls must fail. Preserve T36 update and power-loss obligations. Explicitly
+  retire only former lite-ROM/loader/handoff/seal tests under PLAN05 E1/E2/C9.
+- Measure ROM bytes/area, SRAM and stack, boot/recovery time. D88/T39 affected
+  core/SoC checks must run through the new ROM/release path with authentic hashes;
+  previous loader-based evidence does not qualify this production boot path.
+- Independent review of exact ABI/command encodings before tests and of final
+  implementation/evidence before acceptance. Run
+  `python hw/top/reference/check_soc_map.py`,
+  `python tools/check_structure.py --include-untracked`, and Phase3
+  `python tools/ci.py --tier fast --output build/plan05/phase3-fast` in the
+  pinned environment. Report full-tier status and every deferral.
+
+Write reports/T36.md and update PLAN05 report/STATUS. Commit and push after
+required checks and independent review; never tick this brief's boxes/gates.
 
 ## Stop conditions
 
-Stop for loader/lock changes, unsupported ROM capacity, a new image policy or
-memory-map conflict, unavailable UART transport, or area/cycle acceptance change.
-Do not solve an image-fit problem by silently raising SRAM/ROM capacity.
+Stop for unsupported ROM capacity/area, a new selection policy or memory-map
+conflict, unavailable firmware UART transport, or other PLAN05 stop conditions.
+Do not raise memory capacity, tolerance, solver caps or acceptance limits to fit.

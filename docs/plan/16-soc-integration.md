@@ -1,5 +1,27 @@
 # 16 SoC integration
 
+## PLAN05 target migration
+
+D92-D101 supersede the loader/shared-main-peripheral/lite-first portions of
+PLAN03. Keep DeadhorseSoc as the single production top. Remove recovery loader
+and general toMain; preserve toAon, mailbox and dedicated lite debug transport.
+Main serial/QSPI controllers are performance-owned. Add LF-only AON SPI/GPIO,
+performance-controlled lite reset/program writes, measured2KiB retained RAM,
+and three four-channel general timers replacing separate main timers/PWM.
+Production excludes RVFI; all verification configurations retain it.
+
+One performance ROM boots the chip; lite has no ROM. Dormant watcher filters
+radio packets without the external oscillator, wakes main through mailbox,
+and resumes performance after WFI. Performance watchdog freezes through committed
+dormant and restart qualification; lite watchdog remains active. No RAM power-off.
+
+The inventory below records pre-migration implementation, not approval to keep
+superseded features. PLAN05 Phase1 must close contracts/measurement before RTL;
+Phase2 and Phase3 each require fast CI. Stage exits and inherited proof/physical
+debt remain open. Scoped iterations use relevant tests and defer expensive proof
+timeouts under the user's policy; this does not waive phase-end checks.
+
+
 PLAN03 reconciles the built digital MCU on main under D72–D76. This plan
 describes one production chip and the remaining qualification work; it does
 not mark an integration stage or tape-out gate complete. Current evidence and
