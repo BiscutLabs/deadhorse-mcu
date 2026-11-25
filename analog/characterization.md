@@ -1,7 +1,9 @@
 # Analog characterization and physical handoff
 
-T34 defines interfaces, digital models and this plan. Every analog result below
-is **unmeasured**. No circuit is imported or redesigned; no physical gate closes.
+T34 defines interfaces, digital models and this plan. The characterization
+matrix below remains **unmeasured**. T43 adds the narrowly scoped nominal LF
+[reuse diagnostic](lf_rc/README.md); it does not deliver a production circuit,
+layout or close a physical gate.
 
 ## Provenance and process boundary
 

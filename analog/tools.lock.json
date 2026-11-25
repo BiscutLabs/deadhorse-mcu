@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "platform": "linux/amd64",
+  "scope": "T43 schematic reuse diagnostics; not physical qualification",
+  "template_lock": "phys/gf180-ws-1x1/template.lock.json",
+  "flake_lock_sha256": "cb391f8de11c5f7dd32ecd0364b280a85eb9ae1da89bd717da71c3e38a003e35",
+  "attribute": "legacyPackages.x86_64-linux.ngspice",
+  "ngspice": {
+    "version": "47",
+    "executable_sha256": "60ba1178a1fa99803c0d527670342c5b4af77b1076edd54f0e0e901c88244820",
+    "deriver": "/nix/store/r55npl54m39qb12jrs67hb9rrdc0wih4-ngspice-47.drv",
+    "deriver_sha256": "fa5d7c8ba03c0591ff0f1ad7c18c231bfbdbdcbb6e1fae195c25b0f101410389"
+  }
+}

@@ -1,7 +1,7 @@
 # LF RC macro contract
 
-Status: T34 interface and digital simulation contract; no oscillator circuit,
-layout or characterized timing/power/trim curve is delivered. Production uses
+Status: T34 interface and digital simulation contract; no production oscillator
+circuit, layout or qualified timing/power/trim curve is delivered. Production uses
 `LfRcMacro` in `DeadhorseSoc`; `SocAnalogModelTest` substitutes `LfRcModel` only.
 No internal HF oscillator is included (D78).
 
@@ -59,3 +59,21 @@ Frequency may be measured at the macro clock in standalone characterization;
 this does not claim package-level access. AON_CLK_IN is the existing first-
 silicon fallback and is not a trim mechanism. See the
 [characterization matrix](../characterization.md).
+
+## T43 schematic reuse diagnostic
+
+`reuse_diagnostic.py` imports the pinned RISCay generator without modifying it
+and prepares experimental netlists under build. It authenticates the selected
+PDK model archive and pins ngspice through [tools.lock.json](../tools.lock.json)
+and the official template's existing Nix lock. `--variant tuned` selects the
+nominal retuning experiment; `scan` is its initial exploration and `startup`
+is an unresolved continuous-bias startup experiment. None is a production macro.
+
+Measured by the tuned command in the [T43 report](../../docs/plan/tasks/reports/T43.md):
+32.251574 kHz and 287.807717 nA at assumed 3.3 V, 25 C and 20 fF load, with
+external reset assistance. Models are unmodified; device names and resistor
+geometry are retargeted to the selected 1 kOhm/square option. This is a new
+nominal schematic measurement, not inherited characterization or electrical
+equivalence to the old 3 kOhm circuit. Autonomous startup, trim, PVT, mismatch,
+noise and physical layout remain unqualified. The startup diagnostic timed out
+at its 120-second cap and was not rerun unchanged.
