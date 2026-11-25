@@ -59,10 +59,10 @@ def clock_manifest(mod):
         else:raise ValueError('Unapproved clock-producing logic '+c['type'])
         if len(parent)!=1:raise ValueError('Non-scalar clock parent')
         return lineage(parent[0],seen)
-    main={'Dma','DmaEngine','MainTimers','Pwm','PwmBreak','PwmChannel','PwmDmaRequests',
+    main={'Dma','DmaEngine','GeneralTimers','TimerBreak','TimerDmaRequests',
         'Pinmux','PinmuxPad','Qspi','QspiEngine','QspiScheduler','SpiHost','I2cHost','Gpio',
         'GpioWake','SocLocalMemory','DebugMemory','DebugSba','Fpu','FloatExecution'}
-    aon={'AonTimers','BootRelease','LiteCore','LiteBusAdapter','OscCtrl','OscSequencer',
+    aon={'AonTimers','AonSpi','AonGpio','LiteBootState','CdcPulseCapture','BootModeStrap','LiteCore','LiteBusAdapter','OscCtrl','OscSequencer',
         'OscClockReset','ResetBootstrap','ResetCauses','PowerReset','BrownoutSelect','WatchdogChannel','UartWake',
         'GpioWakeState','RecoveryLoader','LoaderControl','ClockedI2cTarget','SocRetainedMemory'}
     result={}
@@ -120,7 +120,7 @@ def main(base,reference,screen_name='screen',sram_corner=None):
     lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
     assert digest(lib)==cfg['sha256']
     consumed.append(lib)
-    macro_lib=None
+    macro_libs=[]
     if sram_corner:
         assert 'sram_liberty' in mapping,'T35 screen requires real macro mapping'
         assert sram_corner in ('ss_125C_3v00','ss_n40C_3v00','tt_025C_3v30','ff_125C_3v60','ff_n40C_3v60')
@@ -131,10 +131,17 @@ def main(base,reference,screen_name='screen',sram_corner=None):
         assert digest(lib)==pdk['files'][lib.name]
         macro_lock_path=ROOT/'hw/vendor/gf180_sram/gf180_sram.lock.json'
         macro_lock=json.loads(macro_lock_path.read_text());macro=macro_lock['macro']
-        relative=f'cells/{macro}/{macro}__{sram_corner}.lib'
-        macro_lib=ROOT/'build/vendor/gf180_sram'/relative
-        assert digest(macro_lib)==macro_lock['files'][relative]
-        consumed += [pdk_lock,lib,macro_lock_path,macro_lib,mapped/'sram-instances.json']
+        instances=json.loads((mapped/'sram-instances.json').read_text())
+        types={c['type'] for c in instances.values()}
+        assert types <= {macro,macro_lock['retained_macro']} and macro in types
+        actual={n:c['type'] for n,c in mod['cells'].items() if c['type'] in types}
+        assert actual=={n:c['type'] for n,c in instances.items()},'SRAM inventory differs from mapped design'
+        for cell in sorted(types):
+            relative=f'cells/{cell}/{cell}__{sram_corner}.lib'
+            view=ROOT/'build/vendor/gf180_sram'/relative
+            assert digest(view)==macro_lock['files'][relative]
+            macro_libs.append(view)
+        consumed += [pdk_lock,lib,macro_lock_path,mapped/'sram-instances.json']+macro_libs
     input_hashes=seal()
     def flop_driver(net):
         bits=mod['netnames'][net]['bits'];assert len(bits)==1
@@ -207,7 +214,7 @@ close $tf
         dest=out/mode;dest.mkdir()
         tcl=dest/'timing.tcl'
         tcl.write_text(f'''read_liberty {lib}
-{f'read_liberty {macro_lib}' if macro_lib else ''}
+{chr(10).join(f'read_liberty {p}' for p in macro_libs)}
 read_verilog {mapped}/mapped.v
 link_design DeadhorseSoc
 set_units -time ns -capacitance pF

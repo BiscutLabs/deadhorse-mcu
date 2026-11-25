@@ -23,13 +23,23 @@ def main(base):
     assert digest(lib)==cfg['sha256']
     areas={n:float(re.search(r'\barea\s*:\s*([\d.]+)',b)[1]) for n,b in groups(lib.read_text(),'cell')}
     lock_path=ROOT/'hw/vendor/gf180_sram/gf180_sram.lock.json';lock=json.loads(lock_path.read_text());macro=lock['macro']
-    relative=f'cells/{macro}/{macro}.lef';lef=ROOT/'build/vendor/gf180_sram'/relative
-    assert digest(lef)==lock['files'][relative]
-    width,height=map(float,re.search(r'\bSIZE\s+([\d.]+)\s+BY\s+([\d.]+)',lef.read_text()).groups())
     cells=json.loads(mapped.read_text())['modules']['DeadhorseSoc']['cells']
-    macros={n:c for n,c in cells.items() if c['type']==macro}
+    macro_types={macro,lock['retained_macro']}
+    macros={n:c for n,c in cells.items() if c['type'] in macro_types}
     assert len(macros)==20 and sum(n.startswith('digital.memory.') for n in macros)==16
-    digital={n:c for n,c in cells.items() if c['type']!=macro}
+    assert sum(n.startswith('digital.subsystem.retained.') for n in macros)==4
+    assert all(c['type']==macro for n,c in macros.items() if n.startswith('digital.memory.'))
+    assert all(c['type']==lock['retained_macro'] for n,c in macros.items() if n.startswith('digital.subsystem.retained.'))
+    views=[];footprints={}
+    for cell in sorted(macro_types):
+        relative=f'cells/{cell}/{cell}.lef';lef=ROOT/'build/vendor/gf180_sram'/relative
+        assert digest(lef)==lock['files'][relative]
+        width,height=map(float,re.search(r'\bSIZE\s+([\d.]+)\s+BY\s+([\d.]+)',lef.read_text()).groups())
+        count=sum(c['type']==cell for c in macros.values())
+        footprints[cell]=dict(width_um_measured=width,height_um_measured=height,
+            instances_measured=count,area_mm2_estimated=count*width*height/1e6)
+        views.append(lef)
+    digital={n:c for n,c in cells.items() if c['type'] not in macro_types}
     assert all(c['type'] in areas for c in digital.values())
     # ABC renames combinational cells. Attribute actual endpoint cones using
     # retained net aliases, with uniquely-owned source files as state fallback.
@@ -63,7 +73,7 @@ def main(base):
             state[name]=cell
             found=set().union(*(aliases[b] for b in cell['connections'].get('Q',[])))
             if not found:found=src_groups[cell.get('attributes',{}).get('src','').split(':')[0]]
-            owners[name]=({label(name)} if cell['type']==macro else found) or {'other_production_logic'}
+            owners[name]=({label(name)} if cell['type'] in macro_types else found) or {'other_production_logic'}
     queue=collections.deque(owners)
     while queue:
         name=queue.popleft()
@@ -98,15 +108,23 @@ def main(base):
         scan_cell_substitution_mm2_estimated=scan)
     physical=dict(lf_rc_mm2_assumed=.10,por_brownout_mm2_assumed=.15,pad_keepout_mm2_assumed=.50,sram_halo_glue_mm2_assumed=.40)
     placed=(measured+sum(allowances.values()))/.55
-    sram=len(macros)*width*height/1e6;total=placed+sram+sum(physical.values())
+    sram=sum(r['area_mm2_estimated'] for r in footprints.values());total=placed+sram+sum(physical.values())
+    # Capacity options are estimates, not a decision or a substitute for mapping
+    # their additional decode/selection logic. Existing halo/glue allowance stays.
+    unit=footprints[macro]['width_um_measured']*footprints[macro]['height_um_measured']/1e6
+    options={str(k):dict(extra_macro_instances_estimated=k-16,
+        extra_macro_mm2_estimated=(k-16)*unit,total_mm2_estimated=total+(k-16)*unit,
+        headroom_mm2_estimated=12.92-total-(k-16)*unit,
+        fits_macro_only_estimate=total+(k-16)*unit<=12.92,
+        qualification='Additional decode/control area and timing unmeasured; no SRAM growth approved') for k in (16,24,32)}
     result=dict(status='estimated_with_allowances',partitions=partitions,
         mapped_logic_mm2_measured=measured,macro_instances_measured=len(macros),
-        lef_width_um_measured=width,lef_height_um_measured=height,sram_mm2_estimated=sram,
+        macro_footprints=footprints,sram_mm2_estimated=sram,main_sram_options=options,
         digital_allowances=allowances,physical_allowances=physical,utilization_assumed=.55,
         placed_digital_mm2_estimated=placed,total_mm2_estimated=total,ceiling_mm2=12.92,headroom_mm2_estimated=12.92-total,
         partition_method='Exclusive backward endpoint cones, stopping at sequential outputs; named net aliases and source ownership label state. Shared and output-only glue counted once. Allocation of flattened cells, not isolated block areas.',
         basis='Macro area = instance count * pinned LEF width * height. All built BIST/controller/adapter cells are in measured digital area; original 0.05 BIST placeholder replaced, not double-counted. ROM and analog/placement/scan remain assumptions, not signoff.',
-        inputs={p.relative_to(ROOT).as_posix():digest(p) for p in (mapped,hierarchy,lib,lock_path,lef,clock_path,Path(__file__))})
+        inputs={p.relative_to(ROOT).as_posix():digest(p) for p in [mapped,hierarchy,lib,lock_path,clock_path,Path(__file__)]+views})
     (base/'area-budget.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result),flush=True)
     if total>12.92:raise RuntimeError('T35 area-budget stop condition')

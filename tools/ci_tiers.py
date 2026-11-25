@@ -38,7 +38,6 @@ def fast_commands(output):
         ('uart',[py,'hw/ip/uart/check.py','--output',f'{root}/uart']),
         ('spi-host',[py,'hw/ip/spi_host/check.py','--output',f'{root}/spi-host']),
         ('i2c-host',[py,'hw/ip/i2c_host/check.py','--output',f'{root}/i2c-host']),
-        ('i2c-recovery-loader',[py,'hw/ip/i2c_recovery_loader/check.py','--output',f'{root}/i2c-recovery-loader']),
         ('usb',[py,'hw/ip/usb/check.py','--output',f'{root}/usb']),
         ('emit-leaves',emit('deadhorse.perf_core.EmitLeaves','leaves')),
         ('emit-core',emit('deadhorse.perf_core.EmitCore','core')),
@@ -144,9 +143,8 @@ def main(argv,legacy):
             uart_success=name=='uart' and result.returncode==0
             spi_success=name=='spi-host' and result.returncode==0
             i2c_success=name=='i2c-host' and result.returncode==0
-            loader_success=name=='i2c-recovery-loader' and result.returncode==0
             usb_success=name=='usb' and result.returncode==0
-            needs_receipt=bus_formal_success or uart_success or spi_success or i2c_success or loader_success or usb_success
+            needs_receipt=bus_formal_success or uart_success or spi_success or i2c_success or usb_success
             if needs_receipt and '--output' not in command:
                 raise ValueError('Missing '+name+' output receipt path')
             if '--output' in command:
@@ -190,9 +188,6 @@ def main(argv,legacy):
                                 any(d['id'] not in allowed or d.get('status')!='deferred_unproved' for d in deferred) or
                                 bool(deferred)!=(detail['status']=='pass_with_deferrals')):
                             raise ValueError('Invalid I2C success receipt')
-                    if loader_success:
-                        if detail.get('task') != 'T18' or detail.get('status') != 'pass' or deferred:
-                            raise ValueError('Invalid recovery-loader success receipt')
                     if usb_success:
                         if detail.get('task') != 'T19' or detail.get('status') != 'pass' or deferred or detail.get('unresolved') != []:
                             raise ValueError('Invalid USB success receipt')

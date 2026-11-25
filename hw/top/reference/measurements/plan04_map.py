@@ -18,6 +18,7 @@ from tools.timing.check import output_aliases
 from tools.timing.fanout import verify,buffer_module
 from t32_layered_reset import layered
 from plan04_usb_binding import bind_source
+from plan05_usb_boundary import isolate,audit as audit_boundary
 from t33_analog_socket import threshold_driver
 
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
@@ -30,13 +31,17 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     cfg=json.loads((ROOT/'phys/gf180-ws-1x1/block-timing.json').read_text())
     lib=ROOT/f'build/riscay-mcu/.tools/physical/pdk/{cfg["library"]}__{cfg["corner"]}.lib'
     assert digest(lib)==cfg['sha256']
-    sram_lib=None
+    sram_lib=None;sram_libs=[];macro_widths={}
     if sram:
         lock=ROOT/'hw/vendor/gf180_sram/gf180_sram.lock.json'
         macro_lock=json.loads(lock.read_text());macro=macro_lock['macro']
-        relative=f'cells/{macro}/{macro}__{cfg["corner"]}.lib'
-        sram_lib=ROOT/'build/vendor/gf180_sram'/relative
-        assert digest(sram_lib)==macro_lock['files'][relative]
+        macro_widths={macro:10,macro_lock['retained_macro']:9}
+        for cell in macro_widths:
+            relative=f'cells/{cell}/{cell}__{cfg["corner"]}.lib'
+            view=ROOT/'build/vendor/gf180_sram'/relative
+            assert digest(view)==macro_lock['files'][relative]
+            sram_libs.append(view)
+        sram_lib=sram_libs[0]
     files=[emit/line.strip() for line in (emit/'filelist.f').read_text().splitlines() if line.strip()]
     reference_certificate=json.loads((ref/'certificate/result.json').read_text())
     counter_ref=(ROOT/stability_reference).resolve() if stability_reference else None
@@ -44,12 +49,12 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     certified_sources=[ROOT/n.removeprefix('/work/') for field in ('sources','proof_source_sha256')
         for n in reference_certificate[field]]
     dependencies=files+certified_sources+[Path(__file__),Path(__file__).with_name('plan04_usb_binding.py'),
-        Path(__file__).with_name('t33_analog_socket.py'),
+        Path(__file__).with_name('t33_analog_socket.py'),Path(__file__).with_name('plan05_usb_boundary.py'),
         ROOT/'dv/core/state_equiv.py',Path(__file__).parent/'t32/t32_layered_reset.py',
         Path(__file__).parent/'t32/t32_packed_reset.py',ROOT/'tools/timing/fanout.py',
         ROOT/'tools/timing/check.py',ROOT/'phys/gf180-ws-1x1/block-timing.json',
         ref/'certificate/result.json',ref/'mapped.json',lib]
-    if sram:dependencies += [sram_lib,lock]
+    if sram:dependencies += sram_libs+[lock]
     if counter_ref:
         counter_receipt=json.loads((counter_ref/'result.json').read_text())
         assert counter_receipt['status']=='pass' and counter_receipt['top']=='OscStability'
@@ -65,7 +70,8 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         scope='Mapped digital logic, pre-layout; six memory sockets and two uncharacterized analog macros excluded')
     if sram:
         receipt.update(scope='Mapped digital logic and twenty hard SRAM macros; ROM and two analog interfaces remain sockets.',
-                       sram_liberty=sram_lib.relative_to(ROOT).as_posix(),sram_liberty_sha256=digest(sram_lib))
+                       sram_liberty=sram_lib.relative_to(ROOT).as_posix(),sram_liberty_sha256=digest(sram_lib),
+                       sram_liberties={p.relative_to(ROOT).as_posix():digest(p) for p in sram_libs})
     (out/'result.json').write_text(json.dumps(receipt,indent=2))
     def run(lines,name):
         script=out/(name+'.ys');script.write_text('\n'.join(lines)+'\n')
@@ -86,7 +92,7 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
             module['netnames'][pin]=dict(hide_name=0,bits=bits,attributes={})
         analog['modules'][name]=module
     (out/'analog-interfaces.json').write_text(json.dumps(analog))
-    run([f'read_liberty -lib {lib}']+([f'read_liberty -lib {sram_lib}'] if sram else [])+[f'read_json {out}/analog-interfaces.json',
+    run([f'read_liberty -lib {lib}']+[f'read_liberty -lib {p}' for p in sram_libs]+[f'read_json {out}/analog-interfaces.json',
         'read_slang --keep-hierarchy -DSYNTHESIS --top DeadhorseSoc '+' '.join(map(str,files)),
         'hierarchy -check -top DeadhorseSoc','proc','chformal -remove','memory_collect',
         f'write_json {out}/hier.json'],'import')
@@ -102,10 +108,10 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
                 walk(c['type'],instance)
     walk('DeadhorseSoc','')
     (out/'memory-inventory.json').write_text(json.dumps(inventory,indent=2))
-    cuts=[i for i in inventory if i['parameters']['SIZE']>=768]
+    cuts=[i for i in inventory if i['parameters']['SIZE']>=512]
     expected={f'digital.memory.outputs_memory{s}_ext.Memory':(1024,32,4,10) for s in ('','_1','_2','_3')}
     expected.update({'digital.memory.rom_ext.Memory':(16384,32,0,14),
-        'digital.subsystem.retained.memory_ext.Memory':(768,32,4,10)})
+        'digital.subsystem.retained.memory_ext.Memory':(512,32,4,9)})
     if sram:
         expected={'digital.memory.rom_ext.Memory':(16384,32,0,14)}
     assert {i['instance']:tuple(i['parameters'][k] for k in ('SIZE','WIDTH','WR_PORTS','ABITS')) for i in cuts}==expected
@@ -185,11 +191,13 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
     original=json.loads((out/'flat.json').read_text());projected=copy.deepcopy(original)
     top=projected['modules']['DeadhorseSoc'];removed={};ports=[]
     if sram:
-        physical={n:c for n,c in top['cells'].items() if c['type']==macro}
+        physical={n:c for n,c in top['cells'].items() if c['type'] in macro_widths}
         assert len(physical)==20 and sum(n.startswith('digital.memory.') for n in physical)==16
         assert sum(n.startswith('digital.subsystem.retained.') for n in physical)==4
+        assert all(c['type']==macro for n,c in physical.items() if n.startswith('digital.memory.'))
+        assert all(c['type']==macro_lock['retained_macro'] for n,c in physical.items() if n.startswith('digital.subsystem.retained.'))
         for c in physical.values():
-            assert {p:len(b) for p,b in c['connections'].items()}==dict(CLK=1,CEN=1,GWEN=1,WEN=8,A=10,D=8,Q=8)
+            assert {p:len(b) for p,b in c['connections'].items()}==dict(CLK=1,CEN=1,GWEN=1,WEN=8,A=macro_widths[c['type']],D=8,Q=8)
         (out/'sram-instances.json').write_text(json.dumps(physical,indent=2)+'\n')
     for index,item in enumerate(cuts):
         name=item['instance'].removesuffix('.Memory');cell=top['cells'].pop(name)
@@ -256,6 +264,11 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
             net.setdefault('attributes',{})['keep']='1'
             receipt['preserved_threshold_aliases'][alias]=dict(bits=bits,
                 previous_attributes=previous,attributes=copy.deepcopy(net['attributes']))
+    projected['modules']['DeadhorseSoc'],boundary_bindings=isolate(top,usb)
+    top=projected['modules']['DeadhorseSoc']
+    receipt['usb_boundary_buffers']=dict(bindings=boundary_bindings,
+        equivalence='Every original pin unchanged after collapsing real non-inverting buffers',
+        negative_controls=['cycle rejected','wrong input rejected'])
     (out/'cut.json').write_text(json.dumps(projected))
     # Exact parent input aliases are known after flattening, before mapping.
     # Only those boundary aliases may merge; internal state remains injective.
@@ -307,6 +320,7 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         'rename -enumerate',f'write_json {out}/unbuffered.json'],'map')
     design=json.loads((out/'unbuffered.json').read_text());mod=design['modules']['DeadhorseSoc']
     assert output_aliases(mod)[0]<=multiplicity
+    audit_boundary(mod,boundary_bindings)
     # Pin-by-pin bijection, before reset buffers: every island bit and port remains.
     bits={};reverse={};matched={};prefix='digital.subsystem.usb.'
     def bind(a,b):
@@ -357,7 +371,7 @@ def main(base,usb_ref,target_ps=62500,stability_reference=None,threshold_control
         # ABC sees macros as black boxes and does not size for their relatively
         # large pin loads. Bound non-clock macro fanout to four real loads;
         # paired-corner STA still checks actual Liberty capacitance and slew.
-        sources={b for c in new['cells'].values() if c['type']==macro
+        sources={b for c in new['cells'].values() if c['type'] in macro_widths
             for p,d in c['port_directions'].items() if d=='input' and p!='CLK'
             for b in c['connections'][p] if isinstance(b,int)}
         before=new

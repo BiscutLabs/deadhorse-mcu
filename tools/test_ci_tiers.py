@@ -42,8 +42,7 @@ class TierTest(unittest.TestCase):
         self.assertEqual(jobs['uart'][1:],['hw/ip/uart/check.py','--output','build/tier-test/fast/uart'])
         self.assertEqual(jobs['spi-host'][1:],['hw/ip/spi_host/check.py','--output','build/tier-test/fast/spi-host'])
         self.assertEqual(jobs['i2c-host'][1:],['hw/ip/i2c_host/check.py','--output','build/tier-test/fast/i2c-host'])
-        self.assertEqual(jobs['i2c-recovery-loader'][1:], [
-            'hw/ip/i2c_recovery_loader/check.py','--output','build/tier-test/fast/i2c-recovery-loader'])
+        self.assertNotIn('i2c-recovery-loader',jobs) # PLAN05 E2 retires the block, not its replacement recovery tests
         self.assertEqual(jobs['usb'][1:],['hw/ip/usb/check.py','--output','build/tier-test/fast/usb'])
         self.assertIn(('full-legacy-00',['python3','retained-legacy.py']),full)
 
@@ -205,17 +204,5 @@ class TierTest(unittest.TestCase):
         for child in cases:
             with self.subTest(child=child),self.assertRaisesRegex(ValueError,'Invalid bus-formal success receipt'):
                 self.run_receipt_case(child,job_name='bus-formal')
-
-    def test_recovery_loader_requires_success_with_no_deferred_obligations(self):
-        with self.assertRaisesRegex(ValueError, 'Missing i2c-recovery-loader success receipt'):
-            self.run_receipt_case(None, job_name='i2c-recovery-loader')
-        for detail in (dict(task='T17', status='pass'), dict(task='T18', status='failed'),
-                       dict(task='T18', status='pass_with_deferrals',
-                            deferred=[dict(id='unknown', status='deferred_unproved')])):
-            with self.subTest(detail=detail), self.assertRaisesRegex(ValueError, 'Invalid recovery-loader'):
-                self.run_receipt_case(detail, job_name='i2c-recovery-loader')
-        code, receipt, _ = self.run_receipt_case(dict(task='T18', status='pass'), job_name='i2c-recovery-loader')
-        self.assertEqual((code, receipt['status']), (0, 'pass'))
-
 
 if __name__=='__main__':unittest.main()
