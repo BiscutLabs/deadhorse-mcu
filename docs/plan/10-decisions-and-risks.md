@@ -179,6 +179,12 @@ No retained cohort or survivor may be added silently.
 | --- | --- | --- |
 | **D106** | DMI-only asynchronous cancellation exception | User-approved2026-11-25: retain immediate asynchronous cancellation/quarantine on the TAP registered hard-clear, followed by acknowledged FIFO flushing, while the debug module remains cold-reset-only. Amends D103 only for DMI transport. Preserve accepted SBA/BIST work, pending-flush wake/clock demand, all original cancellation/data/once assertions and negative controls. Minimize and inventory asynchronous event/valid state in the shared crossing library; no vendor patch, USB/analog change, new fairness/pulse assumption or general transport exemption. Approval does not claim implementation, proof or physical acceptance. [Proposal](../spec/t41-dmi-clear-exception.md). |
 
+## T41 bridge and pin-abort cancellation
+
+| ID | Decision | Approved scope |
+| --- | --- | --- |
+| **D107** | Bridge timeout quarantine and preserved BIST pin abort | User-approved2026-11-25: retain immediate asynchronous quarantine for BusBridge timeout/abort in both toAon and the debug leaf, followed by acknowledged flushing. Preserve the existing BIST external-pin abort capture/quarantine even while aggregate warm reset is already held; BIST still survives ndmreset. Amends D103 at these identified boundaries, alongside D106 for DMI. Minimize and inventory asynchronous event/valid state in the shared crossing implementation; no arbitrary extra bank-reset tree, late dispatch, replay, timeout/ownership change, new fairness/pulse assumption or USB/analog change. Approval is not implementation or physical acceptance. [Source-family audit](../spec/t41-cancellation-boundaries.md). |
+
 ## Risks and evidence still required
 
 

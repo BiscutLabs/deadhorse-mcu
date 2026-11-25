@@ -27,6 +27,14 @@ not sufficient for independently reset endpoints. Already granted orphan work
 drains. Quarantined requests return error without issuing downstream work.
 There is no automatic replay of a write with uncertain outcome.
 
+T41/D107 transport now uses one shared `CdcEpoch` for request and response.
+Timeout/peer-reset quarantine still blocks admission asynchronously; FIFO
+pointer/head/synchronizer banks initialize synchronously on their existing
+domain clocks. Both clocks must acknowledge initialization before reopening.
+Source release and target flush retain clock demand until this handshake closes;
+the endpoint's existing orphan credits and quiescence checks remain separate.
+This change does not yet consolidate the production cold/warm reset distribution.
+
 `DirectionPermit` is AON-resident, round-robin between the two directions. Its
 transport control resets when either domain resets, independently of retained
 AON application state. Requesters use four-phase request/permit release; a

@@ -25,6 +25,14 @@ One PULP riscv-dbg DM, two harts (lite0, performance1), unlocked D41. Main
 system clock services the DM; TAP uses external TCK. No extra production
 profile. Integration must preserve ordinary boot/loader ownership and resets.
 
+T41/D106 replaces the DMI FIFO bank reset on hard-clear with immediate
+quarantine and acknowledged synchronous initialization through shared `CdcEpoch`.
+The FIFO banks use cold domain resets; the small cancellation fence captures a
+hard-clear even when main is stopped. TCK pending demand remains asserted until
+main acknowledges the flush. DM architectural/debug state remains cold-only.
+The full-width transport proof and faults are recorded in the T41 report;
+this milestone does not close production reset consolidation or inherited T32 debt.
+
 ## Adoption
 
 Pinned commit 643607e19df3435cfd77cc56143e2637f5900a6e; common_cells fifo_v3

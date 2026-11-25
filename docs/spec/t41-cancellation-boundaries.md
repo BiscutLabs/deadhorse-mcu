@@ -1,7 +1,8 @@
 # T41 remaining cancellation boundaries
 
-D106 is approved for DMI only. The following additional bus-bridge exception is
-proposed, **not approved**. This records the complete follow-up audit of the
+D106 is approved for DMI only. User approval2026-11-25 records the additional
+bus-bridge exception and preserved BIST pin abort as D107; implementation and
+qualification remain pending. This records the complete follow-up audit of the
 non-USB reset-source families in the committed T41 inventory.
 
 ## Bus timeout needs immediate cancellation too
@@ -40,7 +41,7 @@ is unchanged. This is a cancellation diagnostic, not full bridge acceptance,
 full-width timing, or an exhaustive architecture proof. Existing formal claims
 and their deferred status remain unchanged.
 
-## Proposed authorization
+## Approved authorization (D107)
 
 Extend D103's asynchronous-control exception to **BusBridge timeout/abort
 quarantine only**, for both production instances. Preserve immediate suppression
@@ -86,6 +87,5 @@ close the BusBridge abort boundary; this audit closes that planning omission.
 ## Approval boundary
 
 T41 says to ask before retaining controls beyond the approved reset structure
-or changing other behavior. D106 is not silently broadened. Until approval,
-commit only the decision record, diagnostic and proposal; do not claim the
+or changing other behavior. D106 is not silently broadened. D107 resolves this approval boundary; do not claim the
 four-cohort implementation, warm ROM, measurements or task complete.

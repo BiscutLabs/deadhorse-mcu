@@ -22,14 +22,18 @@ class BusBridge(limit: Int = 131072) extends RawModule {
   val producer = Module(sourceEndpoint()); val consumer = Module(new BridgeTarget)
   val abort = producer.abort
   val transportReset_n = transportEpoch(sourceReset_n,targetReset_n,abort)
-  val sourceTransport = Module(new ResetRelease); val targetTransport = Module(new ResetRelease)
-  sourceTransport.clk := sourceClock; targetTransport.clk := targetClock
-  sourceTransport.reset_n := transportReset_n; targetTransport.reset_n := transportReset_n
-  val requests = Module(new CdcFifo(72)); val responses = Module(new CdcFifo(33))
+  val transport = Module(new CdcEpoch)
+  transport.aClock := sourceClock; transport.bClock := targetClock
+  transport.aReset_n := localSourceReset.released; transport.bReset_n := localTargetReset.released
+  transport.cancel_n := transportReset_n
+  val requests = Module(new CdcFifo(72,qualifiedResets=true,synchronousFlush=true))
+  val responses = Module(new CdcFifo(33,qualifiedResets=true,synchronousFlush=true))
   requests.writeClock := sourceClock; requests.readClock := targetClock
   responses.writeClock := targetClock; responses.readClock := sourceClock
-  requests.writeReset_n := transportReset_n; requests.readReset_n := transportReset_n
-  responses.writeReset_n := transportReset_n; responses.readReset_n := transportReset_n
+  requests.writeReset_n := localSourceReset.released; requests.readReset_n := localTargetReset.released
+  responses.writeReset_n := localTargetReset.released; responses.readReset_n := localSourceReset.released
+  requests.writeOpen.get := transport.aOpen; requests.readOpen.get := transport.bOpen
+  responses.writeOpen.get := transport.bOpen; responses.readOpen.get := transport.aOpen
   val abortAck = consumer.abortAck
   val ackSync = Module(new CdcSync(1))
   ackSync.clk := sourceClock; ackSync.reset_n := localSourceReset.released; ackSync.in := abortAck.asUInt
@@ -40,12 +44,12 @@ class BusBridge(limit: Int = 131072) extends RawModule {
   producer.clk := sourceClock; producer.reset_n := localSourceReset.released
   consumer.clk := targetClock; consumer.reset_n := localTargetReset.released
   producer.source <> source; consumer.target <> target
-  producer.offer := offer; producer.permit := permit; producer.linkUp := sourceTransport.released
+  producer.offer := offer; producer.permit := permit; producer.linkUp := transport.aOpen
   producer.requestReady := requests.ready; requests.push := producer.requestPush; requests.in := producer.requestData
   producer.responseValid := responses.valid; producer.responseData := responses.out; responses.pop := producer.responsePop
   producer.abortAcknowledged := ackSync.out.asBool; producer.targetNeedsClock := drainSync.out.asBool
   permitRequest := producer.permitRequest; admit := producer.admit; clockRequest := producer.clockRequest
-  consumer.linkUp := targetTransport.released; consumer.quiescent := quiescent; isolated := consumer.isolated
+  consumer.linkUp := transport.bOpen; consumer.quiescent := quiescent; isolated := consumer.isolated
   consumer.requestValid := requests.valid; consumer.requestData := requests.out; requests.pop := consumer.requestPop
   consumer.responseReady := responses.ready; responses.push := consumer.responsePush; responses.in := consumer.responseData
 

@@ -2,6 +2,33 @@
 
 Shared Chisel bundles, bus interfaces and register-block support.
 
+## T41 shared cancellation fence (implementation in progress)
+
+D106/D107 allow immediate DMI/bridge cancellation without resetting their data
+banks. `CdcEpoch` takes two clocks, their already-qualified cold/warm domain
+resets and one active-low cancellation source. It asynchronously closes both
+admission outputs, clocks each local release through the shared ResetRelease,
+then synchronizes each peer's release before reopening. Pointer and payload-head
+initialization uses `CdcFifo(qualifiedResets=true,synchronousFlush=true)`'s local
+`writeOpen`/`readOpen` controls. All pointer history is cleared while closed;
+RAM contents are not cleared. Request and reply FIFOs share one fence.
+
+The qualified-reset mode requires simultaneous raw assertion of the caller's
+domain resets or an explicit shared cancellation fence. It must not replace an
+independently reset crossing without that composition. Default CdcFifo mode and
+USB use the existing release behavior. Default CdcSync/Read/Write interfaces are
+unchanged; optional synchronous clear is used only by the new flush mode.
+
+The admission AND gates are the explicit asynchronous quarantine boundary,
+not ordinary combinational payload outputs. Release depends only on local
+registered synchronization. Structural estimate per fence: two two-bit releases
+plus two two-bit peer synchronizers, eight state bits; mapped area/timing and
+full composition are unmeasured. Pending-flush clock demand belongs to the
+transport owner and must not disappear before the stopped peer can acknowledge.
+No clock-progress/fairness or new pulse-width assumption is introduced for
+safety. Tests/properties and source-bound results are recorded in T41; this
+description is not a passing proof or physical signoff claim.
+
 ## RegBlock timing structure
 
 `RegBlock` keeps the register-map bus, asynchronous active-low reset and

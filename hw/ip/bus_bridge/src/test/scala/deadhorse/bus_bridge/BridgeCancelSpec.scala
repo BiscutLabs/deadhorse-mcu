@@ -59,6 +59,48 @@ class BridgeCancelSpec extends AnyFunSuite with ChiselSim {
     }
   }
   test("timeout cancels queued writes before a stopped target restarts") {exercise(false)}
+  test("timeout recovery keeps requested clocks through flush and returns to idle") {
+    simulateRaw(new BusBridge(32)) {d=>
+      def high(x: Bool)=x.peek().litToBoolean
+      d.sourceReset_n.poke(false.B);d.targetReset_n.poke(false.B)
+      d.source.req.poke(false.B);d.source.bits.poke(0.U.asTypeOf(d.source.bits))
+      d.target.gnt.poke(false.B);d.target.rvalid.poke(false.B)
+      d.target.rdata.poke(0.U);d.target.err.poke(false.B)
+      d.offer.poke(false.B);d.permit.poke(false.B);d.quiescent.poke(true.B)
+      for(_<-0 until 4) {d.sourceClock.step();d.targetClock.step()}
+      d.sourceReset_n.poke(true.B);d.targetReset_n.poke(true.B)
+      for(_<-0 until 24) {d.sourceClock.step();d.targetClock.step()}
+      assert(!high(d.clockRequest) && !high(d.targetClockHold))
+      d.offer.poke(true.B);d.source.req.poke(true.B);d.permit.poke(true.B)
+      var n=0
+      while(!high(d.source.gnt) && n<16) {d.sourceClock.step();n+=1}
+      assert(high(d.source.gnt));d.sourceClock.step()
+      d.offer.poke(false.B);d.source.req.poke(false.B)
+      n=0
+      while(!high(d.source.rvalid) && n<64) {d.sourceClock.step();n+=1}
+      assert(high(d.source.rvalid) && high(d.source.err))
+      // Slow/stopped target: only one target edge per eight source edges.
+      // Clock requests are the only reason this target resumes after timeout.
+      for(i<-0 until 96) {
+        d.permit.poke(high(d.permitRequest).B)
+        val requested=high(d.clockRequest) || high(d.targetClockHold)
+        if(i%8==0 && requested)d.targetClock.step()
+        d.sourceClock.step()
+        if(i<24)assert(high(d.clockRequest) || high(d.targetClockHold),"flush recovery dropped clock demand")
+        assert(!high(d.target.req),"cancelled queued work reissued during recovery")
+      }
+      assert(!high(d.clockRequest) && !high(d.targetClockHold),"flush recovery never returned idle")
+      // A fresh request still wakes the target using only its public demand.
+      d.offer.poke(true.B);d.source.req.poke(true.B)
+      n=0
+      while(!high(d.source.gnt) && n<32) {
+        d.permit.poke(high(d.permitRequest).B)
+        if(high(d.clockRequest) || high(d.targetClockHold))d.targetClock.step()
+        d.sourceClock.step();n+=1
+      }
+      assert(high(d.source.gnt),"recovered epoch did not accept new work")
+    }
+  }
   test("cancellation oracle rejects waiting for the target to sample abort") {
     val failure=intercept[org.scalatest.exceptions.TestFailedException] {exercise(true)}
     assert(failure.getMessage.contains("cancelled queued write dispatched after timeout"))
