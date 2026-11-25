@@ -67,7 +67,7 @@ and prepares experimental netlists under build. It authenticates the selected
 PDK model archive and pins ngspice through [tools.lock.json](../tools.lock.json)
 and the official template's existing Nix lock. `--variant tuned` selects the
 nominal retuning experiment; `scan` is its initial exploration and `startup`
-is an unresolved continuous-bias startup experiment. None is a production macro.
+is a continuous-bias startup experiment. None is a production macro.
 
 Measured by the tuned command in the [T43 report](../../docs/plan/tasks/reports/T43.md):
 32.251574 kHz and 287.807717 nA at assumed 3.3 V, 25 C and 20 fF load, with
@@ -75,5 +75,10 @@ external reset assistance. Models are unmodified; device names and resistor
 geometry are retargeted to the selected 1 kOhm/square option. This is a new
 nominal schematic measurement, not inherited characterization or electrical
 equivalence to the old 3 kOhm circuit. Autonomous startup, trim, PVT, mismatch,
-noise and physical layout remain unqualified. The startup diagnostic timed out
-at its 120-second cap and was not rerun unchanged.
+noise and physical layout remain unqualified. The original startup diagnostic
+timed out at its 120-second cap. One changed-solver attempt (`--solver klu`)
+completed with the same circuit, tolerances and duration: measured 92.778649 kHz
+and 902.012654 nA in the late window, without external reset assistance. It
+does not meet the assumed 32 kHz frequency target or establish startup over
+the required ramp/PVT/initial-state matrix. See the report for the exact command
+and receipt. Default solver selection remains unchanged.

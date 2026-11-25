@@ -2,7 +2,7 @@
 import argparse,hashlib,json,math,pathlib,re,shutil,subprocess,sys,time
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
-p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--simulator',required=True);p.add_argument('--models',required=True);p.add_argument('--environment',default='build/t43/analog-env01');p.add_argument('--verify-only',action='store_true');p.add_argument('--variant',choices=('scan','tuned','startup'),default='scan');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--simulator',required=True);p.add_argument('--models',required=True);p.add_argument('--environment',default='build/t43/analog-env01');p.add_argument('--verify-only',action='store_true');p.add_argument('--solver',choices=('sparse','klu'),default='sparse');p.add_argument('--variant',choices=('scan','tuned','startup'),default='scan');a=p.parse_args()
 out=(ROOT/a.output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
 source=ROOT/'build/riscay-mcu/analog/gf180-lf-osc'
 revision='4671317186003740ceb61360ba08c59bbdf10136'
@@ -24,7 +24,7 @@ for q in models.iterdir():
  if q.is_file():
   assert sha(q)==model_receipt['files'][str(q.relative_to(modelbase))],q
   inputs[str(q)]=sha(q)
-result=dict(status='running',scope='Nominal schematic tuning feasibility only; external POR stimulus retained; no autonomous startup, PVT, physical views or production acceptance',inputs=inputs,commands=[],cases=[])
+result=dict(status='running',scope='Nominal schematic tuning feasibility only; external POR stimulus retained; no autonomous startup, PVT, physical views or production acceptance',solver=a.solver,inputs=inputs,commands=[],cases=[])
 environment=(ROOT/a.environment).resolve();environment.relative_to(ROOT/'build')
 inputs.update({str(q):sha(q) for q in (modelbase/'result.json',ROOT/'analog/prepare_models.py',ROOT/'phys/gf180-ws-1x1/pdk-lock.json',archive,environment/'flake.lock',environment/'flake.nix',ROOT/'phys/gf180-ws-1x1/template.lock.json')})
 executable=pathlib.Path(a.simulator).resolve()
@@ -55,6 +55,7 @@ def stage(folder):
  for q in models.iterdir():
   if q.is_file():shutil.copyfile(q,folder/q.name)
 header='.include "design.ngspice"\n.lib "sm141064.ngspice" typical\n.lib "sm141064.ngspice" res_typical\n.param sw_stat_global=0 sw_stat_mismatch=0\n.temp 25\n'
+if a.solver=='klu':header+='.options klu\n'
 try:
  folder=out/'resistor';stage(folder)
  (folder/'dc.spice').write_text('Independent nominal 1k-poly model check\n'+header+'VTEST test 0 1\nXR test 0 0 ppolyf_u_1k r_width=1u r_length=95.436u\n.control\nset numdgt=12\nop\nprint i(vtest)\nquit\n.endc\n.end\n')
