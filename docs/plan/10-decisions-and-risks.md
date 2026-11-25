@@ -185,6 +185,19 @@ No retained cohort or survivor may be added silently.
 | --- | --- | --- |
 | **D107** | Bridge timeout quarantine and preserved BIST pin abort | User-approved2026-11-25: retain immediate asynchronous quarantine for BusBridge timeout/abort in both toAon and the debug leaf, followed by acknowledged flushing. Preserve the existing BIST external-pin abort capture/quarantine even while aggregate warm reset is already held; BIST still survives ndmreset. Amends D103 at these identified boundaries, alongside D106 for DMI. Minimize and inventory asynchronous event/valid state in the shared crossing implementation; no arbitrary extra bank-reset tree, late dispatch, replay, timeout/ownership change, new fairness/pulse assumption or USB/analog change. Approval is not implementation or physical acceptance. [Source-family audit](../spec/t41-cancellation-boundaries.md). |
 
+## T42 single-direction admission
+
+D104 closure evidence (2026-11-25): the strict production load command in the
+[T42 report](tasks/reports/T42.md) measures20,051,604 simulation quanta for the
+supported1024-byte image, estimated208.870875ms at the assumed nominal clocks.
+The original250ms check passes without its bypass, with full readback and the
+original interval. D104 remains as history; its temporary exception is no longer
+active. D108 is the implementation authorization, not a change to the target.
+
+| ID | Decision | Approved scope |
+| --- | --- | --- |
+| **D108** | Registered local grant for production main-to-AON | User-approved2026-11-25: implement the independently reviewed [local-grant proposal](../spec/t42-lite-transfer-proposal.md). Replace only toAon's obsolete DirectionPermit with a main-clock registered request follower, reset low by the existing main release. Preserve BridgeSource/Target, FIFOs, epochs, cancellation, owners, debug leaf and full RAM readback. Amends D104's hardware-approval boundary; original250ms target and1024-byte capacity remain. Close D104 only after fresh unchanged-window production loading passes without bypass. Scoped relevant tests/capped proofs, no aggregate CI. Approval is not implementation or timing/area acceptance. |
+
 ## Risks and evidence still required
 
 

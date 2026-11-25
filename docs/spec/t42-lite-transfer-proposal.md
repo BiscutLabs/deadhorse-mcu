@@ -1,10 +1,13 @@
 # T42: local admission for the single main-to-AON bridge
 
-Proposal, not approved hardware. T40 was merged into main at `f680c3f`.
-T42 step 2 requires explicit approval before implementing this change.
-D104 still accepts the maximum-image latency exception; the original 250 ms
-target, nominal 32 kHz AON, supported 1024-byte image and full RAM CRC readback
-remain unchanged. T41's paired-image warm reset contract applies.
+Approved by the user on 2026-11-25 (D108); implementation and qualification
+are tracked in T42. T40 was merged into main at `f680c3f`.
+D104's maximum-image latency exception is now closed by the strict production
+check in the [T42 report](../plan/tasks/reports/T42.md): measured20,051,604 quanta,
+estimated208.870875ms at the assumed clocks. The original250ms target, nominal
+32kHz AON, supported1024-byte image and full RAM CRC readback remain unchanged.
+T41's paired-image warm reset contract applies. The following baseline/proposal
+sections preserve the evidence and estimates used before implementation.
 
 ## Measured baseline
 

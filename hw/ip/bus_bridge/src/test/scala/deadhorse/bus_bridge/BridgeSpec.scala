@@ -7,18 +7,33 @@ import deadhorse.lib._
 import java.nio.file.Paths
 import org.scalatest.funsuite.AnyFunSuite
 
-class BridgeTest extends RawModule {
+class BridgeTest(local: Boolean=false,fault: String="") extends RawModule {
   val sc = IO(Input(Bool())); val tc = IO(Input(Bool()))
   val sn = IO(Input(Bool())); val tn = IO(Input(Bool()))
   val source = IO(new LocalBus); val target = IO(Flipped(new LocalBus))
   val offer = IO(Input(Bool())); val permit = IO(Input(Bool())); val quiet = IO(Input(Bool()))
   val ask = IO(Output(Bool())); val admit = IO(Output(Bool())); val wake = IO(Output(Bool())); val isolated = IO(Output(Bool()))
   val hold = IO(Output(Bool()))
-  val d = Module(new BusBridge(128))
+  val d = Module(if(fault=="data") new BridgeBad(128) else new BusBridge(128))
   d.sourceClock := sc.asClock; d.targetClock := tc.asClock
   d.sourceReset_n := sn; d.targetReset_n := tn
   d.source <> source; d.target <> target
-  d.offer := offer; d.permit := permit; d.quiescent := quiet
+  d.offer := offer; d.quiescent := quiet
+  if(local) {
+    val grant=Module(new LocalPermit);grant.clk:=sc.asClock
+    grant.reset_n:=chisel3.util.experimental.BoringUtils.bore(d.sourceUp)
+    grant.request:=d.permitRequest;d.permit:=grant.permit
+  } else d.permit:=permit
+  if(fault=="drop")source.rvalid:=false.B
+  if(fault=="duplicate")withClockAndReset(sc.asClock,(!sn).asAsyncReset) {
+    source.rvalid:=d.source.rvalid || RegNext(d.source.rvalid,false.B)
+  }
+  if(fault=="stale")withClockAndReset(sc.asClock,(!sn).asAsyncReset) {
+    val last=RegInit(0.U(32.W))
+    when(d.source.rvalid && !d.source.err) {last:=d.source.rdata}
+    // Replay the preceding successful response instead of the reset error.
+    source.rdata:=Mux(d.source.err,last,d.source.rdata);source.err:=false.B
+  }
   ask := d.permitRequest; admit := d.admit; wake := d.clockRequest; isolated := d.isolated
   hold := d.targetClockHold
 }
@@ -27,8 +42,8 @@ class BridgeSpec extends AnyFunSuite with ChiselSim {
   implicit val outputDirectory: HasTestingDirectory = new HasTestingDirectory {
     def getDirectory = Paths.get("build/t14/bridge-simulation").toAbsolutePath
   }
-  test("bridge preserves payload, wakes a stopped clock, aborts timeout and rejects stale responses after reset") {
-    simulateRaw(new BridgeTest,subdirectory=Some("transactions")){ d =>
+  private def exercise(local: Boolean=false,fault: String=""): Unit = {
+    simulateRaw(new BridgeTest(local,fault),subdirectory=Some(s"transactions-$local-$fault")){ d =>
       def yes(b: Bool) = b.peek().litValue == 1
       var backend: Option[(BigInt,Int)] = None
       var freezeReply = false
@@ -61,7 +76,14 @@ class BridgeSpec extends AnyFunSuite with ChiselSim {
         (accept,valid,data,error)
       }
       for(_<-0 until 20)step()
+      if(local) {
+        // Withdraw a speculative offer without ever presenting a transaction.
+        d.offer.poke(true.B);for(_<-0 until 3)step();d.offer.poke(false.B)
+        for(_<-0 until 24) {val(_,v,_,_)=step();assert(!v,"BRIDGE_MODEL_MISMATCH unsolicited response")}
+        assert(granted==0,"BRIDGE_MODEL_MISMATCH withdrawn offer issued")
+      }
       def transaction(value: BigInt, error: Boolean=false, stopped: Int=0, peerReset: Boolean=false): Unit = {
+        val priorGrants=granted
         d.offer.poke(true.B);d.source.req.poke(true.B)
         d.source.bits.addr.poke(0x1234.U);d.source.bits.wdata.poke(value.U)
         d.source.bits.be.poke(5.U);d.source.bits.we.poke(false.B);d.source.bits.origin.poke(3.U)
@@ -83,6 +105,7 @@ class BridgeSpec extends AnyFunSuite with ChiselSim {
         }
         assert(completed,"BRIDGE_MODEL_MISMATCH deadline")
         for(_<-0 until 24){val(_,v,_,_)=step();assert(!v,"BRIDGE_MODEL_MISMATCH duplicate")}
+        if(!error)assert(granted==priorGrants+1,"BRIDGE_MODEL_MISMATCH duplicated downstream effect")
       }
       transaction(0x91,stopped=24)
       transaction(0x19)
@@ -120,4 +143,11 @@ class BridgeSpec extends AnyFunSuite with ChiselSim {
       transaction(0x6161)
     }
   }
+  test("bridge preserves payload, wakes a stopped clock, aborts timeout and rejects stale responses after reset") {exercise()}
+  test("local grant preserves transport, stopped-clock wake, reset and timeout drainage") {exercise(true)}
+  for((fault,message)<-Seq("data"->"stale/data","drop"->"deadline","duplicate"->"duplicate","stale"->"error"))
+    test(s"local-grant oracle rejects $fault fault") {
+      val error=intercept[org.scalatest.exceptions.TestFailedException] {exercise(true,fault)}
+      assert(error.getMessage.contains("BRIDGE_MODEL_MISMATCH "+message))
+    }
 }

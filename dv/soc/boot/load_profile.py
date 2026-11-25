@@ -1,13 +1,15 @@
-"""T42 passive production boot baseline: exactly two load cases, no CI."""
+"""T42 production boot load qualification: exactly two cases, no CI."""
 import argparse,json,os,pathlib,shutil,subprocess,sys,time
 from wire_campaign import sha,snapshot
 
 ROOT=pathlib.Path.cwd();HERE=pathlib.Path(__file__).resolve().parent
 def main():
- p=argparse.ArgumentParser();p.add_argument('--output',required=True);a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--output',required=True)
+ p.add_argument('--require-budget',action='store_true',help='Retained spelling; the original250ms budget is now always required')
+ a=p.parse_args()
  out=(ROOT/a.output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
  receipt=dict(status='running',base_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
-  source_sha256=snapshot(),commands=[],cases={},scope='Passive profiling of watcher-held and max-lite-held only; all other boot cases unrun in this investigation; no CI/proof/implementation claim')
+  source_sha256=snapshot(),commands=[],cases={},scope='Watcher-held and max-lite-held production loading with original250ms budget and full readback; other cases require their separate scoped receipts; no CI or composition-proof claim')
  def save():(out/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
  def run(cmd,name,env=None):
   start=time.monotonic()
@@ -40,14 +42,13 @@ def main():
    for key in ('DH_POWER_CUT','DH_COMPETING_BLOB','DH_MAX_LITE_LOAD_D104'):env.pop(key,None)
    env.update(DH_FAIL_PC=str(built['fail_pc']),DH_EXPECTED_MARKER=str(case['marker']),
     DH_SELECTED_SLOT=str(case['selected_slot']),DH_TRANSFER_TRACE=str(out/(name+'.csv')))
-   if name=='max-lite-held':env['DH_MAX_LITE_LOAD_D104']='1'
    run([out/'obj/VSocBootRomProbe',prepared/(name+'.flash'),case['scenario']],name,env)
    result=json.loads(next(s for s in reversed((out/(name+'.log')).read_text().splitlines()) if s.startswith('{')))
    assert result['status']=='pass'
-   assert result['lite_load_budget_met'] or name=='max-lite-held' and result['lite_load_D104_exception']
+   assert result['lite_load_budget_met'] and not result['lite_load_D104_exception']
    receipt['cases'][name]=result;save()
   assert snapshot()==receipt['source_sha256'],'sources changed during profiling'
-  receipt['status']='measured_with_D104_exception' if receipt['cases']['max-lite-held']['lite_load_D104_exception'] else 'measured'
+  receipt['status']='measured'
  except Exception as error:receipt.update(status='failed',error=str(error));raise
  finally:
   receipt['artifact_sha256']={str(q.relative_to(out)):sha(q) for q in out.rglob('*') if q.is_file() and q!=out/'result.json'};save()

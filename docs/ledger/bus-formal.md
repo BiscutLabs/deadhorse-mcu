@@ -69,6 +69,24 @@ and current source/receipt hashes. The four deferred assertions remain unproved.
 - No model qualifies analog metastability, Gray-bus skew, payload settling,
   reset recovery/removal, clock-controller integration or routed physical timing.
 
+## T42 local grant, 2026-11-25
+
+D108 replaces only production toAon's obsolete direction arbitration; the bridge,
+shared CDC/FIFO and reset machinery are unchanged. Command (pinned environment):
+`python hw/ip/bus_bridge/formal/local_permit_proof.py --output build/t42/local-proof01`,
+mainf534b34 plus receipt-hashed sources. Two actual-primitive assertions proved
+unbounded with ABC PDR: output equals last main-edge request and output is low
+under reset, the latter observed from an independent clock outside the resetting
+domain. Measured positive wall0.316023s. Only initial reset is assumed; later
+reset/request/clocks arbitrary. Stuck request, extra-cycle and reset-high faults
+each fail; grant/revoke/regrant covers pass. Existing120s cap, depth64 covers;
+no timeout or new abstraction. See [report](../plan/tasks/reports/T42.md).
+
+This does not discharge the inherited return-data/FIFO/production composition
+or physical debt below. Relevant bridge/SoC reset, ownership and exact-once
+simulation passes, including real transport faults; it is not a substitute for
+the missing unbounded composition proof. No aggregate CI ran.
+
 ## Timeout triage and retained failures
 
 The report's Step 0 table records model sizes, original solver frames,

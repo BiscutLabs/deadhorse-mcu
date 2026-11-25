@@ -1,6 +1,33 @@
 # 08 Physical implementation and verification
 
-## T40 DMA delta on the T41 budget
+## T42 fresh production budget
+
+This supersedes the historical T41-plus-T40 estimate below. Measured on main
+`f534b34` plus source-hashed D108 changes by the EmitSoc, plan04_map,
+plan04_screen, plan04_area and t35_budget commands in the
+[T42 report](tasks/reports/T42.md), under `build/t42/timing01`.
+
+| Item | Area mm2 | Provenance |
+| --- | ---: | --- |
+| Whole mapped digital including ROM and current DMA | 3.5594355776 | Measured SS125 mapping |
+| Scan substitution | 0.4026611456 | Estimated from measured flop mix |
+| Placed digital | 7.3259886895 | Estimated T35 allowances and assumed0.55 utilization |
+| SRAM footprint | 2.8745586760 | Estimated from measured pinned LEF,16 main1024x8 and4 retained512x8 macros |
+| Analog/pads/SRAM halo | 1.1500000000 | Unchanged assumptions |
+| Total | **11.3505473655** | Estimated sum |
+| Headroom against12.92 | **1.5694526345** | Estimated subtraction |
+
+Matched isolated grant mapping measures794.6624um2/9flops before and74.6368um2/
+1flop after, a720.0256um2 reduction. That is not an additive whole-map delta;
+the fresh production map includes parent optimization. Main worst is measured
+67.515236ns against75ns in both AON strap modes. USB retains its approved
+13.485458ns warning, and pre-layout hold/reset/RDC checks remain unqualified.
+All macro capacities and analog/clock/reset/pad/utilization allowances remain.
+Macro-only24KiB option estimates12.5938557895mm2, leaving0.3261442105mm2 before
+extra decoder/control;32KiB estimates13.8371642135mm2 and does not fit. No SRAM
+growth or physical fit is approved by these estimates.
+
+## Historical T40 DMA delta on the T41 budget
 
 The current estimate uses the T41 ROM-inclusive budget, then adds the
 isolated four-channel DMA change; it does not claim a new whole-SoC mapping.

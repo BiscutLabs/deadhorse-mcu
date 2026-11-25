@@ -7,7 +7,10 @@ asynchronously and releases through `ResetRelease`; either reset flushes FIFO
 transport. Surviving source bookkeeping is outside the transport flush reset.
 
 `offer` comes from the local fabric's registered waiting level, before admission.
-`permitRequest` is held for a fair `DirectionPermit` grant. `admit` lets that
+`permitRequest` is held for a grant. Opposing-direction fixtures retain the fair
+`DirectionPermit`; production toAon uses D108's main-clock `LocalPermit` because
+general toMain no longer exists. The debug leaf retains its own original permit.
+`admit` lets that
 fabric select this bridge. Blocked offers consume no local bus slot. The
 source-clock `clockRequest` level must feed ungated AON wake logic through the
 shared synchronizer when not already in AON; it precedes grant and remains
@@ -19,6 +22,15 @@ it preserves orphan drainage if the source itself is held in reset/stopped.
 Production source/target endpoints are separate single-clock modules for timing
 and focused properties. Their request and response payload boundaries are
 registered. FIFO consumers have no combinational ready chain.
+
+`LocalPermit` registers the request and resets low on the existing qualified
+main reset. It grants no transaction by itself: source idle, link epoch, FIFO
+readiness and owner checks still apply. Request withdrawal is followed by a
+real low grant before reuse. The old fabric offer can briefly cause another
+request after a response; withdrawal without a new source acceptance is legal
+and must have no downstream effect. [Local proof](formal/local-permit.md) and
+the T42 transport/production tests cover this behavior. No FIFO, transport
+epoch, timeout, reset tree, address map or ownership rule changed.
 
 Timeout/peer reset produces one source error and an acknowledged transport abort
 before permit release. Target reset starts quarantined. `quiescent` acknowledges

@@ -106,7 +106,7 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
       assert(!high(d.pins.spiEnable) && d.pins.spiCs_n.peek().litValue==3)
     }
   }
-  test("mailbox round trip, retained byte lanes, denied program writes and independent service reset") {
+  test("mailbox round trip, retained byte lanes, denied program writes and shared warm reset") {
     simulateRaw(new SocPeripheralBusTest(SocTestFiles.description,SocProduction.config(realUsb=false))) { d =>
       reset(d)
       val mailbox=BigInt(0x40001000L)
@@ -131,9 +131,18 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
       assert(access(d,d.main,working)._2,"I1_FORGED_HALT_OWNERSHIP")
       good(d,d.main,0x4000030cL,true,0x484f4c44L);tick(d,40)
       assert(good(d,d.main,0x40000300L)==1,"I1_DRAINED_HOLD")
-      d.mainServiceReset_n.poke(false.B);tick(d,3);d.mainServiceReset_n.poke(true.B);tick(d,45)
+      // D103 warm resets both peers; qualification is not an independent reset.
+      good(d,d.main,mailbox,true,0x55aacc33L);good(d,d.main,mailbox+4,true,1);tick(d,30)
+      assert((good(d,d.pins.lite,mailbox+12)&2)!=0,"I1_PRE_RESET_PENDING")
+      d.warmReset_n.poke(false.B);tick(d,3);d.warmReset_n.poke(true.B);tick(d,45)
       assert(good(d,d.main,working)==0x11bb33ddL)
-      assert((good(d,d.pins.lite,mailbox+16)&4)!=0,"I1_MAILBOX_PEER_RESET")
+      for(bus<-Seq(d.main,d.pins.lite)) {
+        assert(good(d,bus,mailbox+16)==0,"I1_MAILBOX_WARM_EVENTS")
+        assert(good(d,bus,mailbox+12)==5,"I1_MAILBOX_WARM_EMPTY_READY")
+      }
+      good(d,d.main,mailbox,true,0x24681357L);good(d,d.main,mailbox+4,true,1);tick(d,30)
+      assert(good(d,d.pins.lite,mailbox+8)==0x24681357L,"I1_MAILBOX_WARM_REOPEN")
+      good(d,d.pins.lite,mailbox+4,true,2)
     }
   }
   test("toAon traffic and a denied lite-to-main request complete independently") {
@@ -186,9 +195,13 @@ class SocI1Spec extends AnyFunSuite with ChiselSim {
       for(bus<-Seq(d.main,d.pins.lite))
         assert(access(d,bus,0x30000000L,true,0)._2,"I1_RUNNING_PROGRAM_WRITE")
       d.warmReset_n.poke(false.B);tick(d,4);d.warmReset_n.poke(true.B);tick(d,40)
-      assert(good(d,d.main,0x40000300L)==1,"I1_WHOLE_RESET_HOLD")
+      assert(good(d,d.main,0x40000300L)==9,"I1_WARM_RESET_HOLD_HISTORY")
       for((word,i)<-image.zipWithIndex)
         assert(good(d,d.main,BigInt(0x30000000L+i*4))==word,"I1_PROGRAM_RESET_RETENTION")
+      d.coldReset_n.poke(false.B);tick(d,4);d.coldReset_n.poke(true.B);tick(d,40)
+      assert(good(d,d.main,0x40000300L)==1,"I1_COLD_RESET_HOLD_HISTORY")
+      for((word,i)<-image.zipWithIndex)
+        assert(good(d,d.main,BigInt(0x30000000L+i*4))==word,"I1_PROGRAM_COLD_RETENTION")
       // Loader wire/CRC/lock checks retire under D93; T36 supplies recovery CRC.
     }
   }

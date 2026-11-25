@@ -21,7 +21,7 @@ def analyze(trace,image):
  assert trace[0]['event']=='begin' and trace[-1]['event']=='end'
  assert sum(r['event']=='begin' for r in trace)==sum(r['event']=='end' for r in trace)==1
  assert all(a['tick']<=b['tick'] and a['aon_edges']<=b['aon_edges'] for a,b in zip(trace,trace[1:]))
- transactions=[];current=None
+ transactions=[];current=None;post_response_asks=0
  for r in trace:
   lite=BASE<=r['address']<BASE+len(image)
   if r['event']=='cpu_offer' and lite:
@@ -30,6 +30,10 @@ def analyze(trace,image):
   if current is not None:
    if r['event'] in STAGES:
     if r['event']=='retire' and not lite:continue
+    if r['event']=='ask_up' and 'source_reply' in current:
+     # With a fast grant the old fabric offer can outlive the bridge reply.
+     # The source may ask again, then withdraw without accepting any work.
+     post_response_asks+=1;continue
     assert r['event'] not in current,'duplicate transfer stage '+r['event']
     current[r['event']]=r
   if r['event']=='retire' and lite:
@@ -45,6 +49,12 @@ def analyze(trace,image):
    assert all(current[s]['address']==r['address'] for s in STAGES[6:]),'stage attribution changed'
    transactions.append(current);current=None
  assert current is None and len(transactions)==len(image)//2,'incomplete copy/readback'
+ identities=[(t['retire']['address'],t['retire']['write']) for t in transactions]
+ # Include gaps between CPU transactions: speculative offers must never turn
+ # into unowned/duplicate downstream effects or FIFO items/responses.
+ for event in ('source_take','request_push','request_pop','target_take','ram_take','ram_reply',
+               'target_reply','response_push','response_pop','source_reply'):
+  assert [(r['address'],r['write']) for r in trace if r['event']==event and BASE<=r['address']<BASE+1024]==identities,'unowned/missing/duplicate '+event
  # Grant withdrawal can overlap flash/CPU work after a retirement. Report it
  # separately; do not add it to end-to-end time a second time.
  falling=[r for r in trace if r['event']=='permit_down']
@@ -60,7 +70,7 @@ def analyze(trace,image):
  result=dict(words_each_way=len(image)//4,measured_quanta=trace[-1]['tick']-trace[0]['tick'],
   measured_aon_edges=trace[-1]['aon_edges']-trace[0]['aon_edges'],
   estimated_ms=(trace[-1]['tick']-trace[0]['tick'])/96000,
-  assumed_quantum_hz=96000000,assumed_aon_hz=32000,stages={},transactions=transactions)
+  assumed_quantum_hz=96000000,assumed_aon_hz=32000,stages={},transactions=transactions,post_response_speculative_asks=post_response_asks)
  for write,label in ((1,'copy'),(0,'readback')):
   selected=[t for t in transactions if t['retire']['write']==write]
   result['stages'][label]={a+' -> '+b:{'measured_quanta':stats([t[b]['tick']-t[a]['tick'] for t in selected]),
@@ -101,11 +111,14 @@ def main():
   # Mutate observations, not RTL. These controls validate attribution/oracle
   # rejection only; they are not the future transport RTL negative controls.
   at=next(i for i,r in enumerate(trace) if r['event']=='retire' and r['address']==BASE)
-  for fault in ('wrong-data','dropped-word','duplicate-word','missing-withdrawal','duplicate-withdrawal'):
+  for fault in ('wrong-data','dropped-word','duplicate-word','missing-withdrawal','duplicate-withdrawal','unowned-effect'):
    altered=[dict(r) for r in trace]
    if fault=='wrong-data':altered[at]['data']^=1
    elif fault=='dropped-word':del altered[at]
    elif fault=='duplicate-word':altered.insert(at,dict(altered[at]))
+   elif fault=='unowned-effect':
+    extra=next(dict(r) for r in trace if r['event']=='ram_take');extra['tick']=trace[at]['tick'];extra['aon_edges']=trace[at]['aon_edges']
+    altered.insert(at+1,extra)
    else:
     withdraw=next(i for i,r in enumerate(altered) if r['event']=='permit_down')
     if fault=='missing-withdrawal':del altered[withdraw]
@@ -116,5 +129,5 @@ def main():
  result=dict(status='pass',seconds=time.monotonic()-start,profile_receipt_sha256=hashlib.sha256((a.profile/'result.json').read_bytes()).hexdigest(),
   analyzer_sha256=hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),cases=results,negative_controls=faults,
   limitations='Internal stage labels follow one outstanding source word, not a concurrent-master oracle; clocks assumed; pure CPU compute versus peripheral polling not separated')
- (a.output/'result.json').write_text(json.dumps(result,indent=2)+'\n');print('PASS two complete copy/readback traces and ten corrupted-trace controls')
+ (a.output/'result.json').write_text(json.dumps(result,indent=2)+'\n');print('PASS two complete copy/readback traces and twelve corrupted-trace controls')
 if __name__=='__main__':main()

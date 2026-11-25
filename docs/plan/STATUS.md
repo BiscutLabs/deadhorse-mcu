@@ -114,10 +114,11 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D101 | PLAN05 phase-end qualification | Approved 2026-11-24; PLAN05 scoped completion recorded; inherited proof/physical debt remains |
 | [x] | D102 | DMA circular UART RX, shadow reload | User-approved 2026-11-24; T40 after PLAN05 design changes, +0.010 mm2 mapped-cell cap, scoped tests/no aggregate CI, one formal triage round. D92-D101 remain unchanged; no DMA implementation acceptance |
 | [x] | D103 | Four reset cohorts; performance watchdog joins warm | User-approved2026-11-24; T41 queued after PLAN05; no RTL or acceptance |
-| [x] | D104 | Temporary maximum lite-image load exception | User-approved2026-11-24; T42 retains250ms target; all other checks and D101 remain |
+| [x] | D104 | Temporary maximum lite-image load exception | Historical approval2026-11-24; closed by D108/T42 strict production load: measured20,051,604quanta, estimated208.870875ms versus250ms, no bypass |
 | [x] | D105 | Official wafer.space physical base and template PDK | User-approved2026-11-24; supersedes D9 source; T43 scoped migration and logical chip top before T38; pad/SRAM stops retained; no implementation |
 | [x] | D106 | DMI-only asynchronous cancellation | User-approved2026-11-25; immediate hard-clear quarantine and acknowledged flush; DM cold-only; implementation unverified |
 | [x] | D107 | Bridge timeout quarantine and BIST pin abort | User-approved2026-11-25; immediate cancellation, acknowledged flush, existing selective pin abort; implementation unverified |
+| [x] | D108 | T42 main-clock local grant | User-approved2026-11-25; only production toAon admission; preserve FIFO/epoch/owners/full readback,250ms and scoped/no-CI policy |
 
 ## Tasks
 
@@ -175,7 +176,7 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
 | [x] | T40 | [DMA circular UART RX](tasks/T40-dma-circular-uart-rx.md) | Codex | D102; completed PLAN05 and T41; T23 proof debt retained | Scoped implementation complete: frozen19 DMA/SoC tests, driver/map checks, all four simulation faults, timing and area pass. Measured added0.003462mm2 below0.010 cap. Circular formal closure/reload-fault proof deferred at caps; finite range bounded36, inherited unbounded debt remains. No aggregate CI. [Report](tasks/reports/T40.md) |
 | [x] | T41 | [Reset consolidation](tasks/T41-reset-consolidation.md) | Codex | D103; completed PLAN05/T36; T33/T34/T32 interfaces | Scoped completion under D103/D106/D107, independently reviewed. Four cohorts, paired-image warm ROM and relevant reset/boot/sleep/debug checks pass. Measured release instances 89→30 and reset controls 150→59; mapped setup passes with approved USB warning, estimated headroom 1.586 mm². Lite initialization/SRAM ownership proofs deferred at caps; shared startup/shutdown and qualified DMI composition remain open. Physical hold/RDC/reset-removal deferred; no aggregate CI. [Receipt](tasks/reports/T41.md) |
-| [!] | T42 | [Lite boot-transfer latency](tasks/T42-lite-boot-transfer.md) | Codex | D104; PLAN05; T41 | [Investigation](tasks/reports/T42.md): complete per-word copy/readback inventory; estimated maximum296.933375ms, watcher170.902125ms from measured simulation counts. Local registered permit proposal awaiting hardware approval; original250ms target remains open; no aggregate CI |
+| [x] | T42 | [Lite boot-transfer latency](tasks/T42-lite-boot-transfer.md) | Codex | D104/D108; PLAN05; T41 | [Report](tasks/reports/T42.md): independently accepted scoped completion. Maximum measured20,051,604quanta, estimated208.870875ms/250ms with full readback/no bypass; D104 closed.18 relevant Scala cases,20 wire positives/1 ROM fault,2 load cases,2 unbounded local assertions/3 faults pass. Main67.515236ns/75; estimated headroom1.569452635mm2. Inherited composition/physical debt remains; no aggregate CI |
 | [ ] | T43 | [wafer.space template and PDK](tasks/T43-wafer-space-physical-base.md) | unassigned | D105; current production; prerequisite for T38 | [Planning receipt](tasks/reports/T43-planning.md); no migration, chip top or physical acceptance; resolve macro-count mismatch before execution |
 | [-] | S2 | Interconnect study | n/a | n/a | Withdrawn by D43 |
 | [x] | S3 | [Memory](tasks/S-spikes.md#s3-memory) | Codex | T02, T07, T08 | [Report](tasks/reports/S3.md): representative allocations/model checks and independent review pass; fast 29/29 with inherited T14 deferrals, full not run |
@@ -290,6 +291,10 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-25 Codex: T42/D108 independently verified for publication by t36_contract_review (read-only; inspected final code, proofs, reset/ownership tests, trace controls, area/timing, source/receipt hashes and report). Frozen strict maximum load passes without D104; full readback and original window retained. Local grant removes8 measured flops, isolated area reduces720.0256um2. Scoped checks pass; inherited bridge/T41 composition and physical hold/reset debt remain, no aggregate CI. T42 complete and D104 exception closed.
+
+- 2026-11-25 Codex: User approved the reviewed T42 local-grant proposal (D108). Implement only production toAon admission; retain cancellation, owner checks and full readback. Scoped tests/proofs and area/timing, no aggregate CI.
 
 - 2026-11-25 Codex: Merged reviewed T40 into mainf680c3f and began T42 under scoped/no-CI policy. Completed passive production profiling and a concrete local-permit proposal; maximum-image target remains unmet under D104. Stop at T42's explicit hardware-approval boundary; production RTL/firmware unchanged.
 

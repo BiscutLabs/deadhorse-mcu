@@ -2250,3 +2250,37 @@ mode retains 13645 reported raw hold/recovery/removal/pulse violation rows and 1
 reset-endpoint paths. Reported endpoint minimum slack +1.87561 ns does not
 qualify those missing checks. This is pre-layout setup evidence, not routed
 hold, reset-tree, RDC or analog signoff. No aggregate CI ran.
+
+## T42 local main-to-AON grant, 2026-11-25
+
+Measured on mainf534b34 plus authenticated D108 sources. Exact EmitSoc,
+plan04_map, plan04_screen, plan04_area and t35_budget commands and every class's
+start/end are in [T42](../plan/tasks/reports/T42.md); receipts in
+`build/t42/timing01`. SS125, same clocks/budgets, both AON source straps.
+
+| Quantity | Measured result |
+| --- | --- |
+| LocalPermit area / flops | 74.6368um2 /1 |
+| Authenticated old bound DirectionPermit area / flops | 794.6624um2 /9 |
+| Isolated area difference | -720.0256um2, not additive to whole-map area |
+| LocalPermit worst | 3.750224ns, `_0_/Q` to `permit`, budget75ns |
+| Whole mapped logic | 3.5594355776mm2 |
+| Main RR worst | 67.515236ns, `_222057_/Q` to `_221651_/D`, budget75ns |
+| AON RR worst | 65.482735ns, `_229206_/Q` to `_236296_/D`, budget18750ns |
+| TCK RR worst | 17.974028ns, `_235935_/Q` to `_218467_/D`, budget6000ns |
+| USB FF worst | 13.485458ns, inherited warning against12.5ns/approved ceiling15ns |
+| OSC_IN stability RR worst | 12.126913ns against12.5ns |
+
+Isolated commands: `python hw/ip/bus_bridge/measurements/local_permit_area.py
+--baseline build/t42/baseline02 --proof build/t42/local-proof01 --output
+build/t42/grant-area04` and `python tools/timing/check.py --top LocalPermit
+--source build/t42/local-proof01/emit/block/LocalPermit.sv --clock clk
+--operating-point main-8mhz --output build/t42/local-timing01` (pinned environment).
+The comparator binds requestAon low/permitAon unused exactly as old production,
+authenticates emitted inputs/library/config and requires known cells and drivers.
+
+Electrical and clock-gate violations are measured zero. Both modes retain
+13,676 raw hold/recovery/removal/pulse violation rows and missing reset endpoint
+checks. CROSS rows are diagnostics. No routed hold/reset/RDC signoff or new
+physical exception is claimed. T35 method estimates11.3505473655mm2 total and
+1.5694526345mm2 headroom with unchanged macros/allowances. No aggregate CI ran.

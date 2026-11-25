@@ -9,7 +9,7 @@ def snapshot():
  names=subprocess.check_output(['git','ls-files','-c','-o','--exclude-standard','-z'],text=True).split('\0')
  return {n:sha(ROOT/n) for n in sorted(set(names)) if n and (ROOT/n).is_file()}
 def main():
- p=argparse.ArgumentParser();p.add_argument('--warm-only',action='store_true');p.add_argument('--prepared',required=True);p.add_argument('--rom-build',required=True);p.add_argument('--output',required=True)
+ p=argparse.ArgumentParser();p.add_argument('--warm-only',action='store_true');p.add_argument('--t42',action='store_true');p.add_argument('--prepared',required=True);p.add_argument('--rom-build',required=True);p.add_argument('--output',required=True)
  a=p.parse_args();prepared=(ROOT/a.prepared).resolve();rom=(ROOT/a.rom_build).resolve();out=(ROOT/a.output).resolve()
  out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
  inputs=json.loads((prepared/'prepared.json').read_text());built=json.loads((rom/'result.json').read_text())
@@ -20,10 +20,12 @@ def main():
   for n,h in receipt['artifact_sha256'].items():assert sha(base/n)==h,n
   for n,h in receipt['source_sha256'].items():assert sha(pathlib.Path(n))==h,n
  assert (rom/'rom.hex').read_bytes()==(prepared/'rom.hex').read_bytes()
- receipt=dict(status='running',selection='warm-only' if a.warm_only else 'all',unrun_cases=([n for n in inputs['cases'] if not n.startswith('warm-')] if a.warm_only else []),commands=[],cases={},scope='Production top with passive RVFI/reset outputs and independent NOR/UART pins; no injected bus master',
+ assert not(a.warm_only and a.t42)
+ selected=[n for n in inputs['cases'] if not(a.warm_only or a.t42) or n.startswith('warm-') or a.t42 and n in ('a','bad-directory','bad-range','bad-generation','bad-compatibility','bad-extent','corrupt-newest','uncommitted')]
+ receipt=dict(status='running',selection='t42' if a.t42 else 'warm-only' if a.warm_only else 'all',unrun_cases=[n for n in inputs['cases'] if n not in selected],commands=[],cases={},scope='Production top with passive RVFI/reset outputs and independent NOR/UART pins; no injected bus master',
   source_sha256=snapshot(),
   inputs={str(q):sha(q) for q in [prepared/'prepared.json',rom/'result.json',HERE/'sim.cpp',HERE/'nor.hpp',pathlib.Path(__file__),HERE/'wire_protocol.py',HERE/'image.py']})
- if a.warm_only:
+ if a.warm_only or a.t42:
   payload_bytes=len((prepared/'b.bin').read_bytes());payload_bytes+=(4-payload_bytes%4)%4
   lite_bytes=len((prepared/'lite.bin').read_bytes());lite_bytes+=(4-lite_bytes%4)%4
   cuts=(1,5,4+(payload_bytes+lite_bytes+4)//4+23)
@@ -47,12 +49,11 @@ def main():
   if r.returncode!=expected:raise RuntimeError(label)
  def execute(label,image,scenario,marker,selected=None,records=None,power_cut=None):
   env=os.environ.copy()
-  for key in ('DH_FAIL_PC','DH_EXPECTED_MARKER','DH_SELECTED_SLOT','DH_POWER_CUT','DH_COMPETING_BLOB','DH_MAX_LITE_LOAD_D104'):env.pop(key,None)
+  for key in ('DH_FAIL_PC','DH_EXPECTED_MARKER','DH_SELECTED_SLOT','DH_POWER_CUT','DH_COMPETING_BLOB','DH_MAX_LITE_LOAD_D104','DH_TRANSFER_TRACE'):env.pop(key,None)
   env.update(DH_FAIL_PC=str(built['fail_pc']),DH_EXPECTED_MARKER=str(marker))
   if selected is not None:env['DH_SELECTED_SLOT']=str(selected)
   if power_cut is not None:env['DH_POWER_CUT']=str(power_cut)
   if scenario=='warm-newer':env['DH_COMPETING_BLOB']=str(prepared/'competing-b.bundle')
-  if label=='max-lite-held':env['DH_MAX_LITE_LOAD_D104']='1'
   command=[out/'obj/VSocBootRomProbe',image,scenario]
   response=out/(label+'.reply')
   if records is not None:
@@ -60,9 +61,10 @@ def main():
   run(command,label,env,3 if power_cut is not None else 0)
   lines=(out/(label+'.log')).read_text().splitlines();result=json.loads(next(x for x in reversed(lines) if x.startswith('{')))
   assert result['status']==('power-cut' if power_cut is not None else 'pass')
-  if power_cut is None:
-   assert result['lite_load_budget_met'] or (label=='max-lite-held' and result['lite_load_D104_exception'])
-   assert not result['lite_load_D104_exception'] or label=='max-lite-held'
+  if scenario in ('reset-copy','reset-readback'):
+   assert result['inflight_reset'] and result['fail_closed'] and result['rom_entries']==2
+  elif power_cut is None:
+   assert result['lite_load_budget_met'] and not result['lite_load_D104_exception']
   receipt['cases'][label]=dict(result=result,input_sha256=sha(image),scenario=scenario,marker=marker,selected_slot=selected,
    rom_sha256=sha(out/'active-rom.hex'),request_sha256=None if records is None else hashlib.sha256(records).hexdigest())
   save();return result,response
@@ -77,8 +79,11 @@ def main():
     '--top-module','SocBootRomProbe','--Mdir',out/'obj',control,*sources,gate,HERE/'sim.cpp'],'compile')
   receipt['emission_sha256']={str(q):sha(q) for q in [*sources,gate,control]}
   for name,c in inputs['cases'].items():
-   if not a.warm_only or name.startswith('warm-'):execute(name,prepared/(name+'.flash'),c['scenario'],c['marker'],c['selected_slot'])
-  if not a.warm_only:
+   if name in selected:execute(name,prepared/(name+'.flash'),c['scenario'],c['marker'],c['selected_slot'])
+  if a.t42:
+   for scenario in ('reset-copy','reset-readback'):
+    execute(scenario,prepared/'watcher-held.flash',scenario,0,1)
+  if not(a.warm_only or a.t42):
    # Independent frame expectations bind exact opcode, sequence and address,
    # including malformed/no-response records and staging byte masks.
    commands=[(5,1,0,b'',b'\0\1'+(0x35304844).to_bytes(4,'little')+(0x117).to_bytes(4,'little')),
@@ -156,5 +161,5 @@ def main():
  except Exception as error:receipt.update(status='failed',error=str(error));raise
  finally:
   receipt['artifact_sha256']={str(q.relative_to(out)):sha(q) for q in out.rglob('*') if q.is_file() and q.name!='result.json'};save()
- print('PASS '+('warm-only' if a.warm_only else 'full')+' production boot pin campaign; bounded persistence only')
+ print('PASS '+('t42' if a.t42 else 'warm-only' if a.warm_only else 'full')+' production boot pin campaign; bounded persistence only')
 if __name__=='__main__':main()

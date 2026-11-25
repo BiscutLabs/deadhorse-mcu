@@ -6,6 +6,8 @@ import chisel3.util.experimental.BoringUtils
 class SocBootRomProbe(rom: String) extends SocOscFlight(rom) {
   val liteHeld=IO(Output(Bool()));val liteResetReleased=IO(Output(Bool()))
   val liteStart=IO(Output(Bool()));val liteReleaseCommand=IO(Output(Bool()))
+  val liteClientUp=IO(Output(Bool()))
+  liteClientUp:=BoringUtils.bore(digital.subsystem.get.liteClientUp)
   val bootControl=digital.subsystem.get.bootControlBlock
   liteReleaseCommand:=BoringUtils.bore(bootControl.state.releaseCommand) && BoringUtils.bore(bootControl.state.releaseKey)
   val dmaActive=IO(Output(Bool()));val warmActive=IO(Output(Bool()))

@@ -22,6 +22,7 @@ int main(int argc,char**argv) {
   if(std::getenv("DH_POWER_CUT"))nor.powerCut=std::stoi(std::getenv("DH_POWER_CUT"));
   const std::string scenario=argv[2];
   const bool warm=scenario.rfind("warm-",0)==0;
+  const bool interrupted=scenario=="reset-copy"||scenario=="reset-readback";
   const bool failClosed=scenario=="warm-bad-context"||scenario=="warm-bad-context-reset"||scenario=="warm-flash-missing"||scenario=="warm-flash-corrupt";
   const uint32_t failPc=std::getenv("DH_FAIL_PC")?std::stoul(std::getenv("DH_FAIL_PC"),nullptr,0):0;
   if(failClosed&&!failPc)throw std::runtime_error("missing authenticated fail PC");
@@ -193,6 +194,24 @@ int main(int argc,char**argv) {
    }
   };
   for(unsigned n=0;n<15000;n++)tick();d.model_supplyMv=3300;
+  if(interrupted) {
+   if(!failPc||expectedLite.size()<32)throw std::runtime_error("reset-copy fixture/PC missing");
+   const bool writing=scenario=="reset-copy";
+   while(ticks<96000000 && !(d.transfer_ramReq && d.transfer_write==writing && d.transfer_address==0x30000010))tick();
+   if(ticks>=96000000||app||recovery||release)throw std::runtime_error("reset did not reach in-flight image transfer");
+   d.externalReset_n=0;for(unsigned n=0;n<12000;n++)tick();d.externalReset_n=1;
+   const uint64_t deadline=ticks+96000000;
+   while(ticks<deadline&&!failedClosed)tick();
+   if(boots!=2||!failedClosed||app||recovery||release||!d.liteHeld||d.liteClientUp||d.liteStart)
+    throw std::runtime_error("incomplete-context warm reset escaped fail-closed boot");
+   const auto reads=nor.reads;
+   for(unsigned n=0;n<400000;n++)tick();
+   if(boots!=2||!failedClosed||app||recovery||release||nor.reads!=reads||!d.liteHeld||d.liteClientUp||d.liteStart)
+    throw std::runtime_error("interrupted load did not remain fail closed");
+   std::cout<<"{\"status\":\"pass\",\"scenario\":\""<<scenario<<"\",\"rom_entries\":"<<boots
+     <<",\"inflight_reset\":true,\"fail_closed\":true,\"persistence_quanta\":400000}\n";
+   return 0;
+  }
   auto complete=[&](){return warm?(failedClosed||app==0xe2||app==0xee):bool(app||recovery);};
   const uint64_t bootDeadline=scenario=="warm-dma-stall"?UINT64_C(288000000):UINT64_C(96000000);
   while(ticks<bootDeadline&&!complete())tick();

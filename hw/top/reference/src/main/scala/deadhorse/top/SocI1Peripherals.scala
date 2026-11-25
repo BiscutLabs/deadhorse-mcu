@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import deadhorse.lib._
 import deadhorse.bus.{BusFabric,BusRegion}
-import deadhorse.bus_bridge.{BusBridge,DirectionPermit}
+import deadhorse.bus_bridge.{BusBridge,DirectionPermit,LocalPermit}
 import deadhorse.mailbox.Mailbox
 import deadhorse.uart.{Uart,UartWake}
 import deadhorse.osc_ctrl.{OscCtrl,OscSleepTransfer}
@@ -231,11 +231,10 @@ class SocI1Peripherals(description: SocDescription, config: SocI1Config,
   val toAon=Module(new BusBridge(qualifiedResets=true))
   toAon.sourceClock:=mainClock;toAon.targetClock:=pins.aonClock
   toAon.sourceReset_n:=mainUp;toAon.targetReset_n:=aonUp
-  val permits=Module(new DirectionPermit(qualifiedResets=true))
-  permits.aonClock:=pins.aonClock;permits.mainClock:=mainClock
-  permits.aonReset_n:=aonUp;permits.mainReset_n:=mainUp
-  permits.requestAon:=false.B;permits.requestMain:=toAon.permitRequest
-  toAon.permit:=permits.permitMain
+  val permits=Module(new LocalPermit)
+  permits.clk:=mainClock;permits.reset_n:=mainUp
+  permits.request:=toAon.permitRequest
+  toAon.permit:=permits.permit
   ingress(af.master(1),toAon.target,Seq("retained_sram","power_reset_timer","future_bridge"),None)
   def remote(f: BusFabric,names: Seq[String],remoteNames: Seq[String],bridge: BusBridge,clock: Clock,reset: Bool): Unit = {
     val indices=remoteNames.map(names.indexOf);require(indices.forall(_>=0))
