@@ -3,7 +3,7 @@ import copy
 from pathlib import Path
 import tempfile
 import unittest
-from usb_cells import qualify
+from usb_cells import qualify, signature
 from usb_graph import equivalent
 from test_usb_graph import model, SC
 
@@ -14,6 +14,17 @@ pin (Q) { direction : output; function : "IQ1"; }'''
 
 
 class CellsTests(unittest.TestCase):
+    def test_negative_edge_signature_keeps_phase_and_state(self):
+        falling = FF.replace('CLK', 'CLKN').replace('clocked_on : "CLKN"', 'clocked_on : "!CLKN"')
+        parsed = signature(falling)
+        self.assertIn('CLKN', parsed['pins'])
+        self.assertNotEqual(parsed, signature(falling.replace('"!CLKN"', '"CLKN"')))
+        self.assertNotEqual(parsed, signature(falling.replace('next_state : "D"', 'next_state : "!D"')))
+        for bad in (falling[falling.index('pin (CLKN)'):],
+                    falling + ' pin (CLK) { direction : input; clock : true; }'):
+            with self.assertRaises(ValueError):
+                signature(bad)
+
     def check(self, body=FF, mutation=None):
         a=model();b=copy.deepcopy(a);b['cells']['f0']['type']=SC+'dffrnq_4'
         manifest={'f0':dict(old=SC+'dffrnq_1',new=SC+'dffrnq_4')}

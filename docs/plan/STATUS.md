@@ -1,6 +1,6 @@
 # Status
 
-Single progress tracker. Last updated: 2026-11-25
+Single progress tracker. Last updated: 2026-11-26
 States: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` complete,
 `[-]` withdrawn.
 Decision checks record the user's approvals, not implementation completion.
@@ -122,6 +122,7 @@ Details: [10-decisions-and-risks.md](10-decisions-and-risks.md).
 | [x] | D109 | T43 fd_io pads and current SRAM inventory | User-approved2026-11-25; common3.3V supply, sixteen1024x8 plus four512x8; no capacity change or electrical/physical acceptance |
 | [x] | D110 | T43 local-drive readback while driving pads | User-approved2026-11-25; legal fd_io IE/OE controls; released pins sample external level, driven pins read local value; pad tests and USB electrical qualification remain |
 | [x] | D111 | Compact LF/POR physical implementation | User-approved2026-11-25; extends T43 to implement missing physical macros, seek practical minimum area, finish checks and merge to main; no contract or qualification waiver |
+| [x] | D112 | T38 basic layout/fit before T37 | User-approved 2026-11-26; follow-up narrows this run to basic placed fit and already-completed CTS. Routing, DRC, production-GDS qualification and aggregate CI deferred; no limit or signoff waiver |
 
 ## Tasks
 
@@ -175,7 +176,7 @@ changes before T38 acceptance. No integration-stage exit is claimed.
 | [x] | T35 | [SRAM macros and BIST](tasks/T35-sram-bist.md) | Codex | T32/T33 implementation with recorded deferrals; coordinate T36; D90 | [Scoped completion](tasks/reports/T35.md): production macros/BIST, 43 relevant Scala tests, four TAP scenarios and unchanged flight cycles; two proofs deferred, physical signoff open; no CI under D90 |
 | [x] | T36 | [Production boot ROM firmware](tasks/T36-boot-rom.md) | Codex | PLAN05 Phase2; D91-D101/D104 | [Report](tasks/reports/T36.md):5 metadata tests,7 formal jobs,12 native tests/3 faults and36 wire cases pass with D104 maximum-image load exception296.923125ms; watcher170.891875ms. Final ROM timing/area pass; Phase3 fast passes all 33 commands in measured 3869.903314s, 12 inherited deferrals; full tier unrun |
 | [ ] | T37 | [Test mode and scan](tasks/T37-test-scan.md) | unassigned | T35/T36; coordinate T38 | Brief prepared by PLAN03; implementation and acceptance unverified |
-| [ ] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | unassigned | T35/T36/T43; T34 interfaces; T39 qualification; coordinate T37 | Brief prepared; physical acceptance requires current core/SoC evidence after memory/boot/scan changes; implementation and acceptance unverified |
+| [!] | T38 | [Chip top and pad ring](tasks/T38-chip-top-pads.md) | Codex | D112 basic fit; T35/T36/T43 | [Basic fit complete](tasks/reports/T38.md): production placement/CTS fits the 12.901981 mm2 core; zero placement violations, complete macro inventory and graph/clock audits pass. Full T38 remains deferred: scan, routing, timing closure, DRC and signoff. No aggregate CI |
 | [x] | T39 | [Focused core and SoC regression](tasks/T39-core-soc-qualification.md) | Codex | D89; existing T13/T25 cores and T20/T32–T34 integration; proof debt retained | [Report](tasks/reports/T39.md): scoped regressions and all 34 fast commands pass; twelve inherited T14/T17 deferrals remain unproved. Independent evidence/documentation review accepted; no RTL changes. Broader qualification deferred; full tier not run |
 | [x] | T40 | [DMA circular UART RX](tasks/T40-dma-circular-uart-rx.md) | Codex | D102; completed PLAN05 and T41; T23 proof debt retained | Scoped implementation complete: frozen19 DMA/SoC tests, driver/map checks, all four simulation faults, timing and area pass. Measured added0.003462mm2 below0.010 cap. Circular formal closure/reload-fault proof deferred at caps; finite range bounded36, inherited unbounded debt remains. No aggregate CI. [Report](tasks/reports/T40.md) |
 | [x] | T41 | [Reset consolidation](tasks/T41-reset-consolidation.md) | Codex | D103; completed PLAN05/T36; T33/T34/T32 interfaces | Scoped completion under D103/D106/D107, independently reviewed. Four cohorts, paired-image warm ROM and relevant reset/boot/sleep/debug checks pass. Measured release instances 89→30 and reset controls 150→59; mapped setup passes with approved USB warning, estimated headroom 1.586 mm². Lite initialization/SRAM ownership proofs deferred at caps; shared startup/shutdown and qualified DMI composition remain open. Physical hold/RDC/reset-removal deferred; no aggregate CI. [Receipt](tasks/reports/T41.md) |
@@ -295,6 +296,9 @@ production verification debt. T31 is withdrawn rather than deferred work.
 - [ ] Bring-up, production test/calibration, characterization and flight validation
 
 ## Log
+
+- 2026-11-26 Codex: D112 follow-up narrows T38 to basic layout/fit, deferring routing/DRC and production GDS. Placement and CTS completed; measured logic/buffer area 5.113576 mm2, SRAM 2.874559 mm2, analog 0.214969 mm2 and taps 0.301862 mm2 inside the measured 12.901981 mm2 core. Zero placement violations; original graph/library and both-mode clock/USB-pair checks pass. Layout image and receipts under build/t38/fit03; full T38 remains open, no aggregate CI.
+- 2026-11-26 Codex: D112 starts T38 on main before T37 for pre-scan physical measurements. Reuse T43 actual macro/pad views and the authenticated production mapped graph; replace template-only clocks with production constraints. Focused graph/constraint checks only, no aggregate CI; scan, broad verification and complete signoff remain open.
 
 - 2026-11-25 Codex: Completed T43 scoped acceptance under D111. Compact actual LF/POR generators, selected DRC/LVS, complete20SRAM+2analog fit, connectedVDD/VSS PDN and semantic power-overlap negatives pass; fresh four-case pad ROM boot/reset passes. Independent review verifies source/artifact binding and approves publication/merge. Estimated T35 headroom1.6044838321mm2 after measured analog footprints. Full RC/POR composition/PVT/trim and T38 signoff remain explicit debt; no aggregate CI or global placement.
 

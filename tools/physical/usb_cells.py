@@ -40,7 +40,8 @@ def signature(body):
             raise ValueError('Output function missing')
         pins[name] = values
     ff = [(re.sub(r'\s+', '', name), re.sub(r'\s+', '', value)) for name, value in groups(body, 'ff')]
-    if not pins or len(ff) > 1 or ('CLK' in pins) != bool(ff):
+    clock_pins = set(pins) & {'CLK', 'CLKN'}
+    if not pins or len(ff) > 1 or len(clock_pins) > 1 or bool(clock_pins) != bool(ff):
         raise ValueError('Missing/ambiguous sequential semantics')
     return dict(pins=pins, ff=ff)
 

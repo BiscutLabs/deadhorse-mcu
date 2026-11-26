@@ -1,5 +1,34 @@
 # 08 Physical implementation and verification
 
+## T38 basic placed-fit data (D112)
+
+The user's 2026-11-26 follow-up limits this run to basic layout/fit before T37.
+Measured on production source `feef6040a013c15bec4ed666085982da1a359250` plus
+receipt-hashed T38 tooling by `tools/physical/chip.py` (cts02),
+`chip_inspect.py` (inspect-cts03) and `chip_fit.py` (fit03); exact commands and
+evidence are in the [T38 report](tasks/reports/T38.md).
+
+| Measured item | Area mm2 |
+| --- | ---: |
+| Placed logic, physical buffers and ties after CTS | 5.113575712 |
+| Core taps/endcaps | 0.301861952 |
+| Sixteen main and four retained SRAM macros | 2.874558676 |
+| LF RC and POR macros | 0.214968802 |
+| Sum of footprints clipped to the core | 8.504965142 |
+| Actual core rectangle | 12.901980672 |
+
+Placement reports zero violations; every logic/memory/analog instance is placed
+inside the core. Original circuit connections and both AON-mode clock/USB-pair
+audits pass. The estimated geometric remainder is 4.397015530 mm2, calculated
+as core rectangle minus summed footprints. It includes routing/keepout space
+and is **not** expansion or post-scan headroom. Estimated available-core
+utilization is 55.19% from (logic+taps)/(core-SRAM-analog), not measured row/site
+utilization. IO pads and artwork are outside this core sum.
+
+Routing, extracted timing, DRC/LVS, scan fit and signoff are deferred. The older
+T35 budget below remains a planning estimate requiring scan-inclusive physical
+reconciliation; its headroom is not a routed result. No memory growth is approved.
+
 ## T43 measured analog footprints and physical smoke
 
 Measured on `b99f754` plus receipt-hashed D111 sources by
