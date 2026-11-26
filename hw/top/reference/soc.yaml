@@ -573,6 +573,21 @@ aon_io:
     reset: warm
     owner: lite
     regmap: hw/ip/aon_gpio/aon_gpio.regmap.yaml
+manufacturing_test:
+  contract: docs/spec/t37-test-access.md
+  entry_key: 0xD37A6C95
+  entry_bits: 32
+  clock: jtag_tck
+  commit_edge: falling
+  requires_por_bypass: true
+  requires_external_aon: true
+  scan_clock: osc_in
+  scan_enable: uart_rx2
+  scan_reset_n: uart_rx1
+  scan_inputs: [gpio0, gpio1, gpio2, timer0, timer1, timer2, timer3]
+  scan_outputs: [uart_tx0, uart_tx1, uart_tx2, actuator0, actuator1, actuator2, actuator3]
+  acknowledgement: jtag_tdo
+  exit: external_reset
 pad_mux:
   aon_gpio:
   - gpio0

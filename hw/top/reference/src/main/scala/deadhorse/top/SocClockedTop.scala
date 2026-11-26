@@ -36,6 +36,19 @@ class DeadhorseSoc(config: String,uartJson: String,romImage: String,
   val oscIn=IO(Input(Clock()));val oscEn=IO(Output(Bool()))
   val aonClockIn=IO(Input(Clock()));val aonClockSelect=IO(Input(Bool()));val porBypass=IO(Input(Bool()))
   val externalReset_n=IO(Input(Bool()));val pins=IO(new SocPhysicalPins)
+  val testAccess=Module(new SocTestAccess)
+  testAccess.tck:=pins.inactive.jtagTck.asClock
+  testAccess.tms:=pins.inactive.jtagTms;testAccess.tdi:=pins.inactive.jtagTdi
+  testAccess.porBypass:=porBypass;testAccess.aonClockSelect:=aonClockSelect
+  testAccess.scanReset_n:=pins.uartRx(1)
+  val testPads=Module(new SocTestPads)
+  val scanHooks=Module(new SocScanHooks(gateTarget))
+  testPads.pins<>pins;testPads.testMode:=testAccess.testMode;testPads.scanOut:=scanHooks.out
+  val corePins=Wire(new SocPhysicalPins)
+  testPads.functional<>corePins
+  // Stable named bindings for reviewed physical insertion. No package ports.
+  val scanEnable=WireDefault(pins.uartRx(2));val scanReset_n=WireDefault(pins.uartRx(1))
+  dontTouch(scanEnable);dontTouch(scanReset_n);dontTouch(testPads.scanIn);dontTouch(testAccess.testMode)
   val status=IO(Output(new SocClockStatus))
   val model=if(analogModels) Some(IO(new SocAnalogSimulation)) else None
   val vdd=if(!analogModels) Some(IO(Analog(1.W))) else None
@@ -56,6 +69,9 @@ class DeadhorseSoc(config: String,uartJson: String,romImage: String,
     por.io.threshold:=threshold;por.io.test:=false.B;supplyReset:=por.io.supplyReset_n;brownout:=por.io.brownout
   }
   val clocks=Module(new OscClockReset(gateTarget,consolidated=true))
+  // Normal POR must initialize the unscanned controller even if the external
+  // pin is never asserted. In the required bypass test setup, cold==pin.
+  testAccess.externalReset_n:=externalReset_n && clocks.coldReset_n
   clocks.oscIn:=oscIn;clocks.rcClock:=rc;clocks.aonClockIn:=aonClockIn
   clocks.externalReset_n:=externalReset_n;clocks.supplyReset_n:=supplyReset
   clocks.aonClockSelect:=aonClockSelect;clocks.porBypass:=porBypass
@@ -84,24 +100,26 @@ class DeadhorseSoc(config: String,uartJson: String,romImage: String,
   p.clockControl.stable:=clocks.stable;p.clockControl.closed:=clocks.closed
   // T32 supplies the actual pending-TCK wake in the digital assembly.
   p.clockControl.jtagWake:=false.B
-  clocks.oscillatorOn:=p.clockControl.oscillatorOn;oscEn:=p.clockControl.oscillatorOn
+  clocks.oscillatorOn:=p.clockControl.oscillatorOn;oscEn:=Mux(testAccess.testMode,true.B,p.clockControl.oscillatorOn)
   clocks.gateRequest:=p.clockControl.gateRequest;clocks.authorized:=p.clockControl.authorized
   clocks.qualify:=p.clockControl.qualify;clocks.count:=p.clockControl.count
   clocks.localHold:=digital.clockHold;clocks.coreIdle:=digital.coreReady && digital.coreSleeping
   // The real lite core owns this interface. External bus injection is absent.
   p.lite.req:=false.B;p.lite.bits:=0.U.asTypeOf(p.lite.bits)
   p.liteHalted:=false.B;p.crashCount:=0.U;p.spiTimeNow:=0.U
+  // Physical DFT isolation clamps the analog socket in test mode; preserve
+  // the qualified directly registered functional endpoint before insertion.
   threshold:=p.clockControl.threshold
-  p.inactive<>pins.inactive
-  p.aonExtraIn:=pins.aonExtraIn;pins.aonExtraOut:=p.aonExtraOut;pins.aonExtraEnable:=p.aonExtraEnable
-  digital.uartRx:=pins.uartRx(0);pins.uartTx(0):=digital.uartTx;pins.uartTxEnable(0):=digital.uartTxEnable
-  for(i<-0 until 2) {p.uartRx(i):=pins.uartRx(i+1);pins.uartTx(i+1):=p.uartTx(i);pins.uartTxEnable(i+1):=p.uartTxEnable(i)}
-  p.spiMiso:=pins.spiMiso;pins.spiSclk:=p.spiSclk;pins.spiMosi:=p.spiMosi
-  pins.spiCs_n:=p.spiCs_n;pins.spiEnable:=p.spiEnable
-  p.i2cSclIn:=pins.i2cSclIn;p.i2cSdaIn:=pins.i2cSdaIn
-  pins.i2cSclLow:=p.i2cSclLow;pins.i2cSdaLow:=p.i2cSdaLow;pins.i2cEnable:=p.i2cEnable
-  p.usbVbus:=pins.usbVbus;p.usbDpRx:=pins.usbDpRx;p.usbDnRx:=pins.usbDnRx
-  pins.usbDpTx:=p.usbDpTx;pins.usbDnTx:=p.usbDnTx;pins.usbTxEnable:=p.usbTxEnable;pins.usbPullup:=p.usbPullup
+  p.inactive<>corePins.inactive
+  p.aonExtraIn:=corePins.aonExtraIn;corePins.aonExtraOut:=p.aonExtraOut;corePins.aonExtraEnable:=p.aonExtraEnable
+  digital.uartRx:=corePins.uartRx(0);corePins.uartTx(0):=digital.uartTx;corePins.uartTxEnable(0):=digital.uartTxEnable
+  for(i<-0 until 2) {p.uartRx(i):=corePins.uartRx(i+1);corePins.uartTx(i+1):=p.uartTx(i);corePins.uartTxEnable(i+1):=p.uartTxEnable(i)}
+  p.spiMiso:=corePins.spiMiso;corePins.spiSclk:=p.spiSclk;corePins.spiMosi:=p.spiMosi
+  corePins.spiCs_n:=p.spiCs_n;corePins.spiEnable:=p.spiEnable
+  p.i2cSclIn:=corePins.i2cSclIn;p.i2cSdaIn:=corePins.i2cSdaIn
+  corePins.i2cSclLow:=p.i2cSclLow;corePins.i2cSdaLow:=p.i2cSdaLow;corePins.i2cEnable:=p.i2cEnable
+  p.usbVbus:=corePins.usbVbus;p.usbDpRx:=corePins.usbDpRx;p.usbDnRx:=corePins.usbDnRx
+  corePins.usbDpTx:=p.usbDpTx;corePins.usbDnTx:=p.usbDnTx;corePins.usbTxEnable:=p.usbTxEnable;corePins.usbPullup:=p.usbPullup
   status.aonReleased:=clocks.aonReset_n;status.servicesReleased:=clocks.serviceReset_n
   status.mainLevel:=clocks.mainClock.asBool;status.sourceStable:=clocks.stable;status.fault:=p.clockControl.fault
   status.coreReady:=digital.coreReady;status.coreSleeping:=digital.coreSleeping

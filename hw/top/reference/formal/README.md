@@ -115,3 +115,33 @@ and result artifacts are bound by receipt hashes. No previous receipt is reused.
 Neither eventual peripheral completion nor downstream responder correctness
 is proved. Unresponsive MMIO may block a reset epoch until the fabric's existing
 watchdog returns or a common service reset occurs.
+
+## T37 manufacturing access and pad ownership
+
+`check_test_access.py` proves the standalone controller's public mode output
+at positive TCK against an independent full-word serial-key oracle. Initial
+external reset is assumed asserted; thereafter clock, reset and all inputs are
+arbitrary. The two-edge release and falling-edge mode state use the production
+shared ResetRelease. Simulation separately checks the exact half-edge commit.
+`build/t37/access-formal02/result.json` records ABC PDR PASS, accepted/rejected
+entry covers, and actual early-entry/wrong-key RTL mutants rejected at the public
+assertion. No timeout or relaxed property. Production reset additionally includes
+raw cold reset so normal POR initializes access without an external pin pulse.
+
+`check_test_pads.py` proves functional-mode bidirectional transparency and the
+reviewed persistent test-mode pad ownership under arbitrary symbolic values,
+with no assumptions. `build/t37/pads-formal03/result.json` records PDR PASS,
+test-mode cover and an actual enabled-USB-drive mutant rejected. Source hashes
+include the final production bundle definitions.
+
+`tools/physical/test_wiring.py` re-imports authenticated before/after production
+emissions with the pinned Yosys. It matches original child state/logic and initial
+values, preserving blackbox identities. Shared arbitrary child outputs then
+form a top-wiring miter under the explicit functional-mode condition
+`testAccess.testMode=0`. `build/t37/wiring03/result.json` records matching 421
+child-module pairs and all 223 wiring equivalence points proved, with changed
+child-D and top-reset negative controls. This is a composition argument for
+the logical access integration, not post-scan equivalence.
+
+Physical scan stitching, clock/reset bypass, SRAM/analog isolation, serialized
+capture/replay and post-insertion equivalence remain separate T37 obligations.

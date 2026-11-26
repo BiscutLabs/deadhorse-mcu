@@ -14,6 +14,10 @@ low. UART1_RX (test reset, active low) is held low. The external reset initializ
 the access controller; release it while both functional clock inputs remain
 stopped. The existing bootstrap cannot release functional consumers without
 AON/source edges. This mode needs neither firmware nor a working analog macro.
+Outside bypass mode, on-die cold reset also clears the controller; a normal
+POR boot must not rely on the board ever asserting the external reset pin.
+Its production reset input is `externalReset_n && coldReset_n`, which reduces
+to external reset alone in the required manufacturing setup.
 
 The controller uses the shared two-edge ResetRelease on positive TCK. After
 the two release edges, the next 32 positive TCK edges constitute the sole key

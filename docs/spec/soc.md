@@ -8,6 +8,15 @@ claimed by this map. Q15 remains main8MHz from external48MHz divided by six.
 
 ## Assembly and ownership
 
+T37 adds manufacturing access through existing shared pins, specified in
+[the test-access contract](t37-test-access.md) and `soc.yaml`. The finite
+TCK-key controller owns a persistent test mode and the reviewed safe pad mux;
+normal mode is transparent. Physical scan insertion binds the named scan-out
+buffer inputs, sequential clock/reset bypasses, and SRAM isolation. Those
+physical bindings and scan qualification remain pending; logical RTL simulation
+alone does not implement or validate the physical scan chains. No new package
+pins or functional reset cohorts are introduced.
+
 Performance is the single boot master: faithful Chisel RV32IMFC with shared
 MAC, one main ROM, local banked16KiB SRAM and QSPI XIP. Main fabric binds three
 UARTs, SPI, I2C, USB, GPIO/pinmux, unified general timers and DMA. Main serial

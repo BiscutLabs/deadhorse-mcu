@@ -46,7 +46,14 @@ def name(value):
 
 
 def validate(data):
-    keys(data, ('schema', 'name', 'clocks', 'resets', 'masters', 'regions', 'interrupts', 'pins', 'pin_budget', 'groups', 'fabrics', 'flight_io', 'general_timers', 'aon_io', 'lite_interrupts', 'pad_mux', 'retained_layout', 'dma', 'pinmux', 'watchdog', 'boot_control', 'osc_ctrl', 'power_reset', 'qspi', 'qspi_xip', 'sram'))
+    keys(data, ('schema', 'name', 'clocks', 'resets', 'masters', 'regions', 'interrupts', 'pins', 'pin_budget', 'groups', 'fabrics', 'flight_io', 'general_timers', 'aon_io', 'lite_interrupts', 'pad_mux', 'retained_layout', 'dma', 'pinmux', 'watchdog', 'boot_control', 'osc_ctrl', 'power_reset', 'qspi', 'qspi_xip', 'sram', 'manufacturing_test'))
+    check(data['manufacturing_test'] == dict(contract='docs/spec/t37-test-access.md',
+        entry_key=0xD37A6C95, entry_bits=32, clock='jtag_tck', commit_edge='falling',
+        requires_por_bypass=True, requires_external_aon=True, scan_clock='osc_in',
+        scan_enable='uart_rx2', scan_reset_n='uart_rx1',
+        scan_inputs=['gpio0','gpio1','gpio2','timer0','timer1','timer2','timer3'],
+        scan_outputs=['uart_tx0','uart_tx1','uart_tx2','actuator0','actuator1','actuator2','actuator3'],
+        acknowledgement='jtag_tdo', exit='external_reset'), 'Manufacturing pin contract differs from reviewed T37 access')
     check(data['sram'] == dict(lock='hw/vendor/gf180_sram/gf180_sram.lock.json',
         performance_sram=dict(macro='gf180mcu_ocd_ip_sram__sram1024x8m8wm1',banks=4, lanes=4, rows=1024, accessible_words=4096),
         retained_sram=dict(macro='gf180mcu_ocd_ip_sram__sram512x8m8wm1',banks=1, lanes=4, rows=512, accessible_words=512),

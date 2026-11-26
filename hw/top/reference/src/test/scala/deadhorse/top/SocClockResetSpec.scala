@@ -61,6 +61,40 @@ class SocClockResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
     p.qspiDqIn.poke(0.U);p.jtagTck.poke(false.B);p.jtagTms.poke(true.B);p.jtagTdi.poke(false.B)
     p.imuDrdy.poke(false.B);p.gpioIn.poke(0.U);p.timerIn.poke(0.U)
   }
+  test("manufacturing entry uses stopped functional clocks and exits through reset") {
+    simulateRaw(design,settings=settings,firtoolOpts=gate) {d=>
+      pins(d);d.porBypass.poke(true.B);d.aonClockSelect.poke(true.B)
+      d.externalReset_n.poke(false.B);d.pins.uartRx(1).poke(false.B)
+      d.model.get.supplyMv.poke(3300.U);d.model.get.porReference.step(3)
+      val p=d.pins.inactive
+      def tap(bit: Boolean): Unit={
+        p.jtagTck.poke(false.B);p.jtagTdi.poke(bit.B);p.jtagTdoEnable.peek()
+        p.jtagTck.poke(true.B);p.jtagTdoEnable.peek()
+        p.jtagTck.poke(false.B);p.jtagTdoEnable.peek()
+      }
+      for(_<-0 until 3) tap(false)
+      d.externalReset_n.poke(true.B);for(_<-0 until 2) tap(false)
+      val bits="11010011011110100110110010010101"
+      for((bit,index)<-bits.zipWithIndex) {
+        tap(bit=='1');p.jtagTdoEnable.expect((index==31).B,"PRODUCTION_TEST_ENTRY")
+      }
+      p.jtagTdo.expect(true.B)
+      for(shift<-Seq(false,true,false)) {
+        d.pins.uartRx(2).poke(shift.B);d.pins.uartRx(1).poke(shift.B)
+        p.jtagTdo.expect(true.B);p.jtagTdoEnable.expect(true.B)
+        d.oscEn.expect(true.B);d.status.aonReleased.expect(false.B);d.status.servicesReleased.expect(false.B)
+        d.pins.usbTxEnable.expect(false.B);d.pins.usbPullup.expect(false.B)
+        d.pins.spiEnable.expect(false.B);d.pins.i2cEnable.expect(false.B)
+        p.qspiCsEnable.expect(0.U);p.qspiDqEnable.expect(0.U)
+        p.gpioEnable.expect(0.U);p.timerEnable.expect(0.U)
+        p.actuatorEnable.expect(15.U);p.actuatorOut.expect(0.U)
+        d.pins.uartTxEnable.foreach(_.expect(true.B));d.pins.uartTx.foreach(_.expect(false.B))
+      }
+      d.pins.uartRx(1).poke(false.B);d.externalReset_n.poke(false.B)
+      p.jtagTdoEnable.expect(false.B);p.actuatorEnable.expect(0.U)
+      d.pins.uartTxEnable.foreach(_.expect(false.B))
+    }
+  }
   for(external<-Seq(false,true);bypass<-Seq(false,true)) test(s"production POR boot AON external=$external bypass=$bypass") {
     simulateRaw(design,settings=settings,firtoolOpts=gate) {d=>
       pins(d);d.porBypass.poke(bypass.B);d.aonClockSelect.poke(external.B)
@@ -71,6 +105,7 @@ class SocClockResetSpec extends AnyFunSuite with ChiselSim with SocDebugLintConf
         d.oscIn.step(1500);m.porReference.step(31);aon(1)
       }
       tick(4);d.oscEn.expect(true.B);d.status.aonReleased.expect(false.B)
+      d.pins.inactive.jtagTdoEnable.expect(false.B,"POR_MUST_INITIALIZE_TEST_MODE")
       // One normal case uses a slow ramp; the others jump to valid supply.
       if(!external && !bypass) for(mv<-100 to 3190 by 10) {
         m.supplyMv.poke(mv.U);m.porReference.step(1);d.status.aonReleased.expect(false.B)
