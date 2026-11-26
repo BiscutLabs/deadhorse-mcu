@@ -1,8 +1,11 @@
 # T37 ATPG tool prerequisite
 
-Status: proposed, not adopted. User assigned T37 on 2026-11-26 with minimal
-relevant tests/proofs and no aggregate CI. The brief explicitly stops for
-unavailable pinned ATPG/insertion capability.
+Status: approved for pinned Quaigh build and scoped qualification under the
+user's 2026-11-26 conditional approval after researching alternatives. The
+[research](t37-scan-research.md) found no better-supported drop-in option;
+independent review agrees. A small combinational interface pilot passes;
+production scan qualification is still open. Minimal relevant tests/proofs,
+no aggregate CI. Historical preflight findings below explain the original stop.
 
 ## Finding
 
@@ -20,8 +23,9 @@ Measured availability probes at production commit
   process status zero. ABC's `faultclasses` computes fault equivalence
   classes; its help does not supply a pattern-generation/replay flow.
 
-No RTL, pad assignment, tool pin, reset, functional behavior or coverage
-acceptance has changed. No numerical S4 coverage floor is specified in the
+At the initial stop no RTL, pad assignment, tool pin, reset, functional behavior
+or coverage acceptance had changed. Quaigh is now pinned separately; the
+physical-flow pins and production RTL remain unchanged. No numerical S4 coverage floor is specified in the
 current S4 brief; achieved coverage and all exclusions still have to be reported.
 
 ## Proposed narrow adoption
@@ -75,4 +79,7 @@ this chip has SRAM and analog macros and explicit test-clock obligations.
 - [Difetto limitations](https://github.com/donn/difetto).
 
 Candidate revisions were observed with `git ls-remote <source-url> HEAD` on
-2026-11-26. They are proposals, not additions to the repository's tool locks.
+2026-11-26. Quaigh is now recorded in `tools/physical/atpg.lock.json`;
+Fault remains an unadopted alternative. The standalone `nl2bench` converter
+can be evaluated without installing Fault. Full physical scan qualification
+from step 4 remains open after the initial combinational tool pilot.

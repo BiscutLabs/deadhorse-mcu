@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "name": "quaigh",
+  "version": "0.0.6",
+  "source": "https://github.com/Coloquinte/quaigh.git",
+  "revision": "5b47ca63608d516efc3f225758635df689be70c5",
+  "git_archive_sha256": "9cc75b0dd61a039fa8535749dd446cfac0a7e19daa1ef884522bf3f425a396b3",
+  "files": {
+    "Cargo.lock": "c77805fabf15750ef3e5ef0fe42315bf3418bc8aaa9b340c92d8236d44f69497",
+    "Cargo.toml": "acfd13190838367401fbe23e5ff9ac6c24b48db6abd354c7c21cc64f3f3c2bde",
+    "flake.lock": "2b778a0429e4b1af356bcc0cb8cc43d4ff581737f31ade0f91696c635278a26e",
+    "flake.nix": "707dda14cdd3d06e302bc4b45c11071e0ae18836a12b2a427f37158cc248431b",
+    "LICENSE-MIT": "36516aefdc84c5d5a1e7485425913a22dbda69eb1930c5e84d6ae4972b5194b9",
+    "LICENSE-APACHE": "20fe7b00e904ed690e3b9fd6073784d3fc428141dbd10b81c01fd143d0797f58"
+  },
+  "license": "MIT OR Apache-2.0",
+  "qualification": "tool pilot only; not production scan acceptance",
+  "build": "Use the upstream flake.lock without updates; separate ATPG environment, no physical-flow pin changes"
+}
