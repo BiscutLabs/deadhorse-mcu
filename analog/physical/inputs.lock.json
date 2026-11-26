@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "pdk_revision": "792ef67037d74c8c51811eab3ce23cf793491296",
+  "primitive_archive": {
+    "url": "https://github.com/fossi-foundation/ciel-releases/releases/download/gf180mcu-792ef67037d74c8c51811eab3ce23cf793491296/gf180mcu_fd_pr.tar.zst",
+    "sha256": "f138d577baf9c2626da7a4afcc9287f41357bafbf7af68177b1c84119c5218f8"
+  },
+  "magic_source_commit": "3f1747b1fb915358414da70659b82cecb0314be2",
+  "template_environment_lock": "phys/gf180-ws-1x1/template.lock.json",
+  "original_tech_sha256": "c4a5f4f0846e11cfcb6f2c2f9a4331682392d4136c8deccaae08da261487e282",
+  "patched_tech_sha256": "019e54acac500b3df548000f91dae4c6d46419ecf86138acae7233cdffd6728f",
+  "primitive_mag_sha256": {
+    "pnp_05p00x00p42": "e230afafb002990da6bb7e2c092341f9a5cf2616bc19d325bb9bfa62606df8db",
+    "pnp_10p00x00p42": "2af89082acc2033020c31a162497997fca75c50f266492c8836b8f884c3f366b",
+    "pnp_05p00x05p00": "d60e517add3c86af3e7fd176e4cb0cb3c1892b5fe2e92763aa95d091ed10c810",
+    "pnp_10p00x10p00": "cedf2b1e0c66b4b809b4b94b8f0cf1091c54002fb127687f1596fb03a82469a4"
+  },
+  "magic_executable_sha256": "86af5ce19c49e8761da295f803965c9c3fe049f321069358cace738d49578785",
+  "magic_store_path": "/nix/store/7ar043dk92xygs16rwqivrzv8s467rg0-magic-vlsi-8.3.677",
+  "magic_output_tree_sha256": "c1f046706e201997b2ae19616419cfc82099c5f1999119392293224b91bfadd8",
+  "initialization_sha256": {
+    "gf180mcuD.magicrc": "d97263cbf6103a3da73c870e0430bb8d94e5d726bca7e3b354cd5b2ec2175cfb",
+    "gf180mcuD.tcl": "586cf3090ce2d65e703ffbf46489f41af23ca89bf5f382acfc3db095b30da25b"
+  },
+  "riscay_source": {
+    "revision": "4671317186003740ceb61360ba08c59bbdf10136",
+    "files": {
+      "analog/gf180-lf-osc/design.py": "cafebedcdc0ee1f5d437a8aa4d14596fc78dd881683b77dcbbd6ef3e10ec26bb",
+      "analog/gf180-clock-reset/circuits.py": "20595de80816ac5eb010c7808866079f310302304355101455ba81ce73c2537d"
+    }
+  }
+}

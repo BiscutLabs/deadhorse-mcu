@@ -1,8 +1,10 @@
 # gf180-ws-1x1
 
-GF180MCU wafer.space physical base. D110 approves driven-pad readback; logical
-binding and scoped checks are in progress. Complete physical qualification is
-blocked by missing LF/POR physical views, not replaced by area allowances.
+GF180MCU wafer.space physical base. D110 supplies the pad-readback contract;
+D111 supplies actual compact LF/POR layouts. Scoped logical/pad boot and
+pre-global-placement floorplan/padring/PDN checks pass. Complete analog and
+chip electrical/physical signoff remains separate; area allowances never
+substitute for real macro geometry.
 
 `template.lock.json` pins the official Apache-2.0 template, selected files and
 complete Nix dependency locks. `prepare_template.py` authenticates canonical Git
@@ -42,7 +44,13 @@ remain in the production core. No debug/test input is tied off at this boundary.
 core socket and records input/output hashes and adaptations. Its simulation
 option exposes the existing named analog-model stimulus through fixture-only
 ports; those ports are absent from production. See [patch list](patches/README.md).
-The copied physical config is not yet a complete Deadhorse flow configuration.
+`prepare_fit.py` combines that copy with the current SRAM inventory, explicit
+3.3V libraries and actual D111 analog views. The completed physical smoke is
+limited to synthesis, floorplan, pad ring and PDN; global placement stays T38.
+`check_fit_checkpoint.py` authenticates reuse of the completed synthesis state
+and unchanged logical inputs when refreshing physical abstracts. The exact
+four-pin analog supply-alias binding and local PDN adaptation are recorded in
+the patch list. All physical artifacts remain under build.
 
 Scoped pad checks live in `dv/`. The Boolean proof is exhaustive and has no
 assumptions; the four-state test exercises the original foundry model, including

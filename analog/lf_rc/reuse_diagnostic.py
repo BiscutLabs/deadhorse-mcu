@@ -2,7 +2,7 @@
 import argparse,hashlib,json,math,pathlib,re,shutil,subprocess,sys,time
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
-p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--simulator',required=True);p.add_argument('--models',required=True);p.add_argument('--environment',default='build/t43/analog-env01');p.add_argument('--verify-only',action='store_true');p.add_argument('--solver',choices=('sparse','klu'),default='sparse');p.add_argument('--variant',choices=('scan','tuned','startup'),default='scan');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--simulator',required=True);p.add_argument('--models',required=True);p.add_argument('--environment',default='build/t43/analog-env01');p.add_argument('--verify-only',action='store_true');p.add_argument('--solver',choices=('sparse','klu'),default='sparse');p.add_argument('--variant',choices=('scan','tuned','startup'),default='scan');p.add_argument('--timing-length',type=float);a=p.parse_args()
 out=(ROOT/a.output).resolve();out.relative_to(ROOT/'build');out.mkdir(parents=True,exist_ok=False)
 source=ROOT/'build/riscay-mcu/analog/gf180-lf-osc'
 revision='4671317186003740ceb61360ba08c59bbdf10136'
@@ -65,6 +65,9 @@ try:
  result['resistor_dc']=dict(expected_a=expected,observed_a=observed)
  assert abs(observed/expected-1)<1e-5,'Resistor model does not match independent DC equation'
  cases={'scan':((1,.28),(3,.28),(1,1.0)),'tuned':((1,.6),),'startup':((1,2.0),)}[a.variant]
+ if a.timing_length is not None:
+  assert a.variant=='startup' and .28<=a.timing_length<=10
+  cases=((1,a.timing_length),)
  for resistance,cap_length in cases:
   folder=out/f'r{resistance}-c{cap_length}';stage(folder)
   circuit=netlist(Design(resistor_megohm=resistance,buffer_stack=2,stages=3,timing_gate_length_um=cap_length))

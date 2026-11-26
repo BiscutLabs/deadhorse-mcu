@@ -1,7 +1,8 @@
 # LF RC macro contract
 
-Status: T34 interface and digital simulation contract; no production oscillator
-circuit, layout or qualified timing/power/trim curve is delivered. Production uses
+Status: T34 interface and digital simulation contract. T43/D111 supplies an
+experimental compact layout and limited extracted diagnostics, not a qualified
+timing/power/trim curve. Production uses
 `LfRcMacro` in `DeadhorseSoc`; `SocAnalogModelTest` substitutes `LfRcModel` only.
 No internal HF oscillator is included (D78).
 

@@ -1,7 +1,8 @@
 # POR/brownout macro contract
 
-Status: T34 interface/model only. No transistor implementation, extracted view,
-qualified detection latency or guaranteed voltage limits are supplied.
+Status: T34 interface/model contract. T43/D111 adds an experimental transistor
+layout with clocked qualification logic and checked physical connectivity;
+qualified detection latency and guaranteed voltage limits remain open.
 `PorBrownoutMacro` and `PorBrownoutModel` retain the PLAN04/T33 boundary.
 
 | Pin | Direction / width | Contract and production binding |

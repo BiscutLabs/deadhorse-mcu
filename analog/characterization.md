@@ -1,9 +1,10 @@
 # Analog characterization and physical handoff
 
-T34 defines interfaces, digital models and this plan. The characterization
-matrix below remains **unmeasured**. T43 adds the narrowly scoped nominal LF
-[reuse diagnostic](lf_rc/README.md); it does not deliver a production circuit,
-layout or close a physical gate.
+T34 defines interfaces, digital models and this plan. T43/D111 adds compact
+experimental LF/POR layouts, selected DRC/LVS, limited extracted diagnostics and
+connected chip floorplan/PDN smoke. The full characterization matrix below
+remains open. These views establish physical fit, not production electrical
+qualification or a tape-out gate. See the [T43 report](../docs/plan/tasks/reports/T43.md).
 
 ## Provenance and process boundary
 
@@ -89,8 +90,10 @@ loads, voltage domains/ESD/latch-up and antenna constraints. Implement neither
 trim storage nor new package pins without approval. Integration must close
 CTS/hold/recovery/removal/MTBF with real views; a digital model cannot do so.
 
-Missing today: all Deadhorse analog schematic/layout/extracted views, actual
-macro dimensions, characterized timing/power/accuracy, four-state power-aware
-models, trim-loading/test route and process/shuttle qualification. T34 completion
+T43/D111 now provides experimental real layouts, extracted-capacitance
+diagnostics and measured dimensions; see its report. Still missing: accepted
+resistance extraction, complete POR electrical composition, qualified
+timing/power/accuracy, four-state power-aware models, trim-loading/test route
+and process/shuttle qualification. T34 completion
 does not mark these delivered. No analog measurement or area claim follows
 from a passing digital model test.

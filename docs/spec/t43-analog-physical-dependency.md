@@ -1,12 +1,19 @@
 # T43 physical smoke dependency
 
+Historical dependency, resolved geometrically by D111. Reproducible sources
+under `analog/physical/` now generate actual LF/POR GDS and layout-derived
+LEF. The final T43 checkpoint includes both macros and all SRAMs in connected
+floorplan/padring/PDN checks. Electrical qualification is still separate and
+open; the original reuse gaps below explain why source import alone was
+insufficient. See [T43 results](../plan/tasks/reports/T43.md).
+
 The logical production top instantiates `LfRcMacro` and `PorBrownoutMacro` with
 the existing T34 interfaces. Their supply pins attach to VDD/VSS. LF enable,
 trim and test retain their hardware defaults; POR retains the live threshold
 selector and its supply-reset/brownout outputs. The approved pad-readback change
 does not alter these interfaces.
 
-Neither macro has a physical LEF, GDS or qualified dimensions in this repository.
+At the original logical-binding checkpoint neither macro had physical LEF/GDS.
 The pinned RISCay source at `4671317186003740ceb61360ba08c59bbdf10136`
 is the reuse starting point, not a missing repository. Its
 `analog/gf180-lf-osc` supplies a SPICE circuit, generator and characterization

@@ -224,3 +224,18 @@ coalesced pin reset inside held warm reset, delayed/missing clear acknowledgemen
 fresh source qualification and production sleep/wake. Analog, metastability,
 physical reset distribution, and complete multiclock policy composition remain
 outside these proofs. No unchanged timed-out legacy job was rerun.
+
+## T43 D111 physical-macro digital components
+
+Measured on `b99f75454bad2bad788872e03fbe8afbc9cf9d1d` plus receipt-hashed
+working sources, through the pinned `python tools/env/run.py run -- python3`:
+
+| Property | Command / receipt | Result | Assumptions and limits |
+| --- | --- | --- | --- |
+| Four fresh LF readiness edges; power/disable clears history | `hw/ip/osc_ctrl/formal/lf_ready_check.py --output build/t43/lf-ready-formal03` | Unbounded ABC PDR; reachable-ready cover; early-ready fault rejected. Measured job walls0.315/0.315/0.315s | Initial power_n low only; later power/enable arbitrary. Actual initializer, cell reset timing and analog ramp behavior unqualified |
+| POR minimum uninterrupted raw-good duration; epoch/cause persistence/capture; reserved threshold decode | `hw/ip/osc_ctrl/formal/por_physical_check.py --output build/t43/por-physical-formal04` | Unbounded SMT k-induction at1000edges, nine-edge generator covers, bypass fault at1000edges rejected. Measured walls0.371/0.370/0.367s | Initial cold_n low only; later inputs arbitrary. Range invariants are proved, not assumed. Does not prove minimum duration since a selector change; directed final-edge/subcycle tests cover that case |
+
+Both components received independent review. Full D85 electrical switching,
+cold initialization, pulse recognition and metastability remain analog/physical
+obligations. These results do not close T33 composition debt or qualify the
+complete POR macro. No aggregate CI ran.

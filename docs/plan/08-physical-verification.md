@@ -1,5 +1,34 @@
 # 08 Physical implementation and verification
 
+## T43 measured analog footprints and physical smoke
+
+Measured on `b99f754` plus receipt-hashed D111 sources by
+`analog/physical/write_abstracts.py` (`build/t43/analog-abstract10`) and
+`export_pdn.py` (`build/t43/pdn-export04`):
+
+| Item | Area mm2 | Provenance / status |
+| --- | ---: | --- |
+| LF RC with clocked readiness and power access | 0.0434246140 | Measured362.9x119.66um GDS footprint; experimental electrical status |
+| POR/brownout with clocked qualifier and power access | 0.1715441884 | Measured480.22x357.22um GDS footprint; experimental electrical status |
+| Combined analog | 0.2149688024 | Measured footprint sum; previous assumption0.25 |
+| Revised T35 total | **11.3155161679** | Estimated11.3505473655-0.25+0.2149688024 |
+| Headroom against12.92 | **1.6044838321** | Estimated12.92-total |
+
+POR is0.0215441884mm2 above its former assumed0.15 entry; LF is
+0.0565753860mm2 below its assumed0.10 entry. These replace planning estimates,
+not independent hard-area limits. Digital utilization, scan, pads and physical
+halo/glue allowances remain unchanged. Macro rings/clearances fit the actual
+floorplan; no global minimum-area or post-route headroom claim is made.
+
+The complete Deadhorse floorplan/padring/PDN smoke includes sixteen main SRAMs,
+four retained SRAMs and both real analog macros, with checked20um assumed
+halos. Measured snapped core rectangle is442.4,442.96 to3489.92,4676.56um;
+the planning ceiling remains12.92mm2. VDD/VSS network checks report zero
+violations. Local analog-metal/PDN semantic overlap and selected geometry DRC
+pass; full placement/routing, density/antenna, IR/EM and electrical qualification
+remain T38/signoff work. See the [T43 report](tasks/reports/T43.md) for commands,
+source hashes, diagnostic failures and unresolved analog items.
+
 ## T43 matched PDK reproduction
 
 The T42 budget below is reproduced unchanged by old/new PDK mapping and the
@@ -381,7 +410,8 @@ route from G1, and the region stays a placement blockage until delivery or the c
 
 ## Analog and mixed-signal deliverables
 
-None of these has a qualified Deadhorse layout today. D42 selects wafer.space
+T43 supplies actual experimental LF/POR layouts and connected physical smoke;
+complete analog electrical qualification remains open. D42 selects wafer.space
 GF180MCU 1x1, date open; verify actual slot/pad rules, SRAM and library acceptance
 and analog process options against the pinned official template/PDK before signoff.
 
