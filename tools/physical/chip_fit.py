@@ -102,7 +102,7 @@ def main():
         unplaced_count=len(unplaced), outside_core_count=len(outside),
         flow_placement_violations=metrics['design__violations'], macros=macros,
         input_sha256={str(q.relative_to(ROOT)): sha(q) for q in inputs}, geometry_sha256=sha(geometry_path),
-        scope='Measured placement geometry and sums of clipped footprints, not a computed geometric union. Ratios/remainder are arithmetic estimates from those measurements. No routing, DRC/LVS, scan fit, electrical or timing signoff. Remainder includes necessary routing/keepout space.')
+        scope='Measured placement geometry and sums of clipped footprints, not a computed geometric union. Ratios/remainder are arithmetic estimates from those measurements. No routing, DRC/LVS, fault-coverage, electrical or timing signoff. Remainder includes necessary routing/keepout space.')
     (out / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
     print('PASS placed geometry and macro inventory; result.json written')
 
@@ -125,7 +125,7 @@ def render(out):
     font = ImageFont.load_default(size=22)
     small = ImageFont.load_default(size=17)
     draw.text((margin, 28), 'Deadhorse MCU | preliminary placement', font=title, fill='#162438')
-    draw.text((margin, 80), 'Pre-scan fit study - routing and DRC deferred', font=font, fill='#536174')
+    draw.text((margin, 80), 'Placed fit study - routing and DRC deferred', font=font, fill='#536174')
 
     def pixels(rect):
         return (margin + (rect[0] - die[0]) * scale, top + (die[3] - rect[3]) * scale,

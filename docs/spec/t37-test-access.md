@@ -151,3 +151,37 @@ controller RTL under this contract. Its required corrections—independent lanes
 polarity-aware parking, two-phase capture, sampled entry inputs, and shared
 negative-edge reset release—are incorporated. Whole-chip implementation and
 replacement evidence still require separate review.
+
+## Pattern and physical-replay artifacts
+
+`tools/physical/scan_campaign.py` produces packed vector files under `build/`.
+Bit `j` of each integer is vector `j` within that batch. `state` assigns all
+scanned Q nets; `pads` lists only legal free input-pad drives. Other pads are
+undriven. `fixed_fixture` describes capture/park values, not shift overrides:
+enter by the protocol above, raise SE for serial loading, lower SE with OSC_IN
+parked low, capture on the rising then falling OSC_IN edges, then raise SE for
+unload. Test reset remains inactive during loading, capture and unloading.
+The final batch's `patterns` count excludes unused packed bits.
+
+The authenticated insertion `chains.json` lists each lane from SI to SO.
+Load each lane in reverse order, with leading zero padding to the longest
+lane. Observe its tail first on unload. Campaign replay checks these actual
+SI/Q connections with the loaded and captured values; it does not use a new
+assumption that scan state is controllable. No shift frequency is qualified by
+these zero-delay artifacts.
+
+The fault inventory lists both stuck-at values for every physical signal pin,
+with clock/reset/shift, access-controller, pad/macro and control-cone exclusions
+explicit. Supplies are separately counted outside the digital stuck-at model.
+Unknown responses, timeouts and undetected faults are unresolved; none is
+silently called untestable. Persistent input-pin faults affect that branch;
+output-pin faults affect the stem in both capture phases. The falling capture
+uses the faulted rising state. Expanded Boolean gates are never fault sites.
+
+After physical implementation, the pin-root/primitive audit transports only
+the original-site logical witnesses through qualified buffers and drive
+variants. Every newly added signal pin is separately inventoried as unresolved.
+This composition is neither a new electrical simulation nor timing signoff.
+Manufacturing capture timing must not borrow functional multicycle exceptions
+whose enable-cadence or reachable-state premises are disrupted by arbitrary
+scan loading. Qualify functional, shift and two-phase capture modes separately.

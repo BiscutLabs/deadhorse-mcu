@@ -5,6 +5,7 @@ original inverters during CTS inverter replication. All limits remain upstream.
 """
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 
@@ -51,7 +52,8 @@ class PreservedCTS(openroad.CTS):
     id = 'T38.CTS'
 
     def get_script_path(self):
-        mapped = ROOT / 'build/t38/map07/physical.json'
+        mapped = Path(os.environ.get('CHIP_PRESERVE_MAP', str(ROOT / 'build/t38/map07/physical.json'))).resolve()
+        mapped.relative_to(ROOT / 'build')
         receipt_path = mapped.parent / 'result.json'
         receipt = json.loads(receipt_path.read_text())
         assert receipt['status'] == 'pass'
@@ -122,4 +124,9 @@ class T38Chip(Flow.factory.get('Chip').Substitute({
 
 
 if __name__ == '__main__':
+    # The pinned CLI snapshots registered flows when imported, before the
+    # decorators above run. Refresh only that option's existing choice list.
+    import click
+    option = next(p for p in cli.params if p.name == 'flow_name')
+    option.type = click.Choice(Flow.factory.list(), case_sensitive=False)
     cli()

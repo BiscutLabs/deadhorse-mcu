@@ -15,7 +15,7 @@ import time
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 
-def replay(graph, chain_rows, seed, mutate=False):
+def replay(graph, chain_rows, seed, mutate=False, desired_values=None, captured_values=None):
     mask=(1<<64)-1
     rng=random.Random(seed)
     names=sorted(n for row in chain_rows for n in row['cells'])
@@ -30,6 +30,9 @@ def replay(graph, chain_rows, seed, mutate=False):
         elif pin in si:predecessors.append(si[pin])
         else:raise ValueError('Unmodelled scan input')
     desired=[rng.getrandbits(64) for _ in names]
+    if desired_values is not None:
+        if set(desired_values)!=set(names):raise ValueError('Incomplete tester load vector')
+        desired=[desired_values[n] for n in names]
     state=[rng.getrandbits(64) for _ in names]+[0]*7
     longest=max(len(r['cells']) for r in chain_rows)
     lanes=[[index[n] for n in row['cells']] for row in chain_rows]
@@ -52,6 +55,10 @@ def replay(graph, chain_rows, seed, mutate=False):
             state[len(names)+lane]=desired[order[position]] if position<len(order) else 0
         state=[state[p] for p in predecessors]+[0]*7
     if state[:len(names)]!=desired:raise ValueError('Serial load differs from arbitrary assigned state')
+    if captured_values is not None:
+        if set(captured_values)!=set(names):raise ValueError('Incomplete capture response')
+        desired=[captured_values[n] for n in names]
+        state=desired+[0]*7
     for cycle in range(longest):
         for lane,order in enumerate(lanes):
             expected=desired[order[-cycle-1]] if cycle<len(order) else 0
