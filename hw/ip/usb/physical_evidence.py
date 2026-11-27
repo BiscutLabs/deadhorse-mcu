@@ -110,8 +110,15 @@ def collect(manifest_path, emission, output):
     if not required<=sealed:raise ValueError('Seal belongs to another/incomplete candidate')
     inputs = bind(physical/'inputs.json')
     actual = {p.name: sha(p) for p in Path(emission).glob('*') if p.suffix in ('.sv', '.v')}
+    emission_compatibility = None
     if actual != inputs['emission_equality']['files']:
-        raise ValueError('Routed model differs from fresh production emission')
+        from physical_emission import compatible
+        historical = local(inputs['emission_equality']['fresh'])
+        historical.relative_to(ROOT/'build')
+        emission_compatibility = compatible(Path(emission), historical, inputs['emission_equality']['files'])
+        closure[str(Path(__file__).with_name('physical_emission.py'))] = sha(Path(__file__).with_name('physical_emission.py'))
+        for row in emission_compatibility['changed']:
+            closure[str(historical/row['file'])] = row['historical_sha256']
     for p in Path(emission).glob('*'):
         if p.suffix in ('.sv', '.v'):
             closure[str(p.resolve())] = sha(p)
@@ -210,6 +217,7 @@ def collect(manifest_path, emission, output):
         raise ValueError('Bus boundary audit failed')
     hashes(dict(closure))
     result = dict(status='pass', corners=summaries, input_sha256=closure,
+                  emission_compatibility=emission_compatibility,
                   bus_scope=bus['scope'], qualification_limits=[
                       'Standalone USB internal physical timing and separate two-way bus fixture; no combined-placement internal or whole-chip signoff',
                       'Pad/board electrical, analog metastability, reset pulse/glitch characterization and upstream source-control sequencing remain tape-out obligations'],

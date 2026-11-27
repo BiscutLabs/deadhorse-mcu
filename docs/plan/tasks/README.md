@@ -63,6 +63,7 @@ checkpoints; current progress and evidence live only in STATUS.
 | T41 | [Reset consolidation](T41-reset-consolidation.md) | D103; completed PLAN05/T36; T33/T34/T32 | Queued on its own branch; commit independently reviewed inventory before RTL; scoped checks/no aggregate CI; acceptance unverified |
 | T42 | [Lite boot-transfer latency](T42-lite-boot-transfer.md) | D104; PLAN05; coordinate T41 | Queued investigation; restore250ms maximum-image target; hardware proposal requires approval |
 | T43 | [wafer.space template and PDK](T43-wafer-space-physical-base.md) | D105; post-PLAN05 production; prerequisite for T38 | Separate branch; pin/migrate/compare and logical pad top only; scoped checks; pad/SRAM decisions and acceptance unverified |
+| T44 | [Reset timing and distribution](T44-reset-distribution.md) | D113; current main baseline; T38 cts02 methodology | Pauses T37; unchanged-main fast baseline, committed inventory, reviewed contract, resetless payload/distribution and physical checks; acceptance unverified |
 | S2 | Interconnect study | n/a | Withdrawn by D43 |
 | S3 | [Memory](S-spikes.md#s3-memory) | T02, T07, T08 | Modeling can precede S1 |
 | S4 | [Latency/test](S-spikes.md#s4-latency-and-test-access) | S1, T08, T09 | Architecture approved; coverage unmeasured |
@@ -80,6 +81,10 @@ those tasks run. A written acceptance command is not an implemented tool.
 Missing tools cannot be skipped to claim success.
 
 ## Remaining implementation order
+
+D113 places T44 reset timing/distribution ahead of further T37 work. Use a new
+branch from current main, excluding the inserted-scan candidate and rejected
+delay-cell experiment. T37 remains paused until T44 acceptance.
 
 D88/D89 place the finite T39 existing-regression campaign before T38 acceptance;
 broader ISA/ISS and coverage work remains deferred. Existing T32/T33

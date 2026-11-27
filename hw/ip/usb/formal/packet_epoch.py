@@ -344,19 +344,25 @@ def resume_upper(output, prior_path):
     return receipt
 
 
-def audit_epoch(output, paths, anchors):
+def audit_epoch(output, paths, anchors, cdc_binding=None):
     """Audit accepted partial claims, without launching a solver or CI."""
     output=output.resolve();output.relative_to(ROOT/'build');output.mkdir(parents=True,exist_ok=False)
     result=dict(status='running',audit=dict(status='running'),claims=[],inputs={},monitors={},
                 auditor_sha256=digest(Path(__file__)),ci='not run by user instruction')
     own=str(Path(__file__).relative_to(ROOT));harness='hw/ip/usb/formal/UsbPacketEpoch.scala'
     try:
+        cdc_qualified = False
+        if cdc_binding is not None:
+            from packet_cdc_binding import validate, CDC
+            result['inputs'].update(validate(cdc_binding, paths, anchors))
+            cdc_qualified = True
         authentic=[]
         for path in anchors:
             path=path.resolve();row=json.loads(path.read_text())
             for p,h in row['source_sha256'].items():
                 source=path.parent/'runner.py' if p==own else ROOT/p
-                if digest(source)!=h:raise ValueError('Changed emission anchor: '+p)
+                if digest(source)!=h and not (cdc_qualified and p==CDC):
+                    raise ValueError('Changed emission anchor: '+p)
             for p,h in row['emitted_sha256'].items():
                 if digest(p)!=h:raise ValueError('Changed anchor HDL')
             authentic.append(row);result['inputs'][str(path)]=digest(path)
@@ -366,6 +372,7 @@ def audit_epoch(output, paths, anchors):
             for p,h in row['source_sha256'].items():
                 source=path.parent/'runner.py' if p==own else ROOT/p
                 if digest(source)==h:continue
+                if cdc_qualified and p==CDC:continue
                 if p!=harness:raise ValueError('Changed proof source: '+p)
                 emitted={Path(p).name:h for p,h in row['emitted_sha256'].items() if '/emit/correct/' in p}
                 if not emitted:raise ValueError('Missing historical positive emission')

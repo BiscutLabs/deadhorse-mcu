@@ -17,6 +17,53 @@ def environment_digest(path):
     return hashlib.sha256(content).hexdigest()
 
 
+# T41 RegBlock local bindings renamed only eight internal pulse registers.
+# Fresh T44 WRITE/READ/RECOVER emissions were compared to every retained model.
+# Keep this exact transition, not a generic emitted-model normalization.
+REGBLOCK_RENAMES = {
+    f'readFields_hw_command_{name}_pulse_REG': 'readFields_pulse'+suffix
+    for name,suffix in zip(('start','write','read','stop','recover','apply','ack','pop'),
+                          ('','_1','_2','_3','_4','_5','_6','_7'))
+}
+REGBLOCK_HASH_PAIRS = {
+    '4baca86cf60ecc26b6c64cc358414ca124727e01704e9a0bc1d024b51d150f8c':
+        '728fba7f4393998b6dfa58480231712cdafc39754d99162ecf91a15ff3b4fa4c',
+    '6720d2abb7a2ff83836dd7974fc8938806ddbc6cc1cdfd801760c4a30b6af411':
+        '7c173c372fbeeaa3ec53cde9a8169e83b91b2cc16e48944ea4e624a9fe7b1e01',
+    'e7bb513185362ae5288aaf10623cde757faa6c8fadf40ba0a903929e8a81b402':
+        'e3153d51fc855d26421c57120de34aa0adf8347859c8a1c90f050977096fa28d',
+}
+
+
+def reviewed_regblock_rename(original, current, files, root):
+    if set(original)!=set(current) or files is None or set(files)!=set(current):
+        return None
+    if {name for name in original if original[name]!=current[name]}!={'RegBlock.sv'}:
+        return None
+    if REGBLOCK_HASH_PAIRS.get(original['RegBlock.sv'])!=current['RegBlock.sv']:
+        return None
+    root=Path(root).resolve()
+    for name,path in files.items():
+        path=Path(path).resolve();path.relative_to(root/'build')
+        if path.name!=name or digest(path)!=current[name]:
+            raise ValueError('Changed actual emitted model: '+name)
+    content=Path(files['RegBlock.sv']).read_bytes()
+    reverse={v.encode():k.encode() for k,v in REGBLOCK_RENAMES.items()}
+    if len(reverse)!=len(REGBLOCK_RENAMES):raise ValueError('Non-bijective rename witness')
+    token=re.compile(rb'[A-Za-z_$][A-Za-z_0-9$]*')
+    identifiers=set(token.findall(content))
+    if not set(reverse)<=identifiers or set(reverse.values())&identifiers:
+        raise ValueError('Missing or colliding rename identity')
+    restored=token.sub(lambda m:reverse.get(m[0],m[0]),content)
+    if hashlib.sha256(restored).hexdigest()!=original['RegBlock.sv']:
+        raise ValueError('Changed model beyond reviewed internal-register renaming')
+    return dict(kind='T44 exact RegBlock internal-identifier bijection',
+                original_source_sha256=original,actual_source_sha256=current,
+                identifiers=REGBLOCK_RENAMES,
+                qualification='Byte-identical after the explicit identifier bijection; '
+                              'historical TIMEOUT remains unproved, no solver rerun.')
+
+
 def reviewed_openocd_extension(path, original, current):
     """Exact T32 additive lock transition; never a generic tool-change waiver.
 
@@ -79,7 +126,7 @@ def load_policy(path, allowed_ids):
     return entries
 
 
-def authenticate(entry, identity, sources, root, environment_lock=None):
+def authenticate(entry, identity, sources, root, environment_lock=None, source_files=None):
     original_identity=identity
     compatibility=None
     differences={k for k in entry['identity'].keys() | identity.keys() if entry['identity'].get(k)!=identity.get(k)}
@@ -88,7 +135,10 @@ def authenticate(entry, identity, sources, root, environment_lock=None):
             entry['identity']['environment_sha256'],identity['environment_sha256'])
         if compatibility:
             original_identity=dict(identity,environment_sha256=entry['identity']['environment_sha256'])
-    if entry['identity']!=original_identity or entry['source_sha256']!=sources:
+    model_compatibility=None
+    if entry['identity']==original_identity and entry['source_sha256']!=sources:
+        model_compatibility=reviewed_regblock_rename(entry['source_sha256'],sources,source_files,root)
+    if entry['identity']!=original_identity or (entry['source_sha256']!=sources and not model_compatibility):
         raise ValueError('Retained deferral model/job mismatch; focused review and a changed-model attempt required: '+entry['id'])
     root=Path(root).resolve(); available={}
     for name,artifact in entry['provenance'].items():
@@ -105,7 +155,7 @@ def authenticate(entry, identity, sources, root, environment_lock=None):
     if available['receipt']:
         original=json.loads((root/entry['provenance']['receipt']['path']).read_text())
         rows=[row for case in original.get('cases',{}).values() for row in case.get('jobs',[]) if row.get('id')==entry['id']]
-        if len(rows)!=1 or rows[0].get('solver_status')!='TIMEOUT' or rows[0].get('returncode')!=8 or rows[0].get('retained',False) or rows[0].get('source_sha256')!=sources:
+        if len(rows)!=1 or rows[0].get('solver_status')!='TIMEOUT' or rows[0].get('returncode')!=8 or rows[0].get('retained',False) or rows[0].get('source_sha256')!=entry['source_sha256']:
             raise ValueError('Original receipt does not contain the bound timeout attempt')
         if any(rows[0].get(key)!=original_identity[key] for key in ('mode','engine','depth')):
             raise ValueError('Original receipt solver identity differs')
@@ -113,4 +163,5 @@ def authenticate(entry, identity, sources, root, environment_lock=None):
             raise ValueError('Original receipt full job identity differs')
     return dict(status='deferred_unproved',retained=True,solver_rerun=False,
                 historical_artifacts_available=available,original_provenance=entry['provenance'],
-                original_identity=entry['identity'],environment_compatibility=compatibility)
+                original_identity=entry['identity'],environment_compatibility=compatibility,
+                model_compatibility=model_compatibility)

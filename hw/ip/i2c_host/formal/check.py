@@ -79,13 +79,15 @@ def run(output, regmap):
                 if ident in retained:
                     row=dict(id=ident,mode=mode,engine=engine,depth=config['depth'],identity=identity,
                         source_sha256=source_hashes,seconds=0,
-                        **authenticate(retained[ident],identity,source_hashes,ROOT,ROOT/'tools/env/lock.json'))
+                        **authenticate(retained[ident],identity,source_hashes,ROOT,ROOT/'tools/env/lock.json',
+                                       {p.name:p for p in sources}))
                     entry['jobs'].append(row)
                     receipt['deferred'].append(dict(id=ident,status='deferred_unproved',
                         reason='Reviewed matching-model timeout retained; solver not rerun',
                         scope=config['scope'],original_provenance=row['original_provenance'],
                         historical_artifacts_available=row['historical_artifacts_available'],
-                        environment_compatibility=row['environment_compatibility']))
+                        environment_compatibility=row['environment_compatibility'],
+                        model_compatibility=row['model_compatibility']))
                     print(ident+': deferred_unproved (retained matching-model timeout)',flush=True)
                     continue
                 row=command(['sby','-d',str(directory/variant),str(path)],directory/(variant+'.log'))

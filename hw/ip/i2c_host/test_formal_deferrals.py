@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[3]
 spec=importlib.util.spec_from_file_location('i2c_deferred',Path(__file__).parent/'formal/deferred.py')
@@ -177,6 +178,63 @@ class RetainedDeferralTest(unittest.TestCase):
         artifact=self.root/self.entry['provenance']['log']['path'];artifact.write_bytes(b'tampered')
         with self.assertRaisesRegex(ValueError,'hash mismatch'):
             deferred.authenticate(self.entry,current,self.sources,self.root,path)
+
+    def rename_fixture(self):
+        # Opaque receipt-tool fixtures, not RTL behavior tests or HDL models.
+        before=('fixture reset-value=0; assertion=original;\n'+'\n'.join(
+            deferred.REGBLOCK_RENAMES)+'\n').encode()
+        after=('fixture reset-value=0; assertion=original;\n'+'\n'.join(
+            deferred.REGBLOCK_RENAMES.values())+'\n').encode()
+        def sha(b):return hashlib.sha256(b).hexdigest()
+        source=self.root/'build'/'RegBlock.sv';source.write_bytes(after)
+        prop=self.root/'build'/'Property.sv';prop.write_bytes(b'original property fixture\n')
+        old={'RegBlock.sv':sha(before),'Property.sv':deferred.digest(prop)}
+        new=dict(old,**{'RegBlock.sv':sha(after)})
+        self.entry['source_sha256']=old
+        path=self.root/self.entry['provenance']['receipt']['path']
+        receipt=json.loads(path.read_text())
+        receipt['cases']['recover']['jobs'][0]['source_sha256']=old
+        path.write_text(json.dumps(receipt));self.entry['provenance']['receipt']['sha256']=deferred.digest(path)
+        return old,new,{'RegBlock.sv':source,'Property.sv':prop}
+
+    def test_exact_rename_authenticates_original_timeout_and_current_files(self):
+        old,new,files=self.rename_fixture()
+        with patch.object(deferred,'REGBLOCK_HASH_PAIRS',{old['RegBlock.sv']:new['RegBlock.sv']}):
+            row=deferred.authenticate(self.entry,self.identity,new,self.root,source_files=files)
+            self.assertEqual(row['status'],'deferred_unproved')
+            self.assertFalse(row['solver_rerun'])
+            self.assertEqual(row['model_compatibility']['original_source_sha256'],old)
+            self.assertEqual(row['model_compatibility']['actual_source_sha256'],new)
+            self.assertTrue(all(row['historical_artifacts_available'].values()))
+            with self.assertRaisesRegex(ValueError,'model/job mismatch'):
+                deferred.authenticate(self.entry,self.identity,new,self.root)
+            with self.assertRaisesRegex(ValueError,'model/job mismatch'):
+                deferred.authenticate(self.entry,dict(self.identity,depth=128),new,self.root,source_files=files)
+
+    def test_rename_cannot_hide_changed_reset_or_assertion_even_with_a_replaced_pair(self):
+        old,new,files=self.rename_fixture();source=files['RegBlock.sv'];original=source.read_bytes()
+        for needle,replacement in ((b'reset-value=0',b'reset-value=1'),
+                                   (b'assertion=original',b'assertion=weakened')):
+            source.write_bytes(original.replace(needle,replacement))
+            changed=dict(new,**{'RegBlock.sv':deferred.digest(source)})
+            with patch.object(deferred,'REGBLOCK_HASH_PAIRS',{old['RegBlock.sv']:changed['RegBlock.sv']}):
+                with self.assertRaisesRegex(ValueError,'beyond reviewed'):
+                    deferred.authenticate(self.entry,self.identity,changed,self.root,source_files=files)
+
+    def test_rename_rejects_other_model_changes_and_forged_file_hashes(self):
+        old,new,files=self.rename_fixture()
+        with patch.object(deferred,'REGBLOCK_HASH_PAIRS',{old['RegBlock.sv']:new['RegBlock.sv']}):
+            files['Property.sv'].write_bytes(b'changed assertion fixture\n')
+            with self.assertRaisesRegex(ValueError,'Changed actual emitted model'):
+                deferred.authenticate(self.entry,self.identity,new,self.root,source_files=files)
+            changed=dict(new,**{'Property.sv':deferred.digest(files['Property.sv'])})
+            with self.assertRaisesRegex(ValueError,'model/job mismatch'):
+                deferred.authenticate(self.entry,self.identity,changed,self.root,source_files=files)
+
+    def test_unreviewed_rename_pair_fails_closed(self):
+        old,new,files=self.rename_fixture()
+        with self.assertRaisesRegex(ValueError,'model/job mismatch'):
+            deferred.authenticate(self.entry,self.identity,new,self.root,source_files=files)
 
 
 if __name__=='__main__': unittest.main()

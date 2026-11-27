@@ -331,11 +331,13 @@ def collect(manifest_path,output):
         result['flow_sha256']={p.relative_to(ROOT).as_posix():digest(p) for p in flow}
         manifest=json.loads(manifest_path.read_text())
         required={'schema','receipts','anchors','sie_proof','sie_binding','sie_archive','full_size_simulation'}
-        if set(manifest)!=required or manifest['schema']!=1:raise ValueError('Unknown/incomplete USB evidence manifest')
+        if set(manifest) not in (required, required | {'cdc_binding'}) or manifest['schema']!=1:
+            raise ValueError('Unknown/incomplete USB evidence manifest')
         if any(not isinstance(manifest[k],list) or not manifest[k] or not all(isinstance(p,str) for p in manifest[k]) for k in ('receipts','anchors')):
             raise ValueError('Missing packet evidence')
         paths=[local(p,True) for p in manifest['receipts']];anchors=[local(p,True) for p in manifest['anchors']]
-        audit=audit_epoch(output/'packet-audit',paths,anchors)
+        cdc_binding=local(manifest['cdc_binding'],True) if 'cdc_binding' in manifest else None
+        audit=audit_epoch(output/'packet-audit',paths,anchors,cdc_binding)
         if audit.get('audit',{}).get('status')!='pass':raise ValueError('Packet artifact audit failed: '+audit.get('error','unknown error'))
         result['sie']=sie_evidence(*(local(manifest[k],True) for k in ('sie_proof','sie_binding','sie_archive')))
         result['full_size_simulation']=full_size_evidence(local(manifest['full_size_simulation'],True))
@@ -343,6 +345,7 @@ def collect(manifest_path,output):
         result['packet_audit_sha256']=digest(output/'packet-audit/result.json')
         result['inputs']={str(p):digest(p) for p in [*paths,*anchors,*(local(manifest[k],True) for k in
                        ('sie_proof','sie_binding','sie_archive','full_size_simulation'))]}
+        if cdc_binding is not None:result['inputs'][str(cdc_binding)]=digest(cdc_binding)
         check_hashes(result['flow_sha256'])
         if digest(manifest_path)!=result['manifest_sha256']:raise ValueError('Manifest changed during audit')
     except Exception as error:result.update(status='failed',error=str(error))
