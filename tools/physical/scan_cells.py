@@ -142,3 +142,33 @@ def qualify(cells, old, new):
     return dict(old=old, new=new, clock_inversion_required=negative,
                 exhaustive_assignments=rows,
                 proof='Identical clock-event, next-state, async clear/preset and Q functions with SE=0 and identical IQ state; induction over events preserves state/output. SE=1 loads SI when asynchronous control is inactive. Analog timing excluded.')
+
+
+def qualify_gate(body):
+    """Qualify ICG TE semantics, including its low-phase state update."""
+    table=list(groups(body,'statetable'))
+    if len(table)!=1 or re.sub(r'[\s\"]','',table[0][0])!='CLKETE,IQ2IQN2':
+        raise ValueError('Changed ICG state table ports')
+    text=re.search(r'table\s*:\s*"(.*?)"\s*;',table[0][1],re.S)
+    if text is None:raise ValueError('Missing ICG state table')
+    rows=[]
+    for row in text[1].replace('\\','').split(','):
+        parts=[p.split() for p in row.split(':')]
+        if list(map(len,parts))!=[3,2,2]:raise ValueError('Unsupported ICG row')
+        if any(x not in ('L','H','-') for x in parts[0]+parts[1]) or any(x not in ('L','H','N') for x in parts[2]):
+            raise ValueError('Unsupported ICG table symbol')
+        rows.append(parts)
+    pins=dict(groups(body,'pin'))
+    q=re.search(r'function\s*:\s*"([^"]+)"',pins['Q'])
+    if q is None:raise ValueError('Missing ICG output function')
+    for clk,e,te,previous in itertools.product((False,True),repeat=4):
+        current=[previous,not previous];values=[clk,e,te]+current;matches=[]
+        for ins,state,out in rows:
+            if all(s=='-' or (s=='H')==v for s,v in zip(ins+state,values)):
+                matches.append([current[i] if s=='N' else s=='H' for i,s in enumerate(out)])
+        expected=previous if clk else e or te
+        if not matches or any(v!=[expected,not expected] for v in matches):
+            raise ValueError('Changed ICG TE/enable/hold semantics')
+        actual=expression(q[1],dict(CLK=clk,E=e,TE=te,IQ2=expected,IQN2=not expected))
+        if actual!=(clk and expected):raise ValueError('Changed ICG clock output')
+    return 'TE=1 loads open state during CLK=0; Q follows CLK thereafter. Parked-low entry/exit and enable setup/hold remain physical obligations.'
