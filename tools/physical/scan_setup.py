@@ -15,6 +15,8 @@ from scan_capture import sha
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('config','insert','manifest','header','output'):p.add_argument('--'+name,type=Path,required=True)
+    p.add_argument('--exclude-delay-cells',action='store_true',
+                   help='Exclude only dlyb_1/2/4 from electrical repair; other delay families remain eligible')
     a=p.parse_args();out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);start=time.monotonic()
     ins=json.loads((a.insert/'result.json').read_text());m=json.loads(a.manifest.read_text())
     if ins['status']!='pass_unplaced_insertion':raise ValueError('Unqualified insertion')
@@ -40,6 +42,9 @@ def main():
     cfg=json.loads(a.config.read_text());cfg['VERILOG_FILES']=[str((a.insert/'scan.v').resolve())]
     for k in ('PNR_SDC_FILE','SIGNOFF_SDC_FILE','FALLBACK_SDC'):cfg[k]=str(out/'construction.sdc')
     cfg['PL_TIMING_DRIVEN']=False;cfg['RUN_POST_CTS_RESIZER_TIMING']=False
+    if a.exclude_delay_cells:
+        cfg['EXTRA_EXCLUDED_CELLS']=sorted(set(cfg.get('EXTRA_EXCLUDED_CELLS') or []) |
+            {'gf180mcu_fd_sc_mcu7t5v0__dlyb_'+str(drive) for drive in (1,2,4)})
     (out/'config.json').write_text(json.dumps(cfg,indent=2))
     (out/'initial.json').write_text(json.dumps(dict(nl=str((a.insert/'scan.v').resolve()),sdc=str(out/'construction.sdc'),json_h=str(a.header.resolve()))))
     (out/'roots.json').write_text(json.dumps({n:drivers[n] for n in sorted(roots)},indent=2))

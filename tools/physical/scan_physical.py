@@ -94,7 +94,7 @@ def main():
         original_signature=chip_inspect.signature
         chip_inspect.signature=lambda body:original_signature(without_test_cell(body))
         pairs={(r['old'],r['new']) for r in audit['replacements'].values()}
-        buffers=[kind for kind in audit['added_cells'] if any('__'+f+'_' in kind for f in ('buf','clkbuf','inv','clkinv','dlyb'))]
+        buffers=[kind for kind in audit['added_cells'] if any('__'+f+'_' in kind for f in ('buf','clkbuf','inv','clkinv','dlyb','dlyc'))]
         result['library_sha256']=chip_inspect.qualify_sizes(pairs,False,buffers)
         # Actual pin mutations must break correspondence, including scan order.
         victim=next(i for i in block.getInsts() if '__sdff' in i.getMaster().getName())
@@ -106,6 +106,18 @@ def main():
             except AssertionError:controls.append(label)
             else:raise ValueError('Changed physical pin accepted '+label)
             finally:term.connect(old);victim.setDoNotTouch(prior)
+        # Qualifying a delay cell as logically transparent must not hide a
+        # wrong physical connection. Exercise the actual added cell, not a
+        # synthetic JSON graph. Its delay still participates in STA.
+        delay=next((i for i in block.getInsts() if '__dlyc_' in i.getMaster().getName()
+                    and logical(i.getName()) not in design['cells']),None)
+        if delay is not None:
+            pin=delay.findITerm('I');old=pin.getNet();prior=delay.isDoNotTouch()
+            delay.setDoNotTouch(False);pin.connect(delay.findITerm('Z').getNet())
+            try:chip_inspect.inspect(design,block)
+            except AssertionError:controls.append('inserted-dlyc-cycle')
+            else:raise ValueError('Changed delay-cell input accepted')
+            finally:pin.connect(old);delay.setDoNotTouch(prior)
         supply=block.findBTerm('DVDD');old_type=str(supply.getSigType())
         supply.setSigType('SIGNAL')
         try:power(block)
@@ -145,7 +157,7 @@ def main():
                 maximum=max(maximum,len(inputs))
                 for t in inputs:
                     inst=t.getInst();kind=inst.getMaster().getName()
-                    if t.getMTerm().getName()=='I' and re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__(?:buf|clkbuf|inv|clkinv|dlyb)_\d+',kind):
+                    if t.getMTerm().getName()=='I' and re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__(?:buf|clkbuf|inv|clkinv|dlyb|dlyc)_\d+',kind):
                         buffers.add(inst.getName());outpin='ZN' if 'inv_' in kind else 'Z';n=inst.findITerm(outpin).getNet()
                         if n is not None:todo.append(n)
                     else:loads+=1

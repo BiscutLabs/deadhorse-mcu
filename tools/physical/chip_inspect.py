@@ -30,9 +30,9 @@ def qualify_sizes(pairs, has_diodes=False, inserted_buffers=()):
         inputs[str(library.relative_to(ROOT))] = digest
         cells = dict(groups(raw.decode(), 'cell'))
         for name in inserted_buffers:
-            match = re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__(clkbuf|buf|clkinv|inv|dlyb)_([1-9][0-9]*)', name)
+            match = re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__(clkbuf|buf|clkinv|inv|dlyb|dlyc)_([1-9][0-9]*)', name)
             assert match
-            family = 'buf' if match[1] == 'dlyb' else match[1]
+            family = 'buf' if match[1] in ('dlyb', 'dlyc') else match[1]
             reference = 'gf180mcu_fd_sc_mcu7t5v0__' + family + '_1'
             assert signature(cells[name]) == signature(cells[reference]), ('Changed buffer function', name, library)
         if has_diodes:
@@ -43,7 +43,7 @@ def qualify_sizes(pairs, has_diodes=False, inserted_buffers=()):
             a = re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__(\w+)_([1-9][0-9]*)', old)
             b = re.fullmatch(r'gf180mcu_fd_sc_mcu7t5v0__(\w+)_([1-9][0-9]*)', new)
             assert a and b
-            assert (a[1] == b[1] or {a[1], b[1]} <= {'buf', 'clkbuf', 'dlya', 'dlyb'}
+            assert (a[1] == b[1] or {a[1], b[1]} <= {'buf', 'clkbuf', 'dlya', 'dlyb', 'dlyc'}
                     or {a[1], b[1]} <= {'inv', 'clkinv'}), ('Different cell families', old, new)
             left, right = signature(cells[old]), signature(cells[new])
             assert left == right, ('Changed logical/sequential semantics', old, new, library)
@@ -82,7 +82,7 @@ def inspect(original, block):
         if not pins:
             continue
         short = kind.removeprefix('gf180mcu_fd_sc_mcu7t5v0__')
-        if re.fullmatch(r'(?:clkbuf|buf|clkinv|inv|dlyb)_[1-9][0-9]*', short):
+        if re.fullmatch(r'(?:clkbuf|buf|clkinv|inv|dlyb|dlyc)_[1-9][0-9]*', short):
             assert set(pins) == {'I', 'ZN' if 'inv_' in short else 'Z'}, (name, pins)
             extra_logic[name] = ('buffer', pins['I'], int('inv_' in short))
         elif short in ('tieh', 'tiel'):
@@ -227,7 +227,7 @@ def main():
     audit['sizing_library_sha256'] = qualify_sizes(
         {(v['old'], v['new']) for v in audit['replacements'].values()}, bool(audit['passive_diodes']),
         [name for name in audit['added_cells'] if re.fullmatch(
-            r'gf180mcu_fd_sc_mcu7t5v0__(?:clkbuf|buf|clkinv|inv|dlyb)_[1-9][0-9]*', name)])
+            r'gf180mcu_fd_sc_mcu7t5v0__(?:clkbuf|buf|clkinv|inv|dlyb|dlyc)_[1-9][0-9]*', name)])
     # An actual altered physical input must fail, not merely a JSON edit.
     victim = next(i for i in block.getInsts() if i.getName() in design['cells'] and i.findITerm('D'))
     pin = victim.findITerm('D')
